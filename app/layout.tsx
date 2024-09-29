@@ -1,8 +1,14 @@
+/* eslint-disable @next/next/no-sync-scripts */
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+import { Nunito_Sans } from "next/font/google";
+
+import { cn } from "@/utils/cn";
+
+import Provider from "./provider";
+
+const inter = Nunito_Sans({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -15,8 +21,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className={cn(inter.className, ["bg-bg"])}>
+        <Provider>{children}</Provider>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.js"></script>
+      </body>
     </html>
   );
 }

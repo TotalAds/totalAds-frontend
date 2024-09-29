@@ -1,33 +1,128 @@
 @tailwind base;
-@tailwind components;
-@tailwind utilities;
+  @tailwind components;
+  @tailwind utilities;
 
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
-}
+  @layer base {
+    :root {
+      /* --primary-100:#d4eaf7;
+      --primary-200:#b6ccd8;
+      --primary-300:#3b3c3d;
+      --accent-100:#71c4ef;
+      --accent-200:#00668c;
+      --text-100:#1d1c1c;
+      --text-200:#313d44;
+      --bg-100:#fffefb;
+      --bg-200:#f5f4f1;
+      --bg-300:#cccbc8; */
+      
+      /* --primary-100:#25D366;
+      --primary-200:#20B754;
+      --primary-300:#1A9444;
+      --accent-100:#34B7F1;
+      --accent-200:#0099CC;
+      --text-100:#075E54;
+      --text-200:#128C7E;
+      --bg-100:#EDEDED;
+      --bg-200:#F4F4F4;
+      --bg-300:#FFFFFF; */
+      
+      --primary-100: #25D366;
+      --primary-200: #20B754;
+      --primary-300: #1A9444;
+      --accent-100: #34B7F1;
+      --accent-200: #0099CC;
+      --text-100: #075E54;
+      --text-200: #128C7E;
+      --bg-100: #F4F4F4;
+      --bg-200: #EBEBEB;
+      --bg-300: #FFFFFF;
+      
+      --background: 0 0% 100%;
+      --foreground: 222.2 84% 4.9%;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
+      --card: 0 0% 100%;
+      --card-foreground: 222.2 84% 4.9%;
+
+      --popover: 0 0% 100%;
+      --popover-foreground: 222.2 84% 4.9%;
+
+      --primary: 222.2 47.4% 11.2%;
+      --primary-foreground: 210 40% 98%;
+
+      --secondary: 210 40% 96.1%;
+      --secondary-foreground: 222.2 47.4% 11.2%;
+
+      --muted: 210 40% 96.1%;
+      --muted-foreground: 215.4 16.3% 46.9%;
+
+      --accent: 210 40% 96.1%;
+      --accent-foreground: 222.2 47.4% 11.2%;
+
+      --destructive: 0 84.2% 60.2%;
+      --destructive-foreground: 210 40% 98%;
+
+      --border: 214.3 31.8% 91.4%;
+      --input: 214.3 31.8% 91.4%;
+      --ring: 222.2 84% 4.9%;
+
+      --radius: 0.5rem;
+    }
+
+    .dark {
+
+      /* --primary-100:#1F3A5F;
+      --primary-200:#4d648d;
+      --primary-300:#acc2ef;
+      --accent-100:#3D5A80;
+      --accent-200:#cee8ff;
+      --text-100:#FFFFFF;
+      --text-200:#e0e0e0;
+      --bg-100:#0F1C2E;
+      --bg-200:#1f2b3e;
+      --bg-300:#374357; */
+
+
+      --primary-100:#25D366;
+      --primary-200:#20B754;
+      --primary-300:#1A9444;
+      --accent-100:#34B7F1;
+      --accent-200:#00A6E3;
+      --text-100:#EDEDED;
+      --text-200:#FFFFFF;
+      --bg-100:#121212;
+      --bg-200:#1F1F1F;
+      --bg-300:#2A2A2A;
+
+
+      --background: 222.2 84% 4.9%;
+      --foreground: 210 40% 98%;
+
+      --card: 222.2 84% 4.9%;
+      --card-foreground: 210 40% 98%;
+
+      --popover: 222.2 84% 4.9%;
+      --popover-foreground: 210 40% 98%;
+
+
+      --muted: 217.2 32.6% 17.5%;
+      --muted-foreground: 215 20.2% 65.1%;
+
+
+      --destructive: 0 62.8% 30.6%;
+      --destructive-foreground: 210 40% 98%;
+
+      --border: 217.2 32.6% 17.5%;
+      --input: 217.2 32.6% 17.5%;
+      --ring: 212.7 26.8% 83.9%;
+    }
   }
-}
 
-body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
-}
-
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  @layer base {
+    * {
+      @apply border-border;
+    }
+    body {
+      @apply bg-background text-foreground;
+      
+    }
   }
-}
