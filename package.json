@@ -1,5 +1,5 @@
 {
-  "name": "totalads-dev",
+  "name": "leadsnipper-dev",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -20,20 +20,21 @@
     "@tabler/icons-react": "^3.7.0",
     "@tanstack/react-table": "^8.20.1",
     "@types/tailwindcss": "^3.1.0",
+    "axios": "^1.10.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
-    "flowbite": "^2.4.1",
+    "date-fns": "^4.1.0",
     "framer-motion": "^11.3.27",
     "lucide-react": "^0.399.0",
     "mini-svg-data-uri": "^1.4.4",
     "next": "14.2.4",
-    "next-themes": "^0.3.0",
     "react": "^18",
     "react-dom": "^18",
+    "react-hot-toast": "^2.5.2",
     "react-lottie": "^1.2.4",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
-    "totalads-dev": "file:"
+    "leadsnipper-dev": "file:"
   },
   "devDependencies": {
     "@types/node": "^20",

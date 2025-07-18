@@ -7,9 +7,7 @@ const {
 } = require("tailwindcss/lib/util/flattenColorPalette");
 
 const config = {
-  darkMode: ["class"],
   content: [
-    "./node_modules/flowbite-react/lib/**/*.js",
     "./pages/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
     "./app/**/*.{ts,tsx}",
@@ -108,7 +106,6 @@ const config = {
   },
   plugins: [
     require("tailwindcss-animate"),
-    require("flowbite/plugin"),
     function ({ matchUtilities, theme }: any) {
       matchUtilities(
         {
