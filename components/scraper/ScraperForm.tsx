@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface ScraperFormProps {
   onSubmit: (url: string, enableAI: boolean) => void;
@@ -80,26 +80,63 @@ const ScraperForm: React.FC<ScraperFormProps> = ({
         </div>
       </div>
 
-      <div className="flex items-start space-x-4 p-4 bg-white/5 rounded-xl border border-white/10">
-        <input
-          type="checkbox"
-          id="ai-processing"
-          checked={enableAI}
-          onChange={(e) => setEnableAI(e.target.checked)}
-          disabled={isLoading}
-          className="w-5 h-5 text-purple-500 bg-white/10 border-white/20 rounded focus:ring-purple-500 focus:ring-2 mt-1"
-        />
-        <div className="flex-1">
-          <label
-            htmlFor="ai-processing"
-            className="text-white font-medium cursor-pointer block mb-2"
-          >
-            🤖 Enable AI Processing
-          </label>
-          <p className="text-gray-400 text-sm">
-            Summarize content and extract additional business insights using
-            advanced AI
-          </p>
+      <div className="space-y-3">
+        <h3 className="text-white font-medium mb-3">Choose Scraper Type:</h3>
+
+        {/* Normal Scraper Option */}
+        <div className="flex items-start space-x-4 p-4 bg-white/5 rounded-xl border border-white/10">
+          <input
+            type="radio"
+            id="normal-scraper"
+            name="scraperType"
+            checked={!enableAI}
+            onChange={() => setEnableAI(false)}
+            disabled={isLoading}
+            className="w-5 h-5 text-purple-500 bg-white/10 border-white/20 rounded focus:ring-purple-500 focus:ring-2 mt-1"
+          />
+          <div className="flex-1">
+            <label
+              htmlFor="normal-scraper"
+              className="text-white font-medium cursor-pointer mb-2 flex items-center justify-between"
+            >
+              <span>🚀 Normal Scraper</span>
+              <span className="text-sm bg-green-500/20 text-green-300 px-2 py-1 rounded-lg">
+                0.5 credits ($0.025)
+              </span>
+            </label>
+            <p className="text-gray-400 text-sm">
+              Fast extraction of basic company information, contact details, and
+              structured data
+            </p>
+          </div>
+        </div>
+
+        {/* AI Enhanced Option */}
+        <div className="flex items-start space-x-4 p-4 bg-white/5 rounded-xl border border-white/10">
+          <input
+            type="radio"
+            id="ai-scraper"
+            name="scraperType"
+            checked={enableAI}
+            onChange={() => setEnableAI(true)}
+            disabled={isLoading}
+            className="w-5 h-5 text-purple-500 bg-white/10 border-white/20 rounded focus:ring-purple-500 focus:ring-2 mt-1"
+          />
+          <div className="flex-1">
+            <label
+              htmlFor="ai-scraper"
+              className="text-white font-medium cursor-pointer mb-2 flex items-center justify-between"
+            >
+              <span>🤖 AI Enhanced Scraper</span>
+              <span className="text-sm bg-purple-500/20 text-purple-300 px-2 py-1 rounded-lg">
+                1.0 credit ($0.05)
+              </span>
+            </label>
+            <p className="text-gray-400 text-sm">
+              Advanced AI processing with content summarization and
+              comprehensive business intelligence extraction
+            </p>
+          </div>
         </div>
       </div>
 
@@ -131,7 +168,7 @@ const ScraperForm: React.FC<ScraperFormProps> = ({
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 ></path>
               </svg>
-              Processing...
+              {enableAI ? "AI Processing..." : "Scraping..."}
             </span>
           ) : (
             "🚀 Scrape Website"

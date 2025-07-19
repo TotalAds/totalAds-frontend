@@ -168,7 +168,7 @@ const EnterResetCodeComponent = () => {
             <div className="space-y-3">
               <div className="text-center">
                 <p className="text-gray-400 text-sm">
-                  Didn't receive the email or code not working?
+                  Didn&apos;t receive the email or code not working?
                 </p>
               </div>
 

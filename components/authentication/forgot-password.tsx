@@ -158,8 +158,8 @@ const ForgotPasswordComponent = () => {
                   <IconMail className="w-8 h-8 text-green-400" />
                 </div>
                 <p className="text-gray-300 text-sm mb-6">
-                  If an account with that email address exists, you'll receive
-                  secure password reset instructions within the next few
+                  If an account with that email address exists, you&apos;ll
+                  receive secure password reset instructions within the next few
                   minutes. Please check your inbox and spam folder.
                 </p>
               </div>

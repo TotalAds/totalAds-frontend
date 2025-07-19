@@ -80,7 +80,7 @@ export const scrapeUrl = async (
 ): Promise<ScrapeResult> => {
   try {
     const response = await apiClient.post(
-      "/scraper",
+      "/frontend/scraper",
       {
         url,
         enableAI,
@@ -91,7 +91,31 @@ export const scrapeUrl = async (
         withCredentials: true,
       }
     );
-    return response.data;
+
+    // Handle nested response structure
+    const responseData = response.data;
+
+    // Check if response has nested payload structure
+    if (responseData.payload && responseData.payload.payload) {
+      // Extract the actual scraper result from nested payload
+      const scraperResult = responseData.payload.payload;
+      const billingMeta = responseData.payload.meta;
+
+      // Merge billing information into the result meta
+      if (billingMeta?.billing && scraperResult.meta) {
+        scraperResult.meta.billing = billingMeta.billing;
+      } else if (billingMeta?.billing) {
+        scraperResult.meta = {
+          ...scraperResult.meta,
+          billing: billingMeta.billing,
+        };
+      }
+
+      return scraperResult;
+    }
+
+    // Fallback to direct response if no nested structure
+    return responseData;
   } catch (error: unknown) {
     return handleApiError(error, `Failed to scrape URL: ${url}`);
   }
@@ -103,7 +127,7 @@ export const scrapeUrl = async (
  */
 export const checkScraperHealth = async (): Promise<ScraperHealth> => {
   try {
-    const response = await apiClient.get("/health/scraper");
+    const response = await apiClient.get("/frontend/scraper/health");
     return response.data;
   } catch (error: unknown) {
     return handleApiError(error, "Failed to check scraper health");

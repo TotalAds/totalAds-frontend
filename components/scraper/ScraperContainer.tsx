@@ -132,7 +132,7 @@ const ScraperContainer = () => {
           </div>
         )}
 
-        {health && !health.healthy && health.status !== "healthy" && (
+        {health && !health.healthy && (
           <div
             className="backdrop-blur-xl bg-red-500/20 border border-red-500/30 text-red-200 px-6 py-4 rounded-2xl mb-8 shadow-2xl"
             role="alert"
@@ -165,11 +165,32 @@ const ScraperContainer = () => {
           />
         </div>
 
-        {/* Show billing feedback when authenticated */}
-        {authState.isAuthenticated && (
+        {/* Success indicator */}
+        {result && !error && !isLoading && (
+          <div className="backdrop-blur-xl bg-green-500/20 border border-green-500/30 text-green-200 px-6 py-4 rounded-2xl mb-6 shadow-2xl">
+            <div className="flex items-center">
+              <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mr-4">
+                <span className="text-white text-sm font-bold">✓</span>
+              </div>
+              <div>
+                <p className="font-bold text-lg">
+                  Scraping Completed Successfully!
+                </p>
+                <p className="text-green-100 text-sm">
+                  Data has been extracted and is ready for review below.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Show billing feedback when authenticated and we have results */}
+        {authState.isAuthenticated && result && (
           <BillingFeedback
-            creditsUsed={result?.meta?.billing?.apiCall}
+            creditsUsed={result?.meta?.billing?.creditsUsed}
             isAIEnabled={enableAI}
+            remainingCredits={result?.meta?.billing?.remainingCredits}
+            scraperType={result?.meta?.billing?.scraperType}
           />
         )}
 

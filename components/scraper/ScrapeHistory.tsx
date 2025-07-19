@@ -2,7 +2,7 @@
 
 import { format, formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 import { useAuthContext } from "@/context/AuthContext";
 import { cancelScrapeJob, getScrapeHistory } from "@/utils/api/scraperClient";
@@ -39,59 +39,62 @@ const ScrapeHistory: React.FC = () => {
   const { state } = useAuthContext();
   const { isAuthenticated } = state;
 
+  const fetchHistory = useCallback(
+    async (resetPage = false) => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const currentPage = resetPage ? 1 : page;
+        if (resetPage) {
+          setPage(1);
+        }
+
+        // Build query parameters
+        const params = new URLSearchParams({
+          page: currentPage.toString(),
+          limit: "10",
+        });
+
+        if (filters.status) params.append("status", filters.status);
+        if (filters.startDate) params.append("start_date", filters.startDate);
+        if (filters.endDate) params.append("end_date", filters.endDate);
+
+        const data = await getScrapeHistory(
+          parseInt(params.get("page") || "1"),
+          parseInt(params.get("limit") || "10")
+        );
+
+        const filteredData = filters.url
+          ? data.data.filter((item: ScrapeHistoryItem) =>
+              item.url.toLowerCase().includes(filters.url.toLowerCase())
+            )
+          : data.data;
+
+        setHistory(filteredData);
+        setTotalPages(Math.ceil(data.total / data.limit) || 1);
+      } catch (err) {
+        setError("Failed to load scrape history. Please try again later.");
+        console.error("Error fetching scrape history:", err);
+      } finally {
+        setLoading(false);
+        setIsLoadingMore(false);
+      }
+    },
+    [filters, page]
+  );
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchHistory();
     }
-  }, [isAuthenticated, page]);
+  }, [isAuthenticated, fetchHistory]);
 
   useEffect(() => {
     if (isAuthenticated) {
       fetchHistory(true);
     }
-  }, [filters]);
-
-  const fetchHistory = async (resetPage = false) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const currentPage = resetPage ? 1 : page;
-      if (resetPage) {
-        setPage(1);
-      }
-
-      // Build query parameters
-      const params = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: "10",
-      });
-
-      if (filters.status) params.append("status", filters.status);
-      if (filters.startDate) params.append("start_date", filters.startDate);
-      if (filters.endDate) params.append("end_date", filters.endDate);
-
-      const data = await getScrapeHistory(
-        parseInt(params.get("page") || "1"),
-        parseInt(params.get("limit") || "10")
-      );
-
-      const filteredData = filters.url
-        ? data.data.filter((item: ScrapeHistoryItem) =>
-            item.url.toLowerCase().includes(filters.url.toLowerCase())
-          )
-        : data.data;
-
-      setHistory(filteredData);
-      setTotalPages(Math.ceil(data.total / data.limit) || 1);
-    } catch (err) {
-      setError("Failed to load scrape history. Please try again later.");
-      console.error("Error fetching scrape history:", err);
-    } finally {
-      setLoading(false);
-      setIsLoadingMore(false);
-    }
-  };
+  }, [filters, isAuthenticated, fetchHistory]);
 
   const handleExport = async () => {
     try {

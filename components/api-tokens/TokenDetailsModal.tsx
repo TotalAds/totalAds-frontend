@@ -1,7 +1,7 @@
 "use client";
 
 import { format, formatDistanceToNow } from "date-fns";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 import { Dialog } from "@/components/ui/dialog";
 import {
@@ -22,11 +22,6 @@ export default function TokenDetailsModal({
   const [usageStats, setUsageStats] = useState<TokenUsageStats | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Fetch token usage stats on component mount
-  useEffect(() => {
-    fetchUsageStats();
-  }, [token.id]);
 
   // Format date for display
   const formatDate = (dateString?: string) => {
@@ -49,7 +44,7 @@ export default function TokenDetailsModal({
   };
 
   // Function to fetch token usage statistics
-  const fetchUsageStats = async () => {
+  const fetchUsageStats = useCallback(async () => {
     try {
       setLoading(true);
       const stats = await tokenService.getTokenUsage(token.id);
@@ -66,7 +61,12 @@ export default function TokenDetailsModal({
     } finally {
       setLoading(false);
     }
-  };
+  }, [token.id]);
+
+  // Fetch token usage stats on component mount
+  useEffect(() => {
+    fetchUsageStats();
+  }, [fetchUsageStats]);
 
   return (
     <Dialog open={!!token} onOpenChange={onClose}>

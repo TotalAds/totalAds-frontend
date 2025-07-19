@@ -67,7 +67,7 @@ const scraperReducer = (
       return {
         ...state,
         isLoading: false,
-        health: action.payload,
+        health: (action.payload as any).payload || action.payload, // Handle nested payload structure
         error: null,
       };
     case "HEALTH_CHECK_ERROR":
@@ -91,12 +91,48 @@ export const ScraperProvider: React.FC<{ children: ReactNode }> = ({
       dispatch({ type: "SCRAPE_START" });
       const result = await scrapeUrl(url, enableAI);
       dispatch({ type: "SCRAPE_SUCCESS", payload: result });
+
+      // Show success toast notification
+      if (typeof window !== "undefined") {
+        const { toast } = await import("react-hot-toast");
+        toast.success(
+          `Successfully scraped ${url}${
+            enableAI ? " with AI enhancement" : ""
+          }!`,
+          {
+            duration: 4000,
+            style: {
+              background: "rgba(34, 197, 94, 0.1)",
+              border: "1px solid rgba(34, 197, 94, 0.3)",
+              color: "#22c55e",
+            },
+          }
+        );
+      }
     } catch (error) {
       dispatch({
         type: "SCRAPE_ERROR",
         payload:
           error instanceof Error ? error.message : "An unknown error occurred",
       });
+
+      // Show error toast notification
+      if (typeof window !== "undefined") {
+        const { toast } = await import("react-hot-toast");
+        toast.error(
+          `Failed to scrape ${url}: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`,
+          {
+            duration: 6000,
+            style: {
+              background: "rgba(239, 68, 68, 0.1)",
+              border: "1px solid rgba(239, 68, 68, 0.3)",
+              color: "#fca5a5",
+            },
+          }
+        );
+      }
     }
   };
 

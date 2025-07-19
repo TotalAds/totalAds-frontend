@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 import { useTokenContext } from "@/context/TokenContext";
 import { CreateTokenRequest } from "@/utils/api/tokenClient";
@@ -69,7 +69,7 @@ const ApiTokenManager: React.FC = () => {
   useEffect(() => {
     // Fetch tokens when component mounts
     fetchTokens();
-  }, []);
+  }, [fetchTokens]);
 
   return (
     <div className="container mx-auto px-4 py-8">

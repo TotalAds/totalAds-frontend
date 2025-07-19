@@ -20,7 +20,7 @@ const ScraperHealthIndicator: React.FC = () => {
 
     // Clean up on component unmount
     return () => clearInterval(intervalId);
-  }, []); // Remove checkHealth from dependencies to prevent infinite re-renders
+  }, []);
 
   // Helper function to get status colors
   const getStatusColor = () => {

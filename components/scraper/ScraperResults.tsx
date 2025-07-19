@@ -1,7 +1,32 @@
 "use client";
 
-import React, { useState } from "react";
+import {
+  Award,
+  Brain,
+  Building2,
+  Clock,
+  Contact,
+  Download,
+  ExternalLink,
+  Globe,
+  Mail,
+  MapPin,
+  Phone,
+  Shield,
+  TrendingUp,
+  Users,
+  Zap,
+} from "lucide-react";
+import React from "react";
 
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { ScrapeResult, Table as TableType } from "./utils/scraperTypes";
@@ -12,143 +37,325 @@ interface ScraperResultsProps {
 
 const ScraperResults: React.FC<ScraperResultsProps> = ({ result }) => {
   const { data, meta } = result;
+  const isAIEnhanced = meta?.aiEnhanced || data?.aiEnhanced;
 
   const renderContactInfo = () => {
-    const contact = data.company_info?.contact;
-    if (
-      !contact ||
-      Object.keys(contact).filter(
-        (key) => !!contact[key as keyof typeof contact]
-      ).length === 0
-    ) {
-      return <p className="text-text-200">No contact information found.</p>;
+    const contact =
+      data.contactDetails ||
+      data.enhancedContactInfo ||
+      data.company_info?.contact;
+
+    if (!contact) {
+      return (
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-gray-500 text-center">
+              No contact information found.
+            </p>
+          </CardContent>
+        </Card>
+      );
     }
 
+    const emails = Array.isArray(contact.email)
+      ? contact.email
+      : contact.email
+      ? [contact.email]
+      : [];
+    const phones = Array.isArray(contact.phone)
+      ? contact.phone
+      : contact.phone
+      ? [contact.phone]
+      : [];
+
+    // Type guard for ContactDetails
+    const hasAddress = "address" in contact && contact.address;
+    const hasSocialMedia = "social_media" in contact && contact.social_media;
+
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {contact.email && (
-          <div className="p-4 bg-bg-100 rounded-lg">
-            <h3 className="font-medium text-text mb-1">Email</h3>
-            <p className="text-text-200">{contact.email}</p>
-          </div>
-        )}
-
-        {contact.phone && (
-          <div className="p-4 bg-bg-100 rounded-lg">
-            <h3 className="font-medium text-text mb-1">Phone</h3>
-            <p className="text-text-200">{contact.phone}</p>
-          </div>
-        )}
-
-        {contact.address && (
-          <div className="p-4 bg-bg-100 rounded-lg">
-            <h3 className="font-medium text-text mb-1">Address</h3>
-            <p className="text-text-200">{contact.address}</p>
-          </div>
-        )}
-
-        {contact.social_media &&
-          Object.keys(contact.social_media).length > 0 && (
-            <div className="p-4 bg-bg-100 rounded-lg">
-              <h3 className="font-medium text-text mb-1">Social Media</h3>
-              <ul className="text-text-200 space-y-1">
-                {Object.entries(contact.social_media).map(([platform, url]) => (
-                  <li key={platform}>
-                    <span className="font-medium">{platform}:</span>{" "}
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary-600 hover:underline"
-                    >
-                      {url}
-                    </a>
-                  </li>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {emails?.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Mail className="h-5 w-5 text-blue-600" />
+                Email
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {emails.map((email, index) => (
+                  <a
+                    key={index}
+                    href={`mailto:${email}`}
+                    className="block text-blue-600 hover:text-blue-800 hover:underline"
+                  >
+                    {email}
+                  </a>
                 ))}
-              </ul>
-            </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {phones?.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Phone className="h-5 w-5 text-green-600" />
+                Phone
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {phones.map((phone, index) => (
+                  <a
+                    key={index}
+                    href={`tel:${phone}`}
+                    className="block text-green-600 hover:text-green-800 hover:underline"
+                  >
+                    {phone}
+                  </a>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {hasAddress && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <MapPin className="h-5 w-5 text-red-600" />
+                Address
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-700">{(contact as any).address}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {hasSocialMedia &&
+          Object.keys((contact as any).social_media).length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Globe className="h-5 w-5 text-purple-600" />
+                  Social Media
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {Object.entries((contact as any).social_media).map(
+                    ([platform, url]) => (
+                      <a
+                        key={platform}
+                        href={url as string}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-purple-600 hover:text-purple-800 hover:underline"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        <span className="capitalize">{platform}</span>
+                      </a>
+                    )
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           )}
       </div>
     );
   };
 
   const renderAboutInfo = () => {
-    const about = data.company_info?.about;
-    if (
-      !about ||
-      Object.keys(about).filter((key) => !!about[key as keyof typeof about])
-        .length === 0
-    ) {
-      return <p className="text-text-200">No company information found.</p>;
+    const about = data.aboutData;
+    const businessIntel = data.businessIntelligence;
+    const title = data.title;
+    const description = data.desc;
+
+    if (!about && !businessIntel && !title && !description) {
+      return (
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-gray-500 text-center">
+              No company information found.
+            </p>
+          </CardContent>
+        </Card>
+      );
     }
 
     return (
       <div className="space-y-6">
-        {about.company_name && (
-          <div>
-            <h3 className="font-medium text-lg text-text">
-              {about.company_name}
-            </h3>
+        {/* Basic Info */}
+        {(title || description) && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-blue-600" />
+                Company Overview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {title && (
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                  {title}
+                </h3>
+              )}
+              {description && (
+                <p className="text-gray-700 leading-relaxed">{description}</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Business Intelligence (AI Enhanced) */}
+        {businessIntel && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Industry & Services */}
+            {(businessIntel?.industry || businessIntel?.keyServices) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-green-600" />
+                    Industry & Services
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {businessIntel.industry && (
+                    <div className="mb-4">
+                      <h4 className="font-medium text-gray-900 mb-2">
+                        Industries
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {businessIntel.industry.map((industry, index) => (
+                          <Badge key={index} variant="secondary">
+                            {industry}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {businessIntel.keyServices && (
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-2">
+                        Key Services
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {businessIntel.keyServices
+                          .slice(0, 6)
+                          .map((service, index) => (
+                            <Badge key={index} variant="outline">
+                              {service}
+                            </Badge>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Company Details */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-purple-600" />
+                  Company Details
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {businessIntel?.companyType && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Type:</span>
+                      <span className="font-medium capitalize">
+                        {businessIntel.companyType}
+                      </span>
+                    </div>
+                  )}
+                  {businessIntel?.businessModel && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Model:</span>
+                      <span className="font-medium">
+                        {businessIntel.businessModel}
+                      </span>
+                    </div>
+                  )}
+                  {businessIntel?.marketPosition && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Market Position:</span>
+                      <span className="font-medium capitalize">
+                        {businessIntel.marketPosition}
+                      </span>
+                    </div>
+                  )}
+                  {businessIntel?.employeeCount && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Employee Count:</span>
+                      <span className="font-medium">
+                        {businessIntel.employeeCount}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
 
-        {about.description && (
-          <div>
-            <h4 className="font-medium text-text mb-1">Description</h4>
-            <p className="text-text-200">{about.description}</p>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {about.industry && (
-            <div className="p-3 bg-bg-100 rounded-lg">
-              <h4 className="font-medium text-text text-sm">Industry</h4>
-              <p className="text-text-200">{about.industry}</p>
-            </div>
+        {/* Competitive Advantages */}
+        {businessIntel?.competitiveAdvantages &&
+          businessIntel.competitiveAdvantages.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Award className="h-5 w-5 text-yellow-600" />
+                  Competitive Advantages
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {businessIntel?.competitiveAdvantages
+                    .slice(0, 5)
+                    .map((advantage, index) => (
+                      <li key={index} className="flex items-start gap-2">
+                        <div className="w-2 h-2 bg-yellow-600 rounded-full mt-2 flex-shrink-0"></div>
+                        <span className="text-gray-700">{advantage}</span>
+                      </li>
+                    ))}
+                </ul>
+              </CardContent>
+            </Card>
           )}
 
-          {about.founded_year && (
-            <div className="p-3 bg-bg-100 rounded-lg">
-              <h4 className="font-medium text-text text-sm">Founded</h4>
-              <p className="text-text-200">{about.founded_year}</p>
-            </div>
+        {/* Technologies */}
+        {businessIntel?.technologies &&
+          businessIntel.technologies.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-orange-600" />
+                  Technologies
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {businessIntel.technologies.map((tech, index) => (
+                    <Badge
+                      key={index}
+                      variant="outline"
+                      className="bg-orange-50"
+                    >
+                      {tech}
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
-
-          {about.company_size && (
-            <div className="p-3 bg-bg-100 rounded-lg">
-              <h4 className="font-medium text-text text-sm">Company Size</h4>
-              <p className="text-text-200">{about.company_size}</p>
-            </div>
-          )}
-
-          {about.revenue && (
-            <div className="p-3 bg-bg-100 rounded-lg">
-              <h4 className="font-medium text-text text-sm">Revenue</h4>
-              <p className="text-text-200">{about.revenue}</p>
-            </div>
-          )}
-
-          {about.headquarters && (
-            <div className="p-3 bg-bg-100 rounded-lg">
-              <h4 className="font-medium text-text text-sm">Headquarters</h4>
-              <p className="text-text-200">{about.headquarters}</p>
-            </div>
-          )}
-
-          {about.website && (
-            <div className="p-3 bg-bg-100 rounded-lg">
-              <h4 className="font-medium text-text text-sm">Website</h4>
-              <a
-                href={about.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary-600 hover:underline text-sm"
-              >
-                {about.website}
-              </a>
-            </div>
-          )}
-        </div>
       </div>
     );
   };
@@ -156,11 +363,11 @@ const ScraperResults: React.FC<ScraperResultsProps> = ({ result }) => {
   const renderTable = (table: TableType, index: number) => {
     return (
       <div key={index} className="overflow-x-auto mb-8">
-        {table.caption && <p className="font-medium mb-2">{table.caption}</p>}
+        {table?.caption && <p className="font-medium mb-2">{table.caption}</p>}
         <table className="min-w-full border-collapse border border-bg-300">
           <thead>
             <tr className="bg-bg-200">
-              {table.headers.map((header, i) => (
+              {table?.headers.map((header, i) => (
                 <th
                   key={i}
                   className="py-2 px-4 border border-bg-300 text-left text-sm font-medium"
@@ -171,7 +378,7 @@ const ScraperResults: React.FC<ScraperResultsProps> = ({ result }) => {
             </tr>
           </thead>
           <tbody>
-            {table.rows.map((row, rowIndex) => (
+            {table?.rows.map((row, rowIndex) => (
               <tr
                 key={rowIndex}
                 className={rowIndex % 2 === 0 ? "bg-bg-100" : "bg-white"}
@@ -192,130 +399,392 @@ const ScraperResults: React.FC<ScraperResultsProps> = ({ result }) => {
     );
   };
 
+  const getUrlFromData = () => {
+    // Try to extract URL from various possible locations
+    return (
+      data?.url || (data?.nestedLinks && data.nestedLinks[0]) || "Unknown URL"
+    );
+  };
+
+  const getProcessingTime = () => {
+    return (
+      meta?.processingTime ||
+      meta?.processing_time_ms ||
+      data?.processingTime ||
+      0
+    );
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-text mb-2">Scrape Results</h2>
-        <p className="text-text-200">
-          Data extracted from{" "}
-          <a
-            href={data.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary-600 hover:underline"
-          >
-            {data.url}
-          </a>
-        </p>
-        {meta && (
-          <div className="flex flex-wrap gap-4 mt-2 text-sm text-text-200">
-            {meta.processing_time_ms && (
-              <span>
-                Processed in {(meta.processing_time_ms / 1000).toFixed(2)}s
-              </span>
-            )}
-            {meta.billing && (
-              <span>
-                {meta.billing.charged
-                  ? `Credits used: ${meta.billing.apiCall || 1}`
-                  : "No credits used (free tier)"}
-              </span>
-            )}
-            {meta.timestamp && (
-              <span>{new Date(meta.timestamp).toLocaleString()}</span>
-            )}
+      {/* Header */}
+      {data ? (
+        <>
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Scrape Results
+              </h2>
+              {isAIEnhanced && (
+                <Badge
+                  variant="default"
+                  className="bg-gradient-to-r from-purple-500 to-blue-500"
+                >
+                  <Brain className="h-3 w-3 mr-1" />
+                  AI Enhanced
+                </Badge>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-gray-600">
+                Data extracted from{" "}
+                <a
+                  href={getUrlFromData()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 hover:underline"
+                >
+                  {getUrlFromData()}
+                </a>
+              </p>
+
+              {/* Metadata */}
+              {meta && (
+                <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                  {getProcessingTime() > 0 && (
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      <span>
+                        Processed in {(getProcessingTime() / 1000).toFixed(2)}s
+                      </span>
+                    </div>
+                  )}
+
+                  {meta.billing && (
+                    <div className="flex items-center gap-1">
+                      <Zap className="h-3 w-3" />
+                      <span>
+                        {meta.billing.charged
+                          ? `Credits used: ${meta.billing.creditsUsed || 1} (${
+                              meta.billing.scraperType || "Normal"
+                            })`
+                          : `Credits used: ${
+                              meta.billing.creditsUsed || 0.5
+                            } (free tier)`}
+                      </span>
+                    </div>
+                  )}
+
+                  {meta.timestamp && (
+                    <span>{new Date(meta.timestamp).toLocaleString()}</span>
+                  )}
+
+                  {data?.aiCost && (
+                    <div className="flex items-center gap-1">
+                      <Brain className="h-3 w-3" />
+                      <span>AI Cost: ${data.aiCost.toFixed(4)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
 
-      <Tabs defaultValue="about" className="w-full">
-        <TabsList className="mb-6">
-          <TabsTrigger value="about">About</TabsTrigger>
-          <TabsTrigger value="contact">Contact</TabsTrigger>
-          {data.tables && data.tables.length > 0 && (
-            <TabsTrigger value="tables">
-              Tables ({data.tables.length})
-            </TabsTrigger>
-          )}
-          {data.ai_summary && (
-            <TabsTrigger value="ai-summary">AI Summary</TabsTrigger>
-          )}
-          {data.raw_text && (
-            <TabsTrigger value="raw-text">Raw Text</TabsTrigger>
-          )}
-        </TabsList>
+          <Tabs defaultValue="about" className="w-full">
+            <TabsList className="mb-6 flex-wrap">
+              <TabsTrigger value="about">
+                <Building2 className="h-4 w-4 mr-1" />
+                About
+              </TabsTrigger>
+              <TabsTrigger value="contact">
+                <Contact className="h-4 w-4 mr-1" />
+                Contact
+              </TabsTrigger>
+              {isAIEnhanced && data.businessIntelligence && (
+                <TabsTrigger value="business-intel">
+                  <Brain className="h-4 w-4 mr-1" />
+                  Business Intelligence
+                </TabsTrigger>
+              )}
+              {data?.nestedLinks && data.nestedLinks.length > 0 && (
+                <TabsTrigger value="links">
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  Links ({data.nestedLinks.length})
+                </TabsTrigger>
+              )}
+              {data.tables && data.tables.length > 0 && (
+                <TabsTrigger value="tables">
+                  Tables ({data.tables.length})
+                </TabsTrigger>
+              )}
+              {(data.text || data.ai_summary || data.raw_text) && (
+                <TabsTrigger value="text-data">Text Data</TabsTrigger>
+              )}
+            </TabsList>
 
-        <TabsContent value="about" className="space-y-6">
-          {renderAboutInfo()}
-        </TabsContent>
+            <TabsContent value="about" className="space-y-6">
+              {renderAboutInfo()}
+            </TabsContent>
 
-        <TabsContent value="contact" className="space-y-6">
-          {renderContactInfo()}
-        </TabsContent>
+            <TabsContent value="contact" className="space-y-6">
+              {renderContactInfo()}
+            </TabsContent>
 
-        {data.tables && data.tables.length > 0 && (
-          <TabsContent value="tables" className="space-y-6">
-            {data.tables.map((table, index) => renderTable(table, index))}
-          </TabsContent>
-        )}
+            {/* Business Intelligence Tab (AI Enhanced) */}
+            {isAIEnhanced && data.businessIntelligence && (
+              <TabsContent value="business-intel" className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Risk Factors */}
+                  {data.businessIntelligence.riskFactors &&
+                    data.businessIntelligence.riskFactors.length > 0 && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Shield className="h-5 w-5 text-red-600" />
+                            Risk Factors
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ul className="space-y-2">
+                            {data.businessIntelligence.riskFactors.map(
+                              (risk, index) => (
+                                <li
+                                  key={index}
+                                  className="flex items-start gap-2"
+                                >
+                                  <div className="w-2 h-2 bg-red-600 rounded-full mt-2 flex-shrink-0"></div>
+                                  <span className="text-gray-700 text-sm">
+                                    {risk}
+                                  </span>
+                                </li>
+                              )
+                            )}
+                          </ul>
+                        </CardContent>
+                      </Card>
+                    )}
 
-        {data.ai_summary && (
-          <TabsContent value="ai-summary" className="space-y-6">
-            <div className="bg-bg-50 p-4 rounded-lg border border-bg-200">
-              <h3 className="font-medium text-text mb-2">AI Summary</h3>
-              <div className="text-text-200 whitespace-pre-line">
-                {data.ai_summary}
-              </div>
-            </div>
-          </TabsContent>
-        )}
+                  {/* Opportunities */}
+                  {data.businessIntelligence.opportunities &&
+                    data.businessIntelligence.opportunities.length > 0 && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <TrendingUp className="h-5 w-5 text-green-600" />
+                            Opportunities
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ul className="space-y-2">
+                            {data.businessIntelligence.opportunities.map(
+                              (opportunity, index) => (
+                                <li
+                                  key={index}
+                                  className="flex items-start gap-2"
+                                >
+                                  <div className="w-2 h-2 bg-green-600 rounded-full mt-2 flex-shrink-0"></div>
+                                  <span className="text-gray-700 text-sm">
+                                    {opportunity}
+                                  </span>
+                                </li>
+                              )
+                            )}
+                          </ul>
+                        </CardContent>
+                      </Card>
+                    )}
 
-        {data.raw_text && (
-          <TabsContent value="raw-text" className="space-y-6">
-            <div className="bg-bg-50 p-4 rounded-lg border border-bg-200">
-              <h3 className="font-medium text-text mb-2">Raw Text</h3>
-              <div className="text-text-200 text-sm font-mono max-h-96 overflow-y-auto p-2">
-                {data.raw_text}
-              </div>
-            </div>
-          </TabsContent>
-        )}
-      </Tabs>
+                  {/* Target Market */}
+                  {data.businessIntelligence.targetMarket &&
+                    data.businessIntelligence.targetMarket.length > 0 && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Users className="h-5 w-5 text-blue-600" />
+                            Target Market
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex flex-wrap gap-2">
+                            {data.businessIntelligence.targetMarket.map(
+                              (market, index) => (
+                                <Badge
+                                  key={index}
+                                  variant="outline"
+                                  className="bg-blue-50"
+                                >
+                                  {market}
+                                </Badge>
+                              )
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
 
-      <div className="flex justify-end mt-6">
-        <button
-          className="text-sm text-primary-600 hover:text-primary-700 flex items-center"
-          onClick={() => {
-            // Download JSON functionality could be added here
-            const jsonString = JSON.stringify(result, null, 2);
-            const blob = new Blob([jsonString], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "scrape-result.json";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          }}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4 mr-1"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-            />
-          </svg>
-          Download JSON
-        </button>
-      </div>
+                  {/* Confidence Score */}
+                  {data.businessIntelligence.confidence && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Brain className="h-5 w-5 text-purple-600" />
+                          AI Confidence
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center gap-4">
+                          <div className="flex-1 bg-gray-200 rounded-full h-3">
+                            <div
+                              className="bg-gradient-to-r from-purple-500 to-blue-500 h-3 rounded-full transition-all duration-300"
+                              style={{
+                                width: `${data.businessIntelligence.confidence}%`,
+                              }}
+                            ></div>
+                          </div>
+                          <span className="font-semibold text-lg">
+                            {data.businessIntelligence.confidence}%
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-2">
+                          AI confidence in the extracted business intelligence
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </TabsContent>
+            )}
+
+            {/* Links Tab */}
+            {data.nestedLinks && data.nestedLinks.length > 0 && (
+              <TabsContent value="links" className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <ExternalLink className="h-5 w-5 text-blue-600" />
+                      Extracted Links ({data.nestedLinks.length})
+                    </CardTitle>
+                    <CardDescription>
+                      All links found on the website
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
+                      {data.nestedLinks.map((link, index) => (
+                        <a
+                          key={index}
+                          href={link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-sm"
+                        >
+                          <ExternalLink className="h-3 w-3 text-blue-600 flex-shrink-0" />
+                          <span className="truncate text-gray-700">{link}</span>
+                        </a>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
+
+            {/* Tables Tab */}
+            {data.tables && data.tables.length > 0 && (
+              <TabsContent value="tables" className="space-y-6">
+                {data.tables.map((table, index) => renderTable(table, index))}
+              </TabsContent>
+            )}
+
+            {/* Text Data Tab */}
+            {(data.text || data.ai_summary || data.raw_text) && (
+              <TabsContent value="text-data" className="space-y-6">
+                {/* AI Summary (for AI enhanced responses) */}
+                {data.text && isAIEnhanced && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Brain className="h-5 w-5 text-purple-600" />
+                        AI Summary
+                      </CardTitle>
+                      <CardDescription>
+                        AI-generated summary of key business points
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="prose prose-sm max-w-none">
+                        <div className="whitespace-pre-line text-gray-700">
+                          {data.text}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Legacy AI Summary */}
+                {data.ai_summary && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>AI Summary</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="whitespace-pre-line text-gray-700">
+                        {data.ai_summary}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Raw Text */}
+                {(data.raw_text || (data.text && !isAIEnhanced)) && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Raw Text</CardTitle>
+                      <CardDescription>
+                        Raw text content extracted from the website
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="bg-gray-50 p-4 rounded-lg border max-h-96 overflow-y-auto">
+                        <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
+                          {data.raw_text || data.text}
+                        </pre>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+            )}
+          </Tabs>
+
+          <div className="flex justify-end mt-6">
+            <button
+              className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+              onClick={() => {
+                const jsonString = JSON.stringify(result, null, 2);
+                const blob = new Blob([jsonString], {
+                  type: "application/json",
+                });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `scrape-result-${
+                  new Date().toISOString().split("T")[0]
+                }.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+              }}
+            >
+              <Download className="h-4 w-4" />
+              Download JSON
+            </button>
+          </div>
+        </>
+      ) : (
+        ""
+      )}
     </div>
   );
 };
