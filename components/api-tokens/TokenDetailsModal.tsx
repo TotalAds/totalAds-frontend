@@ -95,24 +95,19 @@ export default function TokenDetailsModal({
             <div>
               <p className="text-sm text-gray-500">Last Used</p>
               <p className="font-medium">
-                {formatDate(token.lastUsed || undefined)}
+                {formatDate(token.lastUsedAt || undefined)}
               </p>
-              {token.lastUsed && (
+              {token.lastUsedAt && (
                 <p className="text-xs text-gray-500">
-                  {formatRelativeTime(token.lastUsed)}
+                  {formatRelativeTime(token.lastUsedAt)}
                 </p>
               )}
             </div>
             <div>
-              <p className="text-sm text-gray-500">Expires</p>
+              <p className="text-sm text-gray-500">Status</p>
               <p className="font-medium">
-                {token.expiresAt ? formatDate(token.expiresAt) : "Never"}
+                {token.active ? "Active" : "Inactive"}
               </p>
-              {token.expiresAt && (
-                <p className="text-xs text-gray-500">
-                  {formatRelativeTime(token.expiresAt)}
-                </p>
-              )}
             </div>
             <div>
               <p className="text-sm text-gray-500">Status</p>

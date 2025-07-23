@@ -11,8 +11,8 @@ export interface ApiToken {
   id: string;
   name: string;
   createdAt: string;
-  expiresAt: string | null;
-  lastUsed: string | null;
+  lastUsedAt: string | null;
+  active: boolean;
   token?: string; // Only provided when token is first created
 }
 
@@ -34,12 +34,19 @@ export interface CreateTokenRequest {
 /**
  * List all API tokens for the current user
  */
-export const listTokens = async (): Promise<ApiToken[]> => {
+export const listTokens = async (): Promise<{ data: ApiToken[] }> => {
   try {
     const response = await apiClient.get("/api-management/tokens", {
       withCredentials: true,
     });
-    return response.data.data || response.data;
+    // Handle different response structures
+    if (response.data.payload?.data) {
+      return { data: response.data.payload.data };
+    } else if (response.data.data) {
+      return { data: response.data.data };
+    } else {
+      return { data: response.data.payload || response.data || [] };
+    }
   } catch (error: unknown) {
     console.error("Error listing tokens:", error);
     if (axios.isAxiosError(error) && error.response) {
@@ -84,7 +91,19 @@ export const createToken = async (
     const response = await apiClient.post("/api-management/tokens", tokenData, {
       withCredentials: true,
     });
-    return response.data.data || response.data;
+    // Handle different response structures for create token
+    console.log("Create token response:", response.data);
+
+    if (response.data.payload?.data) {
+      console.log("Using payload.data:", response.data.payload.data);
+      return response.data.payload.data;
+    } else if (response.data.data) {
+      console.log("Using data:", response.data.data);
+      return response.data.data;
+    } else {
+      console.log("Using fallback:", response.data.payload || response.data);
+      return response.data.payload || response.data;
+    }
   } catch (error: unknown) {
     console.error("Error creating token:", error);
     if (axios.isAxiosError(error) && error.response) {
@@ -166,5 +185,37 @@ export const getTokenUsage = async (
       );
     }
     throw error;
+  }
+};
+
+/**
+ * Validate an API token
+ */
+export const validateToken = async (
+  token: string
+): Promise<{ valid: boolean; message: string }> => {
+  try {
+    const response = await apiClient.post("/api-management/validate-token", {
+      token,
+    });
+    return {
+      valid: response.data.valid,
+      message: response.data.message,
+    };
+  } catch (error: unknown) {
+    console.error("Error validating token:", error);
+    if (axios.isAxiosError(error) && error.response) {
+      return {
+        valid: false,
+        message:
+          error.response.data?.message ||
+          error.response.data?.error ||
+          "Failed to validate token",
+      };
+    }
+    return {
+      valid: false,
+      message: "Failed to validate token",
+    };
   }
 };

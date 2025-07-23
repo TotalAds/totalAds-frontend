@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from 'react';
-import { ApiToken, TokenUsage } from '@/utils/api/tokenClient';
-import { useTokenContext } from '@/context/TokenContext';
-import { formatDistanceToNow, format } from 'date-fns';
+import { format, formatDistanceToNow } from "date-fns";
+import React, { useState } from "react";
+
+import { useTokenContext } from "@/context/TokenContext";
+import { ApiToken, TokenUsage } from "@/utils/api/tokenClient";
 
 interface TokenDetailsModalProps {
   token: ApiToken;
@@ -11,49 +12,55 @@ interface TokenDetailsModalProps {
   onDelete: () => Promise<void>;
 }
 
-const TokenDetailsModal: React.FC<TokenDetailsModalProps> = ({ token, onClose, onDelete }) => {
+const TokenDetailsModal: React.FC<TokenDetailsModalProps> = ({
+  token,
+  onClose,
+  onDelete,
+}) => {
   const { state, fetchTokenUsage, updateSelectedToken } = useTokenContext();
   const { tokenUsage, isLoading } = state;
-  
+
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState(token.name);
-  const [usagePeriod, setUsagePeriod] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
+  const [usagePeriod, setUsagePeriod] = useState<
+    "daily" | "weekly" | "monthly"
+  >("monthly");
   const [isDeleting, setIsDeleting] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
 
   // Format date for display
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Never';
-    return format(new Date(dateString), 'PPpp');
+    if (!dateString) return "Never";
+    return format(new Date(dateString), "PPpp");
   };
-  
+
   // Format relative date for display
   const formatRelativeDate = (dateString: string | null) => {
-    if (!dateString) return 'Never';
+    if (!dateString) return "Never";
     return formatDistanceToNow(new Date(dateString), { addSuffix: true });
   };
 
   const handleUpdateName = async () => {
-    if (newName.trim() === '') {
-      setUpdateError('Token name cannot be empty');
+    if (newName.trim() === "") {
+      setUpdateError("Token name cannot be empty");
       return;
     }
-    
+
     if (newName.trim() === token.name) {
       setIsEditing(false);
       return;
     }
-    
+
     try {
       await updateSelectedToken(newName.trim());
       setIsEditing(false);
       setUpdateError(null);
     } catch (error) {
-      setUpdateError('Failed to update token name');
+      setUpdateError("Failed to update token name");
     }
   };
 
-  const handleChangePeriod = (period: 'daily' | 'weekly' | 'monthly') => {
+  const handleChangePeriod = (period: "daily" | "weekly" | "monthly") => {
     setUsagePeriod(period);
     fetchTokenUsage(token.id, period);
   };
@@ -62,7 +69,7 @@ const TokenDetailsModal: React.FC<TokenDetailsModalProps> = ({ token, onClose, o
     try {
       await onDelete();
     } catch (error) {
-      console.error('Error deleting token:', error);
+      console.error("Error deleting token:", error);
     }
   };
 
@@ -72,7 +79,7 @@ const TokenDetailsModal: React.FC<TokenDetailsModalProps> = ({ token, onClose, o
         <div className="p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">Token Details</h2>
-            <button 
+            <button
               onClick={onClose}
               className="text-gray-500 hover:text-gray-700"
             >
@@ -84,7 +91,10 @@ const TokenDetailsModal: React.FC<TokenDetailsModalProps> = ({ token, onClose, o
             <div className="mb-4">
               {isEditing ? (
                 <div>
-                  <label htmlFor="token-name" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="token-name"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Token Name
                   </label>
                   <div className="flex">
@@ -105,7 +115,9 @@ const TokenDetailsModal: React.FC<TokenDetailsModalProps> = ({ token, onClose, o
                       Save
                     </button>
                   </div>
-                  {updateError && <p className="text-red-500 text-xs mt-1">{updateError}</p>}
+                  {updateError && (
+                    <p className="text-red-500 text-xs mt-1">{updateError}</p>
+                  )}
                 </div>
               ) : (
                 <div className="flex justify-between items-center">
@@ -127,27 +139,30 @@ const TokenDetailsModal: React.FC<TokenDetailsModalProps> = ({ token, onClose, o
               <div>
                 <span className="text-sm text-gray-500">Created</span>
                 <p className="text-md">{formatDate(token.createdAt)}</p>
-                <p className="text-sm text-gray-500">{formatRelativeDate(token.createdAt)}</p>
+                <p className="text-sm text-gray-500">
+                  {formatRelativeDate(token.createdAt)}
+                </p>
               </div>
-              
+
               <div>
                 <span className="text-sm text-gray-500">Last Used</span>
                 <p className="text-md">{formatDate(token.lastUsed)}</p>
-                <p className="text-sm text-gray-500">{formatRelativeDate(token.lastUsed)}</p>
+                <p className="text-sm text-gray-500">
+                  {formatRelativeDate(token.lastUsed)}
+                </p>
               </div>
-              
+
               <div>
-                <span className="text-sm text-gray-500">Expires</span>
-                {token.expiresAt ? (
-                  <>
-                    <p className="text-md">{formatDate(token.expiresAt)}</p>
-                    <p className="text-sm text-amber-600">{formatRelativeDate(token.expiresAt)}</p>
-                  </>
-                ) : (
-                  <p className="text-md text-green-600">Never</p>
-                )}
+                <span className="text-sm text-gray-500">Status</span>
+                <p
+                  className={`text-md font-medium ${
+                    token.active ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  {token.active ? "Active" : "Inactive"}
+                </p>
               </div>
-              
+
               <div>
                 <span className="text-sm text-gray-500">Token ID</span>
                 <p className="text-md font-mono text-sm">{token.id}</p>
@@ -158,35 +173,49 @@ const TokenDetailsModal: React.FC<TokenDetailsModalProps> = ({ token, onClose, o
           {/* Usage Stats Section */}
           <div className="mb-6">
             <h3 className="text-md font-semibold mb-2">Usage Statistics</h3>
-            
+
             <div className="flex mb-3 space-x-2 border-b">
-              <button 
-                onClick={() => handleChangePeriod('daily')}
-                className={`px-3 py-1 ${usagePeriod === 'daily' ? 'border-b-2 border-primary-600 text-primary-600' : 'text-gray-500'}`}
+              <button
+                onClick={() => handleChangePeriod("daily")}
+                className={`px-3 py-1 ${
+                  usagePeriod === "daily"
+                    ? "border-b-2 border-primary-600 text-primary-600"
+                    : "text-gray-500"
+                }`}
               >
                 Daily
               </button>
-              <button 
-                onClick={() => handleChangePeriod('weekly')}
-                className={`px-3 py-1 ${usagePeriod === 'weekly' ? 'border-b-2 border-primary-600 text-primary-600' : 'text-gray-500'}`}
+              <button
+                onClick={() => handleChangePeriod("weekly")}
+                className={`px-3 py-1 ${
+                  usagePeriod === "weekly"
+                    ? "border-b-2 border-primary-600 text-primary-600"
+                    : "text-gray-500"
+                }`}
               >
                 Weekly
               </button>
-              <button 
-                onClick={() => handleChangePeriod('monthly')}
-                className={`px-3 py-1 ${usagePeriod === 'monthly' ? 'border-b-2 border-primary-600 text-primary-600' : 'text-gray-500'}`}
+              <button
+                onClick={() => handleChangePeriod("monthly")}
+                className={`px-3 py-1 ${
+                  usagePeriod === "monthly"
+                    ? "border-b-2 border-primary-600 text-primary-600"
+                    : "text-gray-500"
+                }`}
               >
                 Monthly
               </button>
             </div>
-            
+
             {isLoading ? (
               <div className="py-8 flex justify-center items-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
               </div>
             ) : !tokenUsage || tokenUsage.length === 0 ? (
               <div className="py-8 text-center border rounded-md bg-gray-50">
-                <p className="text-gray-500">No usage data available for this period.</p>
+                <p className="text-gray-500">
+                  No usage data available for this period.
+                </p>
               </div>
             ) : (
               <div className="bg-white border rounded-md overflow-hidden">
@@ -211,16 +240,20 @@ const TokenDetailsModal: React.FC<TokenDetailsModalProps> = ({ token, onClose, o
                     {tokenUsage.map((usage) => (
                       <tr key={usage.id}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {format(new Date(usage.date), 'PP')}
+                          {format(new Date(usage.date), "PP")}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {usage.requests}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className="text-green-600">{usage.successfulRequests}</span>
+                          <span className="text-green-600">
+                            {usage.successfulRequests}
+                          </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className="text-red-600">{usage.failedRequests}</span>
+                          <span className="text-red-600">
+                            {usage.failedRequests}
+                          </span>
                         </td>
                       </tr>
                     ))}
@@ -234,7 +267,8 @@ const TokenDetailsModal: React.FC<TokenDetailsModalProps> = ({ token, onClose, o
             {isDeleting ? (
               <div className="w-full">
                 <p className="text-red-600 text-sm mb-3">
-                  Are you sure you want to delete this token? This action cannot be undone.
+                  Are you sure you want to delete this token? This action cannot
+                  be undone.
                 </p>
                 <div className="flex space-x-3">
                   <button

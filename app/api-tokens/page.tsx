@@ -1,9 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
 import { useAuthContext } from "@/context/AuthContext";
+import apiClient from "@/utils/api/apiClient";
 import {
   ApiToken,
   createToken,
@@ -11,12 +13,15 @@ import {
   listTokens,
 } from "@/utils/api/tokenClient";
 import {
+  IconActivity,
+  IconCalendar,
+  IconCheck,
   IconCopy,
-  IconEye,
-  IconEyeOff,
   IconKey,
   IconPlus,
+  IconShieldCheck,
   IconTrash,
+  IconX,
 } from "@tabler/icons-react";
 
 export default function ApiTokensPage() {
@@ -24,14 +29,22 @@ export default function ApiTokensPage() {
   const { isAuthenticated, isLoading } = state;
   const router = useRouter();
 
+  // Get API URL from environment variable
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
   const [tokens, setTokens] = useState<ApiToken[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [tokensLoading, setTokensLoading] = useState(true);
   const [error, setError] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newTokenName, setNewTokenName] = useState("");
   const [creating, setCreating] = useState(false);
   const [newToken, setNewToken] = useState<string | null>(null);
-  const [visibleTokens, setVisibleTokens] = useState<Set<string>>(new Set());
+  const [showNewTokenModal, setShowNewTokenModal] = useState(false);
+
+  const [testingToken, setTestingToken] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<
+    Record<string, { valid: boolean; message: string }>
+  >({});
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -39,23 +52,37 @@ export default function ApiTokensPage() {
     }
   }, [isAuthenticated, isLoading, router]);
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadTokens();
-    }
-  }, [isAuthenticated]);
-
-  const loadTokens = async () => {
+  const loadTokens = useCallback(async () => {
     try {
-      setLoading(true);
+      setTokensLoading(true);
+      setError(""); // Clear any previous errors
       const tokenList = await listTokens();
-      setTokens(tokenList);
+      console.log("Token list response:", tokenList);
+      setTokens(tokenList.data || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load tokens");
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to load tokens";
+      console.error("Error loading tokens:", err);
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
-      setLoading(false);
+      setTokensLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      console.log("User is authenticated, loading tokens...");
+      loadTokens();
+    } else {
+      console.log(
+        "User not authenticated or still loading, isAuthenticated:",
+        isAuthenticated,
+        "isLoading:",
+        isLoading
+      );
+    }
+  }, [isAuthenticated, isLoading, loadTokens]);
 
   const handleCreateToken = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,15 +90,75 @@ export default function ApiTokensPage() {
 
     try {
       setCreating(true);
+      setError(""); // Clear any previous errors
       const token = await createToken({ name: newTokenName.trim() });
+
+      console.log("Created token response:", token);
+      console.log("Token value:", token.token);
+
+      // Store the full token and show it to the user
       setNewToken(token.token || "");
+      setShowNewTokenModal(true);
+
+      // Add the new token to the list (it will show as masked when we reload)
       setTokens([token, ...tokens]);
       setNewTokenName("");
       setShowCreateForm(false);
+      toast.success("API token created successfully!");
+
+      // Reload tokens to get the updated list with masked tokens
+      await loadTokens();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create token");
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to create token";
+      console.error("Error creating token:", err);
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setCreating(false);
+    }
+  };
+
+  const testToken = async (tokenId: string, tokenValue: string) => {
+    if (!tokenValue || tokenValue.trim().length === 0) {
+      toast.error("Please provide a valid token to test");
+      return;
+    }
+
+    try {
+      setTestingToken(tokenId);
+      const response = await apiClient.post("/api-management/validate-token", {
+        token: tokenValue.trim(),
+      });
+
+      const result = {
+        valid: response.data.valid,
+        message: response.data.message,
+      };
+
+      setTestResults((prev) => ({
+        ...prev,
+        [tokenId]: result,
+      }));
+
+      if (result.valid) {
+        toast.success("✅ Token is valid and active!");
+      } else {
+        toast.error(`❌ Token validation failed: ${result.message}`);
+      }
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to test token";
+      setTestResults((prev) => ({
+        ...prev,
+        [tokenId]: {
+          valid: false,
+          message: errorMessage,
+        },
+      }));
+      toast.error(`❌ ${errorMessage}`);
+    } finally {
+      setTestingToken(null);
     }
   };
 
@@ -85,25 +172,86 @@ export default function ApiTokensPage() {
     }
 
     try {
+      setError(""); // Clear any previous errors
       await deleteToken(id);
       setTokens(tokens.filter((token) => token.id !== id));
+      toast.success("API token deleted successfully!");
+      // Clear any test results for this token
+      setTestResults((prev) => {
+        const newResults = { ...prev };
+        delete newResults[id];
+        return newResults;
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete token");
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to delete token";
+      console.error("Error deleting token:", err);
+      setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = async (
+    text: string,
+    allowMasked: boolean = false
+  ) => {
+    try {
+      if (!text) {
+        toast.error("No token to copy");
+        return;
+      }
+
+      console.log("Copying token:", text, "allowMasked:", allowMasked);
+
+      // Only check for masked tokens if not explicitly allowed
+      if (!allowMasked && (text.startsWith("****") || text.includes("••••"))) {
+        toast.error(
+          "Cannot copy masked token. Full token is only available when first created."
+        );
+        return;
+      }
+
+      await navigator.clipboard.writeText(text);
+      toast.success("Token copied to clipboard!");
+    } catch (err) {
+      console.error("Copy error:", err);
+      toast.error("Failed to copy token to clipboard");
+    }
   };
 
-  const toggleTokenVisibility = (tokenId: string) => {
-    const newVisible = new Set(visibleTokens);
-    if (newVisible.has(tokenId)) {
-      newVisible.delete(tokenId);
-    } else {
-      newVisible.add(tokenId);
+  // Simple copy function for new tokens that bypasses all checks
+  const copyNewToken = async (token: string) => {
+    try {
+      if (!token) {
+        toast.error("No token to copy");
+        return;
+      }
+
+      console.log("Copying new token directly:", token);
+      await navigator.clipboard.writeText(token);
+      toast.success("Token copied to clipboard!");
+    } catch (err) {
+      console.error("Copy error:", err);
+      toast.error("Failed to copy token to clipboard");
     }
-    setVisibleTokens(newVisible);
+  };
+
+  const formatTokenDisplay = (token: string | undefined) => {
+    if (!token) {
+      return "••••••••••••••••••••••••••••••••";
+    }
+    // Handle backend format like "****e9c8"
+    if (token.startsWith("****")) {
+      return `ta_••••••••••••••••••••••••••${token.substring(4)}`;
+    }
+    // Handle full token format
+    if (token.startsWith("ta_") && token.length > 8) {
+      // Show first 4 chars after ta_ and last 4 chars
+      const prefix = token.substring(0, 7); // ta_ + 4 chars
+      const suffix = token.substring(token.length - 4);
+      return `${prefix}••••••••••••••••••••••••${suffix}`;
+    }
+    return token;
   };
 
   if (isLoading) {
@@ -135,7 +283,7 @@ export default function ApiTokensPage() {
           <div>
             <h1 className="text-4xl font-bold text-white mb-4">API Tokens</h1>
             <p className="text-gray-300 text-lg">
-              Manage your API tokens to access the Leadsnipper scraper API.
+              Manage your API tokens to access the TotalAds scraper API.
             </p>
           </div>
           <button
@@ -199,15 +347,16 @@ export default function ApiTokensPage() {
         )}
 
         {showCreateForm && (
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-bg-200 mb-6">
-            <h2 className="text-xl font-semibold text-text mb-4">
-              Create New Token
+          <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl shadow-2xl p-8 mb-8">
+            <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
+              <IconPlus className="w-6 h-6 mr-3 text-purple-400" />
+              Create New API Token
             </h2>
             <form onSubmit={handleCreateToken}>
-              <div className="mb-4">
+              <div className="mb-6">
                 <label
                   htmlFor="tokenName"
-                  className="block text-sm font-medium text-text mb-2"
+                  className="block text-sm font-medium text-gray-300 mb-3"
                 >
                   Token Name
                 </label>
@@ -217,22 +366,29 @@ export default function ApiTokensPage() {
                   value={newTokenName}
                   onChange={(e) => setNewTokenName(e.target.value)}
                   placeholder="e.g., Production API, Development, Mobile App"
-                  className="w-full px-3 py-2 border border-bg-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-4 py-3 bg-black/20 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                   required
                 />
               </div>
-              <div className="flex space-x-3">
+              <div className="flex space-x-4">
                 <button
                   type="submit"
                   disabled={creating}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
+                  className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl transition-all duration-200 transform hover:scale-105 font-semibold disabled:opacity-50 disabled:transform-none"
                 >
-                  {creating ? "Creating..." : "Create Token"}
+                  {creating ? (
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                      Creating...
+                    </div>
+                  ) : (
+                    "Create Token"
+                  )}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowCreateForm(false)}
-                  className="px-4 py-2 border border-bg-200 text-text rounded-lg hover:bg-bg-50 transition-colors"
+                  className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-colors border border-white/20"
                 >
                   Cancel
                 </button>
@@ -241,88 +397,150 @@ export default function ApiTokensPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow-sm border border-bg-200">
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-text mb-4">
+        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl shadow-2xl">
+          <div className="p-8">
+            <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
+              <IconKey className="w-6 h-6 mr-3 text-purple-400" />
               Your API Tokens
             </h2>
 
-            {loading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-                <p className="text-text-200 mt-2">Loading tokens...</p>
+            {tokensLoading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mx-auto mb-4"></div>
+                <p className="text-gray-300 text-lg">Loading tokens...</p>
               </div>
             ) : tokens.length === 0 ? (
-              <div className="text-center py-8">
-                <IconKey className="w-12 h-12 text-text-200 mx-auto mb-4" />
-                <p className="text-text-200">No API tokens found</p>
-                <p className="text-sm text-text-200 mt-1">
-                  Create your first token to start using the API
-                </p>
+              <div className="text-center py-16">
+                <div className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-2xl p-12 max-w-md mx-auto">
+                  <IconKey className="w-20 h-20 text-purple-400 mx-auto mb-6" />
+                  <h3 className="text-2xl font-bold text-white mb-4">
+                    No API Tokens Yet
+                  </h3>
+                  <p className="text-gray-300 mb-8 leading-relaxed">
+                    Create your first API token to start accessing the TotalAds
+                    scraper API. Tokens allow you to authenticate your
+                    applications and track usage.
+                  </p>
+                  <button
+                    onClick={() => setShowCreateForm(true)}
+                    className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl transition-all duration-200 transform hover:scale-105 font-semibold text-lg shadow-lg"
+                  >
+                    <IconPlus className="w-6 h-6 mr-3" />
+                    Create Your First Token
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {tokens?.length > 0 &&
                   tokens?.map((token) => (
                     <div
                       key={token.id}
-                      className="border border-bg-200 rounded-lg p-4"
+                      className="backdrop-blur-sm bg-white/5 border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-all duration-200"
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <h3 className="font-medium text-text">
-                            {token.name}
-                          </h3>
-                          <div className="flex items-center mt-1 space-x-4 text-sm text-text-200">
-                            <span>
-                              Created:{" "}
-                              {new Date(token.createdAt).toLocaleDateString()}
-                            </span>
-                            {token.lastUsed && (
-                              <span>
-                                Last used:{" "}
-                                {new Date(token.lastUsed).toLocaleDateString()}
+                          <div className="flex items-center mb-3">
+                            <h3 className="text-xl font-semibold text-white mr-3">
+                              {token.name}
+                            </h3>
+                            {testResults[token.id] && (
+                              <span
+                                className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                  testResults[token.id].valid
+                                    ? "bg-green-500/20 text-green-300 border border-green-500/30"
+                                    : "bg-red-500/20 text-red-300 border border-red-500/30"
+                                }`}
+                              >
+                                {testResults[token.id].valid ? (
+                                  <IconCheck className="w-3 h-3 mr-1" />
+                                ) : (
+                                  <IconX className="w-3 h-3 mr-1" />
+                                )}
+                                {testResults[token.id].valid
+                                  ? "Valid"
+                                  : "Invalid"}
                               </span>
                             )}
                           </div>
-                          {token.token && (
-                            <div className="flex items-center mt-2">
-                              <code className="text-sm font-mono bg-bg-100 px-2 py-1 rounded">
-                                {visibleTokens.has(token.id)
-                                  ? token.token
-                                  : "••••••••••••••••"}
-                              </code>
-                              <button
-                                onClick={() => toggleTokenVisibility(token.id)}
-                                className="ml-2 p-1 hover:bg-bg-100 rounded"
-                                title={
-                                  visibleTokens.has(token.id)
-                                    ? "Hide token"
-                                    : "Show token"
-                                }
-                              >
-                                {visibleTokens.has(token.id) ? (
-                                  <IconEyeOff className="w-4 h-4" />
-                                ) : (
-                                  <IconEye className="w-4 h-4" />
-                                )}
-                              </button>
-                              <button
-                                onClick={() => copyToClipboard(token.token!)}
-                                className="ml-1 p-1 hover:bg-bg-100 rounded"
-                                title="Copy to clipboard"
-                              >
-                                <IconCopy className="w-4 h-4" />
-                              </button>
+
+                          <div className="flex items-center space-x-6 text-sm text-gray-300 mb-4">
+                            <span className="flex items-center">
+                              <IconCalendar className="w-4 h-4 mr-2 text-purple-400" />
+                              Created:{" "}
+                              {new Date(token.createdAt).toLocaleDateString()}
+                            </span>
+                            {token.lastUsedAt && (
+                              <span className="flex items-center">
+                                <IconActivity className="w-4 h-4 mr-2 text-green-400" />
+                                Last used:{" "}
+                                {new Date(
+                                  token.lastUsedAt
+                                ).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Show token field (masked for existing tokens, full for new tokens) */}
+                          <div className="bg-black/20 rounded-xl p-4 border border-white/10">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <label className="block text-sm font-medium text-gray-300 mb-2">
+                                  API Token
+                                </label>
+                                <code className="text-sm font-mono text-gray-300 break-all">
+                                  {formatTokenDisplay(token.token)}
+                                </code>
+                              </div>
+                              <div className="flex items-center space-x-2 ml-4">
+                                <button
+                                  onClick={() =>
+                                    copyToClipboard(token.token || "")
+                                  }
+                                  className="p-2 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-xl transition-colors"
+                                  title="Copy token"
+                                >
+                                  <IconCopy className="w-4 h-4 text-purple-300" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    // For masked tokens, prompt user to enter the full token
+                                    if (
+                                      !token.token ||
+                                      token.token.startsWith("****") ||
+                                      token.token.includes("••••")
+                                    ) {
+                                      const fullToken = prompt(
+                                        `🔑 Test Token: ${token.name}\n\nEnter your full API token (starts with ta_):\n\nNote: This token is masked for security. You need the full token you saved when it was created.`
+                                      );
+                                      if (fullToken && fullToken.trim()) {
+                                        testToken(token.id, fullToken.trim());
+                                      }
+                                    } else {
+                                      // For new tokens, test directly
+                                      testToken(token.id, token.token || "");
+                                    }
+                                  }}
+                                  disabled={testingToken === token.id}
+                                  className="p-2 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-xl transition-colors disabled:opacity-50"
+                                  title="Test token"
+                                >
+                                  {testingToken === token.id ? (
+                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-green-400 border-t-transparent"></div>
+                                  ) : (
+                                    <IconShieldCheck className="w-4 h-4 text-green-300" />
+                                  )}
+                                </button>
+                              </div>
                             </div>
-                          )}
+                          </div>
                         </div>
                         <button
                           onClick={() => handleDeleteToken(token.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="p-3 text-red-400 hover:bg-red-500/20 rounded-xl transition-colors border border-red-500/30 ml-4"
                           title="Delete token"
                         >
-                          <IconTrash className="w-4 h-4" />
+                          <IconTrash className="w-5 h-5" />
                         </button>
                       </div>
                     </div>
@@ -333,36 +551,199 @@ export default function ApiTokensPage() {
         </div>
 
         {/* API Documentation */}
-        <div className="mt-8 bg-white rounded-lg shadow-sm border border-bg-200 p-6">
-          <h2 className="text-xl font-semibold text-text mb-4">
-            Using Your API Token
+        <div className="mt-8 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl shadow-2xl p-8">
+          <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
+            <IconKey className="w-6 h-6 mr-3 text-blue-400" />
+            API Documentation
           </h2>
-          <div className="space-y-4">
+
+          <div className="space-y-8">
             <div>
-              <h3 className="font-medium text-text mb-2">Authentication</h3>
-              <p className="text-text-200 text-sm mb-2">
-                Include your API token in the Authorization header:
+              <h3 className="text-lg font-semibold text-white mb-4">
+                Authentication
+              </h3>
+              <p className="text-gray-300 mb-4">
+                Include your API token in the Authorization header with Bearer
+                authentication:
               </p>
-              <code className="block bg-bg-100 p-3 rounded text-sm font-mono">
-                Authorization: Bearer YOUR_API_TOKEN
-              </code>
+              <div className="bg-black/30 rounded-xl p-4 border border-white/10">
+                <code className="text-sm font-mono text-green-300">
+                  Authorization: Bearer YOUR_API_TOKEN
+                </code>
+              </div>
             </div>
 
             <div>
-              <h3 className="font-medium text-text mb-2">Example Request</h3>
-              <code className="block bg-bg-100 p-3 rounded text-sm font-mono whitespace-pre">
-                {`curl -X POST http://localhost:8001/api/scraper \\
+              <h3 className="text-lg font-semibold text-white mb-4">
+                Available Endpoints
+              </h3>
+
+              <div className="space-y-6">
+                <div className="bg-black/20 rounded-xl p-6 border border-white/10">
+                  <h4 className="text-white font-semibold mb-2">
+                    POST /scraper
+                  </h4>
+                  <p className="text-gray-300 text-sm mb-4">
+                    Scrape a website and extract data
+                  </p>
+                  <div className="bg-black/40 rounded-lg p-4 overflow-x-auto">
+                    <code className="text-sm font-mono text-gray-300 whitespace-pre">
+                      {`curl -X POST ${apiUrl}/scraper \\
   -H "Authorization: Bearer YOUR_API_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{
     "url": "https://example.com",
-    "enableAI": false
+    "enableAI": true,
+    "deepScrape": false,
+    "maxPages": 1
   }'`}
-              </code>
+                    </code>
+                  </div>
+                </div>
+
+                <div className="bg-black/20 rounded-xl p-6 border border-white/10">
+                  <h4 className="text-white font-semibold mb-2">
+                    GET /scraper/health
+                  </h4>
+                  <p className="text-gray-300 text-sm mb-4">
+                    Check the health status of the scraper service
+                  </p>
+                  <div className="bg-black/40 rounded-lg p-4 overflow-x-auto">
+                    <code className="text-sm font-mono text-gray-300 whitespace-pre">
+                      {`curl -X GET ${apiUrl}/scraper/health \\
+  -H "Authorization: Bearer YOUR_API_TOKEN"`}
+                    </code>
+                  </div>
+                </div>
+
+                <div className="bg-black/20 rounded-xl p-6 border border-white/10">
+                  <h4 className="text-white font-semibold mb-2">
+                    GET /scraper/usage
+                  </h4>
+                  <p className="text-gray-300 text-sm mb-4">
+                    Get your API usage statistics
+                  </p>
+                  <div className="bg-black/40 rounded-lg p-4 overflow-x-auto">
+                    <code className="text-sm font-mono text-gray-300 whitespace-pre">
+                      {`curl -X GET ${apiUrl}/scraper/usage \\
+  -H "Authorization: Bearer YOUR_API_TOKEN"`}
+                    </code>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-semibold text-white mb-4">
+                Response Format
+              </h3>
+              <div className="bg-black/30 rounded-xl p-4 border border-white/10">
+                <code className="text-sm font-mono text-gray-300 whitespace-pre">
+                  {`{
+  "success": true,
+  "data": {
+    "url": "https://example.com",
+    "title": "Example Website",
+    "description": "Website description",
+    "company_info": {
+      "name": "Example Company",
+      "industry": "Technology",
+      "employees": "50-100"
+    },
+    "ai_summary": "AI-generated summary...",
+    "structured_data": { ... }
+  },
+  "meta": {
+    "requestId": "uuid",
+    "aiEnhanced": true,
+    "processingTime": 2500
+  }
+}`}
+                </code>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-semibold text-white mb-4">
+                Rate Limits
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-black/20 rounded-xl p-4 border border-white/10">
+                  <h4 className="text-white font-medium mb-2">Free Tier</h4>
+                  <p className="text-gray-300 text-sm">10 requests per month</p>
+                </div>
+                <div className="bg-black/20 rounded-xl p-4 border border-white/10">
+                  <h4 className="text-white font-medium mb-2">Pro Tier</h4>
+                  <p className="text-gray-300 text-sm">Pay-per-call billing</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* New Token Modal */}
+      {showNewTokenModal && newToken && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 border border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">
+                🎉 Token Created Successfully!
+              </h3>
+              <button
+                onClick={() => {
+                  setShowNewTokenModal(false);
+                  setNewToken(null);
+                }}
+                className="text-gray-400 hover:text-white"
+              >
+                <IconX size={20} />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-gray-300 text-sm mb-3">
+                ⚠️ <strong>Important:</strong> This is the only time you&apos;ll
+                see the full token. Copy it now and store it securely.
+              </p>
+
+              <div className="bg-gray-900 rounded-lg p-3 border border-gray-600">
+                <div className="flex items-center justify-between">
+                  <code className="text-green-400 text-sm break-all font-mono">
+                    {newToken}
+                  </code>
+                  <button
+                    onClick={() => copyNewToken(newToken)}
+                    className="ml-2 p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors flex-shrink-0"
+                    title="Copy token"
+                  >
+                    <IconCopy size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => copyNewToken(newToken)}
+                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <IconCopy size={16} />
+                Copy Token
+              </button>
+              <button
+                onClick={() => {
+                  setShowNewTokenModal(false);
+                  setNewToken(null);
+                }}
+                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                I&apos;ve Saved It
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

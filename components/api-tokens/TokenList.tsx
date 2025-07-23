@@ -53,7 +53,7 @@ export default function TokenList({
               scope="col"
               className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
             >
-              Expiration
+              Status
             </th>
             <th
               scope="col"
@@ -86,10 +86,18 @@ export default function TokenList({
                 {formatDate(token.createdAt)}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {formatDate(token.lastUsed || undefined)}
+                {formatDate(token.lastUsedAt || undefined)}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {token.expiresAt ? formatDate(token.expiresAt) : "Never"}
+                <span
+                  className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    token.active
+                      ? "bg-green-100 text-green-800"
+                      : "bg-red-100 text-red-800"
+                  }`}
+                >
+                  {token.active ? "Active" : "Inactive"}
+                </span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 - requests

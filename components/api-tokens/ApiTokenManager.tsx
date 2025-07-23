@@ -30,7 +30,8 @@ export default function ApiTokenManager() {
       setLoading(true);
       setError(null);
       const fetchedTokens = await tokenService.getTokens();
-      setTokens(fetchedTokens);
+      console.log(fetchTokens, "---------------------------------------------");
+      setTokens(fetchedTokens.data);
     } catch (err) {
       console.error("Error fetching API tokens:", err);
       setError(

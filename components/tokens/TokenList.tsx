@@ -1,8 +1,9 @@
 "use client";
 
-import React from 'react';
-import { ApiToken } from '@/utils/api/tokenClient';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from "date-fns";
+import React from "react";
+
+import { ApiToken } from "@/utils/api/tokenClient";
 
 interface TokenListProps {
   tokens: ApiToken[];
@@ -10,10 +11,14 @@ interface TokenListProps {
   onSelectToken: (id: string) => void;
 }
 
-const TokenList: React.FC<TokenListProps> = ({ tokens, isLoading, onSelectToken }) => {
+const TokenList: React.FC<TokenListProps> = ({
+  tokens,
+  isLoading,
+  onSelectToken,
+}) => {
   // Format date for display
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Never';
+    if (!dateString) return "Never";
     return formatDistanceToNow(new Date(dateString), { addSuffix: true });
   };
 
@@ -28,7 +33,9 @@ const TokenList: React.FC<TokenListProps> = ({ tokens, isLoading, onSelectToken 
   if (tokens.length === 0) {
     return (
       <div className="py-8 text-center">
-        <p className="text-gray-500">No API tokens found. Create your first token to get started.</p>
+        <p className="text-gray-500">
+          No API tokens found. Create your first token to get started.
+        </p>
       </div>
     );
   }
@@ -68,13 +75,15 @@ const TokenList: React.FC<TokenListProps> = ({ tokens, isLoading, onSelectToken 
                 {formatDate(token.lastUsed)}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm">
-                {token.expiresAt ? (
-                  <span className="text-amber-600">
-                    {formatDate(token.expiresAt)}
-                  </span>
-                ) : (
-                  <span className="text-green-600">Never</span>
-                )}
+                <span
+                  className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    token.active
+                      ? "bg-green-100 text-green-800"
+                      : "bg-red-100 text-red-800"
+                  }`}
+                >
+                  {token.active ? "Active" : "Inactive"}
+                </span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <button
