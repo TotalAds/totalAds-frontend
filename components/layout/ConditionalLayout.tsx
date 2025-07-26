@@ -18,6 +18,7 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
     "/signup",
     "/forgot-password",
     "/reset-password",
+    "/onboarding",
   ];
 
   const isAuthPage = authPaths.some((path) => pathname.startsWith(path));

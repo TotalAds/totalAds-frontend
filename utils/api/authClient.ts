@@ -25,8 +25,11 @@ export interface UserProfile {
   id: string;
   name: string;
   email: string;
-  userType: string;
   emailVerified: boolean;
+  accountCreatedAt: string;
+  onboardingCompleted: boolean;
+  onboardingStep: number | null;
+  onboardingSkipped: boolean;
 }
 
 export interface AuthResponse {
@@ -112,7 +115,7 @@ export const register = async (
 export const getCurrentUser = async (): Promise<UserProfile> => {
   try {
     const response = await apiClient.get("/users/me");
-    return response.data;
+    return response.data.payload || response.data;
   } catch (error: unknown) {
     console.error("Error getting current user:", error);
     if (axios.isAxiosError(error) && error.response) {

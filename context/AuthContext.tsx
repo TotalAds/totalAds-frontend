@@ -63,6 +63,7 @@ interface AuthContextType {
   ) => Promise<UserProfile>;
   logoutUser: () => void;
   clearError: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -191,9 +192,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     dispatch({ type: "CLEAR_ERROR" });
   };
 
+  const refreshUser = async () => {
+    try {
+      dispatch({ type: "FETCH_USER_START" });
+      const user = await getCurrentUser();
+      dispatch({ type: "FETCH_USER_SUCCESS", payload: user });
+    } catch (error) {
+      dispatch({
+        type: "FETCH_USER_ERROR",
+        payload:
+          error instanceof Error
+            ? error.message
+            : "Failed to refresh user data",
+      });
+    }
+  };
+
   return (
     <AuthContext.Provider
-      value={{ state, loginUser, registerUser, logoutUser, clearError }}
+      value={{
+        state,
+        loginUser,
+        registerUser,
+        logoutUser,
+        clearError,
+        refreshUser,
+      }}
     >
       {children}
     </AuthContext.Provider>

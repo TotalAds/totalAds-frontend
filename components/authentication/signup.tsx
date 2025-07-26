@@ -53,7 +53,7 @@ export function SignupComponent() {
 
     try {
       await registerUser(name, email, password, confirmPassword);
-      router.push("/dashboard");
+      router.push("/onboarding");
     } catch (error) {
       console.error("Registration error:", error);
       // Error is handled by AuthContext and will be displayed
