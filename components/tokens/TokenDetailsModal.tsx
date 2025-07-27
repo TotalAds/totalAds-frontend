@@ -146,9 +146,9 @@ const TokenDetailsModal: React.FC<TokenDetailsModalProps> = ({
 
               <div>
                 <span className="text-sm text-gray-500">Last Used</span>
-                <p className="text-md">{formatDate(token.lastUsed)}</p>
+                <p className="text-md">{formatDate(token.lastUsedAt)}</p>
                 <p className="text-sm text-gray-500">
-                  {formatRelativeDate(token.lastUsed)}
+                  {formatRelativeDate(token.lastUsedAt)}
                 </p>
               </div>
 

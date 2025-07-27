@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
@@ -16,11 +16,15 @@ import ScraperResults from "./ScraperResults";
 
 const ScraperContainer = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { state: authState } = useAuthContext();
   const { state, scrapeWebsite, resetResult } = useScraperContext();
   const { isLoading, error, result, health } = state;
   const [enableAI, setEnableAI] = useState(false);
   const [showAuthWarning, setShowAuthWarning] = useState(false);
+  const [preselectedIcpProfileId, setPreselectedIcpProfileId] = useState<
+    string | null
+  >(null);
 
   // Check if user is authenticated
   useEffect(() => {
@@ -31,7 +35,16 @@ const ScraperContainer = () => {
     }
   }, [authState.isAuthenticated, authState.isLoading]);
 
-  const handleScrapeSubmit = async (url: string, enableAI: boolean) => {
+  // Check for preselected ICP profile ID from query params
+  useEffect(() => {
+    const icpProfileId = searchParams.get("icpProfileId");
+    if (icpProfileId) {
+      setPreselectedIcpProfileId(icpProfileId);
+      setEnableAI(true); // Enable AI mode when ICP profile is preselected
+    }
+  }, [searchParams]);
+
+  const handleScrapeSubmit = async (url: string, icpProfileId: string) => {
     // If not authenticated, redirect to login
     if (!authState.isAuthenticated) {
       router.push("/login?redirect=/scraper");
@@ -56,8 +69,9 @@ const ScraperContainer = () => {
       return;
     }
 
-    setEnableAI(enableAI);
-    await scrapeWebsite(url, enableAI);
+    // Use ICP scraping with the selected profile
+    setEnableAI(true); // ICP scraping always uses AI
+    await scrapeWebsite(url, true, { icpProfileId });
   };
   console.log(health);
 
@@ -162,6 +176,7 @@ const ScraperContainer = () => {
             onSubmit={handleScrapeSubmit}
             isLoading={isLoading}
             onReset={handleReset}
+            preselectedIcpProfileId={preselectedIcpProfileId}
           />
         </div>
 

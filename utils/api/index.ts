@@ -23,6 +23,9 @@ export * from "./billingClient";
 // Usage Statistics API
 export * from "./usageClient";
 
+// ICP Management API
+export * from "./icpClient";
+
 // Re-export common types
 export type {
   // Auth types
@@ -32,6 +35,14 @@ export type {
   AuthResponse,
   ChangePasswordData,
 } from "./authClient";
+
+export type {
+  // ICP types
+  ICPProfile,
+  CreateICPProfileRequest,
+  UpdateICPProfileRequest,
+  ICPProfilesResponse,
+} from "./icpClient";
 
 // Scraper types are imported from components/scraper/utils/scraperTypes
 

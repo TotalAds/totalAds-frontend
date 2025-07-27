@@ -57,7 +57,10 @@ export default function Profile() {
       try {
         setLoading(true);
         const user = await getCurrentUser();
-        setProfile(user);
+        setProfile({
+          ...user,
+          userType: "user", // Default userType since it's not in UserProfile
+        });
         setEditForm({ name: user.name || "" });
       } catch (error) {
         console.error("Error fetching profile:", error);

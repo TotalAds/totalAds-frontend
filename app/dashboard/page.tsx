@@ -98,7 +98,7 @@ export default function Dashboard() {
             0,
             10 - (usageData.stats?.totalRequests || 0)
           ),
-          totalTokens: tokensData.length || 0,
+          totalTokens: tokensData.data?.length || 0,
           lastActivity: "Today", // You can enhance this with real last activity data
           currentPlan:
             (usageData.stats?.totalRequests || 0) > 10 ? "pro" : "free",

@@ -72,7 +72,7 @@ const TokenList: React.FC<TokenListProps> = ({
                 {formatDate(token.createdAt)}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {formatDate(token.lastUsed)}
+                {formatDate(token.lastUsedAt)}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm">
                 <span

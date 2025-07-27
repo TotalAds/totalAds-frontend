@@ -1,25 +1,57 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getICPProfiles, ICPProfile } from "@/utils/api";
 
 interface ScraperFormProps {
-  onSubmit: (url: string, enableAI: boolean) => void;
+  onSubmit: (url: string, icpProfileId: string) => void;
   isLoading: boolean;
   onReset?: () => void;
+  preselectedIcpProfileId?: string | null;
 }
 
 const ScraperForm: React.FC<ScraperFormProps> = ({
   onSubmit,
   isLoading,
   onReset,
+  preselectedIcpProfileId,
 }) => {
   const [url, setUrl] = useState<string>("");
-  const [enableAI, setEnableAI] = useState<boolean>(false);
+  const [selectedICPProfile, setSelectedICPProfile] = useState<string>("");
+  const [icpProfiles, setICPProfiles] = useState<ICPProfile[]>([]);
   const [urlError, setUrlError] = useState<string | null>(null);
+  const [icpError, setICPError] = useState<string | null>(null);
+  const [loadingProfiles, setLoadingProfiles] = useState(true);
+
+  useEffect(() => {
+    fetchICPProfiles();
+  }, []);
+
+  // Set preselected ICP profile ID when provided
+  useEffect(() => {
+    if (preselectedIcpProfileId) {
+      setSelectedICPProfile(preselectedIcpProfileId);
+    }
+  }, [preselectedIcpProfileId]);
+
+  const fetchICPProfiles = async () => {
+    try {
+      setLoadingProfiles(true);
+      const response = await getICPProfiles("active");
+      setICPProfiles(response.profiles);
+      if (response.profiles.length > 0) {
+        setSelectedICPProfile(response.profiles[0].id);
+      }
+    } catch (error) {
+      console.error("Failed to fetch ICP profiles:", error);
+    } finally {
+      setLoadingProfiles(false);
+    }
+  };
 
   const validateUrl = (value: string): boolean => {
     try {
@@ -45,97 +77,134 @@ const ScraperForm: React.FC<ScraperFormProps> = ({
       return;
     }
 
+    // Check if ICP profile is selected
+    if (!selectedICPProfile) {
+      setICPError("Please select an ICP profile");
+      return;
+    }
+
     setUrlError(null);
-    onSubmit(url, enableAI);
+    setICPError(null);
+    onSubmit(url, selectedICPProfile);
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       <div>
         <h2 className="text-2xl font-bold text-white mb-6">
-          Extract Website Data
+          ICP-Enhanced Website Scraping
         </h2>
 
-        <div className="space-y-2">
-          <label htmlFor="url" className="text-lg font-medium text-gray-200">
-            Website URL
-          </label>
-          <input
-            id="url"
-            type="text"
-            placeholder="https://example.com"
-            value={url}
-            onChange={(e) => {
-              setUrl(e.target.value);
-              if (urlError) setUrlError(null);
-            }}
-            className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm text-lg"
-            disabled={isLoading}
-          />
-          {urlError && <p className="text-sm text-red-400 mt-2">{urlError}</p>}
-          <p className="text-sm text-gray-400 mt-2">
-            Enter the full URL of the website you want to scrape, including the
-            http:// or https:// prefix.
-          </p>
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <label htmlFor="url" className="text-lg font-medium text-gray-200">
+              Website URL
+            </label>
+            <input
+              id="url"
+              type="text"
+              placeholder="https://example.com"
+              value={url}
+              onChange={(e) => {
+                setUrl(e.target.value);
+                if (urlError) setUrlError(null);
+              }}
+              className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm text-lg"
+              disabled={isLoading}
+            />
+            {urlError && (
+              <p className="text-sm text-red-400 mt-2">{urlError}</p>
+            )}
+            <p className="text-sm text-gray-400 mt-2">
+              Enter the full URL of the website you want to scrape, including
+              the http:// or https:// prefix.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label
+              htmlFor="icp-profile"
+              className="text-lg font-medium text-gray-200"
+            >
+              ICP Profile
+            </label>
+            {loadingProfiles ? (
+              <div className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl text-gray-400 flex items-center">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500 mr-2"></div>
+                Loading ICP profiles...
+              </div>
+            ) : icpProfiles.length === 0 ? (
+              <div className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl text-gray-400">
+                <p>No active ICP profiles found.</p>
+                <p className="text-sm mt-1">
+                  <a
+                    href="/icp-profiles"
+                    className="text-purple-400 hover:text-purple-300 underline"
+                  >
+                    Create an ICP profile
+                  </a>{" "}
+                  to start intelligent lead qualification.
+                </p>
+              </div>
+            ) : (
+              <select
+                id="icp-profile"
+                value={selectedICPProfile}
+                onChange={(e) => {
+                  setSelectedICPProfile(e.target.value);
+                  if (icpError) setICPError(null);
+                }}
+                className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm text-lg"
+                disabled={isLoading}
+              >
+                <option value="">Select an ICP profile...</option>
+                {icpProfiles.map((profile) => (
+                  <option
+                    key={profile.id}
+                    value={profile.id}
+                    className="bg-gray-800"
+                  >
+                    {profile.name} (Min Score: {profile.minimumScore}%)
+                  </option>
+                ))}
+              </select>
+            )}
+            {icpError && (
+              <p className="text-sm text-red-400 mt-2">{icpError}</p>
+            )}
+            <p className="text-sm text-gray-400 mt-2">
+              Select an ICP profile to analyze the scraped data against your
+              ideal customer criteria.
+            </p>
+          </div>
         </div>
       </div>
 
       <div className="space-y-3">
-        <h3 className="text-white font-medium mb-3">Choose Scraper Type:</h3>
+        <h3 className="text-white font-medium mb-3">ICP-Enhanced Scraping:</h3>
 
-        {/* Normal Scraper Option */}
-        <div className="flex items-start space-x-4 p-4 bg-white/5 rounded-xl border border-white/10">
-          <input
-            type="radio"
-            id="normal-scraper"
-            name="scraperType"
-            checked={!enableAI}
-            onChange={() => setEnableAI(false)}
-            disabled={isLoading}
-            className="w-5 h-5 text-purple-500 bg-white/10 border-white/20 rounded focus:ring-purple-500 focus:ring-2 mt-1"
-          />
-          <div className="flex-1">
-            <label
-              htmlFor="normal-scraper"
-              className="text-white font-medium cursor-pointer mb-2 flex items-center justify-between"
-            >
-              <span>🚀 Normal Scraper</span>
-              <span className="text-sm bg-green-500/20 text-green-300 px-2 py-1 rounded-lg">
-                0.5 credits ($0.025)
-              </span>
-            </label>
-            <p className="text-gray-400 text-sm">
-              Fast extraction of basic company information, contact details, and
-              structured data
-            </p>
+        {/* ICP Scraper Info */}
+        <div className="flex items-start space-x-4 p-4 bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-xl border border-purple-500/20">
+          <div className="w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center mt-1">
+            <span className="text-white text-xs">✓</span>
           </div>
-        </div>
-
-        {/* AI Enhanced Option */}
-        <div className="flex items-start space-x-4 p-4 bg-white/5 rounded-xl border border-white/10">
-          <input
-            type="radio"
-            id="ai-scraper"
-            name="scraperType"
-            checked={enableAI}
-            onChange={() => setEnableAI(true)}
-            disabled={isLoading}
-            className="w-5 h-5 text-purple-500 bg-white/10 border-white/20 rounded focus:ring-purple-500 focus:ring-2 mt-1"
-          />
           <div className="flex-1">
-            <label
-              htmlFor="ai-scraper"
-              className="text-white font-medium cursor-pointer mb-2 flex items-center justify-between"
-            >
-              <span>🤖 AI Enhanced Scraper</span>
+            <div className="text-white font-medium mb-2 flex items-center justify-between">
+              <span>🎯 ICP-Enhanced Scraper</span>
               <span className="text-sm bg-purple-500/20 text-purple-300 px-2 py-1 rounded-lg">
-                1.0 credit ($0.05)
+                1.0 credits ($0.05)
               </span>
-            </label>
-            <p className="text-gray-400 text-sm">
-              Advanced AI processing with content summarization and
-              comprehensive business intelligence extraction
+            </div>
+            <p className="text-gray-300 text-sm mb-2">
+              AI-powered extraction with intelligent lead qualification based on
+              your ICP criteria
             </p>
+            <div className="text-xs text-gray-400 space-y-1">
+              <div>✓ Complete company data extraction</div>
+              <div>✓ ICP scoring and match analysis</div>
+              <div>✓ Actionable recommendations</div>
+              <div>✓ Business intelligence insights</div>
+            </div>
           </div>
         </div>
       </div>
@@ -168,10 +237,10 @@ const ScraperForm: React.FC<ScraperFormProps> = ({
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 ></path>
               </svg>
-              {enableAI ? "AI Processing..." : "Scraping..."}
+              ICP Processing...
             </span>
           ) : (
-            "🚀 Scrape Website"
+            "🎯 Scrape with ICP Analysis"
           )}
         </button>
 
@@ -179,8 +248,9 @@ const ScraperForm: React.FC<ScraperFormProps> = ({
           type="button"
           onClick={() => {
             setUrl("");
-            setEnableAI(false);
+            setSelectedICPProfile("");
             setUrlError(null);
+            setICPError(null);
             if (onReset) onReset();
           }}
           disabled={isLoading || !url}

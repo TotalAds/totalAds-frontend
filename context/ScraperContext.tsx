@@ -37,7 +37,11 @@ const initialState: ScraperState = {
 // Create context
 interface ScraperContextType {
   state: ScraperState;
-  scrapeWebsite: (url: string, enableAI: boolean) => Promise<void>;
+  scrapeWebsite: (
+    url: string,
+    enableAI: boolean,
+    options?: { icpProfileId?: string }
+  ) => Promise<void>;
   checkHealth: () => Promise<void>;
   resetResult: () => void;
 }
@@ -86,19 +90,26 @@ export const ScraperProvider: React.FC<{ children: ReactNode }> = ({
   const [state, dispatch] = useReducer(scraperReducer, initialState);
 
   // Function to scrape a website
-  const scrapeWebsite = async (url: string, enableAI: boolean) => {
+  const scrapeWebsite = async (
+    url: string,
+    enableAI: boolean,
+    options?: { icpProfileId?: string }
+  ) => {
     try {
       dispatch({ type: "SCRAPE_START" });
-      const result = await scrapeUrl(url, enableAI);
+      const result = await scrapeUrl(url, enableAI, options);
       dispatch({ type: "SCRAPE_SUCCESS", payload: result });
 
       // Show success toast notification
       if (typeof window !== "undefined") {
         const { toast } = await import("react-hot-toast");
+        const scrapeType = options?.icpProfileId
+          ? "with ICP analysis"
+          : enableAI
+          ? "with AI enhancement"
+          : "";
         toast.success(
-          `Successfully scraped ${url}${
-            enableAI ? " with AI enhancement" : ""
-          }!`,
+          `Successfully scraped ${url}${scrapeType ? ` ${scrapeType}` : ""}!`,
           {
             duration: 4000,
             style: {

@@ -1,9 +1,11 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import React from "react";
+import React, { useEffect, useState } from "react";
 
+import MainSidebar from "@/components/navigation/MainSidebar";
 import TopNav from "@/components/navigation/TopNav";
+import { useAuthContext } from "@/context/AuthContext";
 
 interface ConditionalLayoutProps {
   children: React.ReactNode;
@@ -11,6 +13,9 @@ interface ConditionalLayoutProps {
 
 const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
   const pathname = usePathname();
+  const { state } = useAuthContext();
+  const { isAuthenticated } = state;
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // Define paths that should not have navbar and footer
   const authPaths = [
@@ -23,6 +28,29 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
 
   const isAuthPage = authPaths.some((path) => pathname.startsWith(path));
 
+  // Handle responsive sidebar behavior
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setIsSidebarOpen(false); // Close on mobile
+      } else {
+        setIsSidebarOpen(true); // Open on desktop
+      }
+    };
+
+    // Set initial state
+    handleResize();
+
+    // Add event listener
+    window.addEventListener("resize", handleResize);
+
+    // Cleanup
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const closeSidebar = () => setIsSidebarOpen(false);
+
   if (isAuthPage) {
     // Return children without navbar and footer for auth pages
     return <>{children}</>;
@@ -30,31 +58,34 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
 
   // Return children with navbar and footer for other pages
   return (
-    <div className="flex flex-col min-h-screen">
-      <TopNav />
-      <main className="flex-grow">{children}</main>
-      <footer className="backdrop-blur-xl bg-slate-900/80 border-t border-white/10 text-white py-8 text-center">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-center mb-4">
-            <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl mr-3">
-              <svg
-                className="w-6 h-6 text-white"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-              </svg>
+    <div className="h-screen flex flex-col">
+      <TopNav onSidebarToggle={toggleSidebar} isSidebarOpen={isSidebarOpen} />
+
+      {/* Main Layout Container */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar */}
+        {isAuthenticated && (
+          <MainSidebar
+            isOpen={isSidebarOpen}
+            onClose={closeSidebar}
+            onToggle={toggleSidebar}
+          />
+        )}
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <main className="flex-1 overflow-auto">{children}</main>
+
+          {/* Footer */}
+          {/* <footer className="backdrop-blur-xl bg-slate-900/80 border-t border-white/10 text-white py-3 text-center">
+            <div className="container mx-auto px-4">
+              <p className="text-gray-300 text-sm">
+                © {new Date().getFullYear()} Leadsnipper. All rights reserved.
+              </p>
             </div>
-            <span className="text-xl font-bold">Leadsnipper</span>
-          </div>
-          <p className="text-gray-300">
-            © {new Date().getFullYear()} Leadsnipper. All rights reserved.
-          </p>
-          <p className="text-gray-400 text-sm mt-2">
-            Powerful website scraping and data extraction platform
-          </p>
+          </footer> */}
         </div>
-      </footer>
+      </div>
     </div>
   );
 };

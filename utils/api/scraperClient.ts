@@ -67,6 +67,40 @@ const handleApiError = (error: unknown, defaultMessage: string): never => {
 };
 
 /**
+ * Submit a URL to scrape with ICP analysis
+ * @param url - The URL to scrape
+ * @param icpProfileId - The ICP profile ID to use for analysis
+ * @returns Promise with the scrape result
+ */
+export const scrapeWithICP = async (
+  url: string,
+  icpProfileId: string
+): Promise<ScrapeResult> => {
+  try {
+    // Convert icpProfileId to number for backend validation
+    const profileId = parseInt(icpProfileId, 10);
+    if (isNaN(profileId)) {
+      throw new Error("Invalid ICP profile ID");
+    }
+
+    const response = await apiClient.post(
+      "/icp-scraper",
+      {
+        url,
+        icpProfileId: profileId,
+      },
+      {
+        withCredentials: true,
+      }
+    );
+
+    return response.data.data;
+  } catch (error: unknown) {
+    return handleApiError(error, `Failed to scrape URL with ICP: ${url}`);
+  }
+};
+
+/**
  * Submit a URL to scrape
  * @param url - The URL to scrape
  * @param enableAI - Whether to enable AI processing of the scraped data
@@ -76,9 +110,18 @@ const handleApiError = (error: unknown, defaultMessage: string): never => {
 export const scrapeUrl = async (
   url: string,
   enableAI: boolean = false,
-  options: { deepScrape?: boolean; maxPages?: number } = {}
+  options: {
+    deepScrape?: boolean;
+    maxPages?: number;
+    icpProfileId?: string;
+  } = {}
 ): Promise<ScrapeResult> => {
   try {
+    // If ICP profile is provided, use ICP scraping
+    if (options.icpProfileId) {
+      return await scrapeWithICP(url, options.icpProfileId);
+    }
+
     const response = await apiClient.post(
       "/frontend/scraper",
       {
