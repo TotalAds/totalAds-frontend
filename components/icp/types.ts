@@ -1,5 +1,10 @@
 import { CreateICPProfileRequest, ICPProfile } from "@/utils/api";
 
+export interface ICPField {
+  name: string;
+  description: string;
+}
+
 export interface ICPProfileFormProps {
   isOpen: boolean;
   onClose: () => void;

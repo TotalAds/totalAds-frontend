@@ -34,62 +34,89 @@ export default function ApiDocs() {
 
   const codeExamples = {
     curl: `curl -X POST https://api.leadsnipper.com/api/scraper \\
-  -H "Authorization: Bearer YOUR_API_TOKEN" \\
+  -H "Authorization: Bearer ls_your_api_token" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "url": "https://example.com",
-    "enableAI": false
+    "url": "https://example-company.com",
+    "enableAI": true
   }'`,
     javascript: `const response = await fetch('https://api.leadsnipper.com/api/scraper', {
   method: 'POST',
   headers: {
-    'Authorization': 'Bearer YOUR_API_TOKEN',
+    'Authorization': 'Bearer ls_your_api_token',
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({
-    url: 'https://example.com',
-    enableAI: false
+    url: 'https://example-company.com',
+    enableAI: true
   })
 });
 
-const data = await response.json();
-console.log(data);`,
+const leadData = await response.json();
+console.log('Company Data:', leadData.data.aboutData);
+console.log('Contact Info:', leadData.data.contactDetails);
+console.log('AI Analysis:', leadData.data.aiAnalysis);`,
     python: `import requests
 
-url = "https://api.leadsnipper.com/api/scraper"
+url = "https://api.leadsnipper.com/api/v1/extract"
 headers = {
-    "Authorization": "Bearer YOUR_API_TOKEN",
+    "Authorization": "Bearer ls_your_api_token",
     "Content-Type": "application/json"
 }
 data = {
-    "url": "https://example.com",
-    "enableAI": False
+    "url": "https://example-company.com",
+    "enableAI": True,
+    "options": {
+        "includeLeadScoring": True,
+        "includeBusinessSignals": True,
+        "maxProcessingTime": 15000
+    }
 }
 
 response = requests.post(url, headers=headers, json=data)
 result = response.json()
-print(result)`,
+
+# Extract key lead intelligence
+lead_score = result['data']['leadScore']['overall']
+quality = result['data']['leadScore']['quality']
+decision_makers = result['data']['decisionMakers']
+
+print(f"Lead Score: {lead_score}/100 ({quality})")
+print(f"Decision Makers Found: {len(decision_makers)}")`,
     node: `const axios = require('axios');
 
-const scrapeWebsite = async () => {
+const extractLeadIntelligence = async () => {
   try {
-    const response = await axios.post('https://api.leadsnipper.com/api/scraper', {
-      url: 'https://example.com',
-      enableAI: false
+    const response = await axios.post('https://api.leadsnipper.com/api/v1/extract', {
+      url: 'https://example-company.com',
+      enableAI: true,
+      options: {
+        includeLeadScoring: true,
+        includeBusinessSignals: true,
+        maxProcessingTime: 15000
+      }
     }, {
       headers: {
-        'Authorization': 'Bearer YOUR_API_TOKEN',
+        'Authorization': 'Bearer ls_your_api_token',
         'Content-Type': 'application/json'
       }
     });
 
-    console.log(response.data);
+    const { data, meta } = response.data;
+
+    console.log('Company:', data.companyData.name);
+    console.log('Lead Score:', data.leadScore.overall + '/100');
+    console.log('Quality:', data.leadScore.quality);
+    console.log('Decision Makers:', data.decisionMakers.length);
+    console.log('Processing Time:', meta.processingTime + 'ms');
+    console.log('Credits Used:', meta.usage.creditsUsed);
+
   } catch (error) {
     console.error('Error:', error.response?.data || error.message);
   }
 };
 
-scrapeWebsite();`,
+extractLeadIntelligence();`,
   };
 
   if (isLoading) {
@@ -188,9 +215,10 @@ scrapeWebsite();`,
               </h2>
               <div className="space-y-4 text-gray-300">
                 <p>
-                  The Leadsnipper API allows you to scrape websites
-                  programmatically. Our API provides both basic scraping and
-                  AI-enhanced data extraction.
+                  The LeadSnipper API transforms any website into actionable
+                  lead intelligence. Extract business data, score leads,
+                  identify decision makers, and analyze competitive positioning
+                  with AI-powered insights.
                 </p>
                 <div className="bg-white/10 rounded-xl p-4 border border-white/20">
                   <h4 className="text-white font-semibold mb-2">Base URL</h4>
@@ -278,7 +306,8 @@ scrapeWebsite();`,
                     <code className="text-purple-300">/api/scraper</code>
                   </div>
                   <p className="text-gray-300 mb-4">
-                    Scrape a website and extract data.
+                    Extract comprehensive lead intelligence from any website
+                    with AI-powered analysis.
                   </p>
                   <div className="space-y-3">
                     <div>

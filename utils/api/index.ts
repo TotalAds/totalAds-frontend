@@ -26,6 +26,9 @@ export * from "./usageClient";
 // ICP Management API
 export * from "./icpClient";
 
+// Feedback API
+export * from "./feedbackClient";
+
 // Re-export common types
 export type {
   // Auth types
@@ -68,3 +71,9 @@ export type {
   UsageBreakdown,
   UsageResponse,
 } from "./usageClient";
+
+export type {
+  // Feedback types
+  FeedbackData,
+  FeedbackResponse,
+} from "./feedbackClient";

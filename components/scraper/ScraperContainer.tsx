@@ -7,12 +7,14 @@ import toast from "react-hot-toast";
 
 import { useAuthContext } from "@/context/AuthContext";
 import { useScraperContext } from "@/context/ScraperContext";
+import { WebsiteInactiveError } from "@/utils/api/scraperClient";
 import { IconHistory } from "@tabler/icons-react";
 
 import BillingFeedback from "./BillingFeedback";
 import ScraperForm from "./ScraperForm";
 import ScraperHealthIndicator from "./ScraperHealthIndicator";
 import ScraperResults from "./ScraperResults";
+import WebsiteStatusAlert from "./WebsiteStatusAlert";
 
 const ScraperContainer = () => {
   const router = useRouter();
@@ -25,6 +27,8 @@ const ScraperContainer = () => {
   const [preselectedIcpProfileId, setPreselectedIcpProfileId] = useState<
     string | null
   >(null);
+  const [websiteStatusError, setWebsiteStatusError] =
+    useState<WebsiteInactiveError | null>(null);
 
   // Check if user is authenticated
   useEffect(() => {
@@ -44,7 +48,23 @@ const ScraperContainer = () => {
     }
   }, [searchParams]);
 
+  // Detect website inactive errors
+  useEffect(() => {
+    if (
+      (error && error.includes("Website domain not found")) ||
+      (error && error.includes("Website Unavailable"))
+    ) {
+      // Try to extract details from the error message if it's a WebsiteInactiveError
+      // This is a fallback since the error comes as a string from the context
+      setWebsiteStatusError(new WebsiteInactiveError(error));
+    } else {
+      setWebsiteStatusError(null);
+    }
+  }, [error]);
+
   const handleScrapeSubmit = async (url: string, icpProfileId: string) => {
+    // Clear any previous website status errors
+    setWebsiteStatusError(null);
     // If not authenticated, redirect to login
     if (!authState.isAuthenticated) {
       router.push("/login?redirect=/scraper");
@@ -77,6 +97,13 @@ const ScraperContainer = () => {
 
   const handleReset = () => {
     resetResult();
+    setWebsiteStatusError(null);
+  };
+
+  const handleRegularScrape = async (url: string, enableAI: boolean) => {
+    // Clear any previous website status errors
+    setWebsiteStatusError(null);
+    await scrapeWebsite(url, enableAI);
   };
 
   return (
@@ -209,7 +236,18 @@ const ScraperContainer = () => {
           />
         )}
 
-        {error && (
+        {/* Website Status Alert for inactive websites */}
+        {websiteStatusError && (
+          <WebsiteStatusAlert
+            error={{
+              message: websiteStatusError.message,
+              details: websiteStatusError.details,
+            }}
+            onClose={() => setWebsiteStatusError(null)}
+          />
+        )}
+
+        {error && !websiteStatusError && (
           <div
             className="backdrop-blur-xl bg-red-500/20 border border-red-500/30 text-red-200 px-6 py-4 rounded-2xl mb-8 shadow-2xl"
             role="alert"

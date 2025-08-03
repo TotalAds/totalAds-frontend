@@ -39,6 +39,21 @@ export class ScraperCreditError extends ScraperError {
   }
 }
 
+export class WebsiteInactiveError extends ScraperError {
+  details?: {
+    url: string;
+    statusCode?: number;
+    error?: string;
+    responseTime?: number;
+  };
+
+  constructor(message: string, details?: any) {
+    super(message, 422);
+    this.name = "WebsiteInactiveError";
+    this.details = details;
+  }
+}
+
 // Helper function to handle errors
 const handleApiError = (error: unknown, defaultMessage: string): never => {
   console.error(defaultMessage, error);
@@ -46,8 +61,9 @@ const handleApiError = (error: unknown, defaultMessage: string): never => {
   if (axios.isAxiosError(error)) {
     const axiosError = error as AxiosError;
     const status = axiosError.response?.status;
+    const responseData = axiosError.response?.data as any;
     const errorMessage =
-      (axiosError.response?.data as any)?.error || axiosError.message;
+      responseData?.message || responseData?.error || axiosError.message;
 
     if (status === 401) {
       throw new ScraperAuthError(
@@ -57,6 +73,11 @@ const handleApiError = (error: unknown, defaultMessage: string): never => {
       throw new ScraperCreditError(
         errorMessage ||
           "Insufficient credits available. Please add credits to your account to continue."
+      );
+    } else if (status === 422 && responseData?.error === "WEBSITE_INACTIVE") {
+      throw new WebsiteInactiveError(
+        errorMessage || "The website appears to be inactive or unreachable.",
+        responseData?.details
       );
     } else {
       throw new ScraperError(errorMessage || defaultMessage, status);
@@ -84,9 +105,10 @@ export const scrapeWithICP = async (
     }
 
     const response = await apiClient.post(
-      "/icp-scraper",
+      "/frontend/scraper",
       {
         url,
+        enableAI: true, // ICP scraping always uses AI
         icpProfileId: profileId,
       },
       {

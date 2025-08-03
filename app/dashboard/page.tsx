@@ -144,10 +144,11 @@ export default function Dashboard() {
           {/* Header */}
           <div className="mb-12">
             <h1 className="text-4xl font-bold text-white mb-4">
-              Welcome back, {user?.name || "User"}! 👋
+              Welcome to LeadSnipper, {user?.name || "User"}! 🎯
             </h1>
             <p className="text-gray-300 text-lg">
-              Manage your scraping operations and API usage from your dashboard.
+              Transform websites into actionable lead intelligence with our
+              AI-powered API.
             </p>
           </div>
 
@@ -168,7 +169,12 @@ export default function Dashboard() {
                   <p className="text-3xl font-bold text-white">
                     {loading ? "..." : stats.totalApiCalls}
                   </p>
-                  <p className="text-xs text-gray-400 mt-1">This month</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {stats.currentPlan === "free"
+                      ? "Free tier"
+                      : "Professional"}{" "}
+                    • This month
+                  </p>
                 </div>
                 <div className="w-14 h-14 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center">
                   <IconApi className="w-7 h-7 text-white" />

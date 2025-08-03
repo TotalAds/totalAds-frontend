@@ -1,24 +1,21 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import useValidators from "@/hooks/useValidators";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { CreateICPProfileRequest } from "@/utils/api";
 import {
   IconAlertCircle,
-  IconBrain,
-  IconCheck,
-  IconSettings,
-  IconTarget,
+  IconPlus,
+  IconTrash,
   IconX,
 } from "@tabler/icons-react";
 
-import AIPromptsStep from "./AIPromptsStep";
-import BasicInfoStep from "./BasicInfoStep";
-import { createValidationSchemas, defaultCriterion } from "./constants";
-import CriteriaStep from "./CriteriaStep";
-import { CriterionForm, ICPProfileFormProps, Step } from "./types";
+import { ICPField, ICPProfileFormProps } from "./types";
 
 export default function ICPProfileForm({
   isOpen,
@@ -28,210 +25,109 @@ export default function ICPProfileForm({
   isLoading = false,
   existingProfiles = [],
   formError = null,
-  onClearFormError,
 }: ICPProfileFormProps) {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [formData, setFormData] = useState<CreateICPProfileRequest>({
+  const [formData, setFormData] = useState({
     name: initialData?.name || "",
     description: initialData?.description || "",
-    scoringMethod: initialData?.scoringMethod || "weighted_average",
-    minimumScore: initialData?.minimumScore || 70,
-    customPrompts: {
-      businessModel: initialData?.customPrompts?.businessModel || "",
-      targetMarket: initialData?.customPrompts?.targetMarket || "",
-      companySize: initialData?.customPrompts?.companySize || "",
-      technology: initialData?.customPrompts?.technology || "",
-      industry: initialData?.customPrompts?.industry || "",
-      userRemarks: initialData?.customPrompts?.userRemarks || "",
-    },
-    requiredDataPoints: {
-      contactInfo: true,
-      companySize: true,
-      industry: true,
-      revenue: false,
-      location: true,
-      technology: false,
-      socialPresence: false,
-      fundingStage: false,
-      businessModel: false,
-      targetMarket: false,
-      ...initialData?.requiredDataPoints,
-    },
-    criteria:
-      initialData?.criteria?.map((c) => ({
-        category: c.category,
-        field: c.field,
-        operator: c.operator,
-        value: c.value,
-        weight: c.weight,
-        isRequired: c.isRequired,
-        scoreIfMatch: c.scoreIfMatch,
-        scoreIfNoMatch: c.scoreIfNoMatch,
-        description: c.description || "",
-      })) || [],
   });
 
-  const [criteria, setCriteria] = useState<CriterionForm[]>(
-    initialData?.criteria?.map((c) => ({
-      category: c.category,
-      field: c.field,
-      operator: c.operator,
-      value: typeof c.value === "string" ? c.value : JSON.stringify(c.value),
-      weight: c.weight,
-      isRequired: c.isRequired,
-      scoreIfMatch: c.scoreIfMatch,
-      scoreIfNoMatch: c.scoreIfNoMatch,
-      description: c.description || "",
-    })) || []
+  const [fields, setFields] = useState<ICPField[]>(
+    initialData?.fields || [{ name: "", description: "" }]
   );
 
-  // Memoize validation values to prevent infinite re-renders
-  const validationValues = useMemo(
-    () => ({
-      name: formData.name,
-      description: formData.description,
-      scoringMethod: formData.scoringMethod,
-      minimumScore: formData.minimumScore,
-      businessModel: formData.customPrompts?.businessModel || "",
-      targetMarket: formData.customPrompts?.targetMarket || "",
-      companySize: formData.customPrompts?.companySize || "",
-      technology: formData.customPrompts?.technology || "",
-      industry: formData.customPrompts?.industry || "",
-      userRemarks: formData.customPrompts?.userRemarks || "",
-    }),
-    [
-      formData.name,
-      formData.description,
-      formData.scoringMethod,
-      formData.minimumScore,
-      formData.customPrompts?.businessModel,
-      formData.customPrompts?.targetMarket,
-      formData.customPrompts?.companySize,
-      formData.customPrompts?.technology,
-      formData.customPrompts?.industry,
-      formData.customPrompts?.userRemarks,
-    ]
-  );
+  const [errors, setErrors] = useState<{
+    name?: string;
+    fields?: string;
+  }>({});
 
-  // Create validation schemas with duplicate name checking
-  const existingNames = existingProfiles.map((profile) => profile.name);
-  const validationSchemas = createValidationSchemas(
-    existingNames,
-    initialData?.name
-  );
+  const validateForm = () => {
+    const newErrors: { name?: string; fields?: string } = {};
 
-  const {
-    validationErrors,
-    hasValidationErrors,
-    startValidation,
-    validationStarted,
-  } = useValidators({
-    schemas: validationSchemas,
-    values: validationValues,
-  });
+    // Validate name
+    if (!formData.name.trim()) {
+      newErrors.name = "Profile name is required";
+    } else if (formData.name.length > 100) {
+      newErrors.name = "Name must be less than 100 characters";
+    } else {
+      // Check for duplicate names
+      const existingNames = existingProfiles.map((profile) => profile.name);
+      if (
+        existingNames.includes(formData.name) &&
+        formData.name !== initialData?.name
+      ) {
+        newErrors.name = "A profile with this name already exists";
+      }
+    }
+
+    // Validate fields
+    const validFields = fields.filter(
+      (field) => field.name.trim() && field.description.trim()
+    );
+    if (validFields.length === 0) {
+      newErrors.fields =
+        "At least one field with name and description is required";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Start validation
-    const { hasValidationErrors: hasErrors } = await startValidation();
-
-    if (hasErrors) {
-      return; // Don't submit if there are validation errors
+    if (!validateForm()) {
+      return;
     }
 
+    // Filter out empty fields
+    const validFields = fields.filter(
+      (field) => field.name.trim() && field.description.trim()
+    );
+
     const submitData: CreateICPProfileRequest = {
-      ...formData,
-      criteria: criteria.map((c) => ({
-        category: c.category,
-        field: c.field,
-        operator: c.operator,
-        value: c.value,
-        weight: c.weight,
-        isRequired: c.isRequired,
-        scoreIfMatch: c.scoreIfMatch,
-        scoreIfNoMatch: c.scoreIfNoMatch,
-        description: c.description,
-      })),
+      name: formData.name,
+      description: formData.description,
+      fields: validFields,
     };
 
     await onSubmit(submitData);
   };
 
-  const addCriterion = () => {
-    setCriteria([...criteria, { ...defaultCriterion }]);
+  const addField = () => {
+    setFields([...fields, { name: "", description: "" }]);
   };
 
-  const removeCriterion = (index: number) => {
-    setCriteria(criteria.filter((_, i) => i !== index));
-  };
-
-  const updateCriterion = (
-    index: number,
-    field: keyof CriterionForm,
-    value: any
-  ) => {
-    try {
-      const updated = [...criteria];
-      updated[index] = { ...updated[index], [field]: value };
-      setCriteria(updated);
-    } catch (error) {
-      console.error("Error updating criterion:", error);
+  const removeField = (index: number) => {
+    if (fields.length > 1) {
+      setFields(fields.filter((_, i) => i !== index));
     }
   };
 
-  const handleStepChange = (step: number) => {
-    try {
-      setCurrentStep(step);
-    } catch (error) {
-      console.error("Error changing step:", error);
-    }
+  const updateField = (index: number, key: keyof ICPField, value: string) => {
+    const updatedFields = [...fields];
+    updatedFields[index] = { ...updatedFields[index], [key]: value };
+    setFields(updatedFields);
   };
 
   if (!isOpen) {
     return null;
   }
 
-  const steps: Step[] = [
-    { id: 1, name: "Basic Info", icon: IconTarget },
-    { id: 2, name: "AI Prompts", icon: IconBrain },
-    { id: 3, name: "Criteria", icon: IconSettings },
-  ];
-
-  const clearFormError = () => {
-    if (onClearFormError) {
-      onClearFormError();
-    }
-  };
-
-  const stepProps = {
-    formData,
-    setFormData,
-    validationErrors,
-    validationStarted,
-    criteria,
-    setCriteria,
-    addCriterion,
-    removeCriterion,
-    updateCriterion,
-    clearFormError,
-  };
-
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[92vh] overflow-x-hidden overflow-y-auto shadow-2xl">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 ">
+      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
-              <IconTarget className="w-5 h-5 text-white" />
+              <IconPlus className="w-5 h-5 text-white" />
             </div>
             <div>
               <h2 className="text-2xl font-bold text-gray-900">
-                {initialData ? "Edit ICP Profile" : "Create New ICP Profile"}
+                {initialData ? "Edit ICP Profile" : "Create ICP Profile"}
               </h2>
               <p className="text-gray-600 text-sm mt-1">
-                Define your ideal customer criteria for intelligent lead scoring
+                Define what data you want to extract from companies
               </p>
             </div>
           </div>
@@ -240,45 +136,18 @@ export default function ICPProfileForm({
             size="sm"
             onClick={onClose}
             disabled={isLoading}
-            className="text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg h-10 w-10 p-0 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg h-10 w-10 p-0"
           >
             <IconX className="w-5 h-5" />
           </Button>
         </div>
 
-        {/* Step Navigation */}
-        <div className="flex items-center justify-center p-6 border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center space-x-8">
-            {steps.map((step, index) => (
-              <div key={step.id} className="flex items-center">
-                <div
-                  className={`flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-300 cursor-pointer ${
-                    currentStep === step.id
-                      ? "bg-purple-100 text-purple-700 border-2 border-purple-300"
-                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-                  }`}
-                  onClick={() => handleStepChange(step.id)}
-                >
-                  <step.icon className="w-5 h-5" />
-                  <span className="font-medium">{step.name}</span>
-                  {currentStep === step.id && (
-                    <IconCheck className="w-4 h-4 text-purple-600" />
-                  )}
-                </div>
-                {index < steps.length - 1 && (
-                  <div className="w-8 h-px bg-gray-300 mx-4"></div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Form Content */}
         <form onSubmit={handleSubmit} className="flex flex-col h-full">
-          <div className="flex-1 overflow-y-auto p-8">
+          <div className="flex-1 overflow-y-auto p-8 space-y-8">
             {/* Error Display */}
             {formError && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3">
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3">
                 <IconAlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
                 <div>
                   <h4 className="text-red-800 font-semibold text-sm">Error</h4>
@@ -286,69 +155,164 @@ export default function ICPProfileForm({
                 </div>
               </div>
             )}
-            {/* Step 1: Basic Info */}
-            {currentStep === 1 && <BasicInfoStep {...stepProps} />}
 
-            {/* Step 2: AI Prompts */}
-            {currentStep === 2 && <AIPromptsStep {...stepProps} />}
+            {/* Basic Information */}
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <Label
+                  htmlFor="name"
+                  className="text-gray-900 font-bold text-base flex items-center space-x-2"
+                >
+                  <span>Profile Name</span>
+                  <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="name"
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  className={cn(
+                    "bg-white border-gray-300 text-gray-900 placeholder-gray-500 rounded-lg h-14 px-4 text-base",
+                    errors.name && "border-red-400 bg-red-50"
+                  )}
+                  placeholder="e.g., SaaS Startups 50-200 employees"
+                />
+                {errors.name && (
+                  <p className="text-red-500 text-sm">{errors.name}</p>
+                )}
+              </div>
 
-            {/* Step 3: Criteria */}
-            {currentStep === 3 && <CriteriaStep {...stepProps} />}
+              <div className="space-y-4">
+                <Label
+                  htmlFor="description"
+                  className="text-gray-900 font-bold text-base"
+                >
+                  Description
+                </Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                  rows={3}
+                  className="bg-white border-gray-300 text-gray-900 placeholder-gray-500 rounded-lg px-4 py-3 text-base resize-none"
+                  placeholder="Describe your ideal customer profile..."
+                />
+              </div>
+            </div>
+
+            {/* Data Fields */}
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">
+                    Data Fields
+                  </h3>
+                  <p className="text-gray-600 text-sm mt-1">
+                    Define what information you want to extract from companies
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={addField}
+                  className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-2 flex items-center space-x-2"
+                >
+                  <IconPlus className="w-4 h-4" />
+                  <span>Add Field</span>
+                </Button>
+              </div>
+
+              {errors.fields && (
+                <p className="text-red-500 text-sm">{errors.fields}</p>
+              )}
+
+              <div className="space-y-4">
+                {fields.map((field, index) => (
+                  <div
+                    key={index}
+                    className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-gray-900">
+                        Field {index + 1}
+                      </h4>
+                      {fields.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeField(index)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <IconTrash className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-gray-700 font-semibold text-sm">
+                          Field Name
+                        </Label>
+                        <Input
+                          type="text"
+                          value={field.name}
+                          onChange={(e) =>
+                            updateField(index, "name", e.target.value)
+                          }
+                          className="bg-white border-gray-300 text-gray-900 text-sm rounded-lg h-12"
+                          placeholder="e.g., Company Size, Industry, Revenue"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-gray-700 font-semibold text-sm">
+                          Description
+                        </Label>
+                        <Input
+                          type="text"
+                          value={field.description}
+                          onChange={(e) =>
+                            updateField(index, "description", e.target.value)
+                          }
+                          className="bg-white border-gray-300 text-gray-900 text-sm rounded-lg h-12"
+                          placeholder="What to look for in this field"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Footer */}
           <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
-            <div className="flex space-x-4">
-              {currentStep > 1 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleStepChange(currentStep - 1)}
-                  disabled={isLoading}
-                  className="border-gray-300 text-gray-700 hover:bg-gray-100 rounded-lg px-6 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </Button>
-              )}
-            </div>
-            <div className="flex space-x-4">
-              {currentStep < steps.length ? (
-                <Button
-                  type="button"
-                  onClick={() => handleStepChange(currentStep + 1)}
-                  disabled={isLoading}
-                  className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-6 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next
-                </Button>
-              ) : (
-                <Button
-                  type="submit"
-                  disabled={isLoading || hasValidationErrors}
-                  className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-6 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isLoading
-                    ? "Creating..."
-                    : initialData
-                    ? "Update Profile"
-                    : "Create Profile"}
-                </Button>
-              )}
-            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={isLoading}
+              className="px-6 py-2"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2"
+            >
+              {isLoading
+                ? "Creating..."
+                : initialData
+                ? "Update Profile"
+                : "Create Profile"}
+            </Button>
           </div>
         </form>
-
-        {/* Loading Overlay */}
-        {isLoading && (
-          <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-10 rounded-2xl">
-            <div className="flex flex-col items-center space-y-4">
-              <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
-              <p className="text-gray-700 font-medium">
-                {initialData ? "Updating profile..." : "Creating profile..."}
-              </p>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

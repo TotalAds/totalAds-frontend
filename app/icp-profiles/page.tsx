@@ -628,21 +628,21 @@ export default function ICPProfilesPage() {
                       <div className="flex items-center space-x-2 mb-2">
                         <div className="w-3 h-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"></div>
                         <h3 className="text-lg font-bold text-white">
-                          {profile.name}
+                          {profile?.name}
                         </h3>
                       </div>
                       <span
                         className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${
-                          profile.status === "active"
+                          profile?.status === "active"
                             ? "bg-green-500/20 text-green-300 border border-green-500/30"
-                            : profile.status === "draft"
+                            : profile?.status === "draft"
                             ? "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30"
-                            : profile.status === "inactive"
+                            : profile?.status === "inactive"
                             ? "bg-gray-500/20 text-gray-300 border border-gray-500/30"
                             : "bg-red-500/20 text-red-300 border border-red-500/30"
                         }`}
                       >
-                        {profile.status.toUpperCase()}
+                        {profile?.status.toUpperCase()}
                       </span>
                     </div>
                     <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
@@ -657,17 +657,17 @@ export default function ICPProfilesPage() {
                         onClick={() => handleToggleStatus(profile)}
                         disabled={pageState.actionLoading}
                         className={`p-2 rounded-lg transition-all duration-200 disabled:opacity-50 ${
-                          profile.status === "active"
+                          profile?.status === "active"
                             ? "text-green-400 hover:text-green-300 hover:bg-green-500/10"
                             : "text-gray-400 hover:text-green-400 hover:bg-green-500/10"
                         }`}
                         title={
-                          profile.status === "active"
+                          profile?.status === "active"
                             ? "Deactivate Profile"
                             : "Activate Profile"
                         }
                       >
-                        {profile.status === "active" ? (
+                        {profile?.status === "active" ? (
                           <IconToggleRight className="w-4 h-4" />
                         ) : (
                           <IconToggleLeft className="w-4 h-4" />

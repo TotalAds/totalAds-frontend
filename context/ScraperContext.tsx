@@ -6,7 +6,13 @@ import {
   ScrapeResult,
   ScraperHealth,
 } from "@/components/scraper/utils/scraperTypes";
-import { checkScraperHealth, scrapeUrl } from "@/utils/api/scraperClient";
+import {
+  checkScraperHealth,
+  ScraperAuthError,
+  ScraperCreditError,
+  scrapeUrl,
+  WebsiteInactiveError,
+} from "@/utils/api/scraperClient";
 
 // Define the state type
 interface ScraperState {
@@ -127,22 +133,56 @@ export const ScraperProvider: React.FC<{ children: ReactNode }> = ({
           error instanceof Error ? error.message : "An unknown error occurred",
       });
 
-      // Show error toast notification
+      // Show error toast notification with specific messaging
       if (typeof window !== "undefined") {
         const { toast } = await import("react-hot-toast");
-        toast.error(
-          `Failed to scrape ${url}: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`,
-          {
+
+        if (error instanceof WebsiteInactiveError) {
+          // Special handling for inactive websites
+          toast.error(`Website Unavailable: ${error.message}`, {
+            duration: 8000,
+            style: {
+              background: "rgba(251, 146, 60, 0.1)",
+              border: "1px solid rgba(251, 146, 60, 0.3)",
+              color: "#fb923c",
+            },
+          });
+        } else if (error instanceof ScraperAuthError) {
+          // Authentication error
+          toast.error(`Authentication Required: ${error.message}`, {
             duration: 6000,
             style: {
               background: "rgba(239, 68, 68, 0.1)",
               border: "1px solid rgba(239, 68, 68, 0.3)",
               color: "#fca5a5",
             },
-          }
-        );
+          });
+        } else if (error instanceof ScraperCreditError) {
+          // Credit error
+          toast.error(`Insufficient Credits: ${error.message}`, {
+            duration: 8000,
+            style: {
+              background: "rgba(168, 85, 247, 0.1)",
+              border: "1px solid rgba(168, 85, 247, 0.3)",
+              color: "#c084fc",
+            },
+          });
+        } else {
+          // Generic error
+          toast.error(
+            `Scraping Failed: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`,
+            {
+              duration: 6000,
+              style: {
+                background: "rgba(239, 68, 68, 0.1)",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                color: "#fca5a5",
+              },
+            }
+          );
+        }
       }
     }
   };

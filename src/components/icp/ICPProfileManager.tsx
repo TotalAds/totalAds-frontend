@@ -21,35 +21,15 @@ import {
   updateICPProfile,
 } from "@/utils/api";
 
+interface ICPField {
+  name: string;
+  description: string;
+}
+
 interface FormData {
   name: string;
   description: string;
-  scoringMethod:
-    | "weighted_average"
-    | "threshold_based"
-    | "ai_powered"
-    | "custom";
-  minimumScore: number;
-  customPrompts: {
-    businessModel: string;
-    targetMarket: string;
-    companySize: string;
-    technology: string;
-    industry: string;
-    userRemarks: string;
-  };
-  requiredDataPoints: {
-    contactInfo: boolean;
-    companySize: boolean;
-    industry: boolean;
-    revenue: boolean;
-    location: boolean;
-    technology: boolean;
-    socialPresence: boolean;
-    fundingStage: boolean;
-    businessModel: boolean;
-    targetMarket: boolean;
-  };
+  fields: ICPField[];
 }
 
 const ICPProfileManager: React.FC = () => {
@@ -62,28 +42,7 @@ const ICPProfileManager: React.FC = () => {
   const [formData, setFormData] = useState<FormData>({
     name: "",
     description: "",
-    scoringMethod: "weighted_average",
-    minimumScore: 70,
-    customPrompts: {
-      businessModel: "",
-      targetMarket: "",
-      companySize: "",
-      technology: "",
-      industry: "",
-      userRemarks: "",
-    },
-    requiredDataPoints: {
-      contactInfo: true,
-      companySize: true,
-      industry: true,
-      revenue: false,
-      location: true,
-      technology: false,
-      socialPresence: false,
-      fundingStage: false,
-      businessModel: false,
-      targetMarket: false,
-    },
+    fields: [{ name: "", description: "" }],
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -139,28 +98,7 @@ const ICPProfileManager: React.FC = () => {
     setFormData({
       name: "",
       description: "",
-      scoringMethod: "weighted_average",
-      minimumScore: 70,
-      customPrompts: {
-        businessModel: "",
-        targetMarket: "",
-        companySize: "",
-        technology: "",
-        industry: "",
-        userRemarks: "",
-      },
-      requiredDataPoints: {
-        contactInfo: true,
-        companySize: true,
-        industry: true,
-        revenue: false,
-        location: true,
-        technology: false,
-        socialPresence: false,
-        fundingStage: false,
-        businessModel: false,
-        targetMarket: false,
-      },
+      fields: [{ name: "", description: "" }],
     });
   };
 
@@ -174,28 +112,7 @@ const ICPProfileManager: React.FC = () => {
     setFormData({
       name: profile.name,
       description: profile.description || "",
-      scoringMethod: profile.scoringMethod,
-      minimumScore: profile.minimumScore,
-      customPrompts: {
-        businessModel: profile.customPrompts?.businessModel || "",
-        targetMarket: profile.customPrompts?.targetMarket || "",
-        companySize: profile.customPrompts?.companySize || "",
-        technology: profile.customPrompts?.technology || "",
-        industry: profile.customPrompts?.industry || "",
-        userRemarks: profile.customPrompts?.userRemarks || "",
-      },
-      requiredDataPoints: profile.requiredDataPoints || {
-        contactInfo: true,
-        companySize: true,
-        industry: true,
-        revenue: false,
-        location: true,
-        technology: false,
-        socialPresence: false,
-        fundingStage: false,
-        businessModel: false,
-        targetMarket: false,
-      },
+      fields: profile.fields || [{ name: "", description: "" }],
     });
     setSelectedProfile(profile);
     setShowCreateForm(true);

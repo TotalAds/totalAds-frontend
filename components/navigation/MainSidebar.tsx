@@ -1,17 +1,22 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import React from "react";
+import React, { useState } from "react";
 
 import { cn } from "@/utils/cn";
 import {
   IconBook,
+  IconBrain,
+  IconChartBar,
+  IconChevronDown,
   IconChevronLeft,
   IconCreditCard,
   IconDashboard,
   IconHistory,
   IconKey,
+  IconSparkles,
   IconTarget,
   IconUser,
   IconWorldWww,
@@ -22,6 +27,14 @@ interface NavItem {
   name: string;
   href: string;
   icon: React.ReactNode;
+  badge?: string;
+  isNew?: boolean;
+  subItems?: {
+    name: string;
+    href: string;
+    badge?: string;
+    isNew?: boolean;
+  }[];
 }
 
 interface MainSidebarProps {
@@ -36,6 +49,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
   onToggle,
 }) => {
   const pathname = usePathname();
+  const [expandedItems, setExpandedItems] = useState<string[]>(["API Docs"]);
 
   const navItems: NavItem[] = [
     {
@@ -47,11 +61,26 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
       name: "Scraper",
       href: "/scraper",
       icon: <IconWorldWww className="w-5 h-5" />,
+      badge: "AI",
     },
     {
       name: "ICP Profiles",
       href: "/icp-profiles",
       icon: <IconTarget className="w-5 h-5" />,
+      isNew: true,
+    },
+    {
+      name: "Analytics",
+      href: "/analytics",
+      icon: <IconChartBar className="w-5 h-5" />,
+      badge: "Pro",
+      subItems: [
+        {
+          name: "Learning Insights",
+          href: "/analytics/learning",
+          isNew: true,
+        },
+      ],
     },
     {
       name: "API Tokens",
@@ -72,6 +101,16 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
       name: "API Docs",
       href: "/docs",
       icon: <IconBook className="w-5 h-5" />,
+      subItems: [
+        {
+          name: "Getting Started",
+          href: "/docs",
+        },
+        {
+          name: "API Reference",
+          href: "/docs/api-reference",
+        },
+      ],
     },
     {
       name: "Profile",
@@ -79,6 +118,14 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
       icon: <IconUser className="w-5 h-5" />,
     },
   ];
+
+  const toggleExpanded = (itemName: string) => {
+    setExpandedItems((prev) =>
+      prev.includes(itemName)
+        ? prev.filter((name) => name !== itemName)
+        : [...prev, itemName]
+    );
+  };
 
   return (
     <>
@@ -114,65 +161,225 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
             </button>
           </div>
 
-          {/* Header with collapse button */}
-          <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
-            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Navigation
-            </h2>
-            {onToggle && (
-              <button
-                onClick={onToggle}
-                className="hidden md:flex p-1.5 rounded-lg text-gray-400 hover:bg-white/10 hover:text-white transition-colors duration-200"
-                title="Collapse sidebar"
-              >
-                <IconChevronLeft className="h-4 w-4" />
-              </button>
-            )}
+          {/* Header with brand */}
+          <div className="px-6 py-6 border-b border-white/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                  <IconBrain className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-white">Leadsnipper</h2>
+                  <p className="text-xs text-gray-400">AI-Powered</p>
+                </div>
+              </div>
+              {onToggle && (
+                <button
+                  onClick={onToggle}
+                  className="hidden md:flex p-1.5 rounded-lg text-gray-400 hover:bg-white/10 hover:text-white transition-colors duration-200"
+                  title="Collapse sidebar"
+                >
+                  <IconChevronLeft className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Navigation */}
-          <nav className="px-4 py-4 space-y-1">
+          <nav className="px-4 py-6 space-y-2 flex-1 overflow-y-auto">
             {navItems.map((item) => {
               const isActive =
                 pathname === item.href || pathname.startsWith(item.href + "/");
+              const hasSubItems = item.subItems && item.subItems.length > 0;
+              const isExpanded = expandedItems.includes(item.name);
+
               return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 group",
-                    isActive
-                      ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/25"
-                      : "text-gray-300 hover:bg-white/10 hover:text-white hover:shadow-md hover:shadow-white/5"
+                <div key={item.name}>
+                  {hasSubItems ? (
+                    <button
+                      onClick={() => toggleExpanded(item.name)}
+                      className={cn(
+                        "w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 group",
+                        isActive
+                          ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/25"
+                          : "text-gray-300 hover:bg-white/10 hover:text-white hover:shadow-md hover:shadow-white/5"
+                      )}
+                    >
+                      <div className="flex items-center">
+                        <span
+                          className={cn(
+                            "mr-3 transition-colors duration-200",
+                            isActive
+                              ? "text-white"
+                              : "text-gray-400 group-hover:text-white"
+                          )}
+                        >
+                          {item.icon}
+                        </span>
+                        <span>{item.name}</span>
+                        {item.badge && (
+                          <span
+                            className={cn(
+                              "ml-2 px-2 py-0.5 text-xs font-semibold rounded-full",
+                              item.badge === "AI"
+                                ? "bg-green-500/20 text-green-300"
+                                : item.badge === "Pro"
+                                ? "bg-yellow-500/20 text-yellow-300"
+                                : "bg-blue-500/20 text-blue-300"
+                            )}
+                          >
+                            {item.badge}
+                          </span>
+                        )}
+                        {item.isNew && (
+                          <motion.span
+                            animate={{ scale: [1, 1.1, 1] }}
+                            transition={{ duration: 2, repeat: Infinity }}
+                            className="ml-2 px-2 py-0.5 text-xs font-semibold bg-red-500/20 text-red-300 rounded-full"
+                          >
+                            NEW
+                          </motion.span>
+                        )}
+                      </div>
+                      <motion.div
+                        animate={{ rotate: isExpanded ? 180 : 0 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <IconChevronDown className="w-4 h-4" />
+                      </motion.div>
+                    </button>
+                  ) : (
+                    <Link
+                      href={item.href}
+                      className={cn(
+                        "flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 group",
+                        isActive
+                          ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/25"
+                          : "text-gray-300 hover:bg-white/10 hover:text-white hover:shadow-md hover:shadow-white/5"
+                      )}
+                      onClick={() => {
+                        // Close sidebar on mobile when navigating
+                        if (window.innerWidth < 768) {
+                          onClose();
+                        }
+                      }}
+                    >
+                      <span
+                        className={cn(
+                          "mr-3 transition-colors duration-200",
+                          isActive
+                            ? "text-white"
+                            : "text-gray-400 group-hover:text-white"
+                        )}
+                      >
+                        {item.icon}
+                      </span>
+                      <span className="flex-1">{item.name}</span>
+                      {item.badge && (
+                        <span
+                          className={cn(
+                            "ml-2 px-2 py-0.5 text-xs font-semibold rounded-full",
+                            item.badge === "AI"
+                              ? "bg-green-500/20 text-green-300"
+                              : item.badge === "Pro"
+                              ? "bg-yellow-500/20 text-yellow-300"
+                              : "bg-blue-500/20 text-blue-300"
+                          )}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                      {item.isNew && (
+                        <motion.span
+                          animate={{ scale: [1, 1.1, 1] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                          className="ml-2 px-2 py-0.5 text-xs font-semibold bg-red-500/20 text-red-300 rounded-full"
+                        >
+                          NEW
+                        </motion.span>
+                      )}
+                    </Link>
                   )}
-                  onClick={() => {
-                    // Close sidebar on mobile when navigating
-                    if (window.innerWidth < 768) {
-                      onClose();
-                    }
-                  }}
-                >
-                  <span
-                    className={cn(
-                      "mr-3 transition-colors duration-200",
-                      isActive
-                        ? "text-white"
-                        : "text-gray-400 group-hover:text-white"
+
+                  {/* Sub-items */}
+                  <AnimatePresence>
+                    {hasSubItems && isExpanded && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="ml-4 mt-2 space-y-1 overflow-hidden"
+                      >
+                        {item.subItems?.map((subItem) => {
+                          const isSubActive = pathname === subItem.href;
+                          return (
+                            <Link
+                              key={subItem.name}
+                              href={subItem.href}
+                              className={cn(
+                                "flex items-center px-4 py-2.5 text-sm rounded-lg transition-all duration-200 group",
+                                isSubActive
+                                  ? "bg-white/10 text-white shadow-sm"
+                                  : "text-gray-400 hover:bg-white/5 hover:text-gray-300"
+                              )}
+                              onClick={() => {
+                                if (window.innerWidth < 768) {
+                                  onClose();
+                                }
+                              }}
+                            >
+                              <span
+                                className={cn(
+                                  "w-2 h-2 rounded-full mr-3 transition-colors",
+                                  isSubActive
+                                    ? "bg-purple-400"
+                                    : "bg-gray-500 group-hover:bg-gray-400"
+                                )}
+                              ></span>
+                              <span className="flex-1">{subItem.name}</span>
+                              {subItem.badge && (
+                                <span
+                                  className={cn(
+                                    "ml-2 px-2 py-0.5 text-xs font-semibold rounded-full",
+                                    subItem.badge === "AI"
+                                      ? "bg-green-500/20 text-green-300"
+                                      : subItem.badge === "Pro"
+                                      ? "bg-yellow-500/20 text-yellow-300"
+                                      : "bg-blue-500/20 text-blue-300"
+                                  )}
+                                >
+                                  {subItem.badge}
+                                </span>
+                              )}
+                              {subItem.isNew && (
+                                <motion.span
+                                  animate={{ scale: [1, 1.1, 1] }}
+                                  transition={{ duration: 2, repeat: Infinity }}
+                                  className="ml-2 px-2 py-0.5 text-xs font-semibold bg-red-500/20 text-red-300 rounded-full"
+                                >
+                                  NEW
+                                </motion.span>
+                              )}
+                            </Link>
+                          );
+                        })}
+                      </motion.div>
                     )}
-                  >
-                    {item.icon}
-                  </span>
-                  {item.name}
-                </Link>
+                  </AnimatePresence>
+                </div>
               );
             })}
           </nav>
 
           {/* Footer */}
-          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
-            <div className="text-xs text-gray-400 text-center">
-              <p>© 2024 Leadsnipper</p>
-              <p className="mt-1 opacity-60">v1.0.0</p>
+          <div className="px-4 py-4 border-t border-white/10 mt-auto">
+            <div className="flex items-center justify-between text-xs text-gray-400">
+              <span>© 2024 LeadSnipper</span>
+              <span className="flex items-center space-x-1">
+                <span>v1.0.0</span>
+                <IconSparkles className="w-3 h-3 text-yellow-400" />
+              </span>
             </div>
           </div>
         </div>

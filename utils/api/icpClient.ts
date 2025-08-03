@@ -12,49 +12,7 @@ export interface ICPProfile {
   name: string;
   description?: string;
   status: "active" | "inactive" | "draft" | "archived";
-  scoringMethod:
-    | "weighted_average"
-    | "threshold_based"
-    | "ai_powered"
-    | "custom";
-  minimumScore: number;
-  customPrompts?: {
-    businessModel?: string;
-    targetMarket?: string;
-    companySize?: string;
-    technology?: string;
-    industry?: string;
-    userRemarks?: string;
-    customFields?: Array<{
-      name: string;
-      prompt: string;
-      weight: number;
-    }>;
-  };
-  requiredDataPoints?: {
-    contactInfo: boolean;
-    companySize: boolean;
-    industry: boolean;
-    revenue: boolean;
-    location: boolean;
-    technology: boolean;
-    socialPresence: boolean;
-    fundingStage: boolean;
-    businessModel: boolean;
-    targetMarket: boolean;
-  };
-  criteria?: Array<{
-    id: string;
-    category: string;
-    field: string;
-    operator: string;
-    value: any;
-    weight: number;
-    isRequired: boolean;
-    scoreIfMatch: number;
-    scoreIfNoMatch: number;
-    description?: string;
-  }>;
+  fields: ICPField[];
   totalScrapes: number;
   successfulMatches: number;
   lastUsedAt?: string;
@@ -62,51 +20,15 @@ export interface ICPProfile {
   updatedAt: string;
 }
 
+export interface ICPField {
+  name: string;
+  description: string;
+}
+
 export interface CreateICPProfileRequest {
   name: string;
   description?: string;
-  scoringMethod?:
-    | "weighted_average"
-    | "threshold_based"
-    | "ai_powered"
-    | "custom";
-  minimumScore?: number;
-  customPrompts?: {
-    businessModel?: string;
-    targetMarket?: string;
-    companySize?: string;
-    technology?: string;
-    industry?: string;
-    userRemarks?: string;
-    customFields?: Array<{
-      name: string;
-      prompt: string;
-      weight: number;
-    }>;
-  };
-  requiredDataPoints?: {
-    contactInfo: boolean;
-    companySize: boolean;
-    industry: boolean;
-    revenue: boolean;
-    location: boolean;
-    technology: boolean;
-    socialPresence: boolean;
-    fundingStage: boolean;
-    businessModel: boolean;
-    targetMarket: boolean;
-  };
-  criteria?: Array<{
-    category: string;
-    field: string;
-    operator: string;
-    value: any;
-    weight: number;
-    isRequired: boolean;
-    scoreIfMatch: number;
-    scoreIfNoMatch: number;
-    description?: string;
-  }>;
+  fields: ICPField[];
 }
 
 export interface UpdateICPProfileRequest

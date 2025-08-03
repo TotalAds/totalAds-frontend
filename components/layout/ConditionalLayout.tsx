@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 import MainSidebar from "@/components/navigation/MainSidebar";
 import TopNav from "@/components/navigation/TopNav";
 import { useAuthContext } from "@/context/AuthContext";
+import FeedbackButton from "@/src/components/feedback/FeedbackButton";
 
 interface ConditionalLayoutProps {
   children: React.ReactNode;
@@ -85,6 +86,17 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
             </div>
           </footer> */}
         </div>
+
+        {/* Feedback Button - only show for authenticated users */}
+        {isAuthenticated && (
+          <FeedbackButton
+            variant="floating"
+            context={{
+              page: pathname,
+              feature: "general",
+            }}
+          />
+        )}
       </div>
     </div>
   );
