@@ -14,7 +14,7 @@ const apiClient = axios.create({
     "Content-Type": "application/json",
   },
   withCredentials: true, // Enable cookies for all requests
-  timeout: 30000, // 30 second timeout
+  timeout: 120000, // 120 second timeout
 });
 
 // Request interceptor to add auth headers

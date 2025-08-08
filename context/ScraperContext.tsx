@@ -43,11 +43,7 @@ const initialState: ScraperState = {
 // Create context
 interface ScraperContextType {
   state: ScraperState;
-  scrapeWebsite: (
-    url: string,
-    enableAI: boolean,
-    options?: { icpProfileId?: string }
-  ) => Promise<void>;
+  scrapeWebsite: (url: string, icpProfileId?: string) => Promise<void>;
   checkHealth: () => Promise<void>;
   resetResult: () => void;
 }
@@ -95,36 +91,27 @@ export const ScraperProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   const [state, dispatch] = useReducer(scraperReducer, initialState);
 
-  // Function to scrape a website
-  const scrapeWebsite = async (
-    url: string,
-    enableAI: boolean,
-    options?: { icpProfileId?: string }
-  ) => {
+  // Function to scrape a website - UPDATED FOR NEW API
+  const scrapeWebsite = async (url: string, icpProfileId?: string) => {
     try {
       dispatch({ type: "SCRAPE_START" });
-      const result = await scrapeUrl(url, enableAI, options);
+      const result = await scrapeUrl(url, icpProfileId);
       dispatch({ type: "SCRAPE_SUCCESS", payload: result });
 
       // Show success toast notification
       if (typeof window !== "undefined") {
         const { toast } = await import("react-hot-toast");
-        const scrapeType = options?.icpProfileId
+        const scrapeType = icpProfileId
           ? "with ICP analysis"
-          : enableAI
-          ? "with AI enhancement"
-          : "";
-        toast.success(
-          `Successfully scraped ${url}${scrapeType ? ` ${scrapeType}` : ""}!`,
-          {
-            duration: 4000,
-            style: {
-              background: "rgba(34, 197, 94, 0.1)",
-              border: "1px solid rgba(34, 197, 94, 0.3)",
-              color: "#22c55e",
-            },
-          }
-        );
+          : "standard scraping";
+        toast.success(`Successfully scraped ${url} ${scrapeType}!`, {
+          duration: 4000,
+          style: {
+            background: "rgba(34, 197, 94, 0.1)",
+            border: "1px solid rgba(34, 197, 94, 0.3)",
+            color: "#22c55e",
+          },
+        });
       }
     } catch (error) {
       dispatch({

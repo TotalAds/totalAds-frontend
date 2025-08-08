@@ -22,7 +22,6 @@ const ScraperContainer = () => {
   const { state: authState } = useAuthContext();
   const { state, scrapeWebsite, resetResult } = useScraperContext();
   const { isLoading, error, result, health } = state;
-  const [enableAI, setEnableAI] = useState(false);
   const [showAuthWarning, setShowAuthWarning] = useState(false);
   const [preselectedIcpProfileId, setPreselectedIcpProfileId] = useState<
     string | null
@@ -44,7 +43,6 @@ const ScraperContainer = () => {
     const icpProfileId = searchParams.get("icpProfileId");
     if (icpProfileId) {
       setPreselectedIcpProfileId(icpProfileId);
-      setEnableAI(true); // Enable AI mode when ICP profile is preselected
     }
   }, [searchParams]);
 
@@ -89,21 +87,14 @@ const ScraperContainer = () => {
       return;
     }
 
-    // Use ICP scraping with the selected profile
-    setEnableAI(true); // ICP scraping always uses AI
-    await scrapeWebsite(url, true, { icpProfileId });
+    // Use new unified scraping API
+    await scrapeWebsite(url, icpProfileId);
   };
   console.log(health);
 
   const handleReset = () => {
     resetResult();
     setWebsiteStatusError(null);
-  };
-
-  const handleRegularScrape = async (url: string, enableAI: boolean) => {
-    // Clear any previous website status errors
-    setWebsiteStatusError(null);
-    await scrapeWebsite(url, enableAI);
   };
 
   return (

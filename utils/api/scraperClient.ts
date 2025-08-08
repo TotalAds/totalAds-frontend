@@ -123,60 +123,36 @@ export const scrapeWithICP = async (
 };
 
 /**
- * Submit a URL to scrape
+ * Submit a URL to scrape - UPDATED FOR NEW API SCHEMA
  * @param url - The URL to scrape
- * @param enableAI - Whether to enable AI processing of the scraped data
- * @param options - Additional options for the scrape job
+ * @param icpProfileId - Optional ICP profile ID for enhanced scraping
  * @returns Promise with the scrape result
  */
 export const scrapeUrl = async (
   url: string,
-  enableAI: boolean = false,
-  options: {
-    deepScrape?: boolean;
-    maxPages?: number;
-    icpProfileId?: string;
-  } = {}
+  icpProfileId?: string
 ): Promise<ScrapeResult> => {
   try {
-    // If ICP profile is provided, use ICP scraping
-    if (options.icpProfileId) {
-      return await scrapeWithICP(url, options.icpProfileId);
-    }
-
     const response = await apiClient.post(
       "/frontend/scraper",
       {
         url,
-        enableAI,
-        deepScrape: options.deepScrape || false,
-        maxPages: options.maxPages || 1,
+        icpProfileId,
       },
       {
         withCredentials: true,
       }
     );
 
-    // Handle nested response structure
+    // Handle new response structure
     const responseData = response.data;
 
-    // Check if response has nested payload structure
-    if (responseData.payload && responseData.payload.payload) {
-      // Extract the actual scraper result from nested payload
-      const scraperResult = responseData.payload.payload;
-      const billingMeta = responseData.payload.meta;
-
-      // Merge billing information into the result meta
-      if (billingMeta?.billing && scraperResult.meta) {
-        scraperResult.meta.billing = billingMeta.billing;
-      } else if (billingMeta?.billing) {
-        scraperResult.meta = {
-          ...scraperResult.meta,
-          billing: billingMeta.billing,
-        };
-      }
-
-      return scraperResult;
+    // New unified response structure
+    if (responseData.success && responseData.data) {
+      return {
+        ...responseData.data,
+        meta: responseData.meta || {},
+      };
     }
 
     // Fallback to direct response if no nested structure
