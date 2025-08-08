@@ -33,68 +33,58 @@ export default function ApiDocs() {
   };
 
   const codeExamples = {
-    curl: `curl -X POST https://api.leadsnipper.com/api/scraper \\
+    curl: `curl -X POST ${
+      process.env.NEXT_PUBLIC_API_URL || "https://api.leadsnipper.com"
+    }/api/scraper \\
   -H "Authorization: Bearer ls_your_api_token" \\
   -H "Content-Type: application/json" \\
   -d '{
     "url": "https://example-company.com",
-    "enableAI": true
+    "icpProfileId": 123
   }'`,
-    javascript: `const response = await fetch('https://api.leadsnipper.com/api/scraper', {
-  method: 'POST',
+    javascript: `import axios from 'axios';
+
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.leadsnipper.com';
+const response = await axios.post( apiUrl + '/api/scraper', {
+  url: 'https://example-company.com',
+  icpProfileId: 123
+}, {
   headers: {
     'Authorization': 'Bearer ls_your_api_token',
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    url: 'https://example-company.com',
-    enableAI: true
-  })
+    'Content-Type': 'application/json'
+  }
 });
 
-const leadData = await response.json();
-console.log('Company Data:', leadData.data.aboutData);
-console.log('Contact Info:', leadData.data.contactDetails);
-console.log('AI Analysis:', leadData.data.aiAnalysis);`,
+const { data, meta } = response.data;
+console.log('Company Data:', data.aboutData);
+console.log('Contact Info:', data.contactDetails);
+console.log('ICP Score:', data.icpScore);`,
     python: `import requests
 
-url = "https://api.leadsnipper.com/api/v1/extract"
+url = f"{os.environ.get('NEXT_PUBLIC_API_URL', 'https://api.leadsnipper.com')}/api/scraper"
 headers = {
     "Authorization": "Bearer ls_your_api_token",
     "Content-Type": "application/json"
 }
 data = {
     "url": "https://example-company.com",
-    "enableAI": True,
-    "options": {
-        "includeLeadScoring": True,
-        "includeBusinessSignals": True,
-        "maxProcessingTime": 15000
-    }
+    "icpProfileId": 123
 }
 
 response = requests.post(url, headers=headers, json=data)
 result = response.json()
 
-# Extract key lead intelligence
-lead_score = result['data']['leadScore']['overall']
-quality = result['data']['leadScore']['quality']
-decision_makers = result['data']['decisionMakers']
+# Key fields
+icp_score = result.get('meta', {}).get('icpScore') or result.get('data', {}).get('icpScore')
+print(f"ICP Score: {icp_score}")`,
+    node: `import axios from 'axios';
 
-print(f"Lead Score: {lead_score}/100 ({quality})")
-print(f"Decision Makers Found: {len(decision_makers)}")`,
-    node: `const axios = require('axios');
-
-const extractLeadIntelligence = async () => {
+const run = async () => {
   try {
-    const response = await axios.post('https://api.leadsnipper.com/api/v1/extract', {
+    const base = process.env.NEXT_PUBLIC_API_URL || 'https://api.leadsnipper.com';
+    const response = await axios.post(base + '/api/scraper', {
       url: 'https://example-company.com',
-      enableAI: true,
-      options: {
-        includeLeadScoring: true,
-        includeBusinessSignals: true,
-        maxProcessingTime: 15000
-      }
+      icpProfileId: 123
     }, {
       headers: {
         'Authorization': 'Bearer ls_your_api_token',
@@ -103,20 +93,15 @@ const extractLeadIntelligence = async () => {
     });
 
     const { data, meta } = response.data;
-
-    console.log('Company:', data.companyData.name);
-    console.log('Lead Score:', data.leadScore.overall + '/100');
-    console.log('Quality:', data.leadScore.quality);
-    console.log('Decision Makers:', data.decisionMakers.length);
-    console.log('Processing Time:', meta.processingTime + 'ms');
-    console.log('Credits Used:', meta.usage.creditsUsed);
-
+    console.log('Title:', data.title);
+    console.log('ICP Score:', meta?.icpScore || data.icpScore);
+    console.log('Contacts:', data.contactDetails);
   } catch (error) {
     console.error('Error:', error.response?.data || error.message);
   }
 };
 
-extractLeadIntelligence();`,
+run();`,
   };
 
   if (isLoading) {
@@ -144,11 +129,11 @@ extractLeadIntelligence();`,
         {/* Header */}
         <div className="mb-12">
           <h1 className="text-4xl font-bold text-white mb-4">
-            API Documentation
+            Developer Documentation
           </h1>
           <p className="text-gray-300 text-lg">
-            Learn how to integrate Leadsnipper scraping API into your
-            applications.
+            Learn how to integrate Leadsnipper&apos;s Sales Intelligence into
+            your applications.
           </p>
         </div>
 
@@ -306,8 +291,8 @@ extractLeadIntelligence();`,
                     <code className="text-purple-300">/api/scraper</code>
                   </div>
                   <p className="text-gray-300 mb-4">
-                    Extract comprehensive lead intelligence from any website
-                    with AI-powered analysis.
+                    Build a complete company profile from any website with
+                    optional ICP enrichment and AI insights.
                   </p>
                   <div className="space-y-3">
                     <div>
@@ -318,7 +303,7 @@ extractLeadIntelligence();`,
                         <pre className="text-sm text-gray-300">
                           {`{
   "url": "https://example.com",
-  "enableAI": false
+  "icpProfileId": 123
 }`}
                         </pre>
                       </div>
@@ -330,11 +315,12 @@ extractLeadIntelligence();`,
                       <ul className="text-gray-300 space-y-1">
                         <li>
                           <code className="text-purple-300">url</code> (string,
-                          required): The URL to scrape
+                          required): The target website URL
                         </li>
                         <li>
-                          <code className="text-purple-300">enableAI</code>{" "}
-                          (boolean, optional): Enable AI-enhanced extraction
+                          <code className="text-purple-300">icpProfileId</code>{" "}
+                          (number, optional): Optional ICP profile ID to enrich
+                          the response
                         </li>
                       </ul>
                     </div>
@@ -349,7 +335,7 @@ extractLeadIntelligence();`,
                     <code className="text-purple-300">/api/scraper/health</code>
                   </div>
                   <p className="text-gray-300">
-                    Check the health status of the scraper service.
+                    Check the health status of the enrichment engine.
                   </p>
                 </div>
 
@@ -360,9 +346,7 @@ extractLeadIntelligence();`,
                     </span>
                     <code className="text-purple-300">/api/scraper/usage</code>
                   </div>
-                  <p className="text-gray-300">
-                    Get your API usage statistics.
-                  </p>
+                  <p className="text-gray-300">Get your usage statistics.</p>
                 </div>
               </div>
             </section>

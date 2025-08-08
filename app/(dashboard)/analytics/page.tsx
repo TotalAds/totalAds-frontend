@@ -227,9 +227,9 @@ const AnalyticsPage = () => {
             </h3>
           </div>
           <p className="text-gray-300 mb-6 max-w-2xl mx-auto">
-            We're continuously adding new analytics features including real-time
-            monitoring, advanced reporting, custom dashboards, and predictive
-            insights.
+            We&apos;re continuously adding new analytics features including
+            real-time monitoring, advanced reporting, custom dashboards, and
+            predictive insights.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             {[

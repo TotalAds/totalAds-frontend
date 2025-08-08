@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { toast } from "react-hot-toast";
+
 import {
   IconApi,
   IconBolt,
@@ -39,7 +40,8 @@ export default function LeadSnipperOnboarding({
     {
       id: "welcome",
       title: "Welcome to LeadSnipper! 🎯",
-      description: "Transform any website into actionable lead intelligence with our AI-powered API",
+      description:
+        "Transform any website into actionable lead intelligence with our AI-powered API",
       icon: <IconTarget className="w-8 h-8" />,
       completed: false,
     },
@@ -96,25 +98,32 @@ export default function LeadSnipperOnboarding({
                 Welcome to LeadSnipper!
               </h3>
               <p className="text-gray-300 text-lg leading-relaxed">
-                LeadSnipper is an AI-powered API that transforms any website into actionable lead intelligence. 
-                Extract business data, score leads, and identify decision makers with simple API calls.
+                LeadSnipper is an AI‑powered API that transforms any website
+                into actionable lead intelligence. Extract business data, score
+                leads, and identify decision makers with simple API calls.
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
               <div className="bg-white/5 rounded-xl p-4">
                 <IconBolt className="w-6 h-6 text-blue-400 mb-2" />
                 <h4 className="font-semibold text-white">AI-Enhanced</h4>
-                <p className="text-sm text-gray-400">Smart business intelligence extraction</p>
+                <p className="text-sm text-gray-400">
+                  Smart business intelligence extraction
+                </p>
               </div>
               <div className="bg-white/5 rounded-xl p-4">
                 <IconCode className="w-6 h-6 text-green-400 mb-2" />
                 <h4 className="font-semibold text-white">Developer-First</h4>
-                <p className="text-sm text-gray-400">RESTful API with great docs</p>
+                <p className="text-sm text-gray-400">
+                  RESTful API with great docs
+                </p>
               </div>
               <div className="bg-white/5 rounded-xl p-4">
                 <IconTarget className="w-6 h-6 text-purple-400 mb-2" />
                 <h4 className="font-semibold text-white">Lead Scoring</h4>
-                <p className="text-sm text-gray-400">Automatic lead qualification</p>
+                <p className="text-sm text-gray-400">
+                  Automatic lead qualification
+                </p>
               </div>
             </div>
           </div>
@@ -134,10 +143,12 @@ export default function LeadSnipperOnboarding({
                 Use this token to authenticate your API requests
               </p>
             </div>
-            
+
             <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-700">
               <div className="flex items-center justify-between mb-4">
-                <label className="text-sm font-medium text-gray-300">API Token</label>
+                <label className="text-sm font-medium text-gray-300">
+                  API Token
+                </label>
                 <button
                   onClick={() => copyToClipboard(apiToken)}
                   className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors"
@@ -152,9 +163,12 @@ export default function LeadSnipperOnboarding({
             </div>
 
             <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
-              <h4 className="font-semibold text-blue-400 mb-2">🔒 Keep it secure!</h4>
+              <h4 className="font-semibold text-blue-400 mb-2">
+                🔒 Keep it secure!
+              </h4>
               <p className="text-sm text-gray-300">
-                Never share your API token publicly. Store it securely in your environment variables.
+                Never share your API token publicly. Store it securely in your
+                environment variables.
               </p>
             </div>
           </div>
@@ -177,15 +191,19 @@ export default function LeadSnipperOnboarding({
 
             <div className="bg-gray-900/50 rounded-xl p-6 border border-gray-700">
               <div className="flex items-center justify-between mb-4">
-                <label className="text-sm font-medium text-gray-300">Sample Request</label>
+                <label className="text-sm font-medium text-gray-300">
+                  Sample Request
+                </label>
                 <button
-                  onClick={() => copyToClipboard(`curl -X POST https://api.leadsnipper.com/v1/extract \\
+                  onClick={() =>
+                    copyToClipboard(`curl -X POST https://api.leadsnipper.com/v1/extract \\
   -H "Authorization: Bearer ${apiToken}" \\
   -H "Content-Type: application/json" \\
   -d '{
     "url": "https://example-company.com",
     "enableAI": true
-  }'`)}
+  }'`)
+                  }
                   className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors"
                 >
                   <IconCopy className="w-4 h-4" />
@@ -193,7 +211,7 @@ export default function LeadSnipperOnboarding({
                 </button>
               </div>
               <pre className="bg-black/30 rounded-lg p-4 text-sm text-green-400 overflow-x-auto">
-{`curl -X POST https://api.leadsnipper.com/v1/extract \\
+                {`curl -X POST https://api.leadsnipper.com/v1/extract \\
   -H "Authorization: Bearer ${apiToken}" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -205,7 +223,9 @@ export default function LeadSnipperOnboarding({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4">
-                <h4 className="font-semibold text-green-400 mb-2">✅ What you'll get:</h4>
+                <h4 className="font-semibold text-green-400 mb-2">
+                  ✅ What you&apos;ll get:
+                </h4>
                 <ul className="text-sm text-gray-300 space-y-1">
                   <li>• Company information</li>
                   <li>• Contact details</li>
@@ -215,7 +235,9 @@ export default function LeadSnipperOnboarding({
                 </ul>
               </div>
               <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
-                <h4 className="font-semibold text-blue-400 mb-2">📚 Next steps:</h4>
+                <h4 className="font-semibold text-blue-400 mb-2">
+                  📚 Next steps:
+                </h4>
                 <ul className="text-sm text-gray-300 space-y-1">
                   <li>• Check API documentation</li>
                   <li>• Explore lead scoring</li>
@@ -235,7 +257,7 @@ export default function LeadSnipperOnboarding({
                 <IconRocket className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-2xl font-bold text-white mb-2">
-                You're All Set! 🚀
+                You&apos;re All Set! 🚀
               </h3>
               <p className="text-gray-300">
                 Explore these features to get the most out of LeadSnipper
@@ -247,28 +269,38 @@ export default function LeadSnipperOnboarding({
                 <IconTarget className="w-8 h-8 text-blue-400 mb-3" />
                 <h4 className="font-semibold text-white mb-2">Lead Scoring</h4>
                 <p className="text-sm text-gray-400">
-                  Automatically score leads based on company size, industry, and business signals
+                  Automatically score leads based on company size, industry, and
+                  business signals
                 </p>
               </div>
               <div className="bg-white/5 rounded-xl p-6 hover:bg-white/10 transition-colors cursor-pointer">
                 <IconBolt className="w-8 h-8 text-green-400 mb-3" />
-                <h4 className="font-semibold text-white mb-2">AI Enhancement</h4>
+                <h4 className="font-semibold text-white mb-2">
+                  AI Enhancement
+                </h4>
                 <p className="text-sm text-gray-400">
-                  Extract business intelligence, pain points, and buying signals with AI
+                  Extract business intelligence, pain points, and buying signals
+                  with AI
                 </p>
               </div>
               <div className="bg-white/5 rounded-xl p-6 hover:bg-white/10 transition-colors cursor-pointer">
                 <IconApi className="w-8 h-8 text-purple-400 mb-3" />
-                <h4 className="font-semibold text-white mb-2">API Documentation</h4>
+                <h4 className="font-semibold text-white mb-2">
+                  API Documentation
+                </h4>
                 <p className="text-sm text-gray-400">
-                  Comprehensive docs with examples for all endpoints and features
+                  Comprehensive docs with examples for all endpoints and
+                  features
                 </p>
               </div>
               <div className="bg-white/5 rounded-xl p-6 hover:bg-white/10 transition-colors cursor-pointer">
                 <IconKey className="w-8 h-8 text-orange-400 mb-3" />
-                <h4 className="font-semibold text-white mb-2">Token Management</h4>
+                <h4 className="font-semibold text-white mb-2">
+                  Token Management
+                </h4>
                 <p className="text-sm text-gray-400">
-                  Create, manage, and monitor your API tokens and usage statistics
+                  Create, manage, and monitor your API tokens and usage
+                  statistics
                 </p>
               </div>
             </div>
@@ -318,9 +350,7 @@ export default function LeadSnipperOnboarding({
         </div>
 
         {/* Content */}
-        <div className="p-8">
-          {renderStepContent()}
-        </div>
+        <div className="p-8">{renderStepContent()}</div>
 
         {/* Footer */}
         <div className="flex items-center justify-between p-6 border-t border-gray-700">

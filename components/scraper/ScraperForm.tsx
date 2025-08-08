@@ -116,7 +116,7 @@ const ScraperForm: React.FC<ScraperFormProps> = ({
               <p className="text-sm text-red-400 mt-2">{urlError}</p>
             )}
             <p className="text-sm text-gray-400 mt-2">
-              Enter the full URL of the website you want to scrape, including
+              Enter the full URL of the website you want to profile, including
               the http:// or https:// prefix.
             </p>
           </div>
@@ -173,7 +173,7 @@ const ScraperForm: React.FC<ScraperFormProps> = ({
               <p className="text-sm text-red-400 mt-2">{icpError}</p>
             )}
             <p className="text-sm text-gray-400 mt-2">
-              Select an ICP profile to analyze the scraped data against your
+              Select an ICP profile to analyze the company profile against your
               ideal customer criteria.
             </p>
           </div>
@@ -181,7 +181,9 @@ const ScraperForm: React.FC<ScraperFormProps> = ({
       </div>
 
       <div className="space-y-3">
-        <h3 className="text-white font-medium mb-3">ICP-Enhanced Scraping:</h3>
+        <h3 className="text-white font-medium mb-3">
+          ICP‑Enhanced Enrichment:
+        </h3>
 
         {/* ICP Scraper Info */}
         <div className="flex items-start space-x-4 p-4 bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-xl border border-purple-500/20">
@@ -190,17 +192,17 @@ const ScraperForm: React.FC<ScraperFormProps> = ({
           </div>
           <div className="flex-1">
             <div className="text-white font-medium mb-2 flex items-center justify-between">
-              <span>🎯 ICP-Enhanced Scraper</span>
+              <span>🎯 ICP‑Enhanced Profile</span>
               <span className="text-sm bg-purple-500/20 text-purple-300 px-2 py-1 rounded-lg">
                 1.0 credits ($0.05)
               </span>
             </div>
             <p className="text-gray-300 text-sm mb-2">
-              AI-powered extraction with intelligent lead qualification based on
-              your ICP criteria
+              AI‑assisted enrichment with intelligent lead qualification based
+              on your ICP criteria
             </p>
             <div className="text-xs text-gray-400 space-y-1">
-              <div>✓ Complete company data extraction</div>
+              <div>✓ Complete company profile</div>
               <div>✓ ICP scoring and match analysis</div>
               <div>✓ Actionable recommendations</div>
               <div>✓ Business intelligence insights</div>

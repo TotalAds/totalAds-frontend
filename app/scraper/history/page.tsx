@@ -4,8 +4,8 @@ import React from "react";
 import ScrapeHistory from "@/components/scraper/ScrapeHistory";
 
 export const metadata: Metadata = {
-  title: "Scrape History | Leadsnipper",
-  description: "View your past scraping jobs and results",
+  title: "Profile History | Leadsnipper",
+  description: "View your past profile enrichments and results",
 };
 
 export default function ScraperHistoryPage() {

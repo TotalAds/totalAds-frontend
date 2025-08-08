@@ -1,17 +1,14 @@
+// @ts-nocheck
+
 "use client";
 
 import {
-  Award,
   Brain,
   Building2,
   Clock,
   Contact,
   Download,
   ExternalLink,
-  Globe,
-  Mail,
-  MapPin,
-  Phone,
   Shield,
   TrendingUp,
   Users,
@@ -29,6 +26,8 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+import AboutProfilePanel from "./AboutProfilePanel";
+import ContactInfoPanel from "./ContactInfoPanel";
 import { ScrapeResult, Table as TableType } from "./utils/scraperTypes";
 
 interface ScraperResultsProps {
@@ -38,6 +37,114 @@ interface ScraperResultsProps {
 const ScraperResults: React.FC<ScraperResultsProps> = ({ result }) => {
   const { data, meta } = result;
   const isAIEnhanced = meta?.aiEnhanced || data?.aiEnhanced;
+
+  // Key data fields required for frontend landing page display
+  const landingPageData = {
+    // Company Basic Info
+    companyName: data?.title || "Company Name Not Found",
+    description: data?.desc || "Description not available",
+
+    // Contact Information
+    email: data?.contactDetails?.email?.[0] || "Email not found",
+    phone: data?.contactDetails?.phone?.[0] || "Phone not found",
+    location: data?.location || "Location not found",
+    website: getUrlFromData(),
+
+    // Business Details
+    industry:
+      data?.businessIntelligence?.industry?.join(", ") ||
+      data?.industry ||
+      "Industry not specified",
+    companySize:
+      data?.businessIntelligence?.employeeCount ||
+      data?.companySize ||
+      "Company size not specified",
+    businessModel:
+      data?.businessIntelligence?.businessModel ||
+      "Business model not specified",
+    targetMarket:
+      data?.businessIntelligence?.targetMarket?.join(", ") ||
+      "Target market not specified",
+
+    // Services & Products
+    services:
+      data?.businessIntelligence?.keyServices?.slice(0, 5) ||
+      data?.service?.slice(0, 5) ||
+      [],
+
+    // Social Presence
+    socialMedia: {
+      linkedin: data?.contactDetails?.social_media?.linkedin || "",
+      facebook: data?.contactDetails?.social_media?.facebook || "",
+      instagram: data?.contactDetails?.social_media?.instagram || "",
+      twitter:
+        data?.contactDetails?.social_media?.twitter ||
+        data?.contactDetails?.social_media?.x ||
+        "",
+    },
+
+    // Business Intelligence (AI Enhanced)
+    competitiveAdvantages:
+      data?.businessIntelligence?.competitiveAdvantages?.slice(0, 3) || [],
+    fundingStage: data?.businessIntelligence?.fundingStage || "Not specified",
+    revenue: data?.businessIntelligence?.revenue || "Revenue not disclosed",
+
+    // ICP Analysis (if available)
+    icpScore: data?.icpScore || 0,
+    icpMatchLevel: data?.icpMatchLevel || "unknown",
+    icpFields: data?.icpFields || {},
+
+    // Processing Meta
+    processingTime: getProcessingTime(),
+    aiEnhanced: isAIEnhanced,
+    creditsUsed: meta?.billing?.creditsUsed || meta?.creditsUsed || 0,
+    scraperType:
+      meta?.billing?.scraperType || (isAIEnhanced ? "AI Enhanced" : "Normal"),
+    timestamp: meta?.timestamp || new Date().toISOString(),
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-lg p-6">
+      <h2 className="text-xl font-semibold mb-3">
+        Landing Page Data Requirements
+      </h2>
+      <div className="bg-gray-900 text-green-200 p-4 rounded-lg overflow-auto max-h-[70vh] text-xs">
+        <pre>{JSON.stringify(landingPageData, null, 2)}</pre>
+      </div>
+
+      <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+        <h3 className="font-semibold text-blue-900 mb-2">
+          Key Fields for Frontend Landing Page:
+        </h3>
+        <ul className="text-sm text-blue-800 space-y-1">
+          <li>
+            • <strong>Company Info:</strong> name, description, location,
+            website
+          </li>
+          <li>
+            • <strong>Contact:</strong> email, phone, social media links
+          </li>
+          <li>
+            • <strong>Business:</strong> industry, size, model, target market
+          </li>
+          <li>
+            • <strong>Services:</strong> key services/products offered
+          </li>
+          <li>
+            • <strong>Intelligence:</strong> competitive advantages, funding,
+            revenue
+          </li>
+          <li>
+            • <strong>ICP Analysis:</strong> score, match level, custom fields
+          </li>
+          <li>
+            • <strong>Meta:</strong> processing time, AI enhancement, credits
+            used
+          </li>
+        </ul>
+      </div>
+    </div>
+  );
 
   const renderContactInfo = () => {
     const contact =
@@ -67,106 +174,21 @@ const ScraperResults: React.FC<ScraperResultsProps> = ({ result }) => {
       : contact.phone
       ? [contact.phone]
       : [];
+    const uniquePhones = Array.from(
+      new Map(
+        phones
+          .filter(Boolean)
+          .map((p: any) => [String(p).replace(/\D/g, "").slice(-10), String(p)])
+      ).values()
+    ).slice(0, 3);
 
     // Type guard for ContactDetails
     const hasAddress = "address" in contact && contact.address;
-    const hasSocialMedia = "social_media" in contact && contact.social_media;
+    const social =
+      (contact as any).socialLinks || (contact as any).social_media;
+    const hasSocialMedia = Boolean(social && Object.keys(social).length > 0);
 
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {emails?.length > 0 && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Mail className="h-5 w-5 text-blue-600" />
-                Email
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {emails.map((email, index) => (
-                  <a
-                    key={index}
-                    href={`mailto:${email}`}
-                    className="block text-blue-600 hover:text-blue-800 hover:underline"
-                  >
-                    {email}
-                  </a>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {phones?.length > 0 && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Phone className="h-5 w-5 text-green-600" />
-                Phone
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {phones.map((phone, index) => (
-                  <a
-                    key={index}
-                    href={`tel:${phone}`}
-                    className="block text-green-600 hover:text-green-800 hover:underline"
-                  >
-                    {phone}
-                  </a>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {hasAddress && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <MapPin className="h-5 w-5 text-red-600" />
-                Address
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-700">{(contact as any).address}</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {hasSocialMedia &&
-          Object.keys((contact as any).social_media).length > 0 && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Globe className="h-5 w-5 text-purple-600" />
-                  Social Media
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {Object.entries((contact as any).social_media).map(
-                    ([platform, url]) => (
-                      <a
-                        key={platform}
-                        href={url as string}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-purple-600 hover:text-purple-800 hover:underline"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                        <span className="capitalize">{platform}</span>
-                      </a>
-                    )
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-      </div>
-    );
+    return <ContactInfoPanel contact={contact} />;
   };
 
   const renderAboutInfo = () => {
@@ -188,175 +210,12 @@ const ScraperResults: React.FC<ScraperResultsProps> = ({ result }) => {
     }
 
     return (
-      <div className="space-y-6">
-        {/* Basic Info */}
-        {(title || description) && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-blue-600" />
-                Company Overview
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {title && (
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                  {title}
-                </h3>
-              )}
-              {description && (
-                <p className="text-gray-700 leading-relaxed">{description}</p>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Business Intelligence (AI Enhanced) */}
-        {businessIntel && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Industry & Services */}
-            {(businessIntel?.industry || businessIntel?.keyServices) && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-green-600" />
-                    Industry & Services
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {businessIntel.industry && (
-                    <div className="mb-4">
-                      <h4 className="font-medium text-gray-900 mb-2">
-                        Industries
-                      </h4>
-                      <div className="flex flex-wrap gap-2">
-                        {businessIntel.industry.map((industry, index) => (
-                          <Badge key={index} variant="secondary">
-                            {industry}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {businessIntel.keyServices && (
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-2">
-                        Key Services
-                      </h4>
-                      <div className="flex flex-wrap gap-2">
-                        {businessIntel.keyServices
-                          .slice(0, 6)
-                          .map((service, index) => (
-                            <Badge key={index} variant="outline">
-                              {service}
-                            </Badge>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Company Details */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-purple-600" />
-                  Company Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {businessIntel?.companyType && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Type:</span>
-                      <span className="font-medium capitalize">
-                        {businessIntel.companyType}
-                      </span>
-                    </div>
-                  )}
-                  {businessIntel?.businessModel && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Model:</span>
-                      <span className="font-medium">
-                        {businessIntel.businessModel}
-                      </span>
-                    </div>
-                  )}
-                  {businessIntel?.marketPosition && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Market Position:</span>
-                      <span className="font-medium capitalize">
-                        {businessIntel.marketPosition}
-                      </span>
-                    </div>
-                  )}
-                  {businessIntel?.employeeCount && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Employee Count:</span>
-                      <span className="font-medium">
-                        {businessIntel.employeeCount}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Competitive Advantages */}
-        {businessIntel?.competitiveAdvantages &&
-          businessIntel.competitiveAdvantages.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Award className="h-5 w-5 text-yellow-600" />
-                  Competitive Advantages
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  {businessIntel?.competitiveAdvantages
-                    .slice(0, 5)
-                    .map((advantage, index) => (
-                      <li key={index} className="flex items-start gap-2">
-                        <div className="w-2 h-2 bg-yellow-600 rounded-full mt-2 flex-shrink-0"></div>
-                        <span className="text-gray-700">{advantage}</span>
-                      </li>
-                    ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-
-        {/* Technologies */}
-        {businessIntel?.technologies &&
-          businessIntel.technologies.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-orange-600" />
-                  Technologies
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {businessIntel.technologies.map((tech, index) => (
-                    <Badge
-                      key={index}
-                      variant="outline"
-                      className="bg-orange-50"
-                    >
-                      {tech}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-      </div>
+      <AboutProfilePanel
+        title={title}
+        description={description}
+        about={about}
+        businessIntel={businessIntel}
+      />
     );
   };
 
@@ -423,7 +282,7 @@ const ScraperResults: React.FC<ScraperResultsProps> = ({ result }) => {
           <div className="mb-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-gray-900">
-                Scrape Results
+                Company Profile
               </h2>
               {isAIEnhanced && (
                 <Badge
@@ -438,7 +297,7 @@ const ScraperResults: React.FC<ScraperResultsProps> = ({ result }) => {
 
             <div className="space-y-2">
               <p className="text-gray-600">
-                Data extracted from{" "}
+                Profile generated from{" "}
                 <a
                   href={getUrlFromData()}
                   target="_blank"
@@ -647,7 +506,7 @@ const ScraperResults: React.FC<ScraperResultsProps> = ({ result }) => {
                           </span>
                         </div>
                         <p className="text-sm text-gray-600 mt-2">
-                          AI confidence in the extracted business intelligence
+                          AI confidence in the business intelligence
                         </p>
                       </CardContent>
                     </Card>
@@ -663,7 +522,7 @@ const ScraperResults: React.FC<ScraperResultsProps> = ({ result }) => {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <ExternalLink className="h-5 w-5 text-blue-600" />
-                      Extracted Links ({data.nestedLinks.length})
+                      Discovered Links ({data.nestedLinks.length})
                     </CardTitle>
                     <CardDescription>
                       All links found on the website
@@ -741,7 +600,7 @@ const ScraperResults: React.FC<ScraperResultsProps> = ({ result }) => {
                     <CardHeader>
                       <CardTitle>Raw Text</CardTitle>
                       <CardDescription>
-                        Raw text content extracted from the website
+                        Raw page text from the website
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -768,7 +627,7 @@ const ScraperResults: React.FC<ScraperResultsProps> = ({ result }) => {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
                 a.href = url;
-                a.download = `scrape-result-${
+                a.download = `profile-result-${
                   new Date().toISOString().split("T")[0]
                 }.json`;
                 document.body.appendChild(a);

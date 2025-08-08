@@ -86,6 +86,222 @@ const handleApiError = (error: unknown, defaultMessage: string): never => {
 
   throw new ScraperError(defaultMessage);
 };
+// Normalize various backend response shapes into the UI-friendly ScrapeResult
+const normalizeScrapeResponse = (responseData: any): ScrapeResult => {
+  const topLevelMeta = responseData?.meta || {};
+  const payload = responseData?.data ?? responseData;
+  const nestedMeta = payload?.meta || {};
+  const combinedMeta = { ...topLevelMeta, ...nestedMeta };
+
+  // Unwrap common nesting: { data: { extractedData, processingTime } }
+  const candidate = payload?.data ?? payload;
+  const ed = candidate?.extractedData ?? null;
+
+  // If extractedData present, map it into legacy/UI shape
+  if (ed) {
+    const industryList =
+      typeof ed.industry === "string"
+        ? ed.industry
+            .split(",")
+            .map((s: string) => s.trim())
+            .filter(Boolean)
+        : Array.isArray(ed.industry)
+        ? ed.industry
+        : undefined;
+    const targetMarketList =
+      typeof ed.targetMarket === "string"
+        ? ed.targetMarket
+            .split(",")
+            .map((s: string) => s.trim())
+            .filter(Boolean)
+        : Array.isArray(ed.targetMarket)
+        ? ed.targetMarket
+        : undefined;
+
+    const social = ed.socialPresence || {};
+
+    const data = {
+      title: ed.title || candidate.title,
+      desc: ed.description || candidate.description || candidate.desc,
+      nestedLinks: ed.nestedLinks || candidate.nestedLinks || [],
+      text: candidate.text || undefined,
+      contactDetails: {
+        email: ed.contactInfo?.email
+          ? Array.isArray(ed.contactInfo.email)
+            ? ed.contactInfo.email
+            : [ed.contactInfo.email]
+          : undefined,
+        phone: ed.contactInfo?.phone
+          ? Array.isArray(ed.contactInfo.phone)
+            ? ed.contactInfo.phone
+            : [ed.contactInfo.phone]
+          : undefined,
+        address: Array.isArray(ed.contactInfo?.addresses)
+          ? ed.contactInfo.addresses.join(", ")
+          : (ed.contactInfo?.addresses as any),
+        social_media: Object.fromEntries(
+          Object.entries(social).filter(([, v]) => Boolean(v)) as [
+            string,
+            string
+          ][]
+        ),
+      },
+      aboutData: {
+        companyDescription: ed.companyDescription || undefined,
+        industries: industryList,
+        keyPoints: [
+          ...(ed.insights?.strengths || []),
+          ...(ed.insights?.opportunities || []),
+        ].slice(0, 8),
+      },
+      businessIntelligence: {
+        industry: industryList,
+        businessModel: ed.businessModel || undefined,
+        targetMarket: targetMarketList,
+        keyServices: ed.service || undefined,
+        competitiveAdvantages: ed.insights?.strengths || undefined,
+        fundingStage: ed.fundingStage || undefined,
+        revenue: ed.monthlyRevenue || ed.revenue || undefined,
+        employeeCount: ed.companySize || undefined,
+        socialPresence: {
+          platforms: Object.keys(social).filter((k) => (social as any)[k]),
+        },
+      },
+      processingTime: candidate.processingTime || responseData?.processingTime,
+      aiEnhanced: Boolean(combinedMeta?.icpEnhanced),
+    } as ScrapeResult["data"];
+
+    return {
+      success: responseData?.success ?? true,
+      data,
+      meta: combinedMeta,
+    } as ScrapeResult;
+  }
+
+  // Fallback: assume candidate already matches expected data shape
+  return {
+    success: responseData?.success ?? true,
+    data: candidate as ScrapeResult["data"],
+    meta: combinedMeta,
+  } as ScrapeResult;
+};
+// Deeper unwrapping to handle nested { payload: { data: { payload: ... } } } formats
+const normalizeScrapeResponseDeep = (responseData: any): ScrapeResult => {
+  // helper to merge meta across layers
+  const mergedMeta: Record<string, any> = {};
+  const mergeMeta = (obj: any) => {
+    if (
+      obj &&
+      typeof obj === "object" &&
+      obj.meta &&
+      typeof obj.meta === "object"
+    ) {
+      Object.assign(mergedMeta, obj.meta);
+    }
+  };
+
+  // unwrap recursively across data/payload keys
+  let current: any = responseData;
+  mergeMeta(current);
+  for (let i = 0; i < 6; i++) {
+    if (current && typeof current === "object") {
+      if (current.data && typeof current.data === "object") {
+        current = current.data;
+        mergeMeta(current);
+        continue;
+      }
+      if (current.payload && typeof current.payload === "object") {
+        current = current.payload;
+        mergeMeta(current);
+        continue;
+      }
+    }
+    break;
+  }
+
+  const candidate = current;
+  const ed = candidate?.extractedData ?? null;
+
+  // Reuse mapping from the simpler normalizer
+  if (ed) {
+    const toList = (val: any): string[] | undefined => {
+      if (!val) return undefined;
+      if (Array.isArray(val)) return val as string[];
+      if (typeof val === "string")
+        return val
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+      return undefined;
+    };
+
+    const industryList = toList(ed.industry);
+    const targetMarketList = toList(ed.targetMarket);
+    const servicesList = toList(ed.service);
+    const social = ed.socialPresence || {};
+
+    const data = {
+      title: ed.title || candidate.title,
+      desc: ed.description || candidate.description || candidate.desc,
+      nestedLinks: ed.nestedLinks || candidate.nestedLinks || [],
+      text: candidate.text || undefined,
+      contactDetails: {
+        email: ed.contactInfo?.email
+          ? Array.isArray(ed.contactInfo.email)
+            ? ed.contactInfo.email
+            : [ed.contactInfo.email]
+          : undefined,
+        phone: ed.contactInfo?.phone
+          ? Array.isArray(ed.contactInfo.phone)
+            ? ed.contactInfo.phone
+            : [ed.contactInfo.phone]
+          : undefined,
+        address: Array.isArray(ed.contactInfo?.addresses)
+          ? ed.contactInfo.addresses.join(", ")
+          : (ed.contactInfo?.addresses as any),
+        social_media: Object.fromEntries(
+          Object.entries(social).filter(([, v]) => Boolean(v)) as [
+            string,
+            string
+          ][]
+        ),
+      },
+      aboutData: {
+        companyDescription: ed.companyDescription || undefined,
+        industries: industryList,
+        keyPoints: [
+          ...(ed.insights?.strengths || []),
+          ...(ed.insights?.opportunities || []),
+        ].slice(0, 8),
+      },
+      businessIntelligence: {
+        industry: industryList,
+        businessModel: ed.businessModel || undefined,
+        targetMarket: targetMarketList,
+        keyServices: servicesList,
+        competitiveAdvantages: ed.insights?.strengths || undefined,
+        fundingStage: ed.fundingStage || undefined,
+        revenue: ed.monthlyRevenue || ed.revenue || undefined,
+        employeeCount: ed.companySize || undefined,
+        companySize: ed.companySize || undefined,
+        location: ed.location || candidate.location,
+        socialPresence: {
+          platforms: Object.keys(social).filter((k) => (social as any)[k]),
+        },
+      },
+      processingTime: candidate.processingTime || responseData?.processingTime,
+      aiEnhanced: Boolean(mergedMeta?.icpEnhanced || mergedMeta?.aiEnhanced),
+    } as ScrapeResult["data"];
+
+    return { success: true, data, meta: mergedMeta } as ScrapeResult;
+  }
+
+  return {
+    success: true,
+    data: candidate as ScrapeResult["data"],
+    meta: mergedMeta,
+  } as ScrapeResult;
+};
 
 /**
  * Submit a URL to scrape with ICP analysis
@@ -98,25 +314,16 @@ export const scrapeWithICP = async (
   icpProfileId: string
 ): Promise<ScrapeResult> => {
   try {
-    // Convert icpProfileId to number for backend validation
     const profileId = parseInt(icpProfileId, 10);
-    if (isNaN(profileId)) {
-      throw new Error("Invalid ICP profile ID");
-    }
+    if (isNaN(profileId)) throw new Error("Invalid ICP profile ID");
 
     const response = await apiClient.post(
       "/frontend/scraper",
-      {
-        url,
-        enableAI: true, // ICP scraping always uses AI
-        icpProfileId: profileId,
-      },
-      {
-        withCredentials: true,
-      }
+      { url, enableAI: true, icpProfileId: profileId },
+      { withCredentials: true }
     );
 
-    return response.data.data;
+    return normalizeScrapeResponseDeep(response.data);
   } catch (error: unknown) {
     return handleApiError(error, `Failed to scrape URL with ICP: ${url}`);
   }
@@ -135,28 +342,11 @@ export const scrapeUrl = async (
   try {
     const response = await apiClient.post(
       "/frontend/scraper",
-      {
-        url,
-        icpProfileId,
-      },
-      {
-        withCredentials: true,
-      }
+      { url, icpProfileId },
+      { withCredentials: true }
     );
 
-    // Handle new response structure
-    const responseData = response.data;
-
-    // New unified response structure
-    if (responseData.success && responseData.data) {
-      return {
-        ...responseData.data,
-        meta: responseData.meta || {},
-      };
-    }
-
-    // Fallback to direct response if no nested structure
-    return responseData;
+    return normalizeScrapeResponseDeep(response.data);
   } catch (error: unknown) {
     return handleApiError(error, `Failed to scrape URL: ${url}`);
   }

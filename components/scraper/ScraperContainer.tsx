@@ -72,7 +72,7 @@ const ScraperContainer = () => {
     // Check if scraper service is healthy
     if (health && !health.healthy && health.status !== "healthy") {
       toast.error(
-        `Scraper service is currently ${
+        `Enrichment engine is currently ${
           health.status || "unavailable"
         }. Please try again later.`,
         {
@@ -90,7 +90,6 @@ const ScraperContainer = () => {
     // Use new unified scraping API
     await scrapeWebsite(url, icpProfileId);
   };
-  console.log(health);
 
   const handleReset = () => {
     resetResult();
@@ -110,11 +109,11 @@ const ScraperContainer = () => {
         <div className="flex justify-between items-center mb-12">
           <div>
             <h1 className="text-4xl font-bold text-white mb-2">
-              Website Scraper
+              Sales Intelligence
             </h1>
             <p className="text-gray-300">
-              Extract valuable data from any website with AI-powered
-              intelligence
+              Turn websites into decision‑maker‑ready company profiles with our
+              Sales Intelligence Engine
             </p>
           </div>
           <div className="flex items-center space-x-4">
@@ -143,7 +142,8 @@ const ScraperContainer = () => {
                   Authentication Required
                 </p>
                 <p className="text-yellow-100">
-                  You need to be logged in to use the scraper. Please
+                  You need to be logged in to use the Sales Intelligence
+                  features. Please
                   <button
                     onClick={() => router.push("/login?redirect=/scraper")}
                     className="font-bold underline ml-1 hover:text-white transition-colors"
@@ -175,10 +175,10 @@ const ScraperContainer = () => {
               </div>
               <div>
                 <p className="font-bold text-lg mb-2">
-                  Scraper Service Unavailable
+                  Enrichment Engine Unavailable
                 </p>
                 <p className="text-red-100">
-                  The scraper service is currently{" "}
+                  The enrichment engine is currently{" "}
                   {health.status || "unavailable"}.
                   {health.message && ` ${health.message}`}
                   Please try again later or contact support if the issue
@@ -207,10 +207,10 @@ const ScraperContainer = () => {
               </div>
               <div>
                 <p className="font-bold text-lg">
-                  Scraping Completed Successfully!
+                  Profile Enrichment Complete!
                 </p>
                 <p className="text-green-100 text-sm">
-                  Data has been extracted and is ready for review below.
+                  Company profile is ready for review below.
                 </p>
               </div>
             </div>
@@ -221,7 +221,10 @@ const ScraperContainer = () => {
         {authState.isAuthenticated && result && (
           <BillingFeedback
             creditsUsed={result?.meta?.billing?.creditsUsed}
-            isAIEnabled={enableAI}
+            isAIEnabled={Boolean(
+              result?.meta?.billing?.scraperType &&
+                /ai|icp/i.test(result?.meta?.billing?.scraperType)
+            )}
             remainingCredits={result?.meta?.billing?.remainingCredits}
             scraperType={result?.meta?.billing?.scraperType}
           />

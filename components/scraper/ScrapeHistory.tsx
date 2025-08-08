@@ -74,8 +74,8 @@ const ScrapeHistory: React.FC = () => {
         setHistory(filteredData);
         setTotalPages(Math.ceil(data.total / data.limit) || 1);
       } catch (err) {
-        setError("Failed to load scrape history. Please try again later.");
-        console.error("Error fetching scrape history:", err);
+        setError("Failed to load history. Please try again later.");
+        console.error("Error fetching history:", err);
       } finally {
         setLoading(false);
         setIsLoadingMore(false);
@@ -140,7 +140,7 @@ const ScrapeHistory: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `scrape-history-${
+      a.download = `profile-history-${
         new Date().toISOString().split("T")[0]
       }.csv`;
       document.body.appendChild(a);
@@ -265,8 +265,8 @@ const ScrapeHistory: React.FC = () => {
               Authentication Required
             </h4>
             <p className="text-white/70 text-base mb-6 leading-relaxed">
-              You need to be logged in to view your scraping history. Please
-              sign in to access your past scrapes and results.
+              You need to be logged in to view your profile history. Please sign
+              in to access your past profiles and results.
             </p>
             <button
               onClick={() => (window.location.href = "/auth/login")}
@@ -290,7 +290,7 @@ const ScrapeHistory: React.FC = () => {
             Loading History
           </h3>
           <p className="text-white/70 text-sm">
-            Fetching your scraping history...
+            Fetching your profile history...
           </p>
         </div>
       </div>
@@ -303,12 +303,12 @@ const ScrapeHistory: React.FC = () => {
         <div className="flex justify-between items-center mb-6">
           <div>
             <h3 className="text-2xl font-bold text-white mb-2">
-              Scraping History
+              Profile History
             </h3>
             <p className="text-white/70 text-sm">
-              View your past scraping jobs and their results. You can check the
-              status of your scrapes, see credits used, and access completed
-              results.
+              View your past profile enrichments and their results. You can
+              check the status of your requests, see credits used, and access
+              completed results.
             </p>
           </div>
           <div className="flex items-center space-x-3">
@@ -453,9 +453,8 @@ const ScrapeHistory: React.FC = () => {
                   No results found
                 </h4>
                 <p className="text-white/70 text-base mb-6 leading-relaxed">
-                  No scraping history matches your current filters. Try
-                  adjusting your search criteria or clearing the filters to see
-                  all results.
+                  No history matches your current filters. Try adjusting your
+                  search criteria or clearing the filters to see all results.
                 </p>
                 <button
                   onClick={clearFilters}
@@ -471,19 +470,19 @@ const ScrapeHistory: React.FC = () => {
                   <IconSearch className="w-12 h-12 text-white/60" />
                 </div>
                 <h4 className="text-2xl font-bold text-white mb-3">
-                  No scraping history yet
+                  No history yet
                 </h4>
                 <p className="text-white/70 text-base mb-6 leading-relaxed">
-                  Start by scraping your first URL to see your history here.
-                  Your completed scrapes will appear with detailed information
-                  about status, credits used, and results.
+                  Start by enriching your first company profile to see your
+                  history here. Your completed profiles will appear with
+                  detailed information about status, credits used, and results.
                 </p>
                 <button
                   onClick={() => (window.location.href = "/scraper")}
                   className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
                   <IconSearch className="w-5 h-5 mr-2" />
-                  Start Scraping
+                  Start Enrichment
                 </button>
               </>
             )}

@@ -3,8 +3,9 @@ import React, { Suspense } from "react";
 import ScraperContainer from "@/components/scraper/ScraperContainer";
 
 export const metadata = {
-  title: "Leadsnipper - Website Scraper",
-  description: "Extract data from any website using our powerful scraper",
+  title: "Leadsnipper - Sales Intelligence",
+  description:
+    "Turn websites into decision‑maker‑ready company profiles with our Sales Intelligence Engine",
 };
 
 const ScraperPage = () => {
@@ -24,10 +25,10 @@ const ScraperPage = () => {
               ></div>
             </div>
             <h3 className="text-xl font-semibold text-white mb-2">
-              Loading Scraper
+              Loading Sales Intelligence
             </h3>
             <p className="text-gray-400">
-              Preparing your intelligent web scraping tool...
+              Preparing your Sales Intelligence workspace...
             </p>
           </div>
         </div>
