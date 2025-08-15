@@ -26,10 +26,27 @@ interface ICPField {
   description: string;
 }
 
+interface CustomPrompts {
+  businessModel?: string;
+  targetMarket?: string;
+  companySize?: string;
+  technology?: string;
+  industry?: string;
+  userRemarks?: string;
+}
+
 interface FormData {
   name: string;
   description: string;
   fields: ICPField[];
+  minimumScore: number;
+  scoringMethod:
+    | "weighted_average"
+    | "threshold_based"
+    | "ai_powered"
+    | "custom";
+  customPrompts: CustomPrompts;
+  requiredDataPoints: Record<string, boolean>;
 }
 
 const ICPProfileManager: React.FC = () => {
@@ -43,6 +60,21 @@ const ICPProfileManager: React.FC = () => {
     name: "",
     description: "",
     fields: [{ name: "", description: "" }],
+    minimumScore: 70,
+    scoringMethod: "weighted_average",
+    customPrompts: {},
+    requiredDataPoints: {
+      contactInfo: true,
+      companySize: true,
+      industry: true,
+      revenue: false,
+      location: true,
+      technology: false,
+      socialPresence: false,
+      fundingStage: false,
+      businessModel: false,
+      targetMarket: false,
+    },
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -99,6 +131,21 @@ const ICPProfileManager: React.FC = () => {
       name: "",
       description: "",
       fields: [{ name: "", description: "" }],
+      minimumScore: 70,
+      scoringMethod: "weighted_average",
+      customPrompts: {},
+      requiredDataPoints: {
+        contactInfo: true,
+        companySize: true,
+        industry: true,
+        revenue: false,
+        location: true,
+        technology: false,
+        socialPresence: false,
+        fundingStage: false,
+        businessModel: false,
+        targetMarket: false,
+      },
     });
   };
 
@@ -113,6 +160,21 @@ const ICPProfileManager: React.FC = () => {
       name: profile.name,
       description: profile.description || "",
       fields: profile.fields || [{ name: "", description: "" }],
+      minimumScore: profile.minimumScore ?? 70,
+      scoringMethod: profile.scoringMethod ?? "weighted_average",
+      customPrompts: {},
+      requiredDataPoints: {
+        contactInfo: true,
+        companySize: true,
+        industry: true,
+        revenue: false,
+        location: true,
+        technology: false,
+        socialPresence: false,
+        fundingStage: false,
+        businessModel: false,
+        targetMarket: false,
+      },
     });
     setSelectedProfile(profile);
     setShowCreateForm(true);
@@ -287,9 +349,12 @@ const ICPProfileManager: React.FC = () => {
 
                     <div className="flex items-center space-x-6 mt-3 text-sm text-gray-500">
                       <span>
-                        Scoring: {profile.scoringMethod.replace("_", " ")}
+                        Scoring:{" "}
+                        {profile.scoringMethod
+                          ? profile.scoringMethod.replace("_", " ")
+                          : "weighted average"}
                       </span>
-                      <span>Min Score: {profile.minimumScore}%</span>
+                      <span>Min Score: {profile.minimumScore ?? 70}%</span>
                       <span>Criteria: {profile.criteria?.length || 0}</span>
                       <span>Scrapes: {profile.totalScrapes}</span>
                       <span>Success Rate: {getSuccessRate(profile)}%</span>

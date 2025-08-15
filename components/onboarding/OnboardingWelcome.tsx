@@ -141,7 +141,7 @@ export default function OnboardingWelcome({
         <ul className="space-y-2 text-gray-300 text-sm">
           <li className="flex items-center">
             <div className="w-2 h-2 bg-purple-500 rounded-full mr-3"></div>
-            Start with 10 free API calls to test our platform
+            Start with 20 free API calls to test our platform
           </li>
           <li className="flex items-center">
             <div className="w-2 h-2 bg-purple-500 rounded-full mr-3"></div>

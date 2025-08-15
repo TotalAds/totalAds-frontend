@@ -23,6 +23,8 @@ import {
   IconX,
 } from "@tabler/icons-react";
 
+import GetLogo from "../common/getLogo";
+
 interface NavItem {
   name: string;
   href: string;
@@ -166,7 +168,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                  <IconBrain className="w-5 h-5 text-white" />
+                  <GetLogo className="w-5 h-5 text-white" />
                 </div>
                 <div>
                   <h2 className="text-sm font-bold text-white">Leadsnipper</h2>

@@ -96,12 +96,12 @@ export default function Dashboard() {
           totalApiCalls: usageData.stats?.totalRequests || 0,
           remainingCalls: Math.max(
             0,
-            10 - (usageData.stats?.totalRequests || 0)
+            20 - (usageData.stats?.totalRequests || 0)
           ),
           totalTokens: tokensData.data?.length || 0,
           lastActivity: "Today", // You can enhance this with real last activity data
           currentPlan:
-            (usageData.stats?.totalRequests || 0) > 10 ? "pro" : "free",
+            (usageData.stats?.totalRequests || 0) > 20 ? "pro" : "free",
           monthlyUsage: usageData.stats?.totalRequests || 0,
           billingAmount: billingData.totalSpent || 0,
         });
@@ -192,7 +192,7 @@ export default function Dashboard() {
                   <p className="text-3xl font-bold text-white">
                     {loading ? "..." : stats.remainingCalls}
                   </p>
-                  <p className="text-xs text-gray-400 mt-1">Out of 10 free</p>
+                  <p className="text-xs text-gray-400 mt-1">Out of 20 free</p>
                 </div>
                 <div className="w-14 h-14 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center">
                   <IconShield className="w-7 h-7 text-white" />

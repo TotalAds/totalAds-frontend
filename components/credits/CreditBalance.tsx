@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { toast } from 'react-hot-toast';
-import apiClient from '../../utils/api/apiClient';
+import React, { useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
+
+import apiClient from "../../utils/api/apiClient";
 
 interface CreditBalance {
   userId: string;
@@ -30,17 +31,23 @@ interface CreditBalanceProps {
   onRefresh?: () => void;
   showPurchaseButton?: boolean;
   onPurchaseClick?: () => void;
+  variant?: "light" | "glass";
 }
 
-const CreditBalance: React.FC<CreditBalanceProps> = ({ 
-  onRefresh, 
-  showPurchaseButton = true, 
-  onPurchaseClick 
+const CreditBalance: React.FC<CreditBalanceProps> = ({
+  onRefresh,
+  showPurchaseButton = true,
+  onPurchaseClick,
+  variant = "light",
 }) => {
   const [balance, setBalance] = useState<CreditBalance | null>(null);
   const [pricing, setPricing] = useState<CreditPricing | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const isGlass = variant === "glass";
+  const containerClass = isGlass
+    ? "backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6"
+    : "bg-white rounded-lg shadow-lg p-6";
 
   useEffect(() => {
     fetchCreditData();
@@ -49,23 +56,30 @@ const CreditBalance: React.FC<CreditBalanceProps> = ({
   const fetchCreditData = async () => {
     try {
       setLoading(true);
-      
+
       // Fetch balance and pricing in parallel
       const [balanceResponse, pricingResponse] = await Promise.all([
-        apiClient.get('/credits/balance'),
-        apiClient.get('/credits/pricing')
+        apiClient.get("/credits/balance"),
+        apiClient.get("/credits/pricing"),
       ]);
 
-      if (balanceResponse.data.success) {
-        setBalance(balanceResponse.data.data);
+      const balancePayload = balanceResponse.data?.payload;
+      if (balancePayload?.success) {
+        setBalance(balancePayload.data as CreditBalance);
+      } else if (balanceResponse.data?.success && balanceResponse.data?.data) {
+        setBalance(balanceResponse.data.data as CreditBalance);
       }
 
-      if (pricingResponse.data.success) {
-        setPricing(pricingResponse.data.data);
+      const pricingPayload =
+        pricingResponse.data?.payload ?? pricingResponse.data;
+      if (pricingPayload?.success && pricingPayload?.data) {
+        setPricing(pricingPayload.data as CreditPricing);
+      } else if (pricingResponse.data?.success && pricingResponse.data?.data) {
+        setPricing(pricingResponse.data.data as CreditPricing);
       }
     } catch (error) {
-      console.error('Error fetching credit data:', error);
-      toast.error('Failed to load credit information');
+      console.error("Error fetching credit data:", error);
+      toast.error("Failed to load credit information");
     } finally {
       setLoading(false);
     }
@@ -79,37 +93,61 @@ const CreditBalance: React.FC<CreditBalanceProps> = ({
   };
 
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Never';
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    if (!dateString) return "Never";
+    return new Date(dateString).toLocaleDateString("en-IN", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   const getBalanceColor = (balance: number) => {
-    if (balance >= 50) return 'text-green-600';
-    if (balance >= 20) return 'text-yellow-600';
-    return 'text-red-600';
+    if (balance >= 50) return "text-green-600";
+    if (balance >= 20) return "text-yellow-600";
+    return "text-red-600";
   };
 
   const getBalanceStatus = (balance: number) => {
-    if (balance >= 50) return 'Healthy';
-    if (balance >= 20) return 'Low';
-    return 'Critical';
+    if (balance >= 50) return "Healthy";
+    if (balance >= 20) return "Low";
+    return "Critical";
   };
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className={containerClass}>
         <div className="animate-pulse">
-          <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div
+            className={
+              isGlass
+                ? "h-6 bg-white/20 rounded w-1/3 mb-4"
+                : "h-6 bg-gray-200 rounded w-1/3 mb-4"
+            }
+          ></div>
           <div className="space-y-3">
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-            <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+            <div
+              className={
+                isGlass
+                  ? "h-4 bg-white/20 rounded w-1/2"
+                  : "h-4 bg-gray-200 rounded w-1/2"
+              }
+            ></div>
+            <div
+              className={
+                isGlass
+                  ? "h-4 bg-white/20 rounded w-2/3"
+                  : "h-4 bg-gray-200 rounded w-2/3"
+              }
+            ></div>
+            <div
+              className={
+                isGlass
+                  ? "h-4 bg-white/20 rounded w-1/4"
+                  : "h-4 bg-gray-200 rounded w-1/4"
+              }
+            ></div>
           </div>
         </div>
       </div>
@@ -117,17 +155,29 @@ const CreditBalance: React.FC<CreditBalanceProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
+    <div className={containerClass}>
       <div className="flex justify-between items-center mb-6">
-        <h3 className="text-xl font-semibold text-gray-900">Credit Balance</h3>
+        <h3
+          className={
+            isGlass
+              ? "text-xl font-semibold text-white"
+              : "text-xl font-semibold text-gray-900"
+          }
+        >
+          Credit Balance
+        </h3>
         <button
           onClick={handleRefresh}
           disabled={refreshing}
-          className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+          className={
+            isGlass
+              ? "p-2 text-gray-300 hover:text-white transition-colors"
+              : "p-2 text-gray-500 hover:text-gray-700 transition-colors"
+          }
           title="Refresh balance"
         >
           <svg
-            className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`}
+            className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -142,26 +192,62 @@ const CreditBalance: React.FC<CreditBalanceProps> = ({
         </button>
       </div>
 
-      {balance && (
+      {balance ? (
         <div className="space-y-4">
           {/* Current Balance */}
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4">
+          <div
+            className={
+              isGlass
+                ? "bg-white/5 border border-white/10 rounded-lg p-4"
+                : "bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4"
+            }
+          >
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-sm text-gray-600">Current Balance</p>
-                <p className={`text-3xl font-bold ${getBalanceColor(balance.currentBalance)}`}>
+                <p
+                  className={
+                    isGlass ? "text-sm text-gray-300" : "text-sm text-gray-600"
+                  }
+                >
+                  Current Balance
+                </p>
+                <p
+                  className={`text-3xl font-bold ${getBalanceColor(
+                    balance.currentBalance
+                  )}`}
+                >
                   {balance.currentBalance.toFixed(1)} Credits
                 </p>
-                <p className="text-sm text-gray-500">
-                  Status: <span className={getBalanceColor(balance.currentBalance)}>
+                <p
+                  className={
+                    isGlass ? "text-sm text-gray-300" : "text-sm text-gray-500"
+                  }
+                >
+                  Status:{" "}
+                  <span className={getBalanceColor(balance.currentBalance)}>
                     {getBalanceStatus(balance.currentBalance)}
                   </span>
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-gray-600">Value</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  ₹{(balance.currentBalance * (pricing?.creditValue || 0.05)).toFixed(2)}
+                <p
+                  className={
+                    isGlass ? "text-sm text-gray-300" : "text-sm text-gray-600"
+                  }
+                >
+                  Value
+                </p>
+                <p
+                  className={
+                    isGlass
+                      ? "text-lg font-semibold text-white"
+                      : "text-lg font-semibold text-gray-900"
+                  }
+                >
+                  $
+                  {(
+                    balance.currentBalance * (pricing?.creditValue || 0.05)
+                  ).toFixed(2)}
                 </p>
               </div>
             </div>
@@ -169,14 +255,38 @@ const CreditBalance: React.FC<CreditBalanceProps> = ({
 
           {/* Usage Statistics */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-sm text-gray-600">Total Earned</p>
+            <div
+              className={
+                isGlass
+                  ? "bg-white/5 border border-white/10 rounded-lg p-4"
+                  : "bg-gray-50 rounded-lg p-4"
+              }
+            >
+              <p
+                className={
+                  isGlass ? "text-sm text-gray-300" : "text-sm text-gray-600"
+                }
+              >
+                Total Earned
+              </p>
               <p className="text-xl font-semibold text-green-600">
                 {balance.totalEarned.toFixed(1)}
               </p>
             </div>
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-sm text-gray-600">Total Used</p>
+            <div
+              className={
+                isGlass
+                  ? "bg-white/5 border border-white/10 rounded-lg p-4"
+                  : "bg-gray-50 rounded-lg p-4"
+              }
+            >
+              <p
+                className={
+                  isGlass ? "text-sm text-gray-300" : "text-sm text-gray-600"
+                }
+              >
+                Total Used
+              </p>
               <p className="text-xl font-semibold text-red-600">
                 {balance.totalUsed.toFixed(1)}
               </p>
@@ -184,18 +294,48 @@ const CreditBalance: React.FC<CreditBalanceProps> = ({
           </div>
 
           {/* Last Update */}
-          <div className="text-sm text-gray-500">
+          <div
+            className={
+              isGlass ? "text-sm text-gray-300" : "text-sm text-gray-500"
+            }
+          >
             Last updated: {formatDate(balance.lastUpdate)}
           </div>
 
           {/* Pricing Information */}
           {pricing && (
-            <div className="bg-blue-50 rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-2">Credit Usage</h4>
-              <div className="space-y-1 text-sm text-gray-700">
-                <p>• Normal scraping: {pricing.normalScrapingCredits} credits per request</p>
-                <p>• AI-enhanced scraping: {pricing.aiScrapingCredits} credits per request</p>
-                <p>• Credit value: ₹{pricing.creditValue} per credit</p>
+            <div
+              className={
+                isGlass
+                  ? "bg-white/5 border border-white/10 rounded-lg p-4"
+                  : "bg-blue-50 rounded-lg p-4"
+              }
+            >
+              <h4
+                className={
+                  isGlass
+                    ? "font-medium text-white mb-2"
+                    : "font-medium text-gray-900 mb-2"
+                }
+              >
+                Credit Usage
+              </h4>
+              <div
+                className={
+                  isGlass
+                    ? "space-y-1 text-sm text-gray-300"
+                    : "space-y-1 text-sm text-gray-700"
+                }
+              >
+                <p>
+                  • Normal scraping: {pricing.normalScrapingCredits} credits per
+                  request
+                </p>
+                <p>
+                  • AI-enhanced scraping: {pricing.aiScrapingCredits} credits
+                  per request
+                </p>
+                <p>• Credit value: ${pricing.creditValue} per credit</p>
               </div>
             </div>
           )}
@@ -204,7 +344,11 @@ const CreditBalance: React.FC<CreditBalanceProps> = ({
           {showPurchaseButton && (
             <button
               onClick={onPurchaseClick}
-              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+              className={
+                isGlass
+                  ? "w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-3 px-4 rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-colors"
+                  : "w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+              }
             >
               Purchase More Credits
             </button>
@@ -212,10 +356,20 @@ const CreditBalance: React.FC<CreditBalanceProps> = ({
 
           {/* Low Balance Warning */}
           {balance.currentBalance < 20 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div
+              className={
+                isGlass
+                  ? "bg-yellow-500/10 border border-yellow-400/30 rounded-lg p-4"
+                  : "bg-yellow-50 border border-yellow-200 rounded-lg p-4"
+              }
+            >
               <div className="flex items-center">
                 <svg
-                  className="w-5 h-5 text-yellow-600 mr-2"
+                  className={
+                    isGlass
+                      ? "w-5 h-5 text-yellow-300 mr-2"
+                      : "w-5 h-5 text-yellow-600 mr-2"
+                  }
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -228,15 +382,52 @@ const CreditBalance: React.FC<CreditBalanceProps> = ({
                   />
                 </svg>
                 <div>
-                  <p className="text-sm font-medium text-yellow-800">
+                  <p
+                    className={
+                      isGlass
+                        ? "text-sm font-medium text-yellow-200"
+                        : "text-sm font-medium text-yellow-800"
+                    }
+                  >
                     Low Credit Balance
                   </p>
-                  <p className="text-sm text-yellow-700">
-                    Consider purchasing more credits to continue using the scraper API.
+                  <p
+                    className={
+                      isGlass
+                        ? "text-sm text-yellow-200/80"
+                        : "text-sm text-yellow-700"
+                    }
+                  >
+                    Consider purchasing more credits to continue using the
+                    scraper API.
                   </p>
                 </div>
               </div>
             </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div
+            className={
+              isGlass
+                ? "text-white text-lg font-semibold"
+                : "text-gray-700 text-lg font-semibold"
+            }
+          >
+            0 Credits
+          </div>
+          {showPurchaseButton && (
+            <button
+              onClick={onPurchaseClick}
+              className={
+                isGlass
+                  ? "w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-3 px-4 rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-colors"
+                  : "w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+              }
+            >
+              Purchase Credits
+            </button>
           )}
         </div>
       )}

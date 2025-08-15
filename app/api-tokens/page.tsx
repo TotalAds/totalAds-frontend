@@ -670,7 +670,7 @@ export default function ApiTokensPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-black/20 rounded-xl p-4 border border-white/10">
                   <h4 className="text-white font-medium mb-2">Free Tier</h4>
-                  <p className="text-gray-300 text-sm">10 requests per month</p>
+                  <p className="text-gray-300 text-sm">20 requests per month</p>
                 </div>
                 <div className="bg-black/20 rounded-xl p-4 border border-white/10">
                   <h4 className="text-white font-medium mb-2">Pro Tier</h4>

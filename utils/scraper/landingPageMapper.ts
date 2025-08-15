@@ -31,7 +31,13 @@ export const mapToLandingPageData = (result: ScrapeResult): LandingPageData => {
   const meta = result?.meta || ({} as any);
   const bi = data?.businessIntelligence || ({} as any);
 
-  const services = (bi?.keyServices || data?.service || []) as string[];
+  const rawServices =
+    bi?.keyServices ?? (data as any)?.services ?? (data as any)?.service ?? [];
+  const services = Array.isArray(rawServices)
+    ? rawServices
+    : typeof rawServices === "string"
+    ? [rawServices]
+    : [];
 
   return {
     companyName: data?.title || "Company Name Not Found",
@@ -69,4 +75,3 @@ export const mapToLandingPageData = (result: ScrapeResult): LandingPageData => {
     timestamp: meta?.timestamp,
   };
 };
-

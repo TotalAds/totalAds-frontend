@@ -69,7 +69,7 @@ const BillingFeedback: React.FC<BillingFeedbackProps> = ({
         <div className="bg-white/5 rounded-lg p-3 border border-white/5">
           <div className="flex justify-between items-center">
             <span className="text-gray-400">Free Tier:</span>
-            <span className="font-medium text-white">10/month</span>
+            <span className="font-medium text-white">20/month</span>
           </div>
         </div>
       </div>

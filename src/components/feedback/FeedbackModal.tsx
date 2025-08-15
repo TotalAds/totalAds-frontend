@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import React, { useState } from "react";
 
-import { FeedbackData, type } from "@/utils/api/feedbackClient";
+import { FeedbackData } from "@/utils/api/feedbackClient";
 
 interface FeedbackModalProps {
   isOpen: boolean;

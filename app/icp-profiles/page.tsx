@@ -691,7 +691,7 @@ export default function ICPProfilesPage() {
                   </div>
 
                   {/* Profile Description */}
-                  {profile.description && (
+                  {profile?.description && (
                     <div className="mb-4">
                       <p className="text-gray-300 text-sm leading-relaxed line-clamp-2">
                         {profile.description}
@@ -708,12 +708,12 @@ export default function ICPProfilesPage() {
                         </label>
                         <div className="flex items-center space-x-2">
                           <code className="text-sm text-gray-300 font-mono bg-gray-800/50 px-2 py-1 rounded border">
-                            {profile.id}
+                            {profile?.id}
                           </code>
                           <button
                             onClick={() =>
                               copyToClipboard(
-                                profile.id.toString(),
+                                profile?.id.toString(),
                                 "Profile ID"
                               )
                             }
@@ -733,7 +733,7 @@ export default function ICPProfilesPage() {
                       <div className="flex items-center justify-center mb-1">
                         <IconUsers className="w-4 h-4 text-blue-400 mr-1" />
                         <div className="text-lg font-bold text-white">
-                          {profile.totalScrapes}
+                          {profile?.totalScrapes}
                         </div>
                       </div>
                       <div className="text-xs text-gray-400 font-medium">
@@ -755,7 +755,7 @@ export default function ICPProfilesPage() {
                       <div className="flex items-center justify-center mb-1">
                         <IconTarget className="w-4 h-4 text-purple-400 mr-1" />
                         <div className="text-lg font-bold text-purple-400">
-                          {profile.minimumScore}%
+                          {profile?.minimumScore}%
                         </div>
                       </div>
                       <div className="text-xs text-gray-400 font-medium">
@@ -770,32 +770,32 @@ export default function ICPProfilesPage() {
                       <IconClock className="w-3 h-3 mr-1" />
                       <span>
                         Last used:{" "}
-                        {profile.lastUsedAt
-                          ? new Date(profile.lastUsedAt).toLocaleDateString()
+                        {profile?.lastUsedAt
+                          ? new Date(profile?.lastUsedAt).toLocaleDateString()
                           : "Never"}
                       </span>
                     </div>
                     <div className="flex items-center space-x-1">
                       <div
                         className={`w-2 h-2 rounded-full ${
-                          profile.status === "active"
+                          profile?.status === "active"
                             ? "bg-green-400"
-                            : profile.status === "draft"
+                            : profile?.status === "draft"
                             ? "bg-yellow-400"
-                            : profile.status === "inactive"
+                            : profile?.status === "inactive"
                             ? "bg-gray-400"
                             : "bg-red-400"
                         }`}
                       ></div>
                       <span className="text-xs text-gray-400 capitalize">
-                        {profile.status}
+                        {profile?.status}
                       </span>
                     </div>
                   </div>
 
                   {/* Use in Scraper Button */}
                   <button
-                    onClick={() => handleUseInScraper(profile.id.toString())}
+                    onClick={() => handleUseInScraper(profile?.id.toString())}
                     className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-purple-500/25"
                   >
                     <IconExternalLink className="w-4 h-4" />
@@ -896,10 +896,12 @@ export default function ICPProfilesPage() {
                         Scoring Method
                       </label>
                       <p className="text-white capitalize">
-                        {pageState.selectedProfile.scoringMethod.replace(
-                          "_",
-                          " "
-                        )}
+                        {pageState.selectedProfile.scoringMethod
+                          ? pageState.selectedProfile.scoringMethod.replace(
+                              "_",
+                              " "
+                            )
+                          : "weighted average"}
                       </p>
                     </div>
                     <div>

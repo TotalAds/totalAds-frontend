@@ -18,6 +18,26 @@ export interface ICPProfile {
   lastUsedAt?: string;
   createdAt: string;
   updatedAt: string;
+  // Optional scoring configuration
+  scoringMethod?:
+    | "weighted_average"
+    | "threshold_based"
+    | "ai_powered"
+    | "custom";
+  minimumScore?: number;
+  // Optional criteria summary
+  criteria?: Array<{
+    id: string;
+    category: string;
+    field: string;
+    operator: string;
+    value: any;
+    weight: number;
+    isRequired: boolean;
+    scoreIfMatch: number;
+    scoreIfNoMatch: number;
+    description?: string;
+  }>;
 }
 
 export interface ICPField {
@@ -29,6 +49,21 @@ export interface CreateICPProfileRequest {
   name: string;
   description?: string;
   fields: ICPField[];
+  // Optional AI/custom prompts for extraction guidance
+  customPrompts?: {
+    businessModel?: string;
+    targetMarket?: string;
+    companySize?: string;
+    technology?: string;
+    userRemarks?: string;
+  };
+  // Optional scoring configuration
+  scoringMethod?:
+    | "weighted_average"
+    | "threshold_based"
+    | "ai_powered"
+    | "custom";
+  minimumScore?: number;
 }
 
 export interface UpdateICPProfileRequest

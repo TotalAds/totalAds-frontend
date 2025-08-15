@@ -258,3 +258,43 @@ export const resetPassword = async (
     throw error;
   }
 };
+
+/**
+ * Send email verification code (resend)
+ */
+export const resendVerificationCode = async (): Promise<void> => {
+  try {
+    await apiClient.post("/auth/email-verification/send-code");
+  } catch (error: unknown) {
+    console.error("Error resending verification code:", error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(
+        error.response.data?.message ||
+          error.response.data?.error ||
+          "Failed to send verification email. Please try again."
+      );
+    }
+    throw error;
+  }
+};
+
+/**
+ * Verify email with code
+ */
+export const verifyEmail = async (verificationCode: string): Promise<void> => {
+  try {
+    await apiClient.patch("/auth/email-verification/verify", {
+      verificationCode,
+    });
+  } catch (error: unknown) {
+    console.error("Error verifying email:", error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(
+        error.response.data?.message ||
+          error.response.data?.error ||
+          "Failed to verify email. Please check the code and try again."
+      );
+    }
+    throw error;
+  }
+};
