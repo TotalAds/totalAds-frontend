@@ -1,21 +1,16 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState } from 'react';
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
-import { CreateICPProfileRequest } from "@/utils/api";
-import {
-  IconAlertCircle,
-  IconPlus,
-  IconTrash,
-  IconX,
-} from "@tabler/icons-react";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
+import { CreateICPProfileRequest } from '@/utils/api';
+import { IconAlertCircle, IconPlus, IconTrash, IconX } from '@tabler/icons-react';
 
-import { ICPField, ICPProfileFormProps } from "./types";
+import { ICPField, ICPProfileFormProps } from './types';
 
 export default function ICPProfileForm({
   isOpen,
@@ -115,7 +110,7 @@ export default function ICPProfileForm({
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 ">
-      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden shadow-2xl">
+      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden shadow-2xl glass-scrollbar">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center space-x-3">
@@ -144,7 +139,7 @@ export default function ICPProfileForm({
 
         {/* Form Content */}
         <form onSubmit={handleSubmit} className="flex flex-col h-full">
-          <div className="flex-1 overflow-y-auto p-8 space-y-8">
+          <div className="flex-1 overflow-y-auto p-8 space-y-8 glass-scrollbar">
             {/* Error Display */}
             {formError && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3">

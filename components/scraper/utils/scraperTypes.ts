@@ -99,17 +99,87 @@ export interface AboutData {
   };
 }
 
-// Full scrape result from the API
+// Contact information for new payload structure
+export interface ContactInfo {
+  email?: string;
+  addresses?: string[];
+  phone?: string[];
+}
+
+// Social presence information
+export interface SocialPresence {
+  linkedin?: string;
+  youtube?: string;
+  facebook?: string;
+  instagram?: string;
+  x?: string;
+  twitter?: string;
+}
+
+// Insights structure
+export interface Insights {
+  strengths?: string[];
+  weaknesses?: string[];
+  opportunities?: string[];
+  redFlags?: string[];
+}
+
+// Extracted data structure from new payload
+export interface ExtractedData {
+  _extractionMode?: string;
+  title?: string;
+  description?: string;
+  nestedLinks?: string[];
+  service?: string[];
+  companyDescription?: string;
+  contactInfo?: ContactInfo;
+  companySize?: string;
+  industry?: string;
+  location?: string;
+  revenue?: string;
+  socialPresence?: SocialPresence;
+  fundingStage?: string;
+  businessModel?: string;
+  targetMarket?: string;
+  productType?: string;
+  monthlyRevenue?: string;
+  insights?: Insights;
+  businessIntelligence?: BusinessIntelligence;
+  actionableRecommendations?: string[];
+  allPagesCorpus?: string;
+  icpFields?: any;
+}
+
+// New payload structure
+export interface NewScrapePayload {
+  success: boolean;
+  data: {
+    extractedData: ExtractedData;
+    icpScore?: number;
+    icpMatchLevel?: string;
+    processingTime?: number;
+  };
+  meta: {
+    requestId: string;
+    icpEnhanced?: boolean;
+    timestamp: string;
+  };
+}
+
+// Full scrape result from the API (updated for new structure)
 export interface ScrapeResult {
   success: boolean;
   data: {
+    status?: number;
+    message?: string;
+    payload?: NewScrapePayload;
+    // Legacy fields for backward compatibility
     title?: string;
     desc?: string;
     nestedLinks?: string[];
     text?: string;
     contactDetails?: ContactDetails;
     aboutData?: AboutData;
-    // AI Enhanced fields
     businessIntelligence?: BusinessIntelligence;
     enhancedContactInfo?: EnhancedContactInfo;
     extractedEntities?: ExtractedEntities;
@@ -118,21 +188,27 @@ export interface ScrapeResult {
     aiCost?: number;
     processingTime?: number;
     aiEnhanced?: boolean;
-    // Legacy fields for backward compatibility
     url?: string;
     company_info?: CompanyInfo;
     tables?: Table[];
     raw_text?: string;
     ai_summary?: string;
+    // New structure fields
+    extractedData?: ExtractedData;
+    icpScore?: number;
+    icpMatchLevel?: string;
   };
   meta?: {
     requestId?: string;
     aiEnhanced?: boolean;
+    icpEnhanced?: boolean;
     processingTime?: number;
     aiProcessingTime?: number;
     aiCost?: number;
     timestamp?: string;
-    processing_time_ms?: number; // Legacy field
+    processing_time_ms?: number;
+    creditsUsed?: number;
+    jobId?: string;
     billing?: {
       charged: boolean;
       creditsUsed: number;
@@ -140,8 +216,8 @@ export interface ScrapeResult {
       cost: number;
       remainingCredits: number;
       scraperType: string;
-      rate?: number; // Legacy field
-      apiCall?: number; // Legacy field
+      rate?: number;
+      apiCall?: number;
     };
   };
   error?: string;

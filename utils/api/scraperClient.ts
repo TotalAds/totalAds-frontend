@@ -1,14 +1,12 @@
 "use client";
 
-import axios, { AxiosError } from "axios";
+import axios, { AxiosError } from 'axios';
 
 import {
-  ScrapeHistoryItem,
-  ScrapeResult,
-  ScraperHealth,
-} from "@/components/scraper/utils/scraperTypes";
+    ScrapeHistoryItem, ScrapeResult, ScraperHealth
+} from '@/components/scraper/utils/scraperTypes';
 
-import apiClient from "./apiClient";
+import apiClient from './apiClient';
 
 /**
  * API client for scraper service
@@ -87,103 +85,9 @@ const handleApiError = (error: unknown, defaultMessage: string): never => {
   throw new ScraperError(defaultMessage);
 };
 // Normalize various backend response shapes into the UI-friendly ScrapeResult
-const normalizeScrapeResponse = (responseData: any): ScrapeResult => {
-  const topLevelMeta = responseData?.meta || {};
-  const payload = responseData?.data ?? responseData;
-  const nestedMeta = payload?.meta || {};
-  const combinedMeta = { ...topLevelMeta, ...nestedMeta };
-
-  // Unwrap common nesting: { data: { extractedData, processingTime } }
-  const candidate = payload?.data ?? payload;
-  const ed = candidate?.extractedData ?? null;
-
-  // If extractedData present, map it into legacy/UI shape
-  if (ed) {
-    const industryList =
-      typeof ed.industry === "string"
-        ? ed.industry
-            .split(",")
-            .map((s: string) => s.trim())
-            .filter(Boolean)
-        : Array.isArray(ed.industry)
-        ? ed.industry
-        : undefined;
-    const targetMarketList =
-      typeof ed.targetMarket === "string"
-        ? ed.targetMarket
-            .split(",")
-            .map((s: string) => s.trim())
-            .filter(Boolean)
-        : Array.isArray(ed.targetMarket)
-        ? ed.targetMarket
-        : undefined;
-
-    const social = ed.socialPresence || {};
-
-    const data = {
-      title: ed.title || candidate.title,
-      desc: ed.description || candidate.description || candidate.desc,
-      nestedLinks: ed.nestedLinks || candidate.nestedLinks || [],
-      text: candidate.text || undefined,
-      contactDetails: {
-        email: ed.contactInfo?.email
-          ? Array.isArray(ed.contactInfo.email)
-            ? ed.contactInfo.email
-            : [ed.contactInfo.email]
-          : undefined,
-        phone: ed.contactInfo?.phone
-          ? Array.isArray(ed.contactInfo.phone)
-            ? ed.contactInfo.phone
-            : [ed.contactInfo.phone]
-          : undefined,
-        address: Array.isArray(ed.contactInfo?.addresses)
-          ? ed.contactInfo.addresses.join(", ")
-          : (ed.contactInfo?.addresses as any),
-        social_media: Object.fromEntries(
-          Object.entries(social).filter(([, v]) => Boolean(v)) as [
-            string,
-            string
-          ][]
-        ),
-      },
-      aboutData: {
-        companyDescription: ed.companyDescription || undefined,
-        industries: industryList,
-        keyPoints: [
-          ...(ed.insights?.strengths || []),
-          ...(ed.insights?.opportunities || []),
-        ].slice(0, 8),
-      },
-      businessIntelligence: {
-        industry: industryList,
-        businessModel: ed.businessModel || undefined,
-        targetMarket: targetMarketList,
-        keyServices: ed.service || undefined,
-        competitiveAdvantages: ed.insights?.strengths || undefined,
-        fundingStage: ed.fundingStage || undefined,
-        revenue: ed.monthlyRevenue || ed.revenue || undefined,
-        employeeCount: ed.companySize || undefined,
-        socialPresence: {
-          platforms: Object.keys(social).filter((k) => (social as any)[k]),
-        },
-      },
-      processingTime: candidate.processingTime || responseData?.processingTime,
-      aiEnhanced: Boolean(combinedMeta?.icpEnhanced),
-    } as ScrapeResult["data"];
-
-    return {
-      success: responseData?.success ?? true,
-      data,
-      meta: combinedMeta,
-    } as ScrapeResult;
-  }
-
-  // Fallback: assume candidate already matches expected data shape
-  return {
-    success: responseData?.success ?? true,
-    data: candidate as ScrapeResult["data"],
-    meta: combinedMeta,
-  } as ScrapeResult;
+// Use deep normalizer internally
+export const normalizeScrapeResponse = (responseData: any): ScrapeResult => {
+  return normalizeScrapeResponseDeep(responseData);
 };
 // Deeper unwrapping to handle nested { payload: { data: { payload: ... } } } formats
 const normalizeScrapeResponseDeep = (responseData: any): ScrapeResult => {
@@ -241,6 +145,7 @@ const normalizeScrapeResponseDeep = (responseData: any): ScrapeResult => {
     const social = ed.socialPresence || {};
 
     const data = {
+      // Legacy/UI fields for existing components
       title: ed.title || candidate.title,
       desc: ed.description || candidate.description || candidate.desc,
       nestedLinks: ed.nestedLinks || candidate.nestedLinks || [],
@@ -289,6 +194,12 @@ const normalizeScrapeResponseDeep = (responseData: any): ScrapeResult => {
           platforms: Object.keys(social).filter((k) => (social as any)[k]),
         },
       },
+
+      // Include the full ExtractedData back into the normalized result so UI can access 100% of fields
+      extractedData: ed,
+      icpScore: candidate.icpScore,
+      icpMatchLevel: candidate.icpMatchLevel,
+
       processingTime: candidate.processingTime || responseData?.processingTime,
       aiEnhanced: Boolean(mergedMeta?.icpEnhanced || mergedMeta?.aiEnhanced),
     } as ScrapeResult["data"];

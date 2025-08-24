@@ -1,29 +1,17 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import React, { useState } from "react";
+import { AnimatePresence, motion } from 'framer-motion';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import React, { useState } from 'react';
 
-import { cn } from "@/utils/cn";
+import { cn } from '@/utils/cn';
 import {
-  IconBook,
-  IconBrain,
-  IconChartBar,
-  IconChevronDown,
-  IconChevronLeft,
-  IconCreditCard,
-  IconDashboard,
-  IconHistory,
-  IconKey,
-  IconSparkles,
-  IconTarget,
-  IconUser,
-  IconWorldWww,
-  IconX,
-} from "@tabler/icons-react";
+    IconBook, IconBrain, IconChartBar, IconChevronDown, IconChevronLeft, IconCreditCard,
+    IconDashboard, IconHistory, IconKey, IconSparkles, IconTarget, IconUser, IconWorldWww, IconX
+} from '@tabler/icons-react';
 
-import GetLogo from "../common/getLogo";
+import GetLogo from '../common/getLogo';
 
 interface NavItem {
   name: string;
@@ -71,19 +59,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
       icon: <IconTarget className="w-5 h-5" />,
       isNew: true,
     },
-    {
-      name: "Analytics",
-      href: "/analytics",
-      icon: <IconChartBar className="w-5 h-5" />,
-      badge: "Pro",
-      subItems: [
-        {
-          name: "Learning Insights",
-          href: "/analytics/learning",
-          isNew: true,
-        },
-      ],
-    },
+
     {
       name: "API Tokens",
       href: "/api-tokens",
@@ -103,16 +79,6 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
       name: "Docs",
       href: "/docs",
       icon: <IconBook className="w-5 h-5" />,
-      subItems: [
-        {
-          name: "Getting Started",
-          href: "/docs",
-        },
-        {
-          name: "API Reference",
-          href: "/docs/api-reference",
-        },
-      ],
     },
     {
       name: "Profile",
@@ -188,10 +154,17 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
           </div>
 
           {/* Navigation */}
-          <nav className="px-4 py-6 space-y-2 flex-1 overflow-y-auto">
+          <nav className="px-4 py-6 space-y-2 flex-1 overflow-y-auto thin-scrollbar">
             {navItems.map((item) => {
               const isActive =
-                pathname === item.href || pathname.startsWith(item.href + "/");
+                pathname === item.href ||
+                (pathname.startsWith(item.href + "/") &&
+                  !navItems.some(
+                    (otherItem) =>
+                      otherItem.href !== item.href &&
+                      otherItem.href.startsWith(item.href + "/") &&
+                      pathname === otherItem.href
+                  ));
               const hasSubItems = item.subItems && item.subItems.length > 0;
               const isExpanded = expandedItems.includes(item.name);
 

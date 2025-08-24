@@ -1,34 +1,16 @@
-// @ts-nocheck
-
 "use client";
 
 import {
-  Brain,
-  Building2,
-  Clock,
-  Contact,
-  Download,
-  ExternalLink,
-  Shield,
-  TrendingUp,
-  Users,
-  Zap,
-} from "lucide-react";
-import React from "react";
+    Brain, Building2, Clock, Contact, Download, ExternalLink, Shield, TrendingUp, Users, Zap
+} from 'lucide-react';
+import React from 'react';
 
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-import AboutProfilePanel from "./AboutProfilePanel";
-import ContactInfoPanel from "./ContactInfoPanel";
-import { ScrapeResult, Table as TableType } from "./utils/scraperTypes";
+import { AboutProfilePanel } from './AboutProfilePanel';
+import { ContactInfo, ExtractedData, ScrapeResult, SocialPresence } from './utils/scraperTypes';
 
 interface ScraperResultsProps {
   result: ScrapeResult;
@@ -36,123 +18,112 @@ interface ScraperResultsProps {
 
 const ScraperResults: React.FC<ScraperResultsProps> = ({ result }) => {
   const { data, meta } = result;
-  const isAIEnhanced = meta?.aiEnhanced || data?.aiEnhanced;
 
-  // Key data fields required for frontend landing page display
-  const landingPageData = {
-    // Company Basic Info
-    companyName: data?.title || "Company Name Not Found",
-    description: data?.desc || "Description not available",
+  // Normalize both the deeply nested shape and the flat legacy shape
+  const nestedPayloadData: any =
+    (data as any)?.payload?.data?.payload?.data ||
+    (data as any)?.payload?.data ||
+    null;
+  const extractedFromNested: ExtractedData | undefined =
+    nestedPayloadData?.extractedData || (data as any)?.extractedData;
 
-    // Contact Information
-    email: data?.contactDetails?.email?.[0] || "Email not found",
-    phone: data?.contactDetails?.phone?.[0] || "Phone not found",
-    location: data?.location || "Location not found",
-    website: getUrlFromData(),
+  function legacyToExtracted(d: any): ExtractedData {
+    if (!d) return {} as any;
+    const contactDetails = d.contactDetails || d.company_info?.contact;
+    const social = contactDetails?.social_media || {};
+    const contactInfo = {
+      email: Array.isArray(contactDetails?.email)
+        ? contactDetails.email[0]
+        : contactDetails?.email,
+      phone: Array.isArray(contactDetails?.phone)
+        ? contactDetails.phone
+        : contactDetails?.phone
+        ? [contactDetails.phone]
+        : [],
+      addresses:
+        contactDetails?.addresses ||
+        (contactDetails?.address ? [contactDetails.address] : []),
+    } as ContactInfo;
 
-    // Business Details
-    industry:
-      data?.businessIntelligence?.industry?.join(", ") ||
-      data?.industry ||
-      "Industry not specified",
-    companySize:
-      data?.businessIntelligence?.employeeCount ||
-      data?.companySize ||
-      "Company size not specified",
-    businessModel:
-      data?.businessIntelligence?.businessModel ||
-      "Business model not specified",
-    targetMarket:
-      data?.businessIntelligence?.targetMarket?.join(", ") ||
-      "Target market not specified",
+    const socialPresence: SocialPresence = {
+      linkedin: social.linkedin || social.LinkedIn || "",
+      youtube: social.youtube || "",
+      facebook: social.facebook || "",
+      instagram: social.instagram || "",
+      x: social.x || social.twitter || "",
+      twitter: social.twitter || "",
+    };
 
-    // Services & Products
-    services:
-      data?.businessIntelligence?.keyServices?.slice(0, 5) ||
-      data?.service?.slice(0, 5) ||
-      [],
+    const bi = d.businessIntelligence || undefined;
 
-    // Social Presence
-    socialMedia: {
-      linkedin: data?.contactDetails?.social_media?.linkedin || "",
-      facebook: data?.contactDetails?.social_media?.facebook || "",
-      instagram: data?.contactDetails?.social_media?.instagram || "",
-      twitter:
-        data?.contactDetails?.social_media?.twitter ||
-        data?.contactDetails?.social_media?.x ||
-        "",
-    },
+    return {
+      title: d.title,
+      description: d.desc || d.description || d.aboutData?.companyDescription,
+      nestedLinks: d.nestedLinks || [],
+      service: d.service || bi?.keyServices || [],
+      companyDescription: d.aboutData?.companyDescription,
+      contactInfo,
+      companySize: bi?.employeeCount || d.companySize,
+      industry: Array.isArray(bi?.industry)
+        ? (bi?.industry as string[]).join(", ")
+        : d.industry,
+      location: d.location,
+      revenue: bi?.revenue || d.revenue,
+      socialPresence,
+      fundingStage: bi?.fundingStage || d.fundingStage,
+      businessModel: bi?.businessModel || d.businessModel,
+      targetMarket: Array.isArray(bi?.targetMarket)
+        ? (bi?.targetMarket as string[]).join(", ")
+        : d.targetMarket,
+      productType: d.productType,
+      monthlyRevenue: d.monthlyRevenue,
+      insights: d.insights,
+      businessIntelligence: bi,
+      actionableRecommendations: d.actionableRecommendations,
+      allPagesCorpus: d.allPagesCorpus,
+      icpFields: (d as any)?.icpFields || {},
+    } as ExtractedData;
+  }
 
-    // Business Intelligence (AI Enhanced)
-    competitiveAdvantages:
-      data?.businessIntelligence?.competitiveAdvantages?.slice(0, 3) || [],
-    fundingStage: data?.businessIntelligence?.fundingStage || "Not specified",
-    revenue: data?.businessIntelligence?.revenue || "Revenue not disclosed",
+  const extractedData: ExtractedData =
+    extractedFromNested || legacyToExtracted(data as any);
+  const icpScore = nestedPayloadData?.icpScore || (data as any)?.icpScore || 0;
+  const icpMatchLevel =
+    nestedPayloadData?.icpMatchLevel ||
+    (data as any)?.icpMatchLevel ||
+    "unknown";
+  const icpFields: any = (extractedData as any)?.icpFields || {};
 
-    // ICP Analysis (if available)
-    icpScore: data?.icpScore || 0,
-    icpMatchLevel: data?.icpMatchLevel || "unknown",
-    icpFields: data?.icpFields || {},
+  const isAIEnhanced =
+    meta?.aiEnhanced ||
+    meta?.icpEnhanced ||
+    (data as any)?.payload?.meta?.icpEnhanced ||
+    (data as any)?.payload?.data?.meta?.icpEnhanced ||
+    (data as any)?.payload?.data?.payload?.meta?.icpEnhanced ||
+    ((data as any)?.aiEnhanced ?? false);
 
-    // Processing Meta
-    processingTime: getProcessingTime(),
-    aiEnhanced: isAIEnhanced,
-    creditsUsed: meta?.billing?.creditsUsed || meta?.creditsUsed || 0,
-    scraperType:
-      meta?.billing?.scraperType || (isAIEnhanced ? "AI Enhanced" : "Normal"),
-    timestamp: meta?.timestamp || new Date().toISOString(),
-  };
+  console.log("Full result:", result);
+  console.log("Extracted data:", extractedData);
+  console.log("ICP Score:", icpScore);
+  console.log("ICP Fields:", icpFields);
 
-  return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
-      <h2 className="text-xl font-semibold mb-3">
-        Landing Page Data Requirements
-      </h2>
-      <div className="bg-gray-900 text-green-200 p-4 rounded-lg overflow-auto max-h-[70vh] text-xs">
-        <pre>{JSON.stringify(landingPageData, null, 2)}</pre>
-      </div>
+  // Helper functions for rendering different sections
+  function renderAboutInfo(data: ExtractedData) {
+    return (
+      <AboutProfilePanel
+        title={data?.title}
+        description={data?.description || data?.companyDescription}
+        about={null}
+        businessIntel={data?.businessIntelligence}
+      />
+    );
+  }
 
-      <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-        <h3 className="font-semibold text-blue-900 mb-2">
-          Key Fields for Frontend Landing Page:
-        </h3>
-        <ul className="text-sm text-blue-800 space-y-1">
-          <li>
-            • <strong>Company Info:</strong> name, description, location,
-            website
-          </li>
-          <li>
-            • <strong>Contact:</strong> email, phone, social media links
-          </li>
-          <li>
-            • <strong>Business:</strong> industry, size, model, target market
-          </li>
-          <li>
-            • <strong>Services:</strong> key services/products offered
-          </li>
-          <li>
-            • <strong>Intelligence:</strong> competitive advantages, funding,
-            revenue
-          </li>
-          <li>
-            • <strong>ICP Analysis:</strong> score, match level, custom fields
-          </li>
-          <li>
-            • <strong>Meta:</strong> processing time, AI enhancement, credits
-            used
-          </li>
-        </ul>
-      </div>
-    </div>
-  );
+  function renderContactInfo(data: ExtractedData) {
+    const contact = data?.contactInfo;
+    const socialPresence = data?.socialPresence || {};
 
-  const renderContactInfo = () => {
-    const contact =
-      data.contactDetails ||
-      data.enhancedContactInfo ||
-      data.company_info?.contact;
-
-    if (!contact) {
+    if (!contact && !Object.values(socialPresence).some(Boolean)) {
       return (
         <Card>
           <CardContent className="p-6">
@@ -164,486 +135,396 @@ const ScraperResults: React.FC<ScraperResultsProps> = ({ result }) => {
       );
     }
 
-    const emails = Array.isArray(contact.email)
-      ? contact.email
-      : contact.email
-      ? [contact.email]
-      : [];
-    const phones = Array.isArray(contact.phone)
-      ? contact.phone
-      : contact.phone
-      ? [contact.phone]
-      : [];
-    const uniquePhones = Array.from(
-      new Map(
-        phones
-          .filter(Boolean)
-          .map((p: any) => [String(p).replace(/\D/g, "").slice(-10), String(p)])
-      ).values()
-    ).slice(0, 3);
-
-    // Type guard for ContactDetails
-    const hasAddress = "address" in contact && contact.address;
-    const social =
-      (contact as any).socialLinks || (contact as any).social_media;
-    const hasSocialMedia = Boolean(social && Object.keys(social).length > 0);
-
-    return <ContactInfoPanel contact={contact} />;
-  };
-
-  const renderAboutInfo = () => {
-    const about = data.aboutData;
-    const businessIntel = data.businessIntelligence;
-    const title = data.title;
-    const description = data.desc;
-
-    if (!about && !businessIntel && !title && !description) {
-      return (
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Contact Details */}
         <Card>
-          <CardContent className="p-6">
-            <p className="text-gray-500 text-center">
-              No company information found.
-            </p>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Contact className="h-5 w-5 text-blue-600" />
+              Contact Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {contact?.email && (
+              <div>
+                <h4 className="font-medium text-gray-900 mb-2">Email</h4>
+                <a
+                  href={`mailto:${contact.email}`}
+                  className="text-blue-600 hover:underline"
+                >
+                  {contact.email}
+                </a>
+              </div>
+            )}
+
+            {contact?.phone && contact.phone.length > 0 && (
+              <div>
+                <h4 className="font-medium text-gray-900 mb-2">Phone</h4>
+                {contact.phone.map((phone: string, index: number) => (
+                  <a
+                    key={index}
+                    href={`tel:${phone}`}
+                    className="text-blue-600 hover:underline block"
+                  >
+                    {phone}
+                  </a>
+                ))}
+              </div>
+            )}
+
+            {contact?.addresses && contact.addresses.length > 0 && (
+              <div>
+                <h4 className="font-medium text-gray-900 mb-2">Address</h4>
+                {contact.addresses.map((address: string, index: number) => (
+                  <p key={index} className="text-gray-700">
+                    {address}
+                  </p>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
-      );
-    }
 
-    return (
-      <AboutProfilePanel
-        title={title}
-        description={description}
-        about={about}
-        businessIntel={businessIntel}
-      />
-    );
-  };
-
-  const renderTable = (table: TableType, index: number) => {
-    return (
-      <div key={index} className="overflow-x-auto mb-8">
-        {table?.caption && <p className="font-medium mb-2">{table.caption}</p>}
-        <table className="min-w-full border-collapse border border-bg-300">
-          <thead>
-            <tr className="bg-bg-200">
-              {table?.headers.map((header, i) => (
-                <th
-                  key={i}
-                  className="py-2 px-4 border border-bg-300 text-left text-sm font-medium"
-                >
-                  {header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {table?.rows.map((row, rowIndex) => (
-              <tr
-                key={rowIndex}
-                className={rowIndex % 2 === 0 ? "bg-bg-100" : "bg-white"}
-              >
-                {row.map((cell, cellIndex) => (
-                  <td
-                    key={cellIndex}
-                    className="py-2 px-4 border border-bg-300 text-sm"
-                  >
-                    {cell}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {/* Social Media */}
+        {Object.values(socialPresence).some(Boolean) && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-purple-600" />
+                Social Media
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {Object.entries(socialPresence).map(
+                ([platform, url]: [string, any]) =>
+                  url ? (
+                    <a
+                      key={platform}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-blue-600 hover:underline"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                    </a>
+                  ) : null
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     );
-  };
+  }
 
-  const getUrlFromData = () => {
-    // Try to extract URL from various possible locations
+  function renderICPAnalysis(score: number, matchLevel: string, fields: any) {
     return (
-      data?.url || (data?.nestedLinks && data.nestedLinks[0]) || "Unknown URL"
-    );
-  };
+      <>
+        {/* ICP Score Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="p-6 text-center">
+              <div
+                className={`text-4xl font-bold mb-2 ${
+                  score >= 80
+                    ? "text-green-600"
+                    : score >= 60
+                    ? "text-yellow-600"
+                    : score >= 40
+                    ? "text-orange-600"
+                    : "text-red-600"
+                }`}
+              >
+                {score}%
+              </div>
+              <p className="text-sm text-gray-600">ICP Match Score</p>
+            </CardContent>
+          </Card>
 
-  const getProcessingTime = () => {
-    return (
-      meta?.processingTime ||
-      meta?.processing_time_ms ||
-      data?.processingTime ||
-      0
+          <Card>
+            <CardContent className="p-6 text-center">
+              <div
+                className={`inline-flex px-3 py-1 rounded-full text-sm font-medium mb-2 ${
+                  matchLevel === "excellent"
+                    ? "bg-green-100 text-green-800"
+                    : matchLevel === "good"
+                    ? "bg-blue-100 text-blue-800"
+                    : matchLevel === "fair"
+                    ? "bg-yellow-100 text-yellow-800"
+                    : "bg-red-100 text-red-800"
+                }`}
+              >
+                {matchLevel?.replace("_", " ").toUpperCase() || "UNKNOWN"}
+              </div>
+              <p className="text-sm text-gray-600">Match Level</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6 text-center">
+              <div className="text-2xl font-bold text-purple-600 mb-2">
+                {Object.keys(fields).length}
+              </div>
+              <p className="text-sm text-gray-600">ICP Fields Extracted</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ICP Fields */}
+        {Object.keys(fields).length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-purple-600" />
+                ICP Profile Data
+              </CardTitle>
+              <CardDescription>
+                Extracted data points matching your Ideal Customer Profile
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(fields).map(([key, value]: [string, any]) => (
+                  <div key={key} className="p-4 bg-gray-50 rounded-lg">
+                    <h4 className="font-medium text-gray-900 mb-2">{key}</h4>
+                    <div className="text-sm text-gray-700">
+                      {Array.isArray(value) ? (
+                        <ul className="space-y-1">
+                          {value.map((item: any, index: number) => (
+                            <li key={index}>• {item}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p>{value || "Not specified"}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </>
     );
-  };
+  }
+
+  function renderBusinessIntelligence(businessIntel: any) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Industry & Services */}
+        {(businessIntel?.industry || businessIntel?.keyServices) && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-green-600" />
+                Industry & Services
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {businessIntel?.industry && (
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Industries</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {businessIntel.industry.map(
+                      (industry: string, index: number) => (
+                        <Badge
+                          key={index}
+                          variant="secondary"
+                          className="bg-green-100 text-green-800"
+                        >
+                          {industry}
+                        </Badge>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+              {businessIntel?.keyServices && (
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">
+                    Key Services
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {businessIntel.keyServices
+                      .slice(0, 8)
+                      .map((service: string, index: number) => (
+                        <Badge
+                          key={index}
+                          variant="outline"
+                          className="border-blue-200 text-blue-700"
+                        >
+                          {service}
+                        </Badge>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Company Details */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-purple-600" />
+              Company Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {businessIntel?.employeeCount && (
+              <div>
+                <h4 className="font-medium text-gray-900 mb-2">
+                  Employee Count
+                </h4>
+                <p className="text-gray-700 capitalize">
+                  {businessIntel.employeeCount}
+                </p>
+              </div>
+            )}
+            {businessIntel?.targetMarket && (
+              <div>
+                <h4 className="font-medium text-gray-900 mb-2">
+                  Target Market
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {businessIntel.targetMarket.map(
+                    (market: string, index: number) => (
+                      <Badge
+                        key={index}
+                        variant="secondary"
+                        className="bg-purple-100 text-purple-800"
+                      >
+                        {market}
+                      </Badge>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+            {businessIntel?.competitiveAdvantages &&
+              businessIntel.competitiveAdvantages.length > 0 && (
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">
+                    Competitive Advantages
+                  </h4>
+                  <ul className="space-y-1">
+                    {businessIntel.competitiveAdvantages.map(
+                      (advantage: string, index: number) => (
+                        <li
+                          key={index}
+                          className="text-gray-700 flex items-start gap-2"
+                        >
+                          <Zap className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
+                          {advantage}
+                        </li>
+                      )
+                    )}
+                  </ul>
+                </div>
+              )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  function renderLinksTab(links: string[]) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ExternalLink className="h-5 w-5 text-blue-600" />
+            Discovered Links ({links.length})
+          </CardTitle>
+          <CardDescription>All links found on the website</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto glass-scrollbar">
+            {links.map((link: string, index: number) => (
+              <a
+                key={index}
+                href={link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-sm"
+              >
+                <ExternalLink className="h-3 w-3 text-blue-600 flex-shrink-0" />
+                <span className="truncate text-gray-700">{link}</span>
+              </a>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
-      {/* Header */}
-      {data ? (
-        <>
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-gray-900">
-                Company Profile
-              </h2>
-              {isAIEnhanced && (
-                <Badge
-                  variant="default"
-                  className="bg-gradient-to-r from-purple-500 to-blue-500"
-                >
-                  <Brain className="h-3 w-3 mr-1" />
-                  AI Enhanced
+    <div className="space-y-6">
+      {/* Modern Header with Gradient */}
+      <div className="bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow-xl">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold mb-2">
+              {extractedData?.title || data?.title || "Company Profile"}
+            </h2>
+            <p className="text-purple-100 text-lg">
+              {extractedData?.description ||
+                data?.desc ||
+                "Sales Intelligence Report"}
+            </p>
+          </div>
+          {isAIEnhanced && (
+            <div className="flex items-center space-x-2">
+              <Badge className="bg-white/20 text-white border-white/30 hover:bg-white/30">
+                <Brain className="h-4 w-4 mr-2" />
+                AI Enhanced
+              </Badge>
+              {(icpScore > 0 || Object.keys(icpFields).length > 0) && (
+                <Badge className="bg-green-500/20 text-green-100 border-green-400/30">
+                  <TrendingUp className="h-4 w-4 mr-2" />
+                  ICP: {icpScore}%
                 </Badge>
               )}
             </div>
+          )}
+        </div>
+      </div>
 
-            <div className="space-y-2">
-              <p className="text-gray-600">
-                Profile generated from{" "}
-                <a
-                  href={getUrlFromData()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-800 hover:underline"
-                >
-                  {getUrlFromData()}
-                </a>
-              </p>
-
-              {/* Metadata */}
-              {meta && (
-                <div className="flex flex-wrap gap-4 text-sm text-gray-500">
-                  {getProcessingTime() > 0 && (
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      <span>
-                        Processed in {(getProcessingTime() / 1000).toFixed(2)}s
-                      </span>
-                    </div>
-                  )}
-
-                  {meta.billing && (
-                    <div className="flex items-center gap-1">
-                      <Zap className="h-3 w-3" />
-                      <span>
-                        {meta.billing.charged
-                          ? `Credits used: ${meta.billing.creditsUsed || 1} (${
-                              meta.billing.scraperType || "Normal"
-                            })`
-                          : `Credits used: ${
-                              meta.billing.creditsUsed || 0.5
-                            } (free tier)`}
-                      </span>
-                    </div>
-                  )}
-
-                  {meta.timestamp && (
-                    <span>{new Date(meta.timestamp).toLocaleString()}</span>
-                  )}
-
-                  {data?.aiCost && (
-                    <div className="flex items-center gap-1">
-                      <Brain className="h-3 w-3" />
-                      <span>AI Cost: ${data.aiCost.toFixed(4)}</span>
-                    </div>
-                  )}
-                </div>
-              )}
+      {/* JSON Data Export Card */}
+      <Card className="border-2 border-dashed border-gray-200 bg-gray-50/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Download className="h-5 w-5 text-white" />
+            Extracted Data (Clean JSON)
+          </CardTitle>
+          <CardDescription className="text-white-200">
+            Clean extracted data without nested wrappers - ready for frontend
+            integration
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="bg-gray-900 text-green-400 p-4 rounded-lg overflow-auto max-h-[60vh] text-xs font-mono glass-scrollbar">
+            <pre>{JSON.stringify(extractedData, null, 2)}</pre>
+          </div>
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+            <h3 className="font-semibold text-blue-900 mb-2">
+              Available Data Fields:
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-blue-800">
+              <div>• Company Info</div>
+              <div>• Contact Details</div>
+              <div>• Business Intelligence</div>
+              <div>• ICP Analysis</div>
+              <div>• Services & Industry</div>
+              <div>• Social Presence</div>
+              <div>• Insights & Recommendations</div>
+              <div>• All Pages Content</div>
             </div>
           </div>
-
-          <Tabs defaultValue="about" className="w-full">
-            <TabsList className="mb-6 flex-wrap">
-              <TabsTrigger value="about">
-                <Building2 className="h-4 w-4 mr-1" />
-                About
-              </TabsTrigger>
-              <TabsTrigger value="contact">
-                <Contact className="h-4 w-4 mr-1" />
-                Contact
-              </TabsTrigger>
-              {isAIEnhanced && data.businessIntelligence && (
-                <TabsTrigger value="business-intel">
-                  <Brain className="h-4 w-4 mr-1" />
-                  Business Intelligence
-                </TabsTrigger>
-              )}
-              {data?.nestedLinks && data.nestedLinks.length > 0 && (
-                <TabsTrigger value="links">
-                  <ExternalLink className="h-4 w-4 mr-1" />
-                  Links ({data.nestedLinks.length})
-                </TabsTrigger>
-              )}
-              {data.tables && data.tables.length > 0 && (
-                <TabsTrigger value="tables">
-                  Tables ({data.tables.length})
-                </TabsTrigger>
-              )}
-              {(data.text || data.ai_summary || data.raw_text) && (
-                <TabsTrigger value="text-data">Text Data</TabsTrigger>
-              )}
-            </TabsList>
-
-            <TabsContent value="about" className="space-y-6">
-              {renderAboutInfo()}
-            </TabsContent>
-
-            <TabsContent value="contact" className="space-y-6">
-              {renderContactInfo()}
-            </TabsContent>
-
-            {/* Business Intelligence Tab (AI Enhanced) */}
-            {isAIEnhanced && data.businessIntelligence && (
-              <TabsContent value="business-intel" className="space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Risk Factors */}
-                  {data.businessIntelligence.riskFactors &&
-                    data.businessIntelligence.riskFactors.length > 0 && (
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
-                            <Shield className="h-5 w-5 text-red-600" />
-                            Risk Factors
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <ul className="space-y-2">
-                            {data.businessIntelligence.riskFactors.map(
-                              (risk, index) => (
-                                <li
-                                  key={index}
-                                  className="flex items-start gap-2"
-                                >
-                                  <div className="w-2 h-2 bg-red-600 rounded-full mt-2 flex-shrink-0"></div>
-                                  <span className="text-gray-700 text-sm">
-                                    {risk}
-                                  </span>
-                                </li>
-                              )
-                            )}
-                          </ul>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                  {/* Opportunities */}
-                  {data.businessIntelligence.opportunities &&
-                    data.businessIntelligence.opportunities.length > 0 && (
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
-                            <TrendingUp className="h-5 w-5 text-green-600" />
-                            Opportunities
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <ul className="space-y-2">
-                            {data.businessIntelligence.opportunities.map(
-                              (opportunity, index) => (
-                                <li
-                                  key={index}
-                                  className="flex items-start gap-2"
-                                >
-                                  <div className="w-2 h-2 bg-green-600 rounded-full mt-2 flex-shrink-0"></div>
-                                  <span className="text-gray-700 text-sm">
-                                    {opportunity}
-                                  </span>
-                                </li>
-                              )
-                            )}
-                          </ul>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                  {/* Target Market */}
-                  {data.businessIntelligence.targetMarket &&
-                    data.businessIntelligence.targetMarket.length > 0 && (
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
-                            <Users className="h-5 w-5 text-blue-600" />
-                            Target Market
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="flex flex-wrap gap-2">
-                            {data.businessIntelligence.targetMarket.map(
-                              (market, index) => (
-                                <Badge
-                                  key={index}
-                                  variant="outline"
-                                  className="bg-blue-50"
-                                >
-                                  {market}
-                                </Badge>
-                              )
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                  {/* Confidence Score */}
-                  {data.businessIntelligence.confidence && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Brain className="h-5 w-5 text-purple-600" />
-                          AI Confidence
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center gap-4">
-                          <div className="flex-1 bg-gray-200 rounded-full h-3">
-                            <div
-                              className="bg-gradient-to-r from-purple-500 to-blue-500 h-3 rounded-full transition-all duration-300"
-                              style={{
-                                width: `${data.businessIntelligence.confidence}%`,
-                              }}
-                            ></div>
-                          </div>
-                          <span className="font-semibold text-lg">
-                            {data.businessIntelligence.confidence}%
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600 mt-2">
-                          AI confidence in the business intelligence
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-              </TabsContent>
-            )}
-
-            {/* Links Tab */}
-            {data.nestedLinks && data.nestedLinks.length > 0 && (
-              <TabsContent value="links" className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <ExternalLink className="h-5 w-5 text-blue-600" />
-                      Discovered Links ({data.nestedLinks.length})
-                    </CardTitle>
-                    <CardDescription>
-                      All links found on the website
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
-                      {data.nestedLinks.map((link, index) => (
-                        <a
-                          key={index}
-                          href={link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-sm"
-                        >
-                          <ExternalLink className="h-3 w-3 text-blue-600 flex-shrink-0" />
-                          <span className="truncate text-gray-700">{link}</span>
-                        </a>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            )}
-
-            {/* Tables Tab */}
-            {data.tables && data.tables.length > 0 && (
-              <TabsContent value="tables" className="space-y-6">
-                {data.tables.map((table, index) => renderTable(table, index))}
-              </TabsContent>
-            )}
-
-            {/* Text Data Tab */}
-            {(data.text || data.ai_summary || data.raw_text) && (
-              <TabsContent value="text-data" className="space-y-6">
-                {/* AI Summary (for AI enhanced responses) */}
-                {data.text && isAIEnhanced && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Brain className="h-5 w-5 text-purple-600" />
-                        AI Summary
-                      </CardTitle>
-                      <CardDescription>
-                        AI-generated summary of key business points
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="prose prose-sm max-w-none">
-                        <div className="whitespace-pre-line text-gray-700">
-                          {data.text}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Legacy AI Summary */}
-                {data.ai_summary && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>AI Summary</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="whitespace-pre-line text-gray-700">
-                        {data.ai_summary}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Raw Text */}
-                {(data.raw_text || (data.text && !isAIEnhanced)) && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Raw Text</CardTitle>
-                      <CardDescription>
-                        Raw page text from the website
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="bg-gray-50 p-4 rounded-lg border max-h-96 overflow-y-auto">
-                        <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
-                          {data.raw_text || data.text}
-                        </pre>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </TabsContent>
-            )}
-          </Tabs>
-
-          <div className="flex justify-end mt-6">
-            <button
-              className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
-              onClick={() => {
-                const jsonString = JSON.stringify(result, null, 2);
-                const blob = new Blob([jsonString], {
-                  type: "application/json",
-                });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `profile-result-${
-                  new Date().toISOString().split("T")[0]
-                }.json`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-              }}
-            >
-              <Download className="h-4 w-4" />
-              Download JSON
-            </button>
-          </div>
-        </>
-      ) : (
-        ""
-      )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

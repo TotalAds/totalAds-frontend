@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from 'react';
 
-import apiClient from "@/utils/api/apiClient";
+import apiClient from '@/utils/api/apiClient';
 
 type PaymentItem = {
   id: string | number;
@@ -48,7 +48,9 @@ export default function PaymentHistoryTable() {
       const resp = await apiClient.get<PageResp>(
         `/billing/history?page=${p}&limit=${limit}`
       );
-      const payload = (resp.data as any)?.data ? resp.data : resp.data?.payload;
+      const payload = (resp.data as any)?.data
+        ? resp.data
+        : (resp.data as any)?.payload;
       setItems(payload?.data || []);
       setTotalPages(payload?.pagination?.totalPages || 1);
     } catch (e: any) {

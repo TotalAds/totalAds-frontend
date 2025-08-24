@@ -1,20 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
-import { toast } from "react-hot-toast";
+import React, { useState } from 'react';
+import { toast } from 'react-hot-toast';
 
 import {
-  IconApi,
-  IconBolt,
-  IconCheck,
-  IconChevronRight,
-  IconCode,
-  IconCopy,
-  IconKey,
-  IconRocket,
-  IconTarget,
-  IconX,
-} from "@tabler/icons-react";
+    IconApi, IconBolt, IconCheck, IconChevronRight, IconCode, IconCopy, IconKey, IconRocket,
+    IconTarget, IconX
+} from '@tabler/icons-react';
 
 interface OnboardingStep {
   id: string;
@@ -314,7 +306,7 @@ export default function LeadSnipperOnboarding({
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto glass-scrollbar">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-700">
           <div className="flex items-center gap-4">

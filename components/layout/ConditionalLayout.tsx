@@ -1,12 +1,12 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import { usePathname } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
 
-import MainSidebar from "@/components/navigation/MainSidebar";
-import TopNav from "@/components/navigation/TopNav";
-import { useAuthContext } from "@/context/AuthContext";
-import FeedbackButton from "@/src/components/feedback/FeedbackButton";
+import MainSidebar from '@/components/navigation/MainSidebar';
+import TopNav from '@/components/navigation/TopNav';
+import { useAuthContext } from '@/context/AuthContext';
+import FeedbackButton from '@/src/components/feedback/FeedbackButton';
 
 interface ConditionalLayoutProps {
   children: React.ReactNode;
@@ -75,7 +75,9 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
 
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <main className="flex-1 overflow-auto">{children}</main>
+          <main className="flex-1 overflow-auto thin-scrollbar">
+            {children}
+          </main>
 
           {/* Footer */}
           {/* <footer className="backdrop-blur-xl bg-slate-900/80 border-t border-white/10 text-white py-3 text-center">
