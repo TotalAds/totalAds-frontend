@@ -1,9 +1,9 @@
 "use client";
 
-import axios from "axios";
+import axios from 'axios';
 
-import { tokenStorage } from "../auth/tokenStorage";
-import apiClient from "./apiClient";
+import { tokenStorage } from '../auth/tokenStorage';
+import apiClient from './apiClient';
 
 /**
  * Type definitions for authentication
@@ -293,6 +293,39 @@ export const verifyEmail = async (verificationCode: string): Promise<void> => {
         error.response.data?.message ||
           error.response.data?.error ||
           "Failed to verify email. Please check the code and try again."
+      );
+    }
+    throw error;
+  }
+};
+
+/**
+ * Update user profile (enhanced fields)
+ */
+export const updateProfile = async (data: {
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  company?: string;
+  jobTitle?: string;
+  timezone?: string;
+  profilePicture?: string;
+  billingEmail?: string;
+}): Promise<any> => {
+  try {
+    const response = await apiClient.patch("/users/profile", data, {
+      withCredentials: true,
+    });
+    // Support both {success,data} and naked data
+    return response.data?.data ?? response.data;
+  } catch (error: unknown) {
+    console.error("Error updating profile:", error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(
+        error.response.data?.message ||
+          error.response.data?.error ||
+          "Failed to update profile"
       );
     }
     throw error;

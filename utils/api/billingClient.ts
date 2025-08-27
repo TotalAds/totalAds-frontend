@@ -1,8 +1,8 @@
 "use client";
 
-import axios from "axios";
+import axios from 'axios';
 
-import apiClient from "./apiClient";
+import apiClient from './apiClient';
 
 /**
  * Type definitions for billing
@@ -80,10 +80,15 @@ const handleBillingError = (error: unknown, defaultMessage: string): never => {
 /**
  * Get user's billing information
  */
-export const getBillingInfo = async (): Promise<BillingInfo> => {
+export const getBillingInfo = async (): Promise<any> => {
   try {
-    const response = await apiClient.get("/billing/info");
-    return response.data;
+    const response = await apiClient.get("/billing/info", {
+      withCredentials: true,
+    });
+    // Handle multiple server envelopes
+    const data =
+      response.data?.payload?.data ?? response.data?.data ?? response.data;
+    return data;
   } catch (error: unknown) {
     return handleBillingError(error, "Failed to get billing information");
   }

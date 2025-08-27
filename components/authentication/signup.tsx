@@ -56,7 +56,16 @@ export function SignupComponent() {
       router.push("/onboarding");
     } catch (error) {
       console.error("Registration error:", error);
-      // Error is handled by AuthContext and will be displayed
+      const message =
+        error instanceof Error ? error.message : "Registration failed";
+      if (
+        message.toLowerCase().includes("already exists") ||
+        message.toLowerCase().includes("account with this email")
+      ) {
+        setFormErrors((prev) => ({ ...prev, email: message }));
+        clearError();
+      }
+      // Other errors are handled by AuthContext and will be displayed
     }
   };
 

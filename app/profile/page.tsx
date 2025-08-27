@@ -1,26 +1,29 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import { useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
 
-import { useAuthContext } from "@/context/AuthContext";
-import { changePassword, getCurrentUser } from "@/utils/api/authClient";
+import { useAuthContext } from '@/context/AuthContext';
+import { changePassword, getCurrentUser, updateProfile } from '@/utils/api/authClient';
 import {
-  IconCheck,
-  IconEdit,
-  IconKey,
-  IconMail,
-  IconShield,
-  IconUser,
-  IconX,
-} from "@tabler/icons-react";
+    IconCheck, IconEdit, IconKey, IconMail, IconShield, IconUser, IconX
+} from '@tabler/icons-react';
 
 interface ProfileData {
   id: string;
   name: string;
+  firstName?: string | null;
+  lastName?: string | null;
   email: string;
   userType: string;
   emailVerified: boolean;
+  phoneNumber?: string | null;
+  company?: string | null;
+  jobTitle?: string | null;
+  timezone?: string | null;
+  profilePicture?: string | null;
+  billingEmail?: string | null;
+  subscriptionStatus?: string | null;
 }
 
 export default function Profile() {
@@ -32,6 +35,13 @@ export default function Profile() {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     name: "",
+    firstName: "",
+    lastName: "",
+    phoneNumber: "",
+    company: "",
+    jobTitle: "",
+    timezone: "",
+    billingEmail: "",
   });
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
@@ -61,7 +71,16 @@ export default function Profile() {
           ...user,
           userType: "user", // Default userType since it's not in UserProfile
         });
-        setEditForm({ name: user.name || "" });
+        setEditForm({
+          name: user.name || "",
+          firstName: (user as any).firstName || "",
+          lastName: (user as any).lastName || "",
+          phoneNumber: (user as any).phoneNumber || "",
+          company: (user as any).company || "",
+          jobTitle: (user as any).jobTitle || "",
+          timezone: (user as any).timezone || "",
+          billingEmail: (user as any).billingEmail || "",
+        });
       } catch (error) {
         console.error("Error fetching profile:", error);
         setMessage({
@@ -79,9 +98,18 @@ export default function Profile() {
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Note: We need to implement updateProfile in authClient
-      // For now, we'll just update the local state
-      setProfile((prev) => (prev ? { ...prev, name: editForm.name } : null));
+      const payload = {
+        name: editForm.name || undefined,
+        firstName: editForm.firstName || undefined,
+        lastName: editForm.lastName || undefined,
+        phoneNumber: editForm.phoneNumber || undefined,
+        company: editForm.company || undefined,
+        jobTitle: editForm.jobTitle || undefined,
+        timezone: editForm.timezone || undefined,
+        billingEmail: editForm.billingEmail || undefined,
+      };
+      const updated = await updateProfile(payload);
+      setProfile((prev) => (prev ? { ...prev, ...updated } : updated));
       setEditing(false);
       setMessage({
         type: "success",
@@ -183,14 +211,6 @@ export default function Profile() {
               <h2 className="text-2xl font-semibold text-white">
                 Profile Information
               </h2>
-              {!editing && (
-                <button
-                  onClick={() => setEditing(true)}
-                  className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors"
-                >
-                  <IconEdit className="w-5 h-5 text-white" />
-                </button>
-              )}
             </div>
 
             {editing ? (
@@ -207,7 +227,113 @@ export default function Profile() {
                     }
                     className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     placeholder="Enter your name"
-                    required
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-2">
+                      First name
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.firstName}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, firstName: e.target.value })
+                      }
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Enter first name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-2">
+                      Last name
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.lastName}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, lastName: e.target.value })
+                      }
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Enter last name"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-2">
+                      Company
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.company}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, company: e.target.value })
+                      }
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Your company"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-2">
+                      Job title
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.jobTitle}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, jobTitle: e.target.value })
+                      }
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Your role"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-2">
+                      Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={editForm.phoneNumber}
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          phoneNumber: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="e.g. +1 415 555 0100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-2">
+                      Timezone
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.timezone}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, timezone: e.target.value })
+                      }
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="e.g. UTC, PST, IST"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-gray-300 text-sm font-medium mb-2">
+                    Billing email
+                  </label>
+                  <input
+                    type="email"
+                    value={editForm.billingEmail}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, billingEmail: e.target.value })
+                    }
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="billing@company.com"
                   />
                 </div>
                 <div className="flex space-x-4">
@@ -222,7 +348,16 @@ export default function Profile() {
                     type="button"
                     onClick={() => {
                       setEditing(false);
-                      setEditForm({ name: profile?.name || "" });
+                      setEditForm({
+                        name: profile?.name || "",
+                        firstName: profile?.firstName || "",
+                        lastName: profile?.lastName || "",
+                        phoneNumber: profile?.phoneNumber || "",
+                        company: profile?.company || "",
+                        jobTitle: profile?.jobTitle || "",
+                        timezone: profile?.timezone || "",
+                        billingEmail: profile?.billingEmail || "",
+                      });
                     }}
                     className="flex items-center px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-200 rounded-xl transition-colors border border-red-500/30"
                   >

@@ -216,7 +216,22 @@ export function CurrentPlanCard({
   );
 }
 
-export function UsageStatsCard({ monthly }: { monthly: number }) {
+export function UsageStatsCard({
+  monthly,
+  plan = "free",
+  freeLimit = 20,
+  creditsRemaining,
+}: {
+  monthly: number;
+  plan?: "free" | "starter" | "pro";
+  freeLimit?: number;
+  creditsRemaining?: number | null;
+}) {
+  const isFree = plan === "free";
+  const usedPct = isFree
+    ? Math.min(Math.round(((monthly || 0) / freeLimit) * 100), 100)
+    : undefined;
+
   return (
     <GlassCard>
       <div className="flex items-center mb-6">
@@ -241,59 +256,108 @@ export function UsageStatsCard({ monthly }: { monthly: number }) {
               {monthly || 0}
             </span>
           </div>
-          <div className="relative">
-            <div className="w-full bg-white/20 rounded-full h-4 overflow-hidden">
-              <div
-                className="bg-gradient-to-r from-blue-500 to-cyan-500 h-4 rounded-full transition-all duration-500 ease-out relative"
-                style={{
-                  width: `${Math.min(((monthly || 0) / 20) * 100, 100)}%`,
-                }}
-              >
-                <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+          {isFree ? (
+            <div className="relative">
+              <div className="w-full bg-white/20 rounded-full h-4 overflow-hidden">
+                <div
+                  className="bg-gradient-to-r from-blue-500 to-cyan-500 h-4 rounded-full transition-all duration-500 ease-out relative"
+                  style={{
+                    width: `${Math.min(
+                      ((monthly || 0) / freeLimit) * 100,
+                      100
+                    )}%`,
+                  }}
+                >
+                  <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                </div>
+              </div>
+              <div className="flex justify-between text-sm text-gray-400 mt-2">
+                <span>0</span>
+                <span className="text-center">{usedPct}% used</span>
+                <span>{freeLimit} (Free limit)</span>
               </div>
             </div>
-            <div className="flex justify-between text-sm text-gray-400 mt-2">
-              <span>0</span>
-              <span className="text-center">
-                {Math.round(((monthly || 0) / 20) * 100)}% used
-              </span>
-              <span>20 (Free limit)</span>
-            </div>
-          </div>
+          ) : (
+            <p className="text-gray-300 text-sm">
+              No free cap on Pro. Usage is credit-based.
+            </p>
+          )}
         </div>
+
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-xl p-4 border border-green-500/20">
-            <div className="flex items-center mb-3">
-              <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center mr-3">
-                <IconCheck className="w-4 h-4 text-green-400" />
+          {isFree ? (
+            <>
+              <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-xl p-4 border border-green-500/20">
+                <div className="flex items-center mb-3">
+                  <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center mr-3">
+                    <IconCheck className="w-4 h-4 text-green-400" />
+                  </div>
+                  <span className="text-gray-300 text-sm font-medium">
+                    Free Credits
+                  </span>
+                </div>
+                <div className="flex items-baseline">
+                  <span className="text-white font-bold text-2xl">
+                    {Math.min(freeLimit, monthly || 0)}
+                  </span>
+                  <span className="text-gray-400 text-sm ml-1">
+                    /{freeLimit}
+                  </span>
+                </div>
               </div>
-              <span className="text-gray-300 text-sm font-medium">
-                Free Credits
-              </span>
-            </div>
-            <div className="flex items-baseline">
-              <span className="text-white font-bold text-2xl">
-                {Math.min(20, monthly || 0)}
-              </span>
-              <span className="text-gray-400 text-sm ml-1">/20</span>
-            </div>
-          </div>
-          <div className="bg-gradient-to-br from-orange-500/10 to-red-500/10 rounded-xl p-4 border border-orange-500/20">
-            <div className="flex items-center mb-3">
-              <div className="w-8 h-8 bg-orange-500/20 rounded-lg flex items-center justify-center mr-3">
-                <IconCreditCard className="w-4 h-4 text-orange-400" />
+              <div className="bg-gradient-to-br from-orange-500/10 to-red-500/10 rounded-xl p-4 border border-orange-500/20">
+                <div className="flex items-center mb-3">
+                  <div className="w-8 h-8 bg-orange-500/20 rounded-lg flex items-center justify-center mr-3">
+                    <IconCreditCard className="w-4 h-4 text-orange-400" />
+                  </div>
+                  <span className="text-gray-300 text-sm font-medium">
+                    Billable
+                  </span>
+                </div>
+                <div className="flex items-baseline">
+                  <span className="text-white font-bold text-2xl">
+                    {Math.max(0, (monthly || 0) - freeLimit)}
+                  </span>
+                  <span className="text-gray-400 text-sm ml-1">credits</span>
+                </div>
               </div>
-              <span className="text-gray-300 text-sm font-medium">
-                Billable
-              </span>
-            </div>
-            <div className="flex items-baseline">
-              <span className="text-white font-bold text-2xl">
-                {Math.max(0, (monthly || 0) - 20)}
-              </span>
-              <span className="text-gray-400 text-sm ml-1">credits</span>
-            </div>
-          </div>
+            </>
+          ) : (
+            <>
+              <div className="bg-gradient-to-br from-emerald-500/10 to-green-500/10 rounded-xl p-4 border border-emerald-500/20">
+                <div className="flex items-center mb-3">
+                  <div className="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center mr-3">
+                    <IconCheck className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <span className="text-gray-300 text-sm font-medium">
+                    Credits Remaining
+                  </span>
+                </div>
+                <div className="flex items-baseline">
+                  <span className="text-white font-bold text-2xl">
+                    {typeof creditsRemaining === "number"
+                      ? creditsRemaining
+                      : "-"}
+                  </span>
+                </div>
+              </div>
+              <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-xl p-4 border border-blue-500/20">
+                <div className="flex items-center mb-3">
+                  <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center mr-3">
+                    <IconTrendingUp className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <span className="text-gray-300 text-sm font-medium">
+                    Credits Used (This Month)
+                  </span>
+                </div>
+                <div className="flex items-baseline">
+                  <span className="text-white font-bold text-2xl">
+                    {monthly || 0}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </GlassCard>

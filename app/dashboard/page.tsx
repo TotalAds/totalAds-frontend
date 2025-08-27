@@ -1,5 +1,6 @@
 "use client";
 
+import moment from "moment";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
@@ -18,34 +19,23 @@ import {
   IconPlus,
   IconRocket,
   IconShield,
-  IconUser,
 } from "@tabler/icons-react";
 
 interface DashboardStats {
   totalApiCalls: number;
-  remainingCalls: number;
+  remainingCalls: number; // Will reflect credits remaining
   totalTokens: number;
   lastActivity: string;
   currentPlan: "free" | "pro";
   monthlyUsage: number;
   billingAmount: number;
+  freeLimit: number; // Free monthly credits, if applicable
 }
 
-interface UsageData {
-  total: number;
-  free: number;
-  billable: number;
-  byEndpoint: Record<string, number>;
-  byToken: Record<string, number>;
-}
-
-interface BillingData {
-  totalCalls: number;
-  freeCalls: number;
-  billableCalls: number;
-  rate: number;
-  totalAmount: number;
-  month: string;
+interface RecentActivityItem {
+  timestamp: string | Date;
+  endpoint: string;
+  status: number;
 }
 
 export default function Dashboard() {
@@ -55,14 +45,16 @@ export default function Dashboard() {
   const onboardingStatus = useOnboardingStatus();
   const [stats, setStats] = useState<DashboardStats>({
     totalApiCalls: 0,
-    remainingCalls: 10,
+    remainingCalls: 0,
     totalTokens: 0,
     lastActivity: "Never",
     currentPlan: "free",
     monthlyUsage: 0,
     billingAmount: 0,
+    freeLimit: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [recent, setRecent] = useState<RecentActivityItem[]>([]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -78,32 +70,65 @@ export default function Dashboard() {
       try {
         setLoading(true);
 
-        // Import API clients at the top of the file
+        // Import API clients
         const { getUsageStats } = await import("@/utils/api/usageClient");
         const { getBillingInfo } = await import("@/utils/api/billingClient");
         const { listTokens } = await import("@/utils/api/tokenClient");
 
-        // Fetch usage data
-        const usageData = await getUsageStats();
+        // Fetch usage, billing, pricing, balance, tokens in parallel
+        const creditsApi = await import("@/utils/api/creditsClient");
+        const usersApi = await import("@/utils/api/usersClient");
+        const [
+          usageData,
+          billingData,
+          tokensData,
+          creditPricing,
+          creditBal,
+          dashStats,
+        ] = await Promise.all([
+          getUsageStats(),
+          getBillingInfo(),
+          listTokens(),
+          creditsApi.getCreditPricing(),
+          creditsApi.getCreditBalance(),
+          usersApi.getDashboardStats(),
+        ]);
 
-        // Fetch billing data
-        const billingData = await getBillingInfo();
+        // Recent activity from dashboard stats
+        const recentActivity = dashStats?.analytics?.recentActivity || [];
+        setRecent(recentActivity as RecentActivityItem[]);
 
-        // Fetch tokens count
-        const tokensData = await listTokens();
+        // Map backend fields
+
+        // Map backend fields
+        const totalRequests = usageData?.stats?.totalRequests || 0;
+        const freeCallsPerMonth =
+          creditPricing?.freeCallsPerMonth ??
+          creditPricing?.freeCreditsPerMonth ??
+          0;
+
+        // Prefer explicit credit balance from DB; fallback to derived from freeCallsPerMonth
+        const remainingCredits =
+          typeof creditBal?.currentBalance === "number"
+            ? Math.max(0, Math.floor(creditBal.currentBalance))
+            : Math.max(0, freeCallsPerMonth - totalRequests);
 
         setStats({
-          totalApiCalls: usageData.stats?.totalRequests || 0,
-          remainingCalls: Math.max(
-            0,
-            20 - (usageData.stats?.totalRequests || 0)
-          ),
+          totalApiCalls: totalRequests,
+          remainingCalls: remainingCredits,
           totalTokens: tokensData.data?.length || 0,
-          lastActivity: "Today", // You can enhance this with real last activity data
+          lastActivity: usageData?.stats?.lastRequestDate
+            ? new Date(usageData.stats.lastRequestDate).toLocaleString()
+            : "Never",
           currentPlan:
-            (usageData.stats?.totalRequests || 0) > 20 ? "pro" : "free",
-          monthlyUsage: usageData.stats?.totalRequests || 0,
-          billingAmount: billingData.totalSpent || 0,
+            billingData?.subscriptionStatus?.toLowerCase() === "pro"
+              ? "pro"
+              : "free",
+          monthlyUsage: totalRequests,
+          billingAmount: Number(
+            billingData?.usageStats?.currentMonth?.estimatedCost ?? 0
+          ),
+          freeLimit: freeCallsPerMonth,
         });
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -153,7 +178,7 @@ export default function Dashboard() {
           </div>
 
           {/* Onboarding Banner */}
-          {!onboardingStatus.isLoading && onboardingStatus.isSkipped && (
+          {!onboardingStatus.isLoading && !onboardingStatus.isCompleted && (
             <OnboardingBanner />
           )}
 
@@ -182,20 +207,19 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Remaining Free Calls */}
+            {/* Remaining Calls */}
             <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl p-6 shadow-2xl hover:bg-white/15 transition-all duration-300">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-gray-300 text-sm font-medium">
-                    Free Calls Left
+                    Remaining Calls
                   </p>
                   <p className="text-3xl font-bold text-white">
-                    {loading ? "..." : stats.remainingCalls}
+                    {stats.remainingCalls}
                   </p>
-                  <p className="text-xs text-gray-400 mt-1">Out of 20 free</p>
                 </div>
                 <div className="w-14 h-14 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center">
-                  <IconShield className="w-7 h-7 text-white" />
+                  <IconChartBar className="w-7 h-7 text-white" />
                 </div>
               </div>
             </div>
@@ -222,7 +246,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Monthly Billing */}
+            {/* //Monthly Billing
             <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl p-6 shadow-2xl hover:bg-white/15 transition-all duration-300">
               <div className="flex items-center justify-between">
                 <div>
@@ -238,23 +262,7 @@ export default function Dashboard() {
                   <IconCreditCard className="w-7 h-7 text-white" />
                 </div>
               </div>
-            </div>
-
-            <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl p-6 shadow-2xl hover:bg-white/15 transition-all duration-300">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-300 text-sm font-medium">
-                    Remaining Calls
-                  </p>
-                  <p className="text-3xl font-bold text-white">
-                    {stats.remainingCalls}
-                  </p>
-                </div>
-                <div className="w-14 h-14 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center">
-                  <IconChartBar className="w-7 h-7 text-white" />
-                </div>
-              </div>
-            </div>
+            </div> */}
 
             <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl p-6 shadow-2xl hover:bg-white/15 transition-all duration-300">
               <div className="flex items-center justify-between">
@@ -279,7 +287,9 @@ export default function Dashboard() {
                     Last Activity
                   </p>
                   <p className="text-lg font-bold text-white">
-                    {stats.lastActivity}
+                    {moment(stats.lastActivity, "DD/MM/YYYY, HH:mm:ss")
+                      .startOf("hour")
+                      .fromNow()}
                   </p>
                 </div>
                 <div className="w-14 h-14 bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl flex items-center justify-center">
@@ -380,9 +390,9 @@ export default function Dashboard() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-300">Monthly Limit</span>
+                  <span className="text-gray-300">Monthly total credit</span>
                   <span className="font-semibold text-white">
-                    {stats.currentPlan === "free" ? "10 calls" : "Unlimited"}
+                    {`${stats.totalApiCalls + stats.remainingCalls} credits`}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -396,10 +406,13 @@ export default function Dashboard() {
                     <div
                       className="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full transition-all duration-300"
                       style={{
-                        width: `${Math.min(
-                          (stats.totalApiCalls / 10) * 100,
-                          100
-                        )}%`,
+                        width: `${
+                          stats.totalApiCalls > 0
+                            ? (stats.totalApiCalls /
+                                (stats.totalApiCalls + stats.remainingCalls)) *
+                              100
+                            : 0
+                        }%`,
                       }}
                     ></div>
                   </div>
@@ -432,15 +445,55 @@ export default function Dashboard() {
             <h2 className="text-2xl font-semibold text-white mb-6">
               Recent Activity
             </h2>
-            <div className="text-center py-12">
-              <div className="w-20 h-20 bg-gradient-to-r from-gray-500 to-gray-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                <IconDatabase className="w-10 h-10 text-white" />
+            {recent.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-20 h-20 bg-gradient-to-r from-gray-500 to-gray-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                  <IconDatabase className="w-10 h-10 text-white" />
+                </div>
+                <p className="text-gray-300 text-lg mb-2">No recent activity</p>
+                <p className="text-gray-400">
+                  Start scraping to see your activity here
+                </p>
               </div>
-              <p className="text-gray-300 text-lg mb-2">No recent activity</p>
-              <p className="text-gray-400">
-                Start scraping to see your activity here
-              </p>
-            </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left">
+                  <thead>
+                    <tr className="text-gray-300 text-sm">
+                      <th className="py-2 pr-4">Time</th>
+                      <th className="py-2 pr-4">Endpoint</th>
+                      <th className="py-2 pr-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recent.map((item, idx) => (
+                      <tr
+                        key={idx}
+                        className="border-t border-white/10 text-white/90"
+                      >
+                        <td className="py-3 pr-4 whitespace-nowrap">
+                          {new Date(item.timestamp).toLocaleString()}
+                        </td>
+                        <td className="py-3 pr-4 font-mono text-sm break-all">
+                          {item.endpoint}
+                        </td>
+                        <td className="py-3 pr-4">
+                          <span
+                            className={`px-2 py-1 rounded text-xs ${
+                              item.status >= 200 && item.status < 300
+                                ? "bg-green-500/20 text-green-200 border border-green-500/30"
+                                : "bg-red-500/20 text-red-200 border border-red-500/30"
+                            }`}
+                          >
+                            {item.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </div>

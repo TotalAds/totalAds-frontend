@@ -119,6 +119,26 @@ apiClient.interceptors.response.use(
 
     // Handle 401 errors with token refresh
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // Skip refresh for auth endpoints; surface original 401 errors (e.g., invalid credentials)
+      const url: string = originalRequest?.url || "";
+      const isAuthEndpoint =
+        url.includes("/auth/login") ||
+        url.includes("/auth/signup") ||
+        url.includes("/auth/reset-password") ||
+        url.includes("/auth/email-verification");
+
+      if (isAuthEndpoint) {
+        return Promise.reject(error);
+      }
+
+      // Also skip refresh if there was no Authorization header on the request
+      const hadAuthHeader = Boolean(
+        originalRequest.headers && originalRequest.headers.Authorization
+      );
+      if (!hadAuthHeader) {
+        return Promise.reject(error);
+      }
+
       // Check if we've exceeded max refresh attempts
       if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
         console.log("Authentication failed. Redirecting to login...");

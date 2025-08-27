@@ -1,8 +1,8 @@
 "use client";
 
-import axios from "axios";
+import axios from 'axios';
 
-import apiClient from "./apiClient";
+import apiClient from './apiClient';
 
 /**
  * Type definitions for usage statistics
@@ -87,7 +87,10 @@ export const getUsageStats = async (
 ): Promise<UsageResponse> => {
   try {
     const response = await apiClient.get(`/usage?period=${period}`);
-    return response.data;
+    // Normalize to return the inner data object so callers can access .stats
+    const data = (response.data?.payload?.data ??
+      response.data?.data) as UsageResponse;
+    return data;
   } catch (error: unknown) {
     return handleUsageError(error, "Failed to get usage statistics");
   }

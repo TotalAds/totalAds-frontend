@@ -1,27 +1,19 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { useAuthContext } from "@/context/AuthContext";
+import apiClient from "@/utils/api/apiClient";
 import { createPaymentIntent, getBillingInfo } from "@/utils/api/billingClient";
 import { getUsageStats } from "@/utils/api/usageClient";
 
 import {
-  BillingSummaryCard,
   CreditBalanceSection,
   CurrentPlanCard,
-  MonthSelectorCard,
   PaymentModal,
   UsageStatsCard,
-  UsageSummaryCard,
 } from "./_components";
-
-const PaymentHistorySection = dynamic(
-  () => import("@/components/payment/PaymentHistoryTable"),
-  { ssr: false }
-);
 
 interface BillingData {
   totalCalls: number;
@@ -35,6 +27,7 @@ interface BillingData {
 interface UsageData {
   daily: any[];
   monthly: number;
+  creditsRemaining?: number | null;
 }
 
 export default function Billing() {
@@ -43,10 +36,9 @@ export default function Billing() {
   const router = useRouter();
   const [billingData, setBillingData] = useState<BillingData | null>(null);
   const [usageData, setUsageData] = useState<UsageData | null>(null);
+  const [creditsBalance, setCreditsBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState(
-    new Date().toISOString().substring(0, 7)
-  );
+
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -70,11 +62,12 @@ export default function Billing() {
     try {
       setLoading(true);
 
-      // Fetch billing data
-      const billingResult = await getBillingInfo();
-
-      // Fetch usage data
-      const usageResult = await getUsageStats("monthly");
+      // Fetch billing, usage and credit balance in parallel
+      const [billingResult, usageResult, balanceResponse] = await Promise.all([
+        getBillingInfo(),
+        getUsageStats("monthly"),
+        apiClient.get("/credits/balance"),
+      ]);
 
       // billingResult may be { success, data } shape; normalize
       const billing = (billingResult as any)?.data || billingResult;
@@ -96,7 +89,27 @@ export default function Billing() {
       setUsageData({
         daily: usageResult.daily || [],
         monthly: usageResult.stats?.totalRequests || 0,
+        creditsRemaining: usageResult.stats?.creditsRemaining ?? null,
       });
+
+      // Normalize credits balance from payload across shapes; coerce to number
+      const extractNumber = (v: any): number | null => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+      };
+
+      const bData = balanceResponse?.data ?? {};
+      const p = bData?.payload ?? {};
+      const candidates = [
+        p?.data?.currentBalance,
+        p?.currentBalance,
+        bData?.data?.currentBalance,
+        bData?.currentBalance,
+      ];
+      const found = candidates.map(extractNumber).find((n) => n !== null);
+      if (found !== undefined && found !== null) {
+        setCreditsBalance(found);
+      }
 
       if (billing?.subscriptionStatus) {
         const s = String(billing.subscriptionStatus).toLowerCase();
@@ -113,9 +126,18 @@ export default function Billing() {
 
   useEffect(() => {
     fetchBillingData();
-  }, [isAuthenticated, selectedMonth, fetchBillingData]);
+  }, [isAuthenticated, fetchBillingData]);
 
   const currentPlan = serverPlan;
+
+  // Prefer balance API (used by CreditBalance) and fallback to usage stats
+  const creditsRemaining =
+    creditsBalance ?? usageData?.creditsRemaining ?? null;
+
+  // Fallback for monthly if usageData missing
+  const usageResultFallback = (b: BillingData | null): number => {
+    return b?.totalCalls ?? 0;
+  };
 
   const handleUpgradeToPro = async () => {
     // Open the credit purchase modal to allow users to buy credits
@@ -206,11 +228,9 @@ export default function Billing() {
       <div className="relative z-10 container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-12">
-          <h1 className="text-4xl font-bold text-white mb-4">
-            Billing & Usage
-          </h1>
-          <p className="text-gray-300 text-lg">
-            Monitor your API usage and manage your billing information.
+          <h1 className="text-4xl font-bold text-white mb-2">Billing</h1>
+          <p className="text-gray-300">
+            See your credits, plan, and usage at a glance.
           </p>
         </div>
 
@@ -227,51 +247,34 @@ export default function Billing() {
           </div>
         )}
 
-        {/* Month Selector */}
-        <div className="mb-8">
-          <MonthSelectorCard
-            selectedMonth={selectedMonth}
-            onChange={setSelectedMonth}
-          />
-        </div>
-
         {/* Credit Balance Section */}
 
         {/* Payment History */}
-        <div className="mb-8">
+        {/* <div className="mb-8">
           <div className="bg-white/5 backdrop-blur rounded-xl p-4 border border-white/10">
             <PaymentHistorySection />
           </div>
-        </div>
+        </div> */}
 
-        <div className="mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <CreditBalanceSection
             refreshKey={creditRefreshKey}
             onPurchase={handlePurchaseCredits}
             onRefresh={() => setCreditRefreshKey((prev) => prev + 1)}
           />
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <CurrentPlanCard
             currentPlan={currentPlan as "free" | "starter" | "pro"}
             onUpgrade={handleUpgradeToPro}
           />
-          <UsageStatsCard monthly={usageData?.monthly || 0} />
         </div>
 
-        {/* Billing Summary */}
         <div className="mb-8">
-          <BillingSummaryCard
-            data={billingData}
-            onDownload={() => {}}
-            onPayNow={handlePayNow}
-            paymentLoading={paymentLoading}
+          <UsageStatsCard
+            monthly={usageData?.monthly || usageResultFallback(billingData)}
+            plan={currentPlan as "free" | "starter" | "pro"}
+            creditsRemaining={creditsRemaining}
           />
         </div>
-
-        {/* Usage Summary */}
-        {usageData && <UsageSummaryCard usage={usageData} />}
       </div>
 
       {/* Payment Modal */}

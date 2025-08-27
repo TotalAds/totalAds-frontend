@@ -34,7 +34,7 @@ export function LoginComponent() {
       // No need to manually redirect here as the auth state change will trigger it
     } catch (error) {
       console.error("Login error:", error);
-      // Error is handled by the AuthContext and will be displayed
+      // Error is handled by the AuthContext and will be displayed. Friendly message already comes from backend.
     }
   };
   return (
