@@ -131,13 +131,9 @@ apiClient.interceptors.response.use(
         return Promise.reject(error);
       }
 
-      // Also skip refresh if there was no Authorization header on the request
-      const hadAuthHeader = Boolean(
-        originalRequest.headers && originalRequest.headers.Authorization
-      );
-      if (!hadAuthHeader) {
-        return Promise.reject(error);
-      }
+      // Even if there was no Authorization header (e.g., token expired and was cleared on client),
+      // attempt a refresh once using the refreshToken httpOnly cookie. This prevents unwanted logouts
+      // when the access token expires and the client no longer attaches it.
 
       // Check if we've exceeded max refresh attempts
       if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {

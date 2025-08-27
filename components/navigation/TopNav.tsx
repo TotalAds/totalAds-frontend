@@ -92,29 +92,14 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
                       aria-labelledby="user-menu"
                     >
                       <Link
-                        href="/settings/account"
+                        href="/profile"
                         className="block px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
                         role="menuitem"
                         onClick={() => setIsUserMenuOpen(false)}
                       >
                         Your Profile
                       </Link>
-                      <Link
-                        href="/settings/api-tokens"
-                        className="block px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
-                        role="menuitem"
-                        onClick={() => setIsUserMenuOpen(false)}
-                      >
-                        API Tokens
-                      </Link>
-                      <Link
-                        href="/settings/billing"
-                        className="block px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
-                        role="menuitem"
-                        onClick={() => setIsUserMenuOpen(false)}
-                      >
-                        Billing
-                      </Link>
+
                       <button
                         onClick={() => {
                           handleLogout();

@@ -472,10 +472,15 @@ export default function Dashboard() {
                         className="border-t border-white/10 text-white/90"
                       >
                         <td className="py-3 pr-4 whitespace-nowrap">
-                          {new Date(item.timestamp).toLocaleString()}
+                          {moment(item.timestamp).startOf("hour").fromNow()}
                         </td>
                         <td className="py-3 pr-4 font-mono text-sm break-all">
-                          {item.endpoint}
+                          {item.endpoint &&
+                          (item.endpoint === "/frontend/scraper" ||
+                            item.endpoint === "/frontend/scrape" ||
+                            item.endpoint.startsWith("/frontend/scraper"))
+                            ? "Website API"
+                            : item.endpoint}
                         </td>
                         <td className="py-3 pr-4">
                           <span

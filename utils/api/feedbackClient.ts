@@ -32,13 +32,18 @@ export interface FeedbackResponse {
 /**
  * Submit user feedback
  */
-export const submitFeedback = async (feedbackData: FeedbackData): Promise<FeedbackResponse> => {
+export const submitFeedback = async (
+  feedbackData: FeedbackData
+): Promise<FeedbackResponse> => {
   try {
     const response = await apiClient.post("/feedback", feedbackData);
-    return response.data;
+    // Server wraps responses as { status, message, payload }
+    return response.data?.payload || response.data;
   } catch (error: any) {
     console.error("Error submitting feedback:", error);
-    throw new Error(error.response?.data?.message || "Failed to submit feedback");
+    throw new Error(
+      error.response?.data?.message || "Failed to submit feedback"
+    );
   }
 };
 
@@ -48,10 +53,12 @@ export const submitFeedback = async (feedbackData: FeedbackData): Promise<Feedba
 export const getFeedbackHistory = async (): Promise<any[]> => {
   try {
     const response = await apiClient.get("/feedback/history");
-    return response.data.data || [];
+    return response.data?.payload?.data || response.data?.payload || [];
   } catch (error: any) {
     console.error("Error fetching feedback history:", error);
-    throw new Error(error.response?.data?.message || "Failed to fetch feedback history");
+    throw new Error(
+      error.response?.data?.message || "Failed to fetch feedback history"
+    );
   }
 };
 
@@ -61,9 +68,11 @@ export const getFeedbackHistory = async (): Promise<any[]> => {
 export const getFeedbackStats = async (): Promise<any> => {
   try {
     const response = await apiClient.get("/feedback/stats");
-    return response.data.data;
+    return response.data?.payload?.data || response.data?.payload;
   } catch (error: any) {
     console.error("Error fetching feedback stats:", error);
-    throw new Error(error.response?.data?.message || "Failed to fetch feedback stats");
+    throw new Error(
+      error.response?.data?.message || "Failed to fetch feedback stats"
+    );
   }
 };
