@@ -1,8 +1,8 @@
 "use client";
 
-import axios from "axios";
+import axios from 'axios';
 
-import apiClient from "./apiClient";
+import apiClient from './apiClient';
 
 /**
  * Type definitions for ICP management
@@ -141,9 +141,15 @@ export const getICPProfiles = async (
 
     const response = await apiClient.get(url);
 
-    // The server wraps responses in { status, message, payload } format
-    // The ICP data is nested at payload.data
-    return response.data.payload.data;
+    // Handle multiple possible response shapes gracefully
+    const respData = response.data;
+    if (respData?.payload?.data) {
+      return respData.payload.data as ICPProfilesResponse;
+    }
+    if (respData?.data) {
+      return respData.data as ICPProfilesResponse;
+    }
+    return respData as ICPProfilesResponse;
   } catch (error: unknown) {
     console.error("🚨 API Error in getICPProfiles:", error);
     return handleICPError(error, "Failed to fetch ICP profiles");
@@ -191,7 +197,7 @@ export const updateICPProfile = async (
       `/icp-management/profiles/${id}`,
       profileData
     );
-    return response.data.payload.data;
+    return response.data.data;
   } catch (error: unknown) {
     return handleICPError(error, "Failed to update ICP profile");
   }
@@ -216,7 +222,7 @@ export const activateICPProfile = async (id: string): Promise<ICPProfile> => {
     const response = await apiClient.patch(
       `/icp-management/profiles/${id}/activate`
     );
-    return response.data.payload.data;
+    return response.data.data;
   } catch (error: unknown) {
     return handleICPError(error, "Failed to activate ICP profile");
   }
@@ -230,7 +236,7 @@ export const deactivateICPProfile = async (id: string): Promise<ICPProfile> => {
     const response = await apiClient.patch(
       `/icp-management/profiles/${id}/deactivate`
     );
-    return response.data.payload.data;
+    return response.data.data;
   } catch (error: unknown) {
     return handleICPError(error, "Failed to deactivate ICP profile");
   }

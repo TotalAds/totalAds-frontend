@@ -1,28 +1,16 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import React, { useCallback, useEffect, useState } from "react";
-import toast from "react-hot-toast";
+import { useRouter } from 'next/navigation';
+import React, { useCallback, useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 
-import { useAuthContext } from "@/context/AuthContext";
-import apiClient from "@/utils/api/apiClient";
+import { useAuthContext } from '@/context/AuthContext';
+import apiClient from '@/utils/api/apiClient';
+import { ApiToken, createToken, deleteToken, listTokens } from '@/utils/api/tokenClient';
 import {
-  ApiToken,
-  createToken,
-  deleteToken,
-  listTokens,
-} from "@/utils/api/tokenClient";
-import {
-  IconActivity,
-  IconCalendar,
-  IconCheck,
-  IconCopy,
-  IconKey,
-  IconPlus,
-  IconShieldCheck,
-  IconTrash,
-  IconX,
-} from "@tabler/icons-react";
+    IconActivity, IconCalendar, IconCheck, IconCopy, IconKey, IconPlus, IconShieldCheck, IconTrash,
+    IconX
+} from '@tabler/icons-react';
 
 export default function ApiTokensPage() {
   const { state } = useAuthContext();
@@ -588,7 +576,7 @@ export default function ApiTokensPage() {
                   </p>
                   <div className="bg-black/40 rounded-lg p-4 overflow-x-auto">
                     <code className="text-sm font-mono text-gray-300 whitespace-pre">
-                      {`curl -X POST ${apiUrl}/scraper \\
+                      {`curl -X POST ${apiUrl}/api/scraper \\
   -H "Authorization: Bearer YOUR_API_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -597,36 +585,6 @@ export default function ApiTokensPage() {
     "deepScrape": false,
     "maxPages": 1
   }'`}
-                    </code>
-                  </div>
-                </div>
-
-                <div className="bg-black/20 rounded-xl p-6 border border-white/10">
-                  <h4 className="text-white font-semibold mb-2">
-                    GET /scraper/health
-                  </h4>
-                  <p className="text-gray-300 text-sm mb-4">
-                    Check the health status of the scraper service
-                  </p>
-                  <div className="bg-black/40 rounded-lg p-4 overflow-x-auto">
-                    <code className="text-sm font-mono text-gray-300 whitespace-pre">
-                      {`curl -X GET ${apiUrl}/scraper/health \\
-  -H "Authorization: Bearer YOUR_API_TOKEN"`}
-                    </code>
-                  </div>
-                </div>
-
-                <div className="bg-black/20 rounded-xl p-6 border border-white/10">
-                  <h4 className="text-white font-semibold mb-2">
-                    GET /scraper/usage
-                  </h4>
-                  <p className="text-gray-300 text-sm mb-4">
-                    Get your API usage statistics
-                  </p>
-                  <div className="bg-black/40 rounded-lg p-4 overflow-x-auto">
-                    <code className="text-sm font-mono text-gray-300 whitespace-pre">
-                      {`curl -X GET ${apiUrl}/scraper/usage \\
-  -H "Authorization: Bearer YOUR_API_TOKEN"`}
                     </code>
                   </div>
                 </div>

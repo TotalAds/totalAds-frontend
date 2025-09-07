@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { CreateICPProfileRequest } from '@/utils/api';
+import { CreateICPProfileRequest, getICPProfiles } from '@/utils/api';
 import { IconAlertCircle, IconPlus, IconTrash, IconX } from '@tabler/icons-react';
 
 import { ICPField, ICPProfileFormProps } from './types';
@@ -34,6 +34,18 @@ export default function ICPProfileForm({
     name?: string;
     fields?: string;
   }>({});
+
+  // Sync local form state when modal opens or when initialData changes
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        name: initialData?.name || "",
+        description: initialData?.description || "",
+      });
+      setFields(initialData?.fields || [{ name: "", description: "" }]);
+      setErrors({});
+    }
+  }, [isOpen, initialData]);
 
   const validateForm = () => {
     const newErrors: { name?: string; fields?: string } = {};
@@ -79,9 +91,28 @@ export default function ICPProfileForm({
       (field) => field.name.trim() && field.description.trim()
     );
 
+    // Final server-side freshness check to avoid duplicate-name 422
+    try {
+      const latest = await getICPProfiles(undefined, 1, 100);
+      const exists = latest?.profiles?.some(
+        (p) =>
+          p.name.trim().toLowerCase() === formData.name.trim().toLowerCase() &&
+          formData.name !== initialData?.name
+      );
+      if (exists) {
+        setErrors((prev) => ({
+          ...prev,
+          name: "A profile with this name already exists",
+        }));
+        return;
+      }
+    } catch (_) {
+      // If fetch fails, proceed and rely on server validation
+    }
+
     const submitData: CreateICPProfileRequest = {
-      name: formData.name,
-      description: formData.description,
+      name: formData.name.trim(),
+      description: formData.description?.trim(),
       fields: validFields,
     };
 
@@ -301,7 +332,9 @@ export default function ICPProfileForm({
               className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2"
             >
               {isLoading
-                ? "Creating..."
+                ? initialData
+                  ? "Updating..."
+                  : "Creating..."
                 : initialData
                 ? "Update Profile"
                 : "Create Profile"}

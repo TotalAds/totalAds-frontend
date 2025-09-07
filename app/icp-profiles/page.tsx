@@ -1,37 +1,20 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import { useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
 
-import ICPProfileForm from "@/components/icp/ICPProfileForm";
-import OnboardingProtectedLayout from "@/components/layout/OnboardingProtectedLayout";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { useAuthContext } from "@/context/AuthContext";
+import ICPProfileForm from '@/components/icp/ICPProfileForm';
+import OnboardingProtectedLayout from '@/components/layout/OnboardingProtectedLayout';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { useAuthContext } from '@/context/AuthContext';
 import {
-  activateICPProfile,
-  createICPProfile,
-  CreateICPProfileRequest,
-  deactivateICPProfile,
-  deleteICPProfile,
-  getICPProfiles,
-  ICPProfile,
-  updateICPProfile,
-} from "@/utils/api";
+    activateICPProfile, createICPProfile, CreateICPProfileRequest, deactivateICPProfile,
+    deleteICPProfile, getICPProfiles, ICPProfile, updateICPProfile
+} from '@/utils/api';
 import {
-  IconClock,
-  IconCopy,
-  IconEdit,
-  IconExternalLink,
-  IconEye,
-  IconPlus,
-  IconTarget,
-  IconToggleLeft,
-  IconToggleRight,
-  IconTrash,
-  IconTrendingUp,
-  IconUsers,
-  IconX,
-} from "@tabler/icons-react";
+    IconClock, IconCopy, IconEdit, IconExternalLink, IconEye, IconPlus, IconTarget, IconToggleLeft,
+    IconToggleRight, IconTrash, IconTrendingUp, IconUsers, IconX
+} from '@tabler/icons-react';
 
 interface ICPProfilesPageState {
   profiles: ICPProfile[];
@@ -196,27 +179,17 @@ export default function ICPProfilesPage() {
 
       if (pageState.selectedProfile) {
         // Update existing profile
-        const updatedProfile = await updateICPProfile(
-          pageState.selectedProfile.id,
-          data
-        );
-        setPageState((prev) => ({
-          ...prev,
-          profiles: prev.profiles.map((p) =>
-            p.id === pageState.selectedProfile?.id ? updatedProfile : p
-          ),
-          formLoading: false,
-        }));
+        await updateICPProfile(pageState.selectedProfile.id, data);
+        showToast("ICP profile updated successfully!");
       } else {
         // Create new profile
-        const newProfile = await createICPProfile(data);
-        setPageState((prev) => ({
-          ...prev,
-          profiles: [...prev?.profiles, newProfile],
-          formLoading: false,
-        }));
+        await createICPProfile(data);
+        showToast("ICP profile created successfully!");
       }
 
+      // Always refetch to ensure latest server state
+      await fetchProfiles();
+      setPageState((prev) => ({ ...prev, formLoading: false }));
       closeModals();
     } catch (error) {
       console.error("Error saving ICP profile:", error);
@@ -322,8 +295,10 @@ export default function ICPProfilesPage() {
   };
 
   const getMatchRate = (profile: ICPProfile) => {
-    if (profile.totalScrapes === 0) return 0;
-    return Math.round((profile.successfulMatches / profile.totalScrapes) * 100);
+    if (profile?.totalScrapes === 0) return 0;
+    return Math.round(
+      (profile?.successfulMatches / profile?.totalScrapes) * 100
+    );
   };
 
   if (isLoading) {
@@ -617,192 +592,196 @@ export default function ICPProfilesPage() {
           ) : (
             /* Enhanced Profiles Grid */
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {pageState.profiles?.map((profile) => (
-                <div
-                  key={profile.id}
-                  className="group backdrop-blur-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/20 rounded-3xl p-6 shadow-2xl hover:bg-gradient-to-br hover:from-white/15 hover:to-white/10 transition-all duration-300 hover:scale-105 hover:shadow-purple-500/20"
-                >
-                  {/* Profile Header */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <div className="w-3 h-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"></div>
-                        <h3 className="text-lg font-bold text-white">
-                          {profile?.name}
-                        </h3>
-                      </div>
-                      <span
-                        className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${
-                          profile?.status === "active"
-                            ? "bg-green-500/20 text-green-300 border border-green-500/30"
-                            : profile?.status === "draft"
-                            ? "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30"
-                            : profile?.status === "inactive"
-                            ? "bg-gray-500/20 text-gray-300 border border-gray-500/30"
-                            : "bg-red-500/20 text-red-300 border border-red-500/30"
-                        }`}
-                      >
-                        {profile?.status.toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                      <button
-                        onClick={() => handleViewProfile(profile)}
-                        className="p-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all duration-200"
-                        title="View Details"
-                      >
-                        <IconEye className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleToggleStatus(profile)}
-                        disabled={pageState.actionLoading}
-                        className={`p-2 rounded-lg transition-all duration-200 disabled:opacity-50 ${
-                          profile?.status === "active"
-                            ? "text-green-400 hover:text-green-300 hover:bg-green-500/10"
-                            : "text-gray-400 hover:text-green-400 hover:bg-green-500/10"
-                        }`}
-                        title={
-                          profile?.status === "active"
-                            ? "Deactivate Profile"
-                            : "Activate Profile"
-                        }
-                      >
-                        {profile?.status === "active" ? (
-                          <IconToggleRight className="w-4 h-4" />
-                        ) : (
-                          <IconToggleLeft className="w-4 h-4" />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleEditProfile(profile)}
-                        className="p-2 text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 rounded-lg transition-all duration-200"
-                        title="Edit Profile"
-                      >
-                        <IconEdit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteProfile(profile)}
-                        className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all duration-200"
-                        title="Delete Profile"
-                      >
-                        <IconTrash className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Profile Description */}
-                  {profile?.description && (
-                    <div className="mb-4">
-                      <p className="text-gray-300 text-sm leading-relaxed line-clamp-2">
-                        {profile.description}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Profile ID Section */}
-                  <div className="mb-4 p-3 bg-gray-900/50 border border-gray-700/50 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <label className="text-xs text-gray-400 font-medium mb-1 block">
-                          Profile ID
-                        </label>
-                        <div className="flex items-center space-x-2">
-                          <code className="text-sm text-gray-300 font-mono bg-gray-800/50 px-2 py-1 rounded border">
-                            {profile?.id}
-                          </code>
-                          <button
-                            onClick={() =>
-                              copyToClipboard(
-                                profile?.id.toString(),
-                                "Profile ID"
-                              )
-                            }
-                            className="p-1 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-all duration-200"
-                            title="Copy Profile ID"
-                          >
-                            <IconCopy className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Enhanced Profile Stats */}
-                  <div className="grid grid-cols-3 gap-3 mb-6">
-                    <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl p-3 text-center">
-                      <div className="flex items-center justify-center mb-1">
-                        <IconUsers className="w-4 h-4 text-blue-400 mr-1" />
-                        <div className="text-lg font-bold text-white">
-                          {profile?.totalScrapes}
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-400 font-medium">
-                        Total Scrapes
-                      </div>
-                    </div>
-                    <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl p-3 text-center">
-                      <div className="flex items-center justify-center mb-1">
-                        <IconTrendingUp className="w-4 h-4 text-green-400 mr-1" />
-                        <div className="text-lg font-bold text-green-400">
-                          {getMatchRate(profile)}%
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-400 font-medium">
-                        Match Rate
-                      </div>
-                    </div>
-                    <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl p-3 text-center">
-                      <div className="flex items-center justify-center mb-1">
-                        <IconTarget className="w-4 h-4 text-purple-400 mr-1" />
-                        <div className="text-lg font-bold text-purple-400">
-                          {profile?.minimumScore}%
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-400 font-medium">
-                        Min Score
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Enhanced Last Used */}
-                  <div className="flex items-center justify-between pt-4 border-t border-white/10 mb-4">
-                    <div className="flex items-center text-xs text-gray-400">
-                      <IconClock className="w-3 h-3 mr-1" />
-                      <span>
-                        Last used:{" "}
-                        {profile?.lastUsedAt
-                          ? new Date(profile?.lastUsedAt).toLocaleDateString()
-                          : "Never"}
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <div
-                        className={`w-2 h-2 rounded-full ${
-                          profile?.status === "active"
-                            ? "bg-green-400"
-                            : profile?.status === "draft"
-                            ? "bg-yellow-400"
-                            : profile?.status === "inactive"
-                            ? "bg-gray-400"
-                            : "bg-red-400"
-                        }`}
-                      ></div>
-                      <span className="text-xs text-gray-400 capitalize">
-                        {profile?.status}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Use in Scraper Button */}
-                  <button
-                    onClick={() => handleUseInScraper(profile?.id.toString())}
-                    className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-purple-500/25"
+              {pageState.profiles?.map((profile) =>
+                profile ? (
+                  <div
+                    key={profile.id}
+                    className="group backdrop-blur-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/20 rounded-3xl p-6 shadow-2xl hover:bg-gradient-to-br hover:from-white/15 hover:to-white/10 transition-all duration-300 hover:scale-105 hover:shadow-purple-500/20"
                   >
-                    <IconExternalLink className="w-4 h-4" />
-                    <span className="font-semibold">Use in Scraper</span>
-                  </button>
-                </div>
-              ))}
+                    {/* Profile Header */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <div className="w-3 h-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"></div>
+                          <h3 className="text-lg font-bold text-white">
+                            {profile?.name}
+                          </h3>
+                        </div>
+                        <span
+                          className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${
+                            profile?.status === "active"
+                              ? "bg-green-500/20 text-green-300 border border-green-500/30"
+                              : profile?.status === "draft"
+                              ? "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30"
+                              : profile?.status === "inactive"
+                              ? "bg-gray-500/20 text-gray-300 border border-gray-500/30"
+                              : "bg-red-500/20 text-red-300 border border-red-500/30"
+                          }`}
+                        >
+                          {profile?.status.toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <button
+                          onClick={() => handleViewProfile(profile)}
+                          className="p-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all duration-200"
+                          title="View Details"
+                        >
+                          <IconEye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleToggleStatus(profile)}
+                          disabled={pageState.actionLoading}
+                          className={`p-2 rounded-lg transition-all duration-200 disabled:opacity-50 ${
+                            profile?.status === "active"
+                              ? "text-green-400 hover:text-green-300 hover:bg-green-500/10"
+                              : "text-gray-400 hover:text-green-400 hover:bg-green-500/10"
+                          }`}
+                          title={
+                            profile?.status === "active"
+                              ? "Deactivate Profile"
+                              : "Activate Profile"
+                          }
+                        >
+                          {profile?.status === "active" ? (
+                            <IconToggleRight className="w-4 h-4" />
+                          ) : (
+                            <IconToggleLeft className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleEditProfile(profile)}
+                          className="p-2 text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 rounded-lg transition-all duration-200"
+                          title="Edit Profile"
+                        >
+                          <IconEdit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteProfile(profile)}
+                          className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all duration-200"
+                          title="Delete Profile"
+                        >
+                          <IconTrash className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Profile Description */}
+                    {profile?.description && (
+                      <div className="mb-4">
+                        <p className="text-gray-300 text-sm leading-relaxed line-clamp-2">
+                          {profile.description}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Profile ID Section */}
+                    <div className="mb-4 p-3 bg-gray-900/50 border border-gray-700/50 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <label className="text-xs text-gray-400 font-medium mb-1 block">
+                            Profile ID
+                          </label>
+                          <div className="flex items-center space-x-2">
+                            <code className="text-sm text-gray-300 font-mono bg-gray-800/50 px-2 py-1 rounded border">
+                              {profile?.id}
+                            </code>
+                            <button
+                              onClick={() =>
+                                copyToClipboard(
+                                  profile?.id.toString(),
+                                  "Profile ID"
+                                )
+                              }
+                              className="p-1 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-all duration-200"
+                              title="Copy Profile ID"
+                            >
+                              <IconCopy className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Enhanced Profile Stats */}
+                    <div className="grid grid-cols-3 gap-3 mb-6">
+                      <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                        <div className="flex items-center justify-center mb-1">
+                          <IconUsers className="w-4 h-4 text-blue-400 mr-1" />
+                          <div className="text-lg font-bold text-white">
+                            {profile?.totalScrapes}
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-400 font-medium">
+                          Total Scrapes
+                        </div>
+                      </div>
+                      <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                        <div className="flex items-center justify-center mb-1">
+                          <IconTrendingUp className="w-4 h-4 text-green-400 mr-1" />
+                          <div className="text-lg font-bold text-green-400">
+                            {getMatchRate(profile)}%
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-400 font-medium">
+                          Match Rate
+                        </div>
+                      </div>
+                      <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                        <div className="flex items-center justify-center mb-1">
+                          <IconTarget className="w-4 h-4 text-purple-400 mr-1" />
+                          <div className="text-lg font-bold text-purple-400">
+                            {profile?.minimumScore}%
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-400 font-medium">
+                          Min Score
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Enhanced Last Used */}
+                    <div className="flex items-center justify-between pt-4 border-t border-white/10 mb-4">
+                      <div className="flex items-center text-xs text-gray-400">
+                        <IconClock className="w-3 h-3 mr-1" />
+                        <span>
+                          Last used:{" "}
+                          {profile?.lastUsedAt
+                            ? new Date(profile?.lastUsedAt).toLocaleDateString()
+                            : "Never"}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <div
+                          className={`w-2 h-2 rounded-full ${
+                            profile?.status === "active"
+                              ? "bg-green-400"
+                              : profile?.status === "draft"
+                              ? "bg-yellow-400"
+                              : profile?.status === "inactive"
+                              ? "bg-gray-400"
+                              : "bg-red-400"
+                          }`}
+                        ></div>
+                        <span className="text-xs text-gray-400 capitalize">
+                          {profile?.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Use in Scraper Button */}
+                    <button
+                      onClick={() => handleUseInScraper(profile?.id.toString())}
+                      className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-purple-500/25"
+                    >
+                      <IconExternalLink className="w-4 h-4" />
+                      <span className="font-semibold">Use in Scraper</span>
+                    </button>
+                  </div>
+                ) : (
+                  ""
+                )
+              )}
             </div>
           )}
         </div>

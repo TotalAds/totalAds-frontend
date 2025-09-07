@@ -1,18 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import { useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
 
-import { useAuthContext } from "@/context/AuthContext";
+import { useAuthContext } from '@/context/AuthContext';
 import {
-  IconBook,
-  IconCheck,
-  IconCode,
-  IconCopy,
-  IconExternalLink,
-  IconKey,
-  IconRocket,
-} from "@tabler/icons-react";
+    IconBook, IconCheck, IconCode, IconCopy, IconExternalLink, IconKey, IconRocket
+} from '@tabler/icons-react';
 
 export default function ApiDocs() {
   const { state } = useAuthContext();
@@ -325,28 +319,6 @@ run();`,
                       </ul>
                     </div>
                   </div>
-                </div>
-
-                <div className="bg-white/10 rounded-xl p-6 border border-white/20">
-                  <div className="flex items-center mb-4">
-                    <span className="bg-blue-500 text-white px-3 py-1 rounded-lg text-sm font-semibold mr-3">
-                      GET
-                    </span>
-                    <code className="text-purple-300">/api/scraper/health</code>
-                  </div>
-                  <p className="text-gray-300">
-                    Check the health status of the enrichment engine.
-                  </p>
-                </div>
-
-                <div className="bg-white/10 rounded-xl p-6 border border-white/20">
-                  <div className="flex items-center mb-4">
-                    <span className="bg-blue-500 text-white px-3 py-1 rounded-lg text-sm font-semibold mr-3">
-                      GET
-                    </span>
-                    <code className="text-purple-300">/api/scraper/usage</code>
-                  </div>
-                  <p className="text-gray-300">Get your usage statistics.</p>
                 </div>
               </div>
             </section>
