@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 
+import EmailVerificationBanner from "@/components/common/EmailVerificationBanner";
 import { useAuthContext } from "@/context/AuthContext";
 import apiClient from "@/utils/api/apiClient";
 import { createPaymentIntent, getBillingInfo } from "@/utils/api/billingClient";
@@ -32,7 +33,7 @@ interface UsageData {
 
 export default function Billing() {
   const { state } = useAuthContext();
-  const { isAuthenticated, isLoading } = state;
+  const { isAuthenticated, isLoading, user } = state;
   const router = useRouter();
   const [billingData, setBillingData] = useState<BillingData | null>(null);
   const [usageData, setUsageData] = useState<UsageData | null>(null);
@@ -233,6 +234,9 @@ export default function Billing() {
             See your credits, plan, and usage at a glance.
           </p>
         </div>
+
+        {/* Email Verification Banner */}
+        {user && !user.emailVerified && <EmailVerificationBanner />}
 
         {/* Message */}
         {message && (

@@ -96,6 +96,16 @@ apiClient.interceptors.response.use(
       );
     }
 
+    // Handle email verification required errors
+    if (error.response?.status === 403) {
+      const errorCode = error.response?.data?.code;
+      if (errorCode === "EMAIL_NOT_VERIFIED") {
+        // Don't redirect automatically, let the component handle it
+        // The error will be caught by the calling component
+        return Promise.reject(error);
+      }
+    }
+
     // Handle specific auth errors that require token clearing
     if (error.response?.status === 401) {
       const errorMessage = error.response?.data?.error || "";

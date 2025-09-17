@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 
+import EmailVerificationBanner from "@/components/common/EmailVerificationBanner";
 import OnboardingBanner from "@/components/dashboard/OnboardingBanner";
 import OnboardingProtectedLayout from "@/components/layout/OnboardingProtectedLayout";
 import { useAuthContext } from "@/context/AuthContext";
@@ -176,6 +177,9 @@ export default function Dashboard() {
               AI-powered API.
             </p>
           </div>
+
+          {/* Email Verification Banner */}
+          {user && !user.emailVerified && <EmailVerificationBanner />}
 
           {/* Onboarding Banner */}
           {!onboardingStatus.isLoading && !onboardingStatus.isCompleted && (

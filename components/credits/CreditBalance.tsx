@@ -77,8 +77,18 @@ const CreditBalance: React.FC<CreditBalanceProps> = ({
       } else if (pricingResponse.data?.success && pricingResponse.data?.data) {
         setPricing(pricingResponse.data.data as CreditPricing);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching credit data:", error);
+
+      // Handle email verification required error
+      if (
+        error.response?.status === 403 &&
+        error.response?.data?.code === "EMAIL_NOT_VERIFIED"
+      ) {
+        // Don't show error toast for email verification - let the banner handle it
+        return;
+      }
+
       toast.error("Failed to load credit information");
     } finally {
       setLoading(false);
