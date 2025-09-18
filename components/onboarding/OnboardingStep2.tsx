@@ -74,7 +74,7 @@ export default function OnboardingStep2({
     <div>
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold text-white mb-2">
-          What brings you toLeadsnipper?
+          What brings you to Leadsnipper?
         </h2>
         <p className="text-gray-300">
           Understanding your goals helps us provide the best experience and

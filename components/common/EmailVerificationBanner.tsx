@@ -70,7 +70,7 @@ const EmailVerificationBanner: React.FC<EmailVerificationBannerProps> = ({
           </div>
 
           <p className="text-gray-600 mb-6">
-            Please verify your email address to access all Leadsnipperfeatures
+            Please verify your email address to access all Leadsnipper features
             and receive your welcome credits.
           </p>
 

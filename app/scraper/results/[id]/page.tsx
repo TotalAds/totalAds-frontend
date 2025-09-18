@@ -68,8 +68,8 @@ export default function ScraperResultPage() {
     try {
       if (navigator.share) {
         await navigator.share({
-          title: `LeadsnipperScrape Result for ${result.data.url}`,
-          text: `Check out this website scrape result fromLeadsnipper`,
+          title: `Leadsnipper Scrape Result for ${result.data.url}`,
+          text: `Check out this website scrape result from Leadsnipper`,
           url: window.location.href,
         });
       } else {

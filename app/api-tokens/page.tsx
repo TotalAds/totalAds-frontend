@@ -417,8 +417,8 @@ export default function ApiTokensPage() {
                     No API Tokens Yet
                   </h3>
                   <p className="text-gray-300 mb-8 leading-relaxed">
-                    Create your first API token to start accessing
-                    theLeadsnipper scraper API. Tokens allow you to authenticate
+                    Create your first API token to start accessing the
+                    Leadsnipper scraper API. Tokens allow you to authenticate
                     your applications and track usage.
                   </p>
                   <button

@@ -180,7 +180,7 @@ export default function OnboardingContainer() {
             </div>
           </div>
           <h1 className="text-4xl font-bold text-white mb-2">
-            Welcome toLeadsnipper
+            Welcome to Leadsnipper
           </h1>
           <p className="text-gray-300 text-lg">
             Let&apos;s get you set up in just a few steps
