@@ -180,7 +180,7 @@ export default function OnboardingContainer() {
             </div>
           </div>
           <h1 className="text-4xl font-bold text-white mb-2">
-            Welcome to TotalAds
+            Welcome toLeadsnipper
           </h1>
           <p className="text-gray-300 text-lg">
             Let&apos;s get you set up in just a few steps
@@ -228,10 +228,10 @@ export default function OnboardingContainer() {
           <p className="text-gray-400 text-sm">
             Need help? Contact our support team at{" "}
             <a
-              href="mailto:support@totalads.com"
+              href="mailto:hello@leadsnipper.com"
               className="text-purple-400 hover:text-purple-300"
             >
-              support@totalads.com
+              hello@leadsnipper.com
             </a>
           </p>
         </div>

@@ -1,16 +1,28 @@
 "use client";
 
-import { useRouter } from 'next/navigation';
-import React, { useCallback, useEffect, useState } from 'react';
-import toast from 'react-hot-toast';
+import { useRouter } from "next/navigation";
+import React, { useCallback, useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
-import { useAuthContext } from '@/context/AuthContext';
-import apiClient from '@/utils/api/apiClient';
-import { ApiToken, createToken, deleteToken, listTokens } from '@/utils/api/tokenClient';
+import { useAuthContext } from "@/context/AuthContext";
+import apiClient from "@/utils/api/apiClient";
 import {
-    IconActivity, IconCalendar, IconCheck, IconCopy, IconKey, IconPlus, IconShieldCheck, IconTrash,
-    IconX
-} from '@tabler/icons-react';
+  ApiToken,
+  createToken,
+  deleteToken,
+  listTokens,
+} from "@/utils/api/tokenClient";
+import {
+  IconActivity,
+  IconCalendar,
+  IconCheck,
+  IconCopy,
+  IconKey,
+  IconPlus,
+  IconShieldCheck,
+  IconTrash,
+  IconX,
+} from "@tabler/icons-react";
 
 export default function ApiTokensPage() {
   const { state } = useAuthContext();
@@ -271,7 +283,7 @@ export default function ApiTokensPage() {
           <div>
             <h1 className="text-4xl font-bold text-white mb-4">API Tokens</h1>
             <p className="text-gray-300 text-lg">
-              Manage your API tokens to access the TotalAds scraper API.
+              Manage your API tokens to access the Leadsnipperscraper API.
             </p>
           </div>
           <button
@@ -405,9 +417,9 @@ export default function ApiTokensPage() {
                     No API Tokens Yet
                   </h3>
                   <p className="text-gray-300 mb-8 leading-relaxed">
-                    Create your first API token to start accessing the TotalAds
-                    scraper API. Tokens allow you to authenticate your
-                    applications and track usage.
+                    Create your first API token to start accessing
+                    theLeadsnipper scraper API. Tokens allow you to authenticate
+                    your applications and track usage.
                   </p>
                   <button
                     onClick={() => setShowCreateForm(true)}

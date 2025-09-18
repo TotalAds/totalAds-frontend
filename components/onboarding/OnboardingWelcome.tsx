@@ -58,7 +58,7 @@ export default function OnboardingWelcome({
           You&apos;re all set!
         </h2>
         <p className="text-gray-300 text-lg">
-          Welcome to TotalAds,{" "}
+          Welcome toLeadsnipper,{" "}
           {step1Data?.company ? `${step1Data.company} team` : "there"}!
         </p>
       </div>
@@ -111,7 +111,7 @@ export default function OnboardingWelcome({
       {/* Features showcase */}
       <div className="mb-8">
         <h3 className="text-lg font-semibold text-white mb-4 text-center">
-          What you can do with TotalAds
+          What you can do withLeadsnipper
         </h3>
         <div className="grid grid-cols-1 gap-4">
           {features.map((feature, index) => (

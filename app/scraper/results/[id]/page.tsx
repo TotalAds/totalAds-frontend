@@ -1,11 +1,16 @@
 "use client";
 
-import { useParams, useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import { useParams, useRouter } from "next/navigation";
+import React, { useEffect, useState } from "react";
 
-import { ScrapeResult } from '@/components/scraper/utils/scraperTypes';
-import { getScrapeJobDetails } from '@/utils/api/scraperClient';
-import { IconArrowLeft, IconDownload, IconExternalLink, IconShare } from '@tabler/icons-react';
+import { ScrapeResult } from "@/components/scraper/utils/scraperTypes";
+import { getScrapeJobDetails } from "@/utils/api/scraperClient";
+import {
+  IconArrowLeft,
+  IconDownload,
+  IconExternalLink,
+  IconShare,
+} from "@tabler/icons-react";
 
 export default function ScraperResultPage() {
   const params = useParams();
@@ -63,8 +68,8 @@ export default function ScraperResultPage() {
     try {
       if (navigator.share) {
         await navigator.share({
-          title: `TotalAds Scrape Result for ${result.data.url}`,
-          text: `Check out this website scrape result from TotalAds`,
+          title: `LeadsnipperScrape Result for ${result.data.url}`,
+          text: `Check out this website scrape result fromLeadsnipper`,
           url: window.location.href,
         });
       } else {

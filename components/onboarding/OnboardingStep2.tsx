@@ -1,9 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { IconTarget, IconBulb, IconSpeakerphone } from "@tabler/icons-react";
 
-import { OnboardingOptions, OnboardingStep2Data } from "@/utils/api/onboardingClient";
+import {
+  OnboardingOptions,
+  OnboardingStep2Data,
+} from "@/utils/api/onboardingClient";
+import { IconBulb, IconSpeakerphone, IconTarget } from "@tabler/icons-react";
 
 interface OnboardingStep2Props {
   options: OnboardingOptions;
@@ -56,11 +59,14 @@ export default function OnboardingStep2({
     }
   };
 
-  const handleInputChange = (field: keyof OnboardingStep2Data, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleInputChange = (
+    field: keyof OnboardingStep2Data,
+    value: string
+  ) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
     // Clear error when user starts typing
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: "" }));
+      setErrors((prev) => ({ ...prev, [field]: "" }));
     }
   };
 
@@ -68,10 +74,11 @@ export default function OnboardingStep2({
     <div>
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold text-white mb-2">
-          What brings you to TotalAds?
+          What brings you toLeadsnipper?
         </h2>
         <p className="text-gray-300">
-          Understanding your goals helps us provide the best experience and recommendations
+          Understanding your goals helps us provide the best experience and
+          recommendations
         </p>
       </div>
 
@@ -88,7 +95,9 @@ export default function OnboardingStep2({
             disabled={isLoading}
             className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm"
           >
-            <option value="" className="bg-gray-800">Select your primary use case</option>
+            <option value="" className="bg-gray-800">
+              Select your primary use case
+            </option>
             {options.useCases.map((useCase) => (
               <option key={useCase} value={useCase} className="bg-gray-800">
                 {useCase}
@@ -136,7 +145,9 @@ export default function OnboardingStep2({
             disabled={isLoading}
             className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm"
           >
-            <option value="" className="bg-gray-800">Select how you found us</option>
+            <option value="" className="bg-gray-800">
+              Select how you found us
+            </option>
             {options.hearAboutUsOptions.map((option) => (
               <option key={option} value={option} className="bg-gray-800">
                 {option}
@@ -156,8 +167,18 @@ export default function OnboardingStep2({
             disabled={isLoading}
             className="px-6 py-3 text-gray-300 hover:text-white transition-colors duration-200 disabled:opacity-50 flex items-center"
           >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            <svg
+              className="w-4 h-4 mr-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
             </svg>
             Back
           </button>
@@ -169,9 +190,25 @@ export default function OnboardingStep2({
           >
             {isLoading ? (
               <span className="flex items-center">
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <svg
+                  className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
                 </svg>
                 Saving...
               </span>
