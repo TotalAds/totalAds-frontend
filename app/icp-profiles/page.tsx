@@ -1,20 +1,37 @@
 "use client";
 
-import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import { useRouter } from "next/navigation";
+import React, { useEffect, useState } from "react";
 
-import ICPProfileForm from '@/components/icp/ICPProfileForm';
-import OnboardingProtectedLayout from '@/components/layout/OnboardingProtectedLayout';
-import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { useAuthContext } from '@/context/AuthContext';
+import ICPProfileForm from "@/components/icp/ICPProfileForm";
+import OnboardingProtectedLayout from "@/components/layout/OnboardingProtectedLayout";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { useAuthContext } from "@/context/AuthContext";
 import {
-    activateICPProfile, createICPProfile, CreateICPProfileRequest, deactivateICPProfile,
-    deleteICPProfile, getICPProfiles, ICPProfile, updateICPProfile
-} from '@/utils/api';
+  activateICPProfile,
+  createICPProfile,
+  CreateICPProfileRequest,
+  deactivateICPProfile,
+  deleteICPProfile,
+  getICPProfiles,
+  ICPProfile,
+  updateICPProfile,
+} from "@/utils/api";
 import {
-    IconClock, IconCopy, IconEdit, IconExternalLink, IconEye, IconPlus, IconTarget, IconToggleLeft,
-    IconToggleRight, IconTrash, IconTrendingUp, IconUsers, IconX
-} from '@tabler/icons-react';
+  IconClock,
+  IconCopy,
+  IconEdit,
+  IconExternalLink,
+  IconEye,
+  IconPlus,
+  IconTarget,
+  IconToggleLeft,
+  IconToggleRight,
+  IconTrash,
+  IconTrendingUp,
+  IconUsers,
+  IconX,
+} from "@tabler/icons-react";
 
 interface ICPProfilesPageState {
   profiles: ICPProfile[];
@@ -136,20 +153,36 @@ export default function ICPProfilesPage() {
     try {
       setPageState((prev) => ({ ...prev, actionLoading: true }));
 
-      let updatedProfile: ICPProfile;
-      if (profile.status === "active") {
-        updatedProfile = await deactivateICPProfile(profile.id);
-        showToast("ICP profile deactivated successfully!");
-      } else {
-        updatedProfile = await activateICPProfile(profile.id);
-        showToast("ICP profile activated successfully!");
-      }
+      // Call API and get the updated profile from server
+      const updatedProfile: ICPProfile =
+        profile.status === "active"
+          ? await deactivateICPProfile(profile.id)
+          : await activateICPProfile(profile.id);
 
+      showToast(
+        profile.status === "active"
+          ? "ICP profile deactivated successfully!"
+          : "ICP profile activated successfully!"
+      );
+
+      // Update the specific card immediately for snappy UI
       setPageState((prev) => ({
         ...prev,
         profiles: prev.profiles.map((p) =>
           p.id === profile.id ? updatedProfile : p
         ),
+      }));
+
+      // Always refetch to ensure the list is in full sync with server
+      await fetchProfiles();
+
+      // If the currently viewed/edited profile was toggled, sync it too
+      setPageState((prev) => ({
+        ...prev,
+        selectedProfile:
+          prev.selectedProfile && prev.selectedProfile.id === profile.id
+            ? updatedProfile
+            : prev.selectedProfile,
         actionLoading: false,
       }));
     } catch (error) {
