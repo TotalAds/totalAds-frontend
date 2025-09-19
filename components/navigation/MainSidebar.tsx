@@ -1,17 +1,24 @@
 "use client";
 
-import { AnimatePresence, motion } from 'framer-motion';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import React, { useState } from 'react';
+import { AnimatePresence, motion } from "framer-motion";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import React, { useState } from "react";
 
-import { cn } from '@/utils/cn';
+import { cn } from "@/utils/cn";
 import {
-    IconBook, IconBrain, IconChartBar, IconChevronDown, IconChevronLeft, IconCreditCard,
-    IconDashboard, IconHistory, IconKey, IconSparkles, IconTarget, IconUser, IconWorldWww, IconX
-} from '@tabler/icons-react';
+  IconBook,
+  IconChevronDown,
+  IconChevronLeft,
+  IconDashboard,
+  IconKey,
+  IconSparkles,
+  IconTarget,
+  IconWorldWww,
+  IconX,
+} from "@tabler/icons-react";
 
-import GetLogo from '../common/getLogo';
+import GetLogo from "../common/getLogo";
 
 interface NavItem {
   name: string;
@@ -59,31 +66,15 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
       icon: <IconTarget className="w-5 h-5" />,
       isNew: true,
     },
-
     {
       name: "API Tokens",
       href: "/api-tokens",
       icon: <IconKey className="w-5 h-5" />,
     },
     {
-      name: "History",
-      href: "/scraper/history",
-      icon: <IconHistory className="w-5 h-5" />,
-    },
-    {
-      name: "Billing",
-      href: "/billing",
-      icon: <IconCreditCard className="w-5 h-5" />,
-    },
-    {
       name: "Docs",
       href: "/docs",
       icon: <IconBook className="w-5 h-5" />,
-    },
-    {
-      name: "Profile",
-      href: "/profile",
-      icon: <IconUser className="w-5 h-5" />,
     },
   ];
 
@@ -350,7 +341,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
           {/* Footer */}
           <div className="px-4 py-4 border-t border-white/10 mt-auto">
             <div className="flex items-center justify-between text-xs text-gray-400">
-              <span>© 2024 LeadSnipper</span>
+              <span>© 2025 LeadSnipper</span>
               <span className="flex items-center space-x-1">
                 <span>v1.0.0</span>
                 <IconSparkles className="w-3 h-3 text-yellow-400" />

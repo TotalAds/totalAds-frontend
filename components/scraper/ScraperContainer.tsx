@@ -131,6 +131,7 @@ const ScraperContainer = () => {
               Sales Intelligence Engine
             </p>
           </div>
+
           <div className="flex items-center space-x-4">
             <Link
               href="/scraper/history"

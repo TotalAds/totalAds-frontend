@@ -1,12 +1,14 @@
 "use client";
 
-import axios, { AxiosError } from 'axios';
+import axios, { AxiosError } from "axios";
 
 import {
-    ScrapeHistoryItem, ScrapeResult, ScraperHealth
-} from '@/components/scraper/utils/scraperTypes';
+  ScrapeHistoryItem,
+  ScrapeResult,
+  ScraperHealth,
+} from "@/components/scraper/utils/scraperTypes";
 
-import apiClient from './apiClient';
+import apiClient from "./apiClient";
 
 /**
  * API client for scraper service
@@ -344,21 +346,5 @@ export const cancelScrapeJob = async (
     return response.data;
   } catch (error: unknown) {
     return handleApiError(error, `Failed to cancel scrape job: ${jobId}`);
-  }
-};
-
-/**
- * Get details of a specific scrape job
- * @param jobId - ID of the scrape job
- * @returns Promise with the scrape job details
- */
-export const getScrapeJobDetails = async (
-  jobId: string
-): Promise<ScrapeResult> => {
-  try {
-    const response = await apiClient.get(`/frontend/scraper/job/${jobId}`);
-    return response.data;
-  } catch (error: unknown) {
-    return handleApiError(error, `Failed to get scrape job details: ${jobId}`);
   }
 };

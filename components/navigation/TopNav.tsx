@@ -56,7 +56,7 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
                 )}
               </button>
             )}
-            <Link href="/" className="flex items-center group">
+            <Link href="/dashboard" className="flex items-center group">
               <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl mr-3 group-hover:scale-110 transition-transform duration-200">
                 <GetLogo className="h-6 w-6 text-white" />
               </div>
@@ -98,6 +98,14 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
                         onClick={() => setIsUserMenuOpen(false)}
                       >
                         Your Profile
+                      </Link>
+                      <Link
+                        href="/billing"
+                        className="block px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+                        role="menuitem"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        Billing
                       </Link>
 
                       <button

@@ -1,7 +1,6 @@
 "use client";
 
 import { format, formatDistanceToNow } from "date-fns";
-import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { useAuthContext } from "@/context/AuthContext";
@@ -35,7 +34,6 @@ const ScrapeHistory: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
-  const router = useRouter();
   const { state } = useAuthContext();
   const { isAuthenticated } = state;
 
@@ -190,10 +188,6 @@ const ScrapeHistory: React.FC = () => {
     } finally {
       setCancelingJobId(null);
     }
-  };
-
-  const handleViewResult = (jobId: string) => {
-    router.push(`/scraper/results/${jobId}`);
   };
 
   const getStatusBadge = (status: string) => {
@@ -572,13 +566,9 @@ const ScrapeHistory: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-3">
                         {item.status === "completed" && (
-                          <button
-                            onClick={() => handleViewResult(item.id)}
-                            className="p-2 text-blue-300 hover:text-blue-200 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-lg transition-all duration-200 backdrop-blur-sm"
-                            title="View Result"
-                          >
-                            <IconEye className="w-4 h-4" />
-                          </button>
+                          <span className="text-green-300 text-sm font-medium">
+                            ✓ Completed
+                          </span>
                         )}
                         {item.status === "processing" && (
                           <button

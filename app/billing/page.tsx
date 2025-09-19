@@ -1,55 +1,22 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
-import EmailVerificationBanner from "@/components/common/EmailVerificationBanner";
 import { useAuthContext } from "@/context/AuthContext";
-import apiClient from "@/utils/api/apiClient";
-import { createPaymentIntent, getBillingInfo } from "@/utils/api/billingClient";
-import { getUsageStats } from "@/utils/api/usageClient";
-
 import {
-  CreditBalanceSection,
-  CurrentPlanCard,
-  PaymentModal,
-  UsageStatsCard,
-} from "./_components";
-
-interface BillingData {
-  totalCalls: number;
-  freeCalls: number;
-  billableCalls: number;
-  rate: number;
-  totalAmount: number;
-  month: string;
-}
-
-interface UsageData {
-  daily: any[];
-  monthly: number;
-  creditsRemaining?: number | null;
-}
+  IconCalendar,
+  IconCreditCard,
+  IconCurrency,
+  IconTrendingUp,
+} from "@tabler/icons-react";
 
 export default function Billing() {
   const { state } = useAuthContext();
   const { isAuthenticated, isLoading, user } = state;
   const router = useRouter();
-  const [billingData, setBillingData] = useState<BillingData | null>(null);
-  const [usageData, setUsageData] = useState<UsageData | null>(null);
-  const [creditsBalance, setCreditsBalance] = useState<number | null>(null);
+  const [credits, setCredits] = useState(15);
   const [loading, setLoading] = useState(true);
-
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [creditRefreshKey, setCreditRefreshKey] = useState(0);
-  const [serverPlan, setServerPlan] = useState<"free" | "starter" | "pro">(
-    "free"
-  );
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -57,158 +24,23 @@ export default function Billing() {
     }
   }, [isAuthenticated, isLoading, router]);
 
-  const fetchBillingData = useCallback(async () => {
-    if (!isAuthenticated) return;
-
-    try {
-      setLoading(true);
-
-      // Fetch billing, usage and credit balance in parallel
-      const [billingResult, usageResult, balanceResponse] = await Promise.all([
-        getBillingInfo(),
-        getUsageStats("monthly"),
-        apiClient.get("/credits/balance"),
-      ]);
-
-      // billingResult may be { success, data } shape; normalize
-      const billing = (billingResult as any)?.data || billingResult;
-      setBillingData({
-        totalCalls: usageResult.stats?.totalRequests || 0,
-        freeCalls: Math.min(20, usageResult.stats?.totalRequests || 0),
-        billableCalls: Math.max(
-          0,
-          (usageResult.stats?.totalRequests || 0) - 20
-        ),
-        rate: 0.01, // Default rate
-        totalAmount: billing?.totalSpent || 0,
-        month: new Date().toLocaleDateString("en-US", {
-          month: "long",
-          year: "numeric",
-        }),
-      });
-
-      setUsageData({
-        daily: usageResult.daily || [],
-        monthly: usageResult.stats?.totalRequests || 0,
-        creditsRemaining: usageResult.stats?.creditsRemaining ?? null,
-      });
-
-      // Normalize credits balance from payload across shapes; coerce to number
-      const extractNumber = (v: any): number | null => {
-        const n = Number(v);
-        return Number.isFinite(n) ? n : null;
-      };
-
-      const bData = balanceResponse?.data ?? {};
-      const p = bData?.payload ?? {};
-      const candidates = [
-        p?.data?.currentBalance,
-        p?.currentBalance,
-        bData?.data?.currentBalance,
-        bData?.currentBalance,
-      ];
-      const found = candidates.map(extractNumber).find((n) => n !== null);
-      if (found !== undefined && found !== null) {
-        setCreditsBalance(found);
-      }
-
-      if (billing?.subscriptionStatus) {
-        const s = String(billing.subscriptionStatus).toLowerCase();
-        setServerPlan(
-          s === "pro" ? "pro" : s === "starter" ? "starter" : "free"
-        );
-      }
-    } catch (error) {
-      console.error("Error fetching billing data:", error);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Mock data - replace with real API call
+      setTimeout(() => {
+        setCredits(15);
+        setLoading(false);
+      }, 1000);
     }
   }, [isAuthenticated]);
-
-  useEffect(() => {
-    fetchBillingData();
-  }, [isAuthenticated, fetchBillingData]);
-
-  const currentPlan = serverPlan;
-
-  // Prefer balance API (used by CreditBalance) and fallback to usage stats
-  const creditsRemaining =
-    creditsBalance ?? usageData?.creditsRemaining ?? null;
-
-  // Fallback for monthly if usageData missing
-  const usageResultFallback = (b: BillingData | null): number => {
-    return b?.totalCalls ?? 0;
-  };
-
-  const handleUpgradeToPro = async () => {
-    // Open the credit purchase modal to allow users to buy credits
-    // This effectively "upgrades" them to pro tier by giving them credits to use
-    setShowPaymentModal(true);
-    setMessage({
-      type: "success",
-      text: "Purchase credits to unlock unlimited API calls! Each credit allows you to make API requests beyond the free tier.",
-    });
-  };
-
-  const handlePayNow = async () => {
-    if (!billingData || billingData.totalAmount <= 0) return;
-
-    setPaymentLoading(true);
-    setMessage(null);
-
-    try {
-      // Create payment intent
-      const paymentIntent = await createPaymentIntent(
-        "default-package", // You may need to adjust this based on your package system
-        Math.round(billingData.totalAmount * 100) // Convert to cents
-      );
-
-      if (paymentIntent) {
-        // In a real implementation, you would redirect to Stripe Checkout
-        // or use Stripe Elements for payment
-        setMessage({
-          type: "success",
-          text: "Payment processing initiated. You will be redirected to complete payment.",
-        });
-      } else {
-        throw new Error("Failed to create payment intent");
-      }
-    } catch (error) {
-      setMessage({
-        type: "error",
-        text: "Failed to process payment. Please try again.",
-      });
-    } finally {
-      setPaymentLoading(false);
-    }
-  };
-
-  const handlePaymentSuccess = () => {
-    setShowPaymentModal(false);
-    setCreditRefreshKey((prev) => prev + 1);
-    setMessage({
-      type: "success",
-      text: `Payment successful! Your credit balance has been updated.`,
-    });
-    // Refresh billing data
-    fetchBillingData();
-  };
-
-  const handlePaymentError = (error: string) => {
-    setMessage({
-      type: "error",
-      text: error || "Payment failed. Please try again.",
-    });
-  };
-
-  const handlePurchaseCredits = () => {
-    setShowPaymentModal(true);
-  };
 
   if (isLoading || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-500"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <h3 className="text-xl font-semibold text-white mb-2">Loading...</h3>
+        </div>
       </div>
     );
   }
@@ -219,75 +51,100 @@ export default function Billing() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative">
-      {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-pulse"></div>
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-pulse"></div>
-        <div className="absolute top-40 left-40 w-80 h-80 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-pulse"></div>
       </div>
 
-      <div className="relative z-10 container mx-auto px-4 py-8">
+      <div className="relative z-10 container mx-auto px-4 py-8 max-w-4xl">
         {/* Header */}
-        <div className="mb-12">
-          <h1 className="text-4xl font-bold text-white mb-2">Billing</h1>
-          <p className="text-gray-300">
-            See your credits, plan, and usage at a glance.
+        <div className="text-center mb-12">
+          <h1 className="text-5xl font-bold text-white mb-4">Billing 💳</h1>
+          <p className="text-xl text-gray-300 mb-8">
+            Manage your credits and usage
           </p>
         </div>
 
-        {/* Email Verification Banner */}
-        {user && !user.emailVerified && <EmailVerificationBanner />}
-
-        {/* Message */}
-        {message && (
-          <div
-            className={`mb-6 p-4 rounded-xl border ${
-              message.type === "success"
-                ? "bg-green-500/20 border-green-500/30 text-green-200"
-                : "bg-red-500/20 border-red-500/30 text-red-200"
-            }`}
-          >
-            {message.text}
+        {/* Current Plan */}
+        <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 mb-8">
+          <div className="flex items-center gap-3 mb-6">
+            <IconCreditCard className="w-8 h-8 text-purple-400" />
+            <h2 className="text-3xl font-bold text-white">Current Plan</h2>
           </div>
-        )}
-
-        {/* Credit Balance Section */}
-
-        {/* Payment History */}
-        {/* <div className="mb-8">
-          <div className="bg-white/5 backdrop-blur rounded-xl p-4 border border-white/10">
-            <PaymentHistorySection />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <IconTrendingUp className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Free Plan</h3>
+              <p className="text-gray-300">Perfect for getting started</p>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <IconCurrency className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">{credits} Credits</h3>
+              <p className="text-gray-300">Remaining this month</p>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <IconCalendar className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Resets Monthly</h3>
+              <p className="text-gray-300">On the 1st of each month</p>
+            </div>
           </div>
-        </div> */}
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <CreditBalanceSection
-            refreshKey={creditRefreshKey}
-            onPurchase={handlePurchaseCredits}
-            onRefresh={() => setCreditRefreshKey((prev) => prev + 1)}
-          />
-          <CurrentPlanCard
-            currentPlan={currentPlan as "free" | "starter" | "pro"}
-            onUpgrade={handleUpgradeToPro}
-          />
         </div>
 
-        <div className="mb-8">
-          <UsageStatsCard
-            monthly={usageData?.monthly || usageResultFallback(billingData)}
-            plan={currentPlan as "free" | "starter" | "pro"}
-            creditsRemaining={creditsRemaining}
-          />
+        {/* Usage This Month */}
+        <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 mb-8">
+          <h3 className="text-2xl font-bold text-white mb-6">Usage This Month</h3>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-300">API Calls Made</span>
+              <span className="text-white font-semibold">5 / 20</span>
+            </div>
+            <div className="w-full bg-gray-700 rounded-full h-3">
+              <div className="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full" style={{ width: '25%' }}></div>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-400">25% used</span>
+              <span className="text-gray-400">15 credits remaining</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Upgrade Options */}
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8">
+          <h3 className="text-2xl font-bold text-white mb-6">Need More Credits?</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white/10 rounded-2xl p-6 border border-white/20">
+              <h4 className="text-xl font-bold text-white mb-3">Pro Plan</h4>
+              <p className="text-gray-300 mb-4">Pay-per-call billing</p>
+              <ul className="space-y-2 text-gray-300 mb-6">
+                <li>• $0.10 per API call</li>
+                <li>• No monthly limits</li>
+                <li>• Priority support</li>
+              </ul>
+              <button className="w-full px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:from-purple-600 hover:to-pink-600 transition-all duration-200">
+                Upgrade to Pro
+              </button>
+            </div>
+            <div className="bg-white/10 rounded-2xl p-6 border border-white/20">
+              <h4 className="text-xl font-bold text-white mb-3">Enterprise</h4>
+              <p className="text-gray-300 mb-4">Custom solutions</p>
+              <ul className="space-y-2 text-gray-300 mb-6">
+                <li>• Custom pricing</li>
+                <li>• Dedicated support</li>
+                <li>• SLA guarantees</li>
+              </ul>
+              <button className="w-full px-6 py-3 bg-white/10 border border-white/20 text-white rounded-xl hover:bg-white/20 transition-all duration-200">
+                Contact Sales
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-
-      {/* Payment Modal */}
-      <PaymentModal
-        open={showPaymentModal}
-        onClose={() => setShowPaymentModal(false)}
-        onSuccess={handlePaymentSuccess}
-        onError={handlePaymentError}
-      />
     </div>
   );
 }

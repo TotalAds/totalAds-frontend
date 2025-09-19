@@ -183,7 +183,7 @@ const ScraperForm: React.FC<ScraperFormProps> = ({
                       value={profile.id}
                       className="bg-gray-800"
                     >
-                      {profile.name} (Min Score: {profile.minimumScore}%)
+                      {profile.name}
                     </option>
                   ))}
                 </select>
