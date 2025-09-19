@@ -12,6 +12,7 @@ interface ScraperFormProps {
   isLoading: boolean;
   onReset?: () => void;
   preselectedIcpProfileId?: string | null;
+  prefilledUrl?: string | null;
 }
 
 const ScraperForm: React.FC<ScraperFormProps> = ({
@@ -19,6 +20,7 @@ const ScraperForm: React.FC<ScraperFormProps> = ({
   isLoading,
   onReset,
   preselectedIcpProfileId,
+  prefilledUrl,
 }) => {
   const [url, setUrl] = useState<string>("");
   const [selectedICPProfile, setSelectedICPProfile] = useState<string>("");
@@ -26,10 +28,18 @@ const ScraperForm: React.FC<ScraperFormProps> = ({
   const [urlError, setUrlError] = useState<string | null>(null);
   const [icpError, setICPError] = useState<string | null>(null);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     fetchICPProfiles();
   }, []);
+
+  // Prefill URL if provided via query string
+  useEffect(() => {
+    if (prefilledUrl) {
+      setUrl(prefilledUrl);
+    }
+  }, [prefilledUrl]);
 
   // Set preselected ICP profile ID when provided
   useEffect(() => {
@@ -43,7 +53,8 @@ const ScraperForm: React.FC<ScraperFormProps> = ({
       setLoadingProfiles(true);
       const response = await getICPProfiles("active");
       setICPProfiles(response.profiles);
-      if (response.profiles.length > 0) {
+      // Auto-select when exactly one profile exists; otherwise let user choose in Advanced
+      if (response.profiles.length === 1) {
         setSelectedICPProfile(response.profiles[0].id);
       }
     } catch (error) {
@@ -77,12 +88,7 @@ const ScraperForm: React.FC<ScraperFormProps> = ({
       return;
     }
 
-    // Check if ICP profile is selected
-    if (!selectedICPProfile) {
-      setICPError("Please select an ICP profile");
-      return;
-    }
-
+    // ICP selection is optional now
     setUrlError(null);
     setICPError(null);
     onSubmit(url, selectedICPProfile);
@@ -121,62 +127,76 @@ const ScraperForm: React.FC<ScraperFormProps> = ({
             </p>
           </div>
 
-          <div className="space-y-2">
-            <label
-              htmlFor="icp-profile"
-              className="text-lg font-medium text-gray-200"
+          {/* Advanced (ICP) toggle */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-400">Optional settings</span>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((s) => !s)}
+              className="text-sm text-purple-300 hover:text-white underline"
             >
-              ICP Profile
-            </label>
-            {loadingProfiles ? (
-              <div className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl text-gray-400 flex items-center">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500 mr-2"></div>
-                Loading ICP profiles...
-              </div>
-            ) : icpProfiles.length === 0 ? (
-              <div className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl text-gray-400">
-                <p>No active ICP profiles found.</p>
-                <p className="text-sm mt-1">
-                  <a
-                    href="/icp-profiles"
-                    className="text-purple-400 hover:text-purple-300 underline"
-                  >
-                    Create an ICP profile
-                  </a>{" "}
-                  to start intelligent lead qualification.
-                </p>
-              </div>
-            ) : (
-              <select
-                id="icp-profile"
-                value={selectedICPProfile}
-                onChange={(e) => {
-                  setSelectedICPProfile(e.target.value);
-                  if (icpError) setICPError(null);
-                }}
-                className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm text-lg"
-                disabled={isLoading}
-              >
-                <option value="">Select an ICP profile...</option>
-                {icpProfiles.map((profile) => (
-                  <option
-                    key={profile.id}
-                    value={profile.id}
-                    className="bg-gray-800"
-                  >
-                    {profile.name} (Min Score: {profile.minimumScore}%)
-                  </option>
-                ))}
-              </select>
-            )}
-            {icpError && (
-              <p className="text-sm text-red-400 mt-2">{icpError}</p>
-            )}
-            <p className="text-sm text-gray-400 mt-2">
-              Select an ICP profile to analyze the company profile against your
-              ideal customer criteria.
-            </p>
+              {showAdvanced ? "Hide Advanced" : "Advanced (choose ICP)"}
+            </button>
           </div>
+
+          {showAdvanced && (
+            <div className="space-y-2">
+              <label
+                htmlFor="icp-profile"
+                className="text-lg font-medium text-gray-200"
+              >
+                ICP Profile
+              </label>
+              {loadingProfiles ? (
+                <div className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl text-gray-400 flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500 mr-2"></div>
+                  Loading ICP profiles...
+                </div>
+              ) : icpProfiles.length === 0 ? (
+                <div className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl text-gray-400">
+                  <p>No active ICP profiles found.</p>
+                  <p className="text-sm mt-1">
+                    <a
+                      href="/icp-profiles"
+                      className="text-purple-400 hover:text-purple-300 underline"
+                    >
+                      Create an ICP profile
+                    </a>{" "}
+                    to start intelligent lead qualification.
+                  </p>
+                </div>
+              ) : (
+                <select
+                  id="icp-profile"
+                  value={selectedICPProfile}
+                  onChange={(e) => {
+                    setSelectedICPProfile(e.target.value);
+                    if (icpError) setICPError(null);
+                  }}
+                  className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm text-lg"
+                  disabled={isLoading}
+                >
+                  <option value="">Select an ICP profile...</option>
+                  {icpProfiles.map((profile) => (
+                    <option
+                      key={profile.id}
+                      value={profile.id}
+                      className="bg-gray-800"
+                    >
+                      {profile.name} (Min Score: {profile.minimumScore}%)
+                    </option>
+                  ))}
+                </select>
+              )}
+              {icpError && (
+                <p className="text-sm text-red-400 mt-2">{icpError}</p>
+              )}
+              <p className="text-sm text-gray-400 mt-2">
+                Select an ICP profile to analyze the company profile against
+                your ideal customer criteria.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -259,6 +279,17 @@ const ScraperForm: React.FC<ScraperFormProps> = ({
           className="py-4 px-6 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all duration-200 border border-white/20 hover:border-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Clear
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            onSubmit("https://semrush.com", selectedICPProfile || "")
+          }
+          disabled={isLoading}
+          className="py-4 px-6 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all duration-200 border border-white/20 hover:border-white/30"
+        >
+          Try a sample
         </button>
       </div>
 

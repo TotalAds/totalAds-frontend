@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 
 import ICPProfileForm from "@/components/icp/ICPProfileForm";
+import ICPTemplateSelector from "@/components/icp/ICPTemplateSelector";
 import OnboardingProtectedLayout from "@/components/layout/OnboardingProtectedLayout";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useAuthContext } from "@/context/AuthContext";
@@ -17,6 +18,7 @@ import {
   ICPProfile,
   updateICPProfile,
 } from "@/utils/api";
+import { ICPTemplate } from "@/utils/icpTemplates";
 import {
   IconClock,
   IconCopy,
@@ -25,6 +27,7 @@ import {
   IconEye,
   IconPlus,
   IconTarget,
+  IconTemplate,
   IconToggleLeft,
   IconToggleRight,
   IconTrash,
@@ -42,6 +45,7 @@ interface ICPProfilesPageState {
   showEditForm: boolean;
   showViewModal: boolean;
   showDeleteConfirm: boolean;
+  showTemplateSelector: boolean;
   profileToDelete: ICPProfile | null;
   formLoading: boolean;
   formError: string | null;
@@ -63,6 +67,7 @@ export default function ICPProfilesPage() {
     showEditForm: false,
     showViewModal: false,
     showDeleteConfirm: false,
+    showTemplateSelector: false,
     profileToDelete: null,
     formLoading: false,
     formError: null,
@@ -200,6 +205,25 @@ export default function ICPProfilesPage() {
     }));
   };
 
+  const handleTemplateSelect = (template: ICPTemplate) => {
+    setPageState((prev) => ({
+      ...prev,
+      selectedProfile: {
+        id: "",
+        name: template.name,
+        description: template.description,
+        status: "draft" as const,
+        fields: template.fields,
+        totalScrapes: 0,
+        successfulMatches: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      showTemplateSelector: false,
+      showCreateForm: true,
+    }));
+  };
+
   const handleFormSubmit = async (data: CreateICPProfileRequest) => {
     try {
       // Set loading state and clear any previous errors
@@ -281,6 +305,7 @@ export default function ICPProfilesPage() {
       showEditForm: false,
       showViewModal: false,
       showDeleteConfirm: false,
+      showTemplateSelector: false,
       selectedProfile: null,
       formLoading: false,
       formError: null,
@@ -381,13 +406,27 @@ export default function ICPProfilesPage() {
                 perfect customers automatically
               </p>
             </div>
-            <button
-              onClick={handleCreateProfile}
-              className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:from-purple-600 hover:to-pink-600 transition-all duration-200 shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transform hover:scale-105"
-            >
-              <IconPlus className="w-5 h-5 mr-2" />
-              Create ICP Profile
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() =>
+                  setPageState((prev) => ({
+                    ...prev,
+                    showTemplateSelector: true,
+                  }))
+                }
+                className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl hover:from-blue-600 hover:to-purple-600 transition-all duration-200 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transform hover:scale-105"
+              >
+                <IconTemplate className="w-5 h-5 mr-2" />
+                Browse Templates
+              </button>
+              <button
+                onClick={handleCreateProfile}
+                className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:from-purple-600 hover:to-pink-600 transition-all duration-200 shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transform hover:scale-105"
+              >
+                <IconPlus className="w-5 h-5 mr-2" />
+                Create Custom
+              </button>
+            </div>
           </div>
 
           {/* Value Proposition Section */}
@@ -610,13 +649,27 @@ export default function ICPProfilesPage() {
                 </div>
               </div>
 
-              <button
-                onClick={handleCreateProfile}
-                className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:from-purple-600 hover:to-pink-600 transition-all duration-200 shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transform hover:scale-105 font-semibold"
-              >
-                <IconPlus className="w-5 h-5 mr-2" />
-                Create Your First ICP Profile
-              </button>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <button
+                  onClick={() =>
+                    setPageState((prev) => ({
+                      ...prev,
+                      showTemplateSelector: true,
+                    }))
+                  }
+                  className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl hover:from-blue-600 hover:to-purple-600 transition-all duration-200 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transform hover:scale-105 font-semibold"
+                >
+                  <IconTemplate className="w-5 h-5 mr-2" />
+                  Browse Templates
+                </button>
+                <button
+                  onClick={handleCreateProfile}
+                  className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:from-purple-600 hover:to-pink-600 transition-all duration-200 shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transform hover:scale-105 font-semibold"
+                >
+                  <IconPlus className="w-5 h-5 mr-2" />
+                  Create Custom
+                </button>
+              </div>
 
               <p className="text-gray-400 text-sm mt-4">
                 ✨ Start with our smart templates or build from scratch
@@ -1007,6 +1060,15 @@ export default function ICPProfilesPage() {
             </div>
           </div>
         )}
+
+        {/* Template Selector Modal */}
+        <ICPTemplateSelector
+          isOpen={pageState.showTemplateSelector}
+          onClose={() =>
+            setPageState((prev) => ({ ...prev, showTemplateSelector: false }))
+          }
+          onSelectTemplate={handleTemplateSelect}
+        />
 
         {/* Toast Notification */}
         {pageState.toastMessage && (

@@ -26,6 +26,8 @@ const ScraperContainer = () => {
   const [preselectedIcpProfileId, setPreselectedIcpProfileId] = useState<
     string | null
   >(null);
+  const [prefillUrl, setPrefillUrl] = useState<string | null>(null);
+  const [autoTriggered, setAutoTriggered] = useState(false);
   const [websiteStatusError, setWebsiteStatusError] =
     useState<WebsiteInactiveError | null>(null);
 
@@ -38,12 +40,12 @@ const ScraperContainer = () => {
     }
   }, [authState.isAuthenticated, authState.isLoading]);
 
-  // Check for preselected ICP profile ID from query params
+  // Read query params for ICP and prefilled URL
   useEffect(() => {
     const icpProfileId = searchParams.get("icpProfileId");
-    if (icpProfileId) {
-      setPreselectedIcpProfileId(icpProfileId);
-    }
+    if (icpProfileId) setPreselectedIcpProfileId(icpProfileId);
+    const u = searchParams.get("url");
+    if (u) setPrefillUrl(u);
   }, [searchParams]);
 
   // Detect website inactive errors
@@ -95,6 +97,19 @@ const ScraperContainer = () => {
     resetResult();
     setWebsiteStatusError(null);
   };
+
+  // Auto-submit when URL is provided via query and user is authenticated
+  useEffect(() => {
+    if (!autoTriggered && prefillUrl && authState.isAuthenticated) {
+      handleScrapeSubmit(prefillUrl, preselectedIcpProfileId || "");
+      setAutoTriggered(true);
+    }
+  }, [
+    prefillUrl,
+    authState.isAuthenticated,
+    preselectedIcpProfileId,
+    autoTriggered,
+  ]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative">
@@ -195,6 +210,7 @@ const ScraperContainer = () => {
             isLoading={isLoading}
             onReset={handleReset}
             preselectedIcpProfileId={preselectedIcpProfileId}
+            prefilledUrl={prefillUrl}
           />
         </div>
 

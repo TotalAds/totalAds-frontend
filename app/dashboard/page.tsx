@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 
 import EmailVerificationBanner from "@/components/common/EmailVerificationBanner";
+import QuickStart from "@/components/common/QuickStart";
 import OnboardingBanner from "@/components/dashboard/OnboardingBanner";
 import OnboardingProtectedLayout from "@/components/layout/OnboardingProtectedLayout";
 import { useAuthContext } from "@/context/AuthContext";
@@ -19,7 +20,6 @@ import {
   IconKey,
   IconPlus,
   IconRocket,
-  IconShield,
 } from "@tabler/icons-react";
 
 interface DashboardStats {
@@ -185,6 +185,9 @@ export default function Dashboard() {
           {!onboardingStatus.isLoading && !onboardingStatus.isCompleted && (
             <OnboardingBanner />
           )}
+
+          {/* Quick Start */}
+          <QuickStart className="mb-12" />
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">

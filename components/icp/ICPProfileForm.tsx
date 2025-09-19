@@ -1,16 +1,24 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/lib/utils';
-import { CreateICPProfileRequest, getICPProfiles } from '@/utils/api';
-import { IconAlertCircle, IconPlus, IconTrash, IconX } from '@tabler/icons-react';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import { CreateICPProfileRequest, getICPProfiles } from "@/utils/api";
+import { ICPTemplate } from "@/utils/icpTemplates";
+import {
+  IconAlertCircle,
+  IconPlus,
+  IconTemplate,
+  IconTrash,
+  IconX,
+} from "@tabler/icons-react";
 
-import { ICPField, ICPProfileFormProps } from './types';
+import ICPTemplateSelector from "./ICPTemplateSelector";
+import { ICPField, ICPProfileFormProps } from "./types";
 
 export default function ICPProfileForm({
   isOpen,
@@ -34,6 +42,8 @@ export default function ICPProfileForm({
     name?: string;
     fields?: string;
   }>({});
+
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
 
   // Sync local form state when modal opens or when initialData changes
   useEffect(() => {
@@ -135,6 +145,15 @@ export default function ICPProfileForm({
     setFields(updatedFields);
   };
 
+  const handleTemplateSelect = (template: ICPTemplate) => {
+    setFormData({
+      name: template.name,
+      description: template.description,
+    });
+    setFields(template.fields);
+    setErrors({});
+  };
+
   if (!isOpen) {
     return null;
   }
@@ -181,6 +200,29 @@ export default function ICPProfileForm({
                 </div>
               </div>
             )}
+
+            {/* Template Selector */}
+            <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl border border-purple-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-1">
+                    Start with a Template
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Choose from pre-built ICP templates to get started quickly
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowTemplateSelector(true)}
+                  className="flex items-center gap-2"
+                >
+                  <IconTemplate className="w-4 h-4" />
+                  Browse Templates
+                </Button>
+              </div>
+            </div>
 
             {/* Basic Information */}
             <div className="space-y-6">
@@ -342,6 +384,13 @@ export default function ICPProfileForm({
           </div>
         </form>
       </div>
+
+      {/* Template Selector Modal */}
+      <ICPTemplateSelector
+        isOpen={showTemplateSelector}
+        onClose={() => setShowTemplateSelector(false)}
+        onSelectTemplate={handleTemplateSelect}
+      />
     </div>
   );
 }

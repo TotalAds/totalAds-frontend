@@ -2,15 +2,19 @@
 
 import Link from "next/link";
 
+import QuickStart from "@/components/common/QuickStart";
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6 text-white">
       <div className="max-w-3xl mx-auto space-y-6">
         <h1 className="text-3xl font-bold">Welcome</h1>
         <p className="text-gray-300">
-          Use the Sales Intelligence scraper, then view the Landing Page JSON
-          for immediate integration.
+          Paste a URL and go. Advanced options are optional.
         </p>
+
+        <QuickStart />
+
         <div className="flex gap-3">
           <Link
             href="/scraper"
