@@ -1,14 +1,12 @@
 "use client";
 
-import axios, { AxiosError } from "axios";
+import axios, { AxiosError } from 'axios';
 
 import {
-  ScrapeHistoryItem,
-  ScrapeResult,
-  ScraperHealth,
-} from "@/components/scraper/utils/scraperTypes";
+    ScrapeHistoryItem, ScrapeResult, ScraperHealth
+} from '@/components/scraper/utils/scraperTypes';
 
-import apiClient from "./apiClient";
+import apiClient from './apiClient';
 
 /**
  * API client for scraper service
@@ -214,32 +212,6 @@ const normalizeScrapeResponseDeep = (responseData: any): ScrapeResult => {
     data: candidate as ScrapeResult["data"],
     meta: mergedMeta,
   } as ScrapeResult;
-};
-
-/**
- * Submit a URL to scrape with ICP analysis
- * @param url - The URL to scrape
- * @param icpProfileId - The ICP profile ID to use for analysis
- * @returns Promise with the scrape result
- */
-export const scrapeWithICP = async (
-  url: string,
-  icpProfileId: string
-): Promise<ScrapeResult> => {
-  try {
-    const profileId = parseInt(icpProfileId, 10);
-    if (isNaN(profileId)) throw new Error("Invalid ICP profile ID");
-
-    const response = await apiClient.post(
-      "/frontend/scraper",
-      { url, enableAI: true, icpProfileId: profileId },
-      { withCredentials: true }
-    );
-
-    return normalizeScrapeResponseDeep(response.data);
-  } catch (error: unknown) {
-    return handleApiError(error, `Failed to scrape URL with ICP: ${url}`);
-  }
 };
 
 /**

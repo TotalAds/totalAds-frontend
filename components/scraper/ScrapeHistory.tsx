@@ -1,21 +1,15 @@
 "use client";
 
-import { format, formatDistanceToNow } from "date-fns";
-import React, { useCallback, useEffect, useState } from "react";
+import { format, formatDistanceToNow } from 'date-fns';
+import React, { useCallback, useEffect, useState } from 'react';
 
-import { useAuthContext } from "@/context/AuthContext";
-import { cancelScrapeJob, getScrapeHistory } from "@/utils/api/scraperClient";
+import { useAuthContext } from '@/context/AuthContext';
+import { cancelScrapeJob, getScrapeHistory } from '@/utils/api/scraperClient';
 import {
-  IconDownload,
-  IconEye,
-  IconFilter,
-  IconFilterOff,
-  IconRefresh,
-  IconSearch,
-  IconX,
-} from "@tabler/icons-react";
+    IconDownload, IconFilter, IconFilterOff, IconRefresh, IconSearch, IconX
+} from '@tabler/icons-react';
 
-import { ScrapeHistoryItem } from "./utils/scraperTypes";
+import { ScrapeHistoryItem } from './utils/scraperTypes';
 
 const ScrapeHistory: React.FC = () => {
   const [history, setHistory] = useState<ScrapeHistoryItem[]>([]);
