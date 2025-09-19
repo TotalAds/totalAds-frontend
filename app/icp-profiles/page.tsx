@@ -1,37 +1,21 @@
 /* eslint-disable react/no-unescaped-entities */
 "use client";
 
-import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
-import toast from "react-hot-toast";
+import { useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 
-import ICPTemplateSelector from "@/components/icp/ICPTemplateSelector";
-import { useAuthContext } from "@/context/AuthContext";
+import ICPTemplateSelector from '@/components/icp/ICPTemplateSelector';
+import { useAuthContext } from '@/context/AuthContext';
 import {
-  activateICPProfile,
-  createICPProfile,
-  CreateICPProfileRequest,
-  deactivateICPProfile,
-  deleteICPProfile,
-  getICPProfiles,
-  ICPProfile,
-  updateICPProfile,
-  UpdateICPProfileRequest,
-} from "@/utils/api";
-import { ICPTemplate } from "@/utils/icpTemplates";
+    activateICPProfile, createICPProfile, CreateICPProfileRequest, deactivateICPProfile,
+    deleteICPProfile, getICPProfiles, ICPProfile, updateICPProfile, UpdateICPProfileRequest
+} from '@/utils/api';
+import { ICPTemplate } from '@/utils/icpTemplates';
 import {
-  IconCheck,
-  IconCopy,
-  IconEdit,
-  IconEye,
-  IconPlayerPause,
-  IconPlayerPlay,
-  IconPlus,
-  IconSparkles,
-  IconTarget,
-  IconTrash,
-  IconX,
-} from "@tabler/icons-react";
+    IconCheck, IconCopy, IconEdit, IconEye, IconPlayerPause, IconPlayerPlay, IconPlus, IconSparkles,
+    IconTarget, IconTrash, IconX
+} from '@tabler/icons-react';
 
 interface ICPField {
   name: string;
@@ -129,6 +113,7 @@ export default function ICPProfilesPage() {
   };
 
   const addField = () => {
+    // For create modal - use input fields
     if (newFieldName.trim() && newFieldDescription.trim()) {
       setFields([
         ...fields,
@@ -136,11 +121,24 @@ export default function ICPProfilesPage() {
       ]);
       setNewFieldName("");
       setNewFieldDescription("");
+    } else {
+      // For edit modal - add empty field
+      setFields([...fields, { name: "", description: "" }]);
     }
   };
 
   const removeField = (index: number) => {
     setFields(fields.filter((_, i) => i !== index));
+  };
+
+  const updateField = (
+    index: number,
+    key: "name" | "description",
+    value: string
+  ) => {
+    const updatedFields = [...fields];
+    updatedFields[index] = { ...updatedFields[index], [key]: value };
+    setFields(updatedFields);
   };
 
   const handleJsonFieldsChange = (value: string) => {
@@ -209,12 +207,22 @@ export default function ICPProfilesPage() {
       return;
     }
 
+    // Filter out empty fields
+    const validFields = fields.filter(
+      (field) => field.name.trim() && field.description.trim()
+    );
+
+    if (validFields.length === 0) {
+      toast.error("At least one field is required");
+      return;
+    }
+
     setProfileLoading(editingProfile.id, "updating", true);
     try {
       const request: UpdateICPProfileRequest = {
-        name: newProfile.name,
-        description: newProfile.description,
-        fields: fields.length > 0 ? fields : editingProfile.fields,
+        name: newProfile.name.trim(),
+        description: newProfile.description?.trim(),
+        fields: validFields,
       };
 
       await updateICPProfile(editingProfile.id, request);
@@ -1005,37 +1013,84 @@ export default function ICPProfilesPage() {
                   </div>
                 </div>
 
-                {/* Current Fields Display */}
-                {fields.length > 0 && (
-                  <div className="mb-6">
-                    <h4 className="text-sm font-medium text-gray-300 mb-2">
-                      Current Fields:
+                {/* Fields Section */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-sm font-medium text-gray-300">
+                      Profile Fields ({fields.length})
                     </h4>
-                    <div className="space-y-2">
+                    <button
+                      onClick={addField}
+                      className="px-3 py-2 bg-purple-500/20 border border-purple-500/30 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-all duration-200 flex items-center gap-2 text-sm"
+                    >
+                      <IconPlus className="w-4 h-4" />
+                      Add Field
+                    </button>
+                  </div>
+
+                  {fields.length > 0 ? (
+                    <div className="space-y-3">
                       {fields.map((field, index) => (
                         <div
                           key={index}
-                          className="flex items-center justify-between bg-white/5 rounded-xl p-3"
+                          className="bg-white/5 rounded-xl p-4 border border-white/10"
                         >
-                          <div>
-                            <span className="text-white font-medium">
-                              {field.name}
-                            </span>
-                            <span className="text-gray-400 text-sm ml-2">
-                              - {field.description}
-                            </span>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-400 mb-2">
+                                Field Name
+                              </label>
+                              <input
+                                type="text"
+                                value={field.name}
+                                onChange={(e) =>
+                                  updateField(index, "name", e.target.value)
+                                }
+                                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                                placeholder="e.g., Company Size"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-400 mb-2">
+                                Description
+                              </label>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={field.description}
+                                  onChange={(e) =>
+                                    updateField(
+                                      index,
+                                      "description",
+                                      e.target.value
+                                    )
+                                  }
+                                  className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                                  placeholder="What to look for in this field"
+                                />
+                                <button
+                                  onClick={() => removeField(index)}
+                                  className="px-2 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all duration-200"
+                                  title="Remove field"
+                                >
+                                  <IconTrash className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                          <button
-                            onClick={() => removeField(index)}
-                            className="text-red-400 hover:text-red-300 transition-colors"
-                          >
-                            <IconTrash className="w-4 h-4" />
-                          </button>
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div className="text-center py-8 text-gray-400">
+                      <IconPlus className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No fields added yet</p>
+                      <p className="text-xs">
+                        Click "Add Field" to get started
+                      </p>
+                    </div>
+                  )}
+                </div>
 
                 {/* Actions */}
                 <div className="flex gap-3 pt-6 border-t border-white/10">
