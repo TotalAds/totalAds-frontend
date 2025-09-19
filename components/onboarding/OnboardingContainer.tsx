@@ -63,8 +63,8 @@ export default function OnboardingContainer() {
               Welcome to Leadsnipper! 🎉
             </h1>
             <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
-              Hi {user?.name || "there"}! You're all set up and ready to start
-              extracting valuable leads from any website.
+              Hi {user?.name || "there"}! You&apos;re all set up and ready to
+              start extracting valuable leads from any website.
             </p>
           </div>
 
@@ -129,7 +129,7 @@ export default function OnboardingContainer() {
             </button>
 
             <p className="text-gray-400 text-sm">
-              You'll be redirected to your dashboard where you can start
+              You&apos;ll be redirected to your dashboard where you can start
               scraping immediately
             </p>
           </div>

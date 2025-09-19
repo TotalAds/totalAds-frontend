@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useAuthContext } from '@/context/AuthContext';
 import { cancelScrapeJob, getScrapeHistory } from '@/utils/api/scraperClient';
 import {
-    IconDownload, IconFilter, IconFilterOff, IconRefresh, IconSearch, IconX
+    IconDownload, IconEye, IconFilter, IconFilterOff, IconRefresh, IconSearch, IconX
 } from '@tabler/icons-react';
 
 import { ScrapeHistoryItem } from './utils/scraperTypes';

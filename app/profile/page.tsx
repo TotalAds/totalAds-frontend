@@ -1,18 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
-import toast from "react-hot-toast";
+import { useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 
-import { useAuthContext } from "@/context/AuthContext";
-import { changePassword, updateProfile } from "@/utils/api/authClient";
-import {
-  IconEdit,
-  IconKey,
-  IconMail,
-  IconUser,
-  IconCheck,
-} from "@tabler/icons-react";
+import { useAuthContext } from '@/context/AuthContext';
+import { changePassword, updateProfile } from '@/utils/api/authClient';
+import { IconCheck, IconEdit, IconKey, IconMail, IconUser } from '@tabler/icons-react';
 
 export default function Profile() {
   const { state } = useAuthContext();
@@ -79,7 +73,11 @@ export default function Profile() {
 
     setLoading(true);
     try {
-      await changePassword(passwordForm.currentPassword, passwordForm.newPassword);
+      await changePassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+        confirmPassword: passwordForm.confirmPassword,
+      });
       toast.success("Password changed successfully!");
       setPasswordForm({
         currentPassword: "",
@@ -130,7 +128,9 @@ export default function Profile() {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <IconUser className="w-8 h-8 text-purple-400" />
-              <h2 className="text-3xl font-bold text-white">Profile Information</h2>
+              <h2 className="text-3xl font-bold text-white">
+                Profile Information
+              </h2>
             </div>
             <button
               onClick={() => setEditing(!editing)}
@@ -150,7 +150,9 @@ export default function Profile() {
                 <input
                   type="text"
                   value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, name: e.target.value })
+                  }
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   placeholder="Enter your name"
                 />
@@ -222,7 +224,12 @@ export default function Profile() {
                 <input
                   type="password"
                   value={passwordForm.currentPassword}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                  onChange={(e) =>
+                    setPasswordForm({
+                      ...passwordForm,
+                      currentPassword: e.target.value,
+                    })
+                  }
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   placeholder="Enter current password"
                 />
@@ -234,7 +241,12 @@ export default function Profile() {
                 <input
                   type="password"
                   value={passwordForm.newPassword}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                  onChange={(e) =>
+                    setPasswordForm({
+                      ...passwordForm,
+                      newPassword: e.target.value,
+                    })
+                  }
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   placeholder="Enter new password"
                 />
@@ -246,7 +258,12 @@ export default function Profile() {
                 <input
                   type="password"
                   value={passwordForm.confirmPassword}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                  onChange={(e) =>
+                    setPasswordForm({
+                      ...passwordForm,
+                      confirmPassword: e.target.value,
+                    })
+                  }
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   placeholder="Confirm new password"
                 />

@@ -1,17 +1,13 @@
+/* eslint-disable react/no-unescaped-entities */
 "use client";
 
-import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
-import toast from "react-hot-toast";
+import { useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 
-import { useAuthContext } from "@/context/AuthContext";
-import {
-  ApiToken,
-  createToken,
-  deleteToken,
-  listTokens,
-} from "@/utils/api/tokenClient";
-import { IconCopy, IconKey, IconPlus, IconTrash } from "@tabler/icons-react";
+import { useAuthContext } from '@/context/AuthContext';
+import { ApiToken, createToken, deleteToken, listTokens } from '@/utils/api/tokenClient';
+import { IconCopy, IconKey, IconPlus, IconTrash } from '@tabler/icons-react';
 
 export default function ApiTokensPage() {
   const { state } = useAuthContext();

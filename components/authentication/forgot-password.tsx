@@ -130,7 +130,7 @@ const ForgotPasswordComponent = () => {
               </div>
 
               <p className="text-gray-300 text-lg">
-                If an account with that email exists, you'll receive reset
+                If an account with that email exists, you&apos;ll receive reset
                 instructions within a few minutes. Please check your inbox and
                 spam folder.
               </p>
