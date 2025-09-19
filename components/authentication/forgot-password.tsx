@@ -1,10 +1,10 @@
 "use client";
-import { useRouter } from "next/navigation";
-import React, { useState } from "react";
+import { useRouter } from 'next/navigation';
+import React, { useState } from 'react';
 
-import GetLogo from "@/components/common/getLogo";
-import { requestPasswordReset } from "@/utils/api/authClient";
-import { IconArrowLeft, IconMail } from "@tabler/icons-react";
+import GetLogo from '@/components/common/getLogo';
+import { requestPasswordReset } from '@/utils/api/authClient';
+import { IconArrowLeft, IconMail } from '@tabler/icons-react';
 
 const ForgotPasswordComponent = () => {
   const router = useRouter();
@@ -35,30 +35,23 @@ const ForgotPasswordComponent = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-      {/* Background decoration */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
-        <div className="absolute top-40 left-40 w-80 h-80 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
-      </div>
-
-      <div className="relative w-full max-w-md">
-        {/* Glass morphism card */}
+      <div className="w-full max-w-md">
+        {/* Main Forgot Password Card */}
         <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl p-8 shadow-2xl">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl">
-                <GetLogo className="w-8 h-8 text-white" />
+            <div className="flex items-center justify-center mb-6">
+              <div className="p-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-3xl">
+                <GetLogo className="w-10 h-10 text-white" />
               </div>
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">
-              {isSubmitted ? "Check Your Email" : "Reset Your Password"}
+            <h1 className="text-4xl font-bold text-white mb-3">
+              {isSubmitted ? "Check Your Email! 📧" : "Reset Password 🔐"}
             </h1>
-            <p className="text-gray-300 text-sm">
+            <p className="text-gray-300 text-lg">
               {isSubmitted
-                ? "We've sent password reset instructions to your email address. Please check your inbox and follow the secure link to reset your password."
-                : "Enter your email address below and we'll send you secure instructions to reset your password."}
+                ? "We've sent reset instructions to your email. Check your inbox and follow the link to reset your password."
+                : "Enter your email address and we'll send you a secure reset link."}
             </p>
           </div>
           {/* Form */}
@@ -82,59 +75,40 @@ const ForgotPasswordComponent = () => {
                 </div>
               )}
 
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <label
                   htmlFor="email"
-                  className="text-sm font-medium text-gray-200"
+                  className="text-sm font-semibold text-white"
                 >
                   Email Address
                 </label>
                 <input
                   id="email"
-                  placeholder="Enter your email address"
+                  placeholder="your@email.com"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isLoading}
                   required
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm"
+                  className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-2xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm text-lg"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={isLoading || !email}
-                className="w-full py-3 px-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                className="w-full py-4 px-6 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-2xl text-lg transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 {isLoading ? (
-                  <div className="flex items-center justify-center">
-                    <svg
-                      className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    Sending Reset Link...
-                  </div>
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                    Sending reset link...
+                  </>
                 ) : (
-                  <div className="flex items-center justify-center">
-                    <IconMail className="h-4 w-4 mr-2" />
+                  <>
+                    <IconMail className="w-5 h-5 mr-2" />
                     Send Reset Link
-                  </div>
+                  </>
                 )}
               </button>
 
@@ -143,32 +117,29 @@ const ForgotPasswordComponent = () => {
                 type="button"
                 onClick={() => router.push("/login")}
                 disabled={isLoading}
-                className="w-full py-3 px-4 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl transition-all duration-200 border border-white/20 hover:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
+                className="w-full py-4 px-6 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-2xl text-lg transition-all duration-200 border border-white/20 hover:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50 flex items-center justify-center"
               >
-                <div className="flex items-center justify-center">
-                  <IconArrowLeft className="h-4 w-4 mr-2" />
-                  Back to Sign In
-                </div>
+                <IconArrowLeft className="h-5 w-5 mr-2" />
+                Back to Sign In
               </button>
             </form>
           ) : (
-            <div className="space-y-6">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <IconMail className="w-8 h-8 text-green-400" />
-                </div>
-                <p className="text-gray-300 text-sm mb-6">
-                  If an account with that email address exists, you&apos;ll
-                  receive secure password reset instructions within the next few
-                  minutes. Please check your inbox and spam folder.
-                </p>
+            <div className="space-y-8 text-center">
+              <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto">
+                <IconMail className="w-10 h-10 text-green-400" />
               </div>
 
-              <div className="space-y-3">
+              <p className="text-gray-300 text-lg">
+                If an account with that email exists, you'll receive reset
+                instructions within a few minutes. Please check your inbox and
+                spam folder.
+              </p>
+
+              <div className="space-y-4">
                 <button
                   type="button"
                   onClick={() => router.push("/reset-password/enter-code")}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-transparent"
+                  className="w-full py-4 px-6 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-2xl text-lg transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
                   Enter Code Manually
                 </button>
@@ -176,16 +147,27 @@ const ForgotPasswordComponent = () => {
                 <button
                   type="button"
                   onClick={() => router.push("/login")}
-                  className="w-full py-3 px-4 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl transition-all duration-200 border border-white/20 hover:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
+                  className="w-full py-4 px-6 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-2xl text-lg transition-all duration-200 border border-white/20 hover:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50 flex items-center justify-center"
                 >
-                  <div className="flex items-center justify-center">
-                    <IconArrowLeft className="h-4 w-4 mr-2" />
-                    Back to Sign In
-                  </div>
+                  <IconArrowLeft className="h-5 w-5 mr-2" />
+                  Back to Sign In
                 </button>
               </div>
             </div>
           )}
+        </div>
+
+        {/* Footer */}
+        <div className="text-center mt-8">
+          <p className="text-gray-400 text-sm">
+            Need help? Contact our support team at{" "}
+            <a
+              href="mailto:hello@leadsnipper.com"
+              className="text-purple-400 hover:text-purple-300 transition-colors"
+            >
+              hello@leadsnipper.com
+            </a>
+          </p>
         </div>
       </div>
     </div>

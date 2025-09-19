@@ -1,13 +1,13 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
 
-import QuickStart from "@/components/common/QuickStart";
-import { useAuthContext } from "@/context/AuthContext";
-import { getCreditBalance } from "@/utils/api/creditsClient";
-import { IconCreditCard, IconRocket, IconSparkles } from "@tabler/icons-react";
+import QuickStart from '@/components/common/QuickStart';
+import { useAuthContext } from '@/context/AuthContext';
+import { getCreditBalance } from '@/utils/api/creditsClient';
+import { IconCreditCard, IconRocket, IconSparkles } from '@tabler/icons-react';
 
 export default function Dashboard() {
   const { state } = useAuthContext();
@@ -67,8 +67,8 @@ export default function Dashboard() {
       <div className="relative z-10 container mx-auto px-4 py-8 max-w-4xl">
         {/* Simple Header */}
         <div className="text-center mb-12">
-          <h1 className="text-6xl font-bold text-white mb-4">
-            Hi {user?.name?.split(" ")[0] || "there"}! 👋
+          <h1 className="text-5xl font-bold text-white mb-4">
+            Hi {user?.name || "there"}! 👋
           </h1>
           <p className="text-2xl text-gray-300 mb-8">
             Find leads from any website in seconds

@@ -1,4 +1,4 @@
-import { getCurrentUser } from "@/utils/api/authClient";
+import { getCurrentUser } from '@/utils/api/authClient';
 
 export interface OnboardingStatus {
   isCompleted: boolean;
@@ -14,13 +14,23 @@ export interface OnboardingStatus {
 export const checkOnboardingStatus = async (): Promise<OnboardingStatus> => {
   try {
     const user = await getCurrentUser();
-    
+
     if (!user) {
       return {
         isCompleted: false,
         currentStep: 0,
         shouldRedirect: true,
-        redirectPath: "/login"
+        redirectPath: "/login",
+      };
+    }
+
+    // Check email verification first
+    if (!user.emailVerified) {
+      return {
+        isCompleted: false,
+        currentStep: 0,
+        shouldRedirect: true,
+        redirectPath: "/verify-email",
       };
     }
 
@@ -30,7 +40,7 @@ export const checkOnboardingStatus = async (): Promise<OnboardingStatus> => {
         isCompleted: true,
         currentStep: 3,
         shouldRedirect: false,
-        redirectPath: ""
+        redirectPath: "",
       };
     }
 
@@ -39,7 +49,7 @@ export const checkOnboardingStatus = async (): Promise<OnboardingStatus> => {
       isCompleted: false,
       currentStep: user.onboardingStep || 0,
       shouldRedirect: true,
-      redirectPath: "/onboarding"
+      redirectPath: "/onboarding",
     };
   } catch (error) {
     console.error("Error checking onboarding status:", error);
@@ -47,7 +57,7 @@ export const checkOnboardingStatus = async (): Promise<OnboardingStatus> => {
       isCompleted: false,
       currentStep: 0,
       shouldRedirect: true,
-      redirectPath: "/login"
+      redirectPath: "/login",
     };
   }
 };
@@ -61,16 +71,37 @@ export const requiresOnboarding = (pathname: string): boolean => {
   // Paths that don't require onboarding completion
   const allowedPaths = [
     "/login",
-    "/signup", 
+    "/signup",
     "/forgot-password",
     "/reset-password",
     "/onboarding",
-    "/verify-email"
+    "/verify-email",
   ];
 
   // Check if current path is in allowed paths or starts with allowed path
-  return !allowedPaths.some(path => 
-    pathname === path || pathname.startsWith(path + "/")
+  return !allowedPaths.some(
+    (path) => pathname === path || pathname.startsWith(path + "/")
+  );
+};
+
+/**
+ * Check if current path requires email verification
+ * @param pathname Current page path
+ * @returns boolean indicating if email verification is required
+ */
+export const requiresEmailVerification = (pathname: string): boolean => {
+  // Paths that don't require email verification
+  const allowedPaths = [
+    "/login",
+    "/signup",
+    "/forgot-password",
+    "/reset-password",
+    "/verify-email",
+  ];
+
+  // Check if current path is in allowed paths or starts with allowed path
+  return !allowedPaths.some(
+    (path) => pathname === path || pathname.startsWith(path + "/")
   );
 };
 
@@ -79,23 +110,35 @@ export const requiresOnboarding = (pathname: string): boolean => {
  * @param pathname Current page path
  * @returns Promise<OnboardingStatus | null> - null if no redirect needed
  */
-export const protectRoute = async (pathname: string): Promise<OnboardingStatus | null> => {
+export const protectRoute = async (
+  pathname: string
+): Promise<OnboardingStatus | null> => {
+  // If the current path doesn't require email verification, allow access
+  if (!requiresEmailVerification(pathname)) {
+    return null;
+  }
+
+  // Check onboarding status (which includes email verification check)
+  const status = await checkOnboardingStatus();
+
+  // If user is not authenticated, redirect to login
+  if (status.redirectPath === "/login") {
+    return status;
+  }
+
+  // If email is not verified, redirect to email verification
+  if (status.redirectPath === "/verify-email") {
+    return status;
+  }
+
   // If the current path doesn't require onboarding, allow access
   if (!requiresOnboarding(pathname)) {
     return null;
   }
 
-  // Check onboarding status
-  const status = await checkOnboardingStatus();
-  
   // If onboarding is completed, allow access
   if (status.isCompleted) {
     return null;
-  }
-
-  // If user is not authenticated, redirect to login
-  if (status.redirectPath === "/login") {
-    return status;
   }
 
   // If onboarding is not completed, redirect to onboarding

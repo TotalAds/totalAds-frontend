@@ -1,12 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import React, { useState } from "react";
-import toast from "react-hot-toast";
+import { useRouter } from 'next/navigation';
+import React, { useState } from 'react';
+import toast from 'react-hot-toast';
 
-import { useAuthContext } from "@/context/AuthContext";
-import { resendVerificationCode } from "@/utils/api/authClient";
-import { IconMail, IconRefresh, IconX } from "@tabler/icons-react";
+import { useAuthContext } from '@/context/AuthContext';
+import { resendVerificationCode } from '@/utils/api/authClient';
+import { IconMail, IconRefresh, IconX } from '@tabler/icons-react';
 
 interface EmailVerificationBannerProps {
   onDismiss?: () => void;
@@ -106,50 +106,42 @@ const EmailVerificationBanner: React.FC<EmailVerificationBannerProps> = ({
     );
   }
 
-  // Banner variant
+  // Banner variant - Short and compact design
   return (
-    <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-4 mb-6 shadow-lg">
-      <div className="flex items-start justify-between">
-        <div className="flex items-start">
-          <IconMail className="h-5 w-5 text-[var(--primary-200)] mr-3 mt-0.5 flex-shrink-0" />
+    <div className="backdrop-blur-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-400/30 rounded-xl p-3 mb-4 shadow-lg">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-8 h-8 bg-amber-500/20 rounded-full">
+            <IconMail className="h-4 w-4 text-amber-300" />
+          </div>
           <div className="flex-1">
-            <h4 className="text-sm font-medium text-white mb-1">
-              Email Verification Required
-            </h4>
-            <p className="text-sm text-white/80 mb-3">
-              Please verify your email address to access all features and
-              receive your welcome credits.
+            <p className="text-sm text-white font-medium">
+              📧 Verify your email to unlock all features
             </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={handleVerifyEmail}
-                className="bg-[var(--primary-200)] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[var(--primary-300)] transition-colors"
-              >
-                Verify Email
-              </button>
-              <button
-                onClick={handleResendCode}
-                disabled={isResending}
-                className="bg-transparent text-[var(--primary-200)] px-4 py-2 rounded-lg text-sm font-medium border border-[var(--primary-200)] hover:bg-[var(--primary-200)]/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="flex items-center">
-                  <IconRefresh
-                    className={`h-4 w-4 mr-1 ${
-                      isResending ? "animate-spin" : ""
-                    }`}
-                  />
-                  {isResending ? "Sending..." : "Resend"}
-                </div>
-              </button>
-            </div>
           </div>
         </div>
-        <button
-          onClick={handleDismiss}
-          className="text-white/60 hover:text-white transition-colors ml-2"
-        >
-          <IconX className="h-4 w-4" />
-        </button>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleVerifyEmail}
+            className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+          >
+            Verify Now
+          </button>
+          <button
+            onClick={handleResendCode}
+            disabled={isResending}
+            className="text-amber-300 hover:text-amber-200 text-xs font-medium transition-colors disabled:opacity-50"
+          >
+            {isResending ? "Sending..." : "Resend"}
+          </button>
+          <button
+            onClick={handleDismiss}
+            className="text-white/60 hover:text-white transition-colors ml-1"
+          >
+            <IconX className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

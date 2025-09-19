@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
+import EmailVerificationBanner from '@/components/common/EmailVerificationBanner';
 import MainSidebar from '@/components/navigation/MainSidebar';
 import TopNav from '@/components/navigation/TopNav';
 import { useAuthContext } from '@/context/AuthContext';
@@ -25,6 +26,7 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
     "/forgot-password",
     "/reset-password",
     "/onboarding",
+    "/verify-email",
   ];
 
   const isAuthPage = authPaths.some((path) => pathname.startsWith(path));
@@ -76,6 +78,12 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <main className="flex-1 overflow-auto thin-scrollbar">
+            {/* Email Verification Banner - only show for authenticated users with unverified email */}
+            {isAuthenticated && state.user && !state.user.emailVerified && (
+              <div className="p-4">
+                <EmailVerificationBanner variant="banner" />
+              </div>
+            )}
             {children}
           </main>
 

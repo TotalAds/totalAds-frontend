@@ -1,12 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import { useRouter } from 'next/navigation';
+import React, { useEffect } from 'react';
 
-import QuickStart from "@/components/common/QuickStart";
-import { useAuthContext } from "@/context/AuthContext";
-import { IconCreditCard, IconRocket, IconSparkles } from "@tabler/icons-react";
+import { useAuthContext } from '@/context/AuthContext';
 
 export default function Home() {
   const { state } = useAuthContext();
@@ -15,13 +12,17 @@ export default function Home() {
 
   useEffect(() => {
     if (!isLoading) {
-      if (isAuthenticated) {
-        router.push("/dashboard");
+      if (isAuthenticated && state.user) {
+        if (!state.user.emailVerified) {
+          router.push("/verify-email");
+        } else {
+          router.push("/dashboard");
+        }
       } else {
         router.push("/login");
       }
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, state.user, router]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
