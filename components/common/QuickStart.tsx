@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 interface QuickStartProps {
   className?: string;
@@ -26,10 +26,13 @@ export default function QuickStart({ className = "" }: QuickStartProps) {
     }
   };
 
-  const trySample = () => router.push(`/scraper?url=${encodeURIComponent("https://semrush.com")}`);
+  const trySample = () =>
+    router.push(`/scraper?url=${encodeURIComponent("https://semrush.com")}`);
 
   return (
-    <div className={`p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3 ${className}`}>
+    <div
+      className={`p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3 ${className}`}
+    >
       <label className="text-sm text-gray-300">Quick Start</label>
       <div className="flex gap-2">
         <input
@@ -38,10 +41,16 @@ export default function QuickStart({ className = "" }: QuickStartProps) {
           placeholder="https://example.com"
           className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
         />
-        <button onClick={go} className="px-4 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600">
+        <button
+          onClick={go}
+          className="px-4 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
+        >
           Go
         </button>
-        <button onClick={trySample} className="px-4 py-3 rounded-xl bg-white/10 border border-white/20 hover:bg-white/20">
+        <button
+          onClick={trySample}
+          className="px-4 py-3 rounded-xl bg-white/10 border border-white/20 hover:bg-white/20 text-white"
+        >
           Try sample
         </button>
       </div>
