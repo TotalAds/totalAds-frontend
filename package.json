@@ -34,6 +34,8 @@
     "react-dom": "^18",
     "react-hot-toast": "^2.5.2",
     "react-lottie": "^1.2.4",
+    "react-shepherd": "^6.1.9",
+    "shepherd.js": "^14.5.1",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^4.0.10"

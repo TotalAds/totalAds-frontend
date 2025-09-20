@@ -1,17 +1,20 @@
 "use client";
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import React, { useEffect, useState } from "react";
 
-import QuickStart from '@/components/common/QuickStart';
-import { useAuthContext } from '@/context/AuthContext';
-import { getCreditBalance } from '@/utils/api/creditsClient';
-import { IconCreditCard, IconRocket, IconSparkles } from '@tabler/icons-react';
+import QuickStart from "@/components/common/QuickStart";
+import WelcomeModal from "@/components/tour/WelcomeModal";
+import { useAuthContext } from "@/context/AuthContext";
+import { useTourState } from "@/hooks/useTourState";
+import { getCreditBalance } from "@/utils/api/creditsClient";
+import { IconCreditCard, IconRocket, IconSparkles } from "@tabler/icons-react";
 
 export default function Dashboard() {
   const { state } = useAuthContext();
   const { isAuthenticated, isLoading, user } = state;
+  const { isFirstVisit } = useTourState();
   const router = useRouter();
   const [credits, setCredits] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -77,7 +80,10 @@ export default function Dashboard() {
 
         {/* Credits Display - Simple */}
         <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-full px-8 py-4">
+          <div
+            data-tour="credits-display"
+            className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-full px-8 py-4"
+          >
             <IconCreditCard className="w-6 h-6 text-green-400" />
             <span className="text-white text-lg font-semibold">
               {loading ? "..." : `${credits.toFixed(1)} credits left`}
@@ -86,7 +92,7 @@ export default function Dashboard() {
         </div>
 
         {/* Main Action - Prominent */}
-        <div className="mb-16">
+        <div className="mb-16" data-tour="quick-start">
           <QuickStart className="max-w-2xl mx-auto" />
         </div>
 
@@ -124,6 +130,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Link
             href="/scraper/history"
+            data-tour="history-link"
             className="flex items-center justify-center p-6 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 transition-all duration-200 group"
           >
             <IconRocket className="w-8 h-8 text-purple-400 mr-4 group-hover:scale-110 transition-transform" />
@@ -135,6 +142,7 @@ export default function Dashboard() {
 
           <Link
             href="/icp-profiles"
+            data-tour="icp-link"
             className="flex items-center justify-center p-6 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 transition-all duration-200 group"
           >
             <IconSparkles className="w-8 h-8 text-blue-400 mr-4 group-hover:scale-110 transition-transform" />
@@ -155,6 +163,9 @@ export default function Dashboard() {
             Try with Sample Website
           </Link>
         </div>
+
+        {/* Welcome Modal for new users */}
+        <WelcomeModal isNewUser={isFirstVisit} />
       </div>
     </div>
   );

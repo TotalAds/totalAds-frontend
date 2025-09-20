@@ -98,6 +98,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
 
       {/* Sidebar */}
       <div
+        data-tour="sidebar"
         className={cn(
           "w-64 backdrop-blur-xl bg-slate-900/95 border-r border-white/20 transition-all duration-300 ease-in-out shadow-2xl flex-shrink-0",
           // Mobile behavior: fixed overlay

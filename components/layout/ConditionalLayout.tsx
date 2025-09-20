@@ -1,13 +1,15 @@
 "use client";
 
-import { usePathname } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import { usePathname } from "next/navigation";
+import React, { useEffect, useState } from "react";
 
-import EmailVerificationBanner from '@/components/common/EmailVerificationBanner';
-import MainSidebar from '@/components/navigation/MainSidebar';
-import TopNav from '@/components/navigation/TopNav';
-import { useAuthContext } from '@/context/AuthContext';
-import FeedbackButton from '@/src/components/feedback/FeedbackButton';
+import EmailVerificationBanner from "@/components/common/EmailVerificationBanner";
+import MainSidebar from "@/components/navigation/MainSidebar";
+import TopNav from "@/components/navigation/TopNav";
+import ProductTour from "@/components/tour/ProductTour";
+import TourTrigger from "@/components/tour/TourTrigger";
+import { useAuthContext } from "@/context/AuthContext";
+import FeedbackButton from "@/src/components/feedback/FeedbackButton";
 
 interface ConditionalLayoutProps {
   children: React.ReactNode;
@@ -106,6 +108,17 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
               feature: "general",
             }}
           />
+        )}
+
+        {/* Tour Components - only show for authenticated users */}
+        {isAuthenticated && (
+          <>
+            <ProductTour />
+            <TourTrigger
+              variant="floating"
+              className="bottom-20 right-6 md:bottom-6 md:right-6"
+            />
+          </>
         )}
       </div>
     </div>

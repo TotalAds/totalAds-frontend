@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import React, { useState } from "react";
 
 import GetLogo from "@/components/common/getLogo";
+import TourManager from "@/components/tour/TourManager";
 import { useAuthContext } from "@/context/AuthContext";
 import { cn } from "@/utils/cn";
 import {
@@ -66,6 +67,9 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
 
           {/* Right side - User Menu or Auth Links */}
           <div className="flex items-center space-x-6">
+            {/* Tour Manager - only show for authenticated users */}
+            {isAuthenticated && <TourManager className="hidden md:block" />}
+
             {/* User Menu */}
             {isAuthenticated ? (
               <div className="relative">
