@@ -5,6 +5,7 @@ import React, { useEffect, useRef } from "react";
 import Shepherd from "shepherd.js";
 
 import {
+  apiTokensTourSteps,
   dashboardTourSteps,
   icpTourSteps,
   scraperTourSteps,
@@ -26,6 +27,8 @@ const ProductTour: React.FC = () => {
         return scraperTourSteps;
       case "/icp-profiles":
         return icpTourSteps;
+      case "/api-tokens":
+        return apiTokensTourSteps;
       default:
         return dashboardTourSteps;
     }
@@ -40,9 +43,16 @@ const ProductTour: React.FC = () => {
   };
 
   useEffect(() => {
+    console.log(
+      "ProductTour useEffect - isActive:",
+      isActive,
+      "pathname:",
+      pathname
+    );
     if (isActive && typeof window !== "undefined") {
       // Only create tour if we don't have an active one
       if (!tourRef.current) {
+        console.log("Creating new tour instance");
         // Create new Shepherd tour instance
         const tour = new Shepherd.Tour({
           ...tourOptions,
@@ -57,6 +67,7 @@ const ProductTour: React.FC = () => {
 
         // Add steps to tour based on current page
         const steps = getTourSteps();
+        console.log("Tour steps for", pathname, ":", steps.length, "steps");
         steps.forEach((step) => {
           tour.addStep(step);
         });
@@ -66,6 +77,7 @@ const ProductTour: React.FC = () => {
         // Small delay to ensure DOM elements are rendered
         const timer = setTimeout(() => {
           if (tour && tourRef.current === tour) {
+            console.log("Starting tour");
             tour.start();
           }
         }, 500);
@@ -76,6 +88,7 @@ const ProductTour: React.FC = () => {
       }
     } else if (!isActive && tourRef.current) {
       // Clean up tour when not active
+      console.log("Cleaning up tour");
       tourRef.current.complete();
       tourRef.current = null;
     }

@@ -7,7 +7,6 @@ import EmailVerificationBanner from "@/components/common/EmailVerificationBanner
 import MainSidebar from "@/components/navigation/MainSidebar";
 import TopNav from "@/components/navigation/TopNav";
 import ProductTour from "@/components/tour/ProductTour";
-import TourTrigger from "@/components/tour/TourTrigger";
 import { useAuthContext } from "@/context/AuthContext";
 import FeedbackButton from "@/src/components/feedback/FeedbackButton";
 
@@ -111,15 +110,7 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
         )}
 
         {/* Tour Components - only show for authenticated users */}
-        {isAuthenticated && (
-          <>
-            <ProductTour />
-            <TourTrigger
-              variant="floating"
-              className="bottom-20 right-6 md:bottom-6 md:right-6"
-            />
-          </>
-        )}
+        {isAuthenticated && <ProductTour />}
       </div>
     </div>
   );

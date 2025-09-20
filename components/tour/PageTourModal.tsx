@@ -1,9 +1,8 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React from "react";
 
-import { useTour } from "@/context/TourContext";
 import { IconRoute, IconSparkles, IconX } from "@tabler/icons-react";
 
 interface PageTourModalProps {
@@ -47,14 +46,26 @@ const PageTourModal: React.FC<PageTourModalProps> = ({
         };
       case "/icp-profiles":
         return {
-          title: "🎯 ICP Profiles Tour",
+          title: "🎯 Customer Profiles Tour",
           description:
-            "Learn how to create Ideal Customer Profiles for smarter lead generation.",
+            "Learn how to create customer profiles for smarter lead generation.",
           benefits: [
             "👥 Define your ideal customers",
             "🎯 Smart lead scoring",
             "📈 Better conversion rates",
             "🔄 Reusable profile templates",
+          ],
+        };
+      case "/api-tokens":
+        return {
+          title: "🔑 API Access Tour",
+          description:
+            "Learn how to create API tokens to connect Leadsnipper to your own apps.",
+          benefits: [
+            "🔗 Connect to your own software",
+            "🤖 Automate lead generation",
+            "📊 Extract data programmatically",
+            "🚀 Build custom integrations",
           ],
         };
       default:
@@ -83,7 +94,7 @@ const PageTourModal: React.FC<PageTourModalProps> = ({
       {/* Backdrop */}
       <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 h-[100vh]">
         {/* Modal */}
-        <div className="bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl p-8 max-w-md w-full shadow-2xl">
+        <div className="relative bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl p-8 max-w-md w-full shadow-2xl">
           {/* Close Button */}
           <button
             onClick={onClose}

@@ -5,15 +5,10 @@ import { usePathname } from "next/navigation";
 import React, { useState } from "react";
 
 import GetLogo from "@/components/common/getLogo";
-import TourManager from "@/components/tour/TourManager";
+import TourTrigger from "@/components/tour/TourTrigger";
 import { useAuthContext } from "@/context/AuthContext";
 import { cn } from "@/utils/cn";
-import {
-  IconChevronDown,
-  IconMenu2,
-  IconMenuDeep,
-  IconX,
-} from "@tabler/icons-react";
+import { IconChevronDown, IconMenu2, IconMenuDeep } from "@tabler/icons-react";
 
 interface TopNavProps {
   onSidebarToggle?: () => void;
@@ -32,6 +27,15 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
   const handleLogout = async () => {
     await logoutUser();
   };
+
+  // Define pages where tour should be available
+  const tourEnabledPages = [
+    "/dashboard",
+    "/scraper",
+    "/icp-profiles",
+    "/api-tokens",
+  ];
+  const shouldShowTour = isAuthenticated && tourEnabledPages.includes(pathname);
 
   return (
     <header className="backdrop-blur-xl bg-slate-900/90 border-b border-white/10 flex-shrink-0 z-50">
@@ -67,8 +71,12 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
 
           {/* Right side - User Menu or Auth Links */}
           <div className="flex items-center space-x-6">
-            {/* Tour Manager - only show for authenticated users */}
-            {isAuthenticated && <TourManager className="hidden md:block" />}
+            {/* Tour Button - only show for authenticated users on specific pages */}
+            {shouldShowTour && (
+              <TourTrigger variant="help" className="hidden md:flex">
+                Tour
+              </TourTrigger>
+            )}
 
             {/* User Menu */}
             {isAuthenticated ? (

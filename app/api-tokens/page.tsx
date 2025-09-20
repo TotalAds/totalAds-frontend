@@ -1,13 +1,18 @@
 /* eslint-disable react/no-unescaped-entities */
 "use client";
 
-import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
-import toast from 'react-hot-toast';
+import { useRouter } from "next/navigation";
+import React, { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
-import { useAuthContext } from '@/context/AuthContext';
-import { ApiToken, createToken, deleteToken, listTokens } from '@/utils/api/tokenClient';
-import { IconCopy, IconKey, IconPlus, IconTrash } from '@tabler/icons-react';
+import { useAuthContext } from "@/context/AuthContext";
+import {
+  ApiToken,
+  createToken,
+  deleteToken,
+  listTokens,
+} from "@/utils/api/tokenClient";
+import { IconCopy, IconKey, IconPlus, IconTrash } from "@tabler/icons-react";
 
 export default function ApiTokensPage() {
   const { state } = useAuthContext();
@@ -119,6 +124,7 @@ export default function ApiTokensPage() {
           <button
             onClick={() => setShowCreateForm(true)}
             className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full hover:from-purple-600 hover:to-pink-600 transition-all duration-200 shadow-lg transform hover:scale-105"
+            data-tour="create-token-button"
           >
             <IconPlus className="w-5 h-5 mr-2" />
             Create New Token

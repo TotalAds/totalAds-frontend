@@ -64,8 +64,10 @@ export const TourProvider: React.FC<TourProviderProps> = ({ children }) => {
   }, [tourInstance, markTourCompleted]);
 
   const restartTour = useCallback(() => {
+    console.log("restartTour called");
     // Force restart the tour by ending it first, then starting again
     if (tourInstance) {
+      console.log("Completing existing tour instance");
       tourInstance.complete();
       setTourInstance(null);
     }
@@ -74,6 +76,7 @@ export const TourProvider: React.FC<TourProviderProps> = ({ children }) => {
 
     // Use a longer delay to ensure complete cleanup
     setTimeout(() => {
+      console.log("Setting tour active");
       setIsActive(true);
       setCurrentStep(0);
     }, 200);
