@@ -37,6 +37,10 @@ export default function RootLayout({
         <Provider>
           <ConditionalLayout>{children}</ConditionalLayout>
         </Provider>
+        {/* subtle footer link */}
+        <div className="fixed bottom-2 right-3 text-[10px] text-slate-400/60 hover:text-slate-300/80">
+          <a href="/legal/data-use">Data use</a>
+        </div>
       </body>
     </html>
   );

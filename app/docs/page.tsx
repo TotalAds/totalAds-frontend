@@ -144,6 +144,23 @@ export default function ApiDocs() {
             <p>• Contact support if you need assistance</p>
           </div>
         </div>
+
+        {/* Robots.txt & Site Policies */}
+        <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6">
+          <h3 className="text-xl font-semibold text-white mb-2">
+            Robots.txt & Site Policies
+          </h3>
+          <p className="text-sm text-gray-300">
+            Our scraper respects robots.txt directives and does not attempt to
+            bypass paywalls, authentication, or other access controls. Users are
+            responsible for complying with applicable laws and individual site
+            policies. For questions or concerns about access, please see our{" "}
+            <a className="underline underline-offset-2" href="/legal/data-use">
+              Data Use
+            </a>{" "}
+            page.
+          </p>
+        </div>
       </div>
     </div>
   );
