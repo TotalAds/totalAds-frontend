@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 import { useAuthContext } from "@/context/AuthContext";
+import { trackEvent } from "@/utils/analytics/track";
 import {
   ApiToken,
   createToken,
@@ -63,6 +64,7 @@ export default function ApiTokensPage() {
       setNewTokenName("");
       setShowCreateForm(false);
       await fetchTokens();
+      trackEvent("token_created");
       toast.success("API token created successfully!");
     } catch (error) {
       console.error("Failed to create token:", error);
@@ -76,6 +78,7 @@ export default function ApiTokensPage() {
     try {
       await deleteToken(id);
       await fetchTokens();
+      trackEvent("token_deleted", { id });
       toast.success("API token deleted");
     } catch (error) {
       console.error("Failed to delete token:", error);
@@ -85,6 +88,7 @@ export default function ApiTokensPage() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
+    trackEvent("token_copied");
     toast.success("Copied to clipboard!");
   };
 
@@ -122,7 +126,10 @@ export default function ApiTokensPage() {
         {/* Create Token Button */}
         <div className="text-center mb-12">
           <button
-            onClick={() => setShowCreateForm(true)}
+            onClick={() => {
+              trackEvent("token_create_clicked");
+              setShowCreateForm(true);
+            }}
             className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full hover:from-purple-600 hover:to-pink-600 transition-all duration-200 shadow-lg transform hover:scale-105"
             data-tour="create-token-button"
           >
@@ -242,7 +249,10 @@ export default function ApiTokensPage() {
                     </div>
                   </div>
                   <button
-                    onClick={() => handleDeleteToken(token.id)}
+                    onClick={() => {
+                      trackEvent("token_delete_clicked", { id: token.id });
+                      handleDeleteToken(token.id);
+                    }}
                     className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-lg transition-all duration-200"
                   >
                     <IconTrash className="w-5 h-5" />
@@ -263,7 +273,10 @@ export default function ApiTokensPage() {
               Create your first API token to get started
             </p>
             <button
-              onClick={() => setShowCreateForm(true)}
+              onClick={() => {
+                trackEvent("token_create_clicked");
+                setShowCreateForm(true);
+              }}
               className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full hover:from-purple-600 hover:to-pink-600 transition-all duration-200 shadow-lg transform hover:scale-105"
             >
               <IconPlus className="w-5 h-5 mr-2" />

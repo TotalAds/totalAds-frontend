@@ -8,6 +8,7 @@ import React, {
   useReducer,
 } from "react";
 
+import { resetIdentity, trackEvent } from "@/utils/analytics/track";
 import {
   getCurrentUser,
   isAuthenticated,
@@ -146,14 +147,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   ) => {
     try {
       dispatch({ type: "LOGIN_START" });
+      trackEvent("login_attempt");
       const { user } = await login({ email, password, rememberMe });
       dispatch({ type: "LOGIN_SUCCESS", payload: user });
+      trackEvent("login_success", { email: user.email });
       return user; // Return user data for successful redirect
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Login failed";
       dispatch({
         type: "LOGIN_ERROR",
-        payload: error instanceof Error ? error.message : "Login failed",
+        payload: message,
       });
+      trackEvent("login_error", { reason: message });
       throw error;
     }
   };
@@ -166,6 +171,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   ) => {
     try {
       dispatch({ type: "REGISTER_START" });
+      trackEvent("register_attempt");
       const { user } = await register({
         name,
         email,
@@ -173,12 +179,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         confirmPassword,
       });
       dispatch({ type: "REGISTER_SUCCESS", payload: user });
+      trackEvent("register_success", { email: user.email });
       return user; // Return user data for successful redirect
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Registration failed";
       dispatch({
         type: "REGISTER_ERROR",
-        payload: error instanceof Error ? error.message : "Registration failed",
+        payload: message,
       });
+      trackEvent("register_error", { reason: message });
       throw error;
     }
   };
@@ -186,6 +196,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const logoutUser = async () => {
     await logout();
     dispatch({ type: "LOGOUT" });
+    trackEvent("logout");
+    resetIdentity();
   };
 
   const clearError = () => {

@@ -6,6 +6,7 @@ import {
   ScrapeResult,
   ScraperHealth,
 } from "@/components/scraper/utils/scraperTypes";
+import { trackEvent } from "@/utils/analytics/track";
 import {
   checkScraperHealth,
   ScraperAuthError,
@@ -97,6 +98,11 @@ export const ScraperProvider: React.FC<{ children: ReactNode }> = ({
       dispatch({ type: "SCRAPE_START" });
       const result = await scrapeUrl(url, icpProfileId);
       dispatch({ type: "SCRAPE_SUCCESS", payload: result });
+      trackEvent("scrape_success", {
+        url,
+        icpProfileId,
+        hasInsights: Boolean((result as any)?.icp || (result as any)?.insights),
+      });
 
       // Show success toast notification
       if (typeof window !== "undefined") {
@@ -114,10 +120,19 @@ export const ScraperProvider: React.FC<{ children: ReactNode }> = ({
         });
       }
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "An unknown error occurred";
       dispatch({
         type: "SCRAPE_ERROR",
-        payload:
-          error instanceof Error ? error.message : "An unknown error occurred",
+        payload: message,
+      });
+      trackEvent("scrape_error", {
+        url,
+        icpProfileId,
+        reason: message,
+        inactive: error instanceof WebsiteInactiveError,
+        auth: error instanceof ScraperAuthError,
+        credit: error instanceof ScraperCreditError,
       });
 
       // Show error toast notification with specific messaging
