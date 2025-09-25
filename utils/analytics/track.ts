@@ -18,15 +18,24 @@ export const trackEvent = (name: string, props?: Record<string, any>) => {
   safeCapture(name, props);
 };
 
-export const identifyUser = (user: { id?: string; email?: string; name?: string }) => {
+export const identifyUser = (user: {
+  id?: string;
+  email?: string;
+  name?: string;
+}) => {
   try {
     if (typeof window === "undefined") return;
     const distinctId = user.id || user.email || undefined;
     if (!distinctId) return;
+    // Lazily import to avoid circular deps at module init
+    const { getUtmForAnalytics } = require("./utm");
+    const utmProps =
+      typeof getUtmForAnalytics === "function" ? getUtmForAnalytics() : {};
     posthog.identify(distinctId, {
       email: user.email,
       name: user.name,
       app: "frontend",
+      ...utmProps,
     });
   } catch (_) {
     // no-op
@@ -41,4 +50,3 @@ export const resetIdentity = () => {
     // no-op
   }
 };
-

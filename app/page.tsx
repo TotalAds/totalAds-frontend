@@ -1,9 +1,10 @@
 "use client";
 
-import { useRouter } from 'next/navigation';
-import React, { useEffect } from 'react';
+import { useRouter } from "next/navigation";
+import React, { useEffect } from "react";
 
-import { useAuthContext } from '@/context/AuthContext';
+import { useAuthContext } from "@/context/AuthContext";
+import { appendUtmToPath } from "@/utils/analytics/utm";
 
 export default function Home() {
   const { state } = useAuthContext();
@@ -19,7 +20,7 @@ export default function Home() {
           router.push("/dashboard");
         }
       } else {
-        router.push("/login");
+        router.push(appendUtmToPath("/login"));
       }
     }
   }, [isAuthenticated, isLoading, state.user, router]);

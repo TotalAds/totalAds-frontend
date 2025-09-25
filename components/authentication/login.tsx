@@ -1,10 +1,11 @@
 "use client";
-import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import { useRouter } from "next/navigation";
+import React, { useEffect, useState } from "react";
 
-import GetLogo from '@/components/common/getLogo';
-import { useAuthContext } from '@/context/AuthContext';
-import { IconUserCircle } from '@tabler/icons-react';
+import GetLogo from "@/components/common/getLogo";
+import { useAuthContext } from "@/context/AuthContext";
+import { appendUtmToPath } from "@/utils/analytics/utm";
+import { IconUserCircle } from "@tabler/icons-react";
 
 export function LoginComponent() {
   const router = useRouter();
@@ -178,7 +179,7 @@ export function LoginComponent() {
             {/* Signup button */}
             <button
               type="button"
-              onClick={() => router.push("/signup")}
+              onClick={() => router.push(appendUtmToPath("/signup"))}
               disabled={isLoading}
               className="w-full py-4 px-6 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-2xl text-lg transition-all duration-200 border border-white/20 hover:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
             >

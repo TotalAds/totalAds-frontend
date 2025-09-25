@@ -9,6 +9,7 @@ import { ScraperProvider } from "@/context/ScraperContext";
 import { TokenProvider } from "@/context/TokenContext";
 import { TourProvider } from "@/context/TourContext";
 import { identifyUser, resetIdentity } from "@/utils/analytics/track";
+import { getUtmForAnalytics, initUtmTracking } from "@/utils/analytics/utm";
 import { PostHogProvider } from "@posthog/react";
 
 // Initialize PostHog once
@@ -39,6 +40,22 @@ const PageViewTracker: React.FC = () => {
   return null;
 };
 
+const UtmInitializer: React.FC = () => {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    initUtmTracking();
+    try {
+      const props = getUtmForAnalytics();
+      if ((posthog as any)?.register) {
+        (posthog as any).register(props);
+      }
+    } catch {}
+  }, [pathname, searchParams]);
+  return null;
+};
+
 const AuthIdentify: React.FC = () => {
   const { state } = useAuthContext();
   const { isAuthenticated, user } = state;
@@ -65,6 +82,7 @@ const Provider = ({ children }: { children: React.ReactNode }) => {
           <ScraperProvider>
             <TourProvider>
               <PageViewTracker />
+              <UtmInitializer />
               <AuthIdentify />
               {children}
               <Toaster

@@ -1,10 +1,11 @@
 "use client";
-import { useRouter } from 'next/navigation';
-import React, { useState } from 'react';
+import { useRouter } from "next/navigation";
+import React, { useState } from "react";
 
-import GetLogo from '@/components/common/getLogo';
-import { useAuthContext } from '@/context/AuthContext';
-import { IconLogin } from '@tabler/icons-react';
+import GetLogo from "@/components/common/getLogo";
+import { useAuthContext } from "@/context/AuthContext";
+import { appendUtmToPath } from "@/utils/analytics/utm";
+import { IconLogin } from "@tabler/icons-react";
 
 export function SignupComponent() {
   const router = useRouter();
@@ -245,7 +246,7 @@ export function SignupComponent() {
             {/* Login button */}
             <button
               type="button"
-              onClick={() => router.push("/login")}
+              onClick={() => router.push(appendUtmToPath("/login"))}
               disabled={isLoading}
               className="w-full py-4 px-6 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-2xl text-lg transition-all duration-200 border border-white/20 hover:border-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
             >
