@@ -218,6 +218,7 @@ const normalizeScrapeResponseDeep = (responseData: any): ScrapeResult => {
  * Submit a URL to scrape - UPDATED FOR NEW API SCHEMA
  * @param url - The URL to scrape
  * @param icpProfileId - Optional ICP profile ID for enhanced scraping
+
  * @returns Promise with the scrape result
  */
 export const scrapeUrl = async (

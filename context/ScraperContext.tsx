@@ -1,19 +1,12 @@
 "use client";
 
-import React, { createContext, ReactNode, useContext, useReducer } from "react";
+import React, { createContext, ReactNode, useContext, useReducer } from 'react';
 
+import { ScrapeResult, ScraperHealth } from '@/components/scraper/utils/scraperTypes';
+import { trackEvent } from '@/utils/analytics/track';
 import {
-  ScrapeResult,
-  ScraperHealth,
-} from "@/components/scraper/utils/scraperTypes";
-import { trackEvent } from "@/utils/analytics/track";
-import {
-  checkScraperHealth,
-  ScraperAuthError,
-  ScraperCreditError,
-  scrapeUrl,
-  WebsiteInactiveError,
-} from "@/utils/api/scraperClient";
+    checkScraperHealth, ScraperAuthError, ScraperCreditError, scrapeUrl, WebsiteInactiveError
+} from '@/utils/api/scraperClient';
 
 // Define the state type
 interface ScraperState {

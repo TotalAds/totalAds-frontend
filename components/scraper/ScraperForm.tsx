@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from 'react';
 
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { getICPProfiles, ICPProfile } from "@/utils/api";
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { getICPProfiles, ICPProfile } from '@/utils/api';
 
 interface ScraperFormProps {
   onSubmit: (url: string, icpProfileId: string) => void;
@@ -24,6 +24,7 @@ const ScraperForm: React.FC<ScraperFormProps> = ({
 }) => {
   const [url, setUrl] = useState<string>("");
   const [selectedICPProfile, setSelectedICPProfile] = useState<string>("");
+
   const [icpProfiles, setICPProfiles] = useState<ICPProfile[]>([]);
   const [urlError, setUrlError] = useState<string | null>(null);
   const [icpError, setICPError] = useState<string | null>(null);

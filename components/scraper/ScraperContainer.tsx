@@ -1,20 +1,20 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import React, { useEffect, useState } from "react";
-import toast from "react-hot-toast";
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 
-import { useAuthContext } from "@/context/AuthContext";
-import { useScraperContext } from "@/context/ScraperContext";
-import { WebsiteInactiveError } from "@/utils/api/scraperClient";
-import { IconHistory } from "@tabler/icons-react";
+import { useAuthContext } from '@/context/AuthContext';
+import { useScraperContext } from '@/context/ScraperContext';
+import { WebsiteInactiveError } from '@/utils/api/scraperClient';
+import { IconHistory } from '@tabler/icons-react';
 
-import BillingFeedback from "./BillingFeedback";
-import ScraperForm from "./ScraperForm";
-import ScraperHealthIndicator from "./ScraperHealthIndicator";
-import ScraperResults from "./ScraperResults";
-import WebsiteStatusAlert from "./WebsiteStatusAlert";
+import BillingFeedback from './BillingFeedback';
+import ScraperForm from './ScraperForm';
+import ScraperHealthIndicator from './ScraperHealthIndicator';
+import ScraperResults from './ScraperResults';
+import WebsiteStatusAlert from './WebsiteStatusAlert';
 
 const ScraperContainer = () => {
   const router = useRouter();
