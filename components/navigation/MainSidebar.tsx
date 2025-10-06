@@ -55,8 +55,8 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
       icon: <IconDashboard className="w-5 h-5" />,
     },
     {
-      name: "Sales Intelligence",
-      href: "/scraper",
+      name: "Lead Enhancement",
+      href: "/lead-enhancement",
       icon: <IconWorldWww className="w-5 h-5" />,
       badge: "AI",
     },
