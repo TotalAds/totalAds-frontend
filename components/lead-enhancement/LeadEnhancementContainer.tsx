@@ -1,26 +1,38 @@
 "use client";
 
-import axios from 'axios';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import Papa from 'papaparse';
-import React, { useEffect, useMemo, useState } from 'react';
-import toast from 'react-hot-toast';
-import * as XLSX from 'xlsx';
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import Papa from "papaparse";
+import React, { useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
+import * as XLSX from "xlsx";
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import DataTable from '@/components/ui/DataTable';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from "@/components/ui/button";
 import {
-    Select, SelectContent, SelectItem, SelectTrigger, SelectValue
-} from '@/components/ui/select';
-import { useAuthContext } from '@/context/AuthContext';
-import { getCreditBalance, getCreditPricing } from '@/utils/api/creditsClient';
-import { getICPProfiles, ICPProfile } from '@/utils/api/icpClient';
-import { createSheetJob, createUploadJob, getActiveJob } from '@/utils/api/leadEnhancementClient';
-import { IconHistory, IconUpload } from '@tabler/icons-react';
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import DataTable from "@/components/ui/DataTable";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useAuthContext } from "@/context/AuthContext";
+import { getCreditBalance, getCreditPricing } from "@/utils/api/creditsClient";
+import { getICPProfiles, ICPProfile } from "@/utils/api/icpClient";
+import {
+  createUploadJob,
+  getActiveJob,
+} from "@/utils/api/leadEnhancementClient";
+import { IconHistory, IconUpload } from "@tabler/icons-react";
 
 const MAX_FILE_MB = 50;
 
@@ -67,9 +79,8 @@ export default function LeadEnhancementContainer() {
   const [activeJob, setActiveJob] = useState<any>(null);
   const [creditsOk, setCreditsOk] = useState(true);
   const [estCredits, setEstCredits] = useState<number>(0);
-  const [sheetUrl, setSheetUrl] = useState<string>("");
+
   const [showAuthWarning, setShowAuthWarning] = useState(false);
-  const [showGoogleSheets, setShowGoogleSheets] = useState(false);
 
   // Check if user is authenticated
   useEffect(() => {
@@ -135,67 +146,6 @@ export default function LeadEnhancementContainer() {
       }
     });
     return best;
-  };
-
-  const getExportUrl = (url: string) => {
-    try {
-      const u = new URL(url);
-      const m = u.pathname.match(/\/spreadsheets\/d\/([^/]+)/);
-      const spreadsheetId = m?.[1];
-      const gidMatch = u.hash.match(/gid=(\d+)/);
-      const gid = gidMatch?.[1];
-      if (!spreadsheetId) return null;
-      const params = new URLSearchParams();
-      params.set("format", "csv");
-      if (gid) params.set("gid", gid);
-      return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?${params.toString()}`;
-    } catch {
-      return null;
-    }
-  };
-
-  const loadSheet = async () => {
-    if (!sheetUrl) {
-      toast.error("Please paste a public Google Sheet link first");
-      return;
-    }
-
-    const exportUrl = getExportUrl(sheetUrl);
-    if (!exportUrl) {
-      toast.error("Invalid Google Sheet link");
-      return;
-    }
-
-    try {
-      toast.loading("Loading sheet data...", { id: "load-sheet" });
-      const res = await axios.get(exportUrl, { responseType: "text" });
-      const csv = String(res.data || "");
-      const wb = XLSX.read(csv, { type: "string" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json(ws, { defval: "" }) as any[];
-      const cols = Object.keys(data[0] || {});
-
-      if (!cols.length) {
-        toast.error("No data found in sheet (first worksheet)", {
-          id: "load-sheet",
-        });
-        return;
-      }
-
-      setFile(null);
-      setRows(data);
-      setColumns(cols);
-      setWebsiteColumn(detectWebsiteColumn(cols, data));
-      toast.success(`Loaded ${data.length} rows from sheet`, {
-        id: "load-sheet",
-      });
-    } catch (e: any) {
-      console.error("Failed to load sheet:", e);
-      toast.error(
-        e?.message || "Failed to load sheet. Ensure it is publicly accessible",
-        { id: "load-sheet" }
-      );
-    }
   };
 
   const onFile = async (f: File) => {
@@ -288,9 +238,8 @@ export default function LeadEnhancementContainer() {
     if (uniqueWebsites.length) calc();
   }, [uniqueWebsites.length]);
 
-  const usingSheet = !file && sheetUrl && rows.length > 0;
   const canSubmit =
-    (file != null || usingSheet) &&
+    file != null &&
     websiteColumn &&
     icpProfileId &&
     (!activeJob ||
@@ -304,8 +253,8 @@ export default function LeadEnhancementContainer() {
       return;
     }
 
-    if (!file && !usingSheet) {
-      toast.error("Please select a file or load a Google Sheet first");
+    if (!file) {
+      toast.error("Please select a file first");
       return;
     }
 
@@ -333,27 +282,36 @@ export default function LeadEnhancementContainer() {
           toast.success("Job created successfully!", { id: "create-job" });
           router.push(`/lead-enhancement/jobs/${res.jobId}`);
         }
-      } else if (usingSheet) {
-        const res = await createSheetJob({
-          sheetUrl,
-          icpProfileId,
-          websiteColumn,
-        });
-        if (res?.jobId) {
-          toast.success("Job created successfully!", { id: "create-job" });
-          router.push(`/lead-enhancement/jobs/${res.jobId}`);
-        }
       }
     } catch (e: any) {
       console.error("Failed to create job:", e);
-      const errorMsg = e?.message || "Failed to create enhancement job";
-      toast.error(errorMsg, { id: "create-job" });
 
-      // Handle specific error cases
-      if (errorMsg.toLowerCase().includes("credit")) {
-        toast.error("Insufficient credits. Please add credits to continue.", {
+      const status = e?.response?.status as number | undefined;
+      const apiError = e?.response?.data?.error || e?.response?.data?.message;
+      const friendly =
+        apiError || e?.message || "Failed to create enhancement job";
+
+      if (status === 409) {
+        toast.error("Conflict: Another job is already running", {
+          id: "create-job",
           duration: 6000,
         });
+        try {
+          const act = await getActiveJob().catch(() => ({ job: null }));
+          setActiveJob(act.job);
+        } catch {}
+      } else if (
+        status === 402 ||
+        String(friendly).toLowerCase().includes("credit")
+      ) {
+        toast.error("Insufficient credits. Please add credits to continue.", {
+          id: "create-job",
+          duration: 6000,
+        });
+      } else if (status === 400 && friendly) {
+        toast.error(String(friendly), { id: "create-job" });
+      } else {
+        toast.error(String(friendly), { id: "create-job" });
       }
     } finally {
       setLoading(false);
@@ -472,7 +430,7 @@ export default function LeadEnhancementContainer() {
                   Upload Data Source
                 </CardTitle>
                 <CardDescription className="text-sm text-gray-300">
-                  Choose your lead data file or connect to Google Sheets
+                  Choose your lead data file
                 </CardDescription>
               </div>
             </div>
@@ -508,100 +466,8 @@ export default function LeadEnhancementContainer() {
                 </p>
               </div>
 
-              {/* Google Sheets Toggle */}
-              <div className="space-y-3">
-                <button
-                  onClick={() => setShowGoogleSheets(!showGoogleSheets)}
-                  className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all duration-200"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white/10 rounded-lg">
-                      <svg
-                        className="h-5 w-5 text-blue-400"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                        />
-                      </svg>
-                    </div>
-                    <div className="text-left">
-                      <h3 className="text-white font-medium">
-                        Connect Google Sheets
-                      </h3>
-                      <p className="text-sm text-gray-400">
-                        Load data directly from a public Google Sheet
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400">
-                      {showGoogleSheets ? "Hide" : "Show"}
-                    </span>
-                    <svg
-                      className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${
-                        showGoogleSheets ? "rotate-180" : ""
-                      }`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </div>
-                </button>
-
-                {showGoogleSheets && (
-                  <div className="bg-white/5 border border-white/10 rounded-lg p-4 space-y-4">
-                    <div className="flex gap-3 flex-1 ">
-                      <Input
-                        placeholder="https://docs.google.com/spreadsheets/d/.../edit"
-                        value={sheetUrl}
-                        onChange={(e) => setSheetUrl(e.target.value)}
-                        containerClass="flex-1"
-                      />
-                      <Button
-                        onClick={loadSheet}
-                        disabled={!sheetUrl}
-                        className="bg-white/10 hover:bg-white/20 text-white border border-white/20 px-6 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                      >
-                        <div className="flex items-center gap-2">
-                          <svg
-                            className="h-4 w-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                            />
-                          </svg>
-                          Load Sheet
-                        </div>
-                      </Button>
-                    </div>
-                    <p className="text-xs text-gray-400">
-                      Sheet must be publicly viewable. No Google API required.
-                    </p>
-                  </div>
-                )}
-              </div>
-
               {/* File Status */}
-              {(file || (sheetUrl && rows.length > 0)) && (
+              {file && (
                 <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-lg p-4">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-green-500/20 rounded-lg">
@@ -621,9 +487,7 @@ export default function LeadEnhancementContainer() {
                     </div>
                     <div>
                       <span className="text-green-300 font-medium">
-                        {file
-                          ? `File loaded: ${file.name}`
-                          : "Google Sheet loaded"}
+                        {`File loaded: ${file?.name ?? ""}`}
                       </span>
                       <span className="text-green-400 text-sm ml-2">
                         ({rows.length} rows)

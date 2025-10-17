@@ -1,6 +1,6 @@
 "use client";
 
-import apiClient from './apiClient';
+import apiClient from "./apiClient";
 
 // Shared response unwrapping that tolerates multiple API response shapes
 const unwrap = (res: any) => {
@@ -36,16 +36,6 @@ export interface CreateUploadJobParams {
   file: File;
   icpProfileId: string; // required
   websiteColumn: string; // required
-}
-
-export interface CreateSheetJobParams {
-  sheetUrl?: string; // preferred: full public sheet link
-  spreadsheetId?: string; // fallback if you want to pass parts
-  gid?: string; // optional gid (worksheet)
-  sheetName?: string; // optional
-  range?: string; // optional
-  icpProfileId: string;
-  websiteColumn: string;
 }
 
 export type JobStatus =
@@ -97,26 +87,6 @@ export const createUploadJob = async (params: CreateUploadJobParams) => {
   return unwrap(res) as { jobId: string };
 };
 
-export const createSheetJob = async (params: CreateSheetJobParams) => {
-  const payload: any = {
-    source: "sheet",
-    icpProfileId: params.icpProfileId,
-    websiteColumn: params.websiteColumn,
-  };
-  if (params.sheetUrl) {
-    payload.sheetUrl = params.sheetUrl;
-  } else {
-    payload.sheet = {
-      spreadsheetId: params.spreadsheetId,
-      gid: params.gid,
-      sheetName: params.sheetName,
-      range: params.range,
-    };
-  }
-  const res = await apiClient.post("/lead-enhancement/jobs", payload);
-  return unwrap(res) as { jobId: string };
-};
-
 export const getJob = async (id: string): Promise<LeadEnhancementJob> => {
   const res = await apiClient.get(`/lead-enhancement/jobs/${id}`);
   return unwrap(res);
@@ -132,14 +102,6 @@ export const getJobRows = async (
   q.set("limit", String(limit));
   const res = await apiClient.get(
     `/lead-enhancement/jobs/${id}/rows?${q.toString()}`
-  );
-  return unwrap(res);
-};
-
-export const pushJobToSheet = async (id: string, sheetUrl: string) => {
-  const res = await apiClient.post(
-    `/lead-enhancement/jobs/${id}/push-to-sheet`,
-    { sheetUrl }
   );
   return unwrap(res);
 };
