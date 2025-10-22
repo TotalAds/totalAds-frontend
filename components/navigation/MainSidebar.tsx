@@ -32,6 +32,7 @@ interface NavItem {
     badge?: string;
     isNew?: boolean;
   }[];
+  category?: "scraper" | "email" | "general";
 }
 
 interface MainSidebarProps {
@@ -46,35 +47,72 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
   onToggle,
 }) => {
   const pathname = usePathname();
-  const [expandedItems, setExpandedItems] = useState<string[]>(["API Docs"]);
+  const [expandedItems, setExpandedItems] = useState<string[]>([
+    "Email Service",
+    "Lead Enhancement",
+  ]);
+  const [expandedSections, setExpandedSections] = useState<string[]>([
+    "scraper",
+    "email",
+  ]);
 
   const navItems: NavItem[] = [
+    // Lead Enhancement Section
     {
-      name: "Dashboard",
-      href: "/dashboard",
-      icon: <IconDashboard className="w-5 h-5" />,
-    },
-    {
-      name: "Lead Enhancement",
-      href: "/lead-enhancement",
+      name: "Enrichment",
+      href: "",
       icon: <IconWorldWww className="w-5 h-5" />,
       badge: "AI",
+      category: "scraper",
+      subItems: [
+        {
+          name: "Dashboard",
+          href: "/dashboard",
+        },
+        {
+          name: "Lead Enhancement",
+          href: "/lead-enhancement",
+        },
+        {
+          name: "ICP Profiles",
+          href: "/icp-profiles",
+          isNew: true,
+        },
+        {
+          name: "API Tokens",
+          href: "/api-tokens",
+        },
+        {
+          name: "Docs",
+          href: "/docs",
+        },
+      ],
     },
+    // Email Service Section
     {
-      name: "ICP Profiles",
-      href: "/icp-profiles",
-      icon: <IconTarget className="w-5 h-5" />,
-      isNew: true,
-    },
-    {
-      name: "API Tokens",
-      href: "/api-tokens",
-      icon: <IconKey className="w-5 h-5" />,
-    },
-    {
-      name: "Docs",
-      href: "/docs",
-      icon: <IconBook className="w-5 h-5" />,
+      name: "Email Service",
+      href: "",
+      icon: <IconSparkles className="w-5 h-5" />,
+      badge: "NEW",
+      category: "email",
+      subItems: [
+        {
+          name: "Dashboard",
+          href: "/email/dashboard",
+        },
+        {
+          name: "Domains",
+          href: "/email/domains",
+        },
+        {
+          name: "Campaigns",
+          href: "/email/campaigns",
+        },
+        {
+          name: "Credits",
+          href: "/email/credits",
+        },
+      ],
     },
   ];
 
@@ -85,6 +123,19 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
         : [...prev, itemName]
     );
   };
+
+  const toggleSection = (section: string) => {
+    setExpandedSections((prev) =>
+      prev.includes(section)
+        ? prev.filter((s) => s !== section)
+        : [...prev, section]
+    );
+  };
+
+  // Group items by category
+  const scraperItems = navItems.filter((item) => item.category === "scraper");
+  const emailItems = navItems.filter((item) => item.category === "email");
+  const generalItems = navItems.filter((item) => item.category === "general");
 
   return (
     <>
@@ -146,197 +197,327 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
           </div>
 
           {/* Navigation */}
-          <nav className="px-4 py-6 space-y-2 flex-1 overflow-y-auto thin-scrollbar">
-            {navItems.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (pathname.startsWith(item.href + "/") &&
-                  !navItems.some(
-                    (otherItem) =>
-                      otherItem.href !== item.href &&
-                      otherItem.href.startsWith(item.href + "/") &&
-                      pathname === otherItem.href
-                  ));
-              const hasSubItems = item.subItems && item.subItems.length > 0;
-              const isExpanded = expandedItems.includes(item.name);
-
-              return (
-                <div key={item.name}>
-                  {hasSubItems ? (
-                    <button
-                      onClick={() => toggleExpanded(item.name)}
-                      className={cn(
-                        "w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 group",
-                        isActive
-                          ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/25"
-                          : "text-gray-300 hover:bg-white/10 hover:text-white hover:shadow-md hover:shadow-white/5"
-                      )}
+          <nav className="px-4 py-6 space-y-6 flex-1 overflow-y-auto thin-scrollbar">
+            {/* Scraper Section */}
+            {scraperItems.length > 0 && (
+              <div className="space-y-2">
+                <AnimatePresence>
+                  {expandedSections.includes("scraper") && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-1 overflow-hidden"
                     >
-                      <div className="flex items-center">
-                        <span
-                          className={cn(
-                            "mr-3 transition-colors duration-200",
-                            isActive
-                              ? "text-white"
-                              : "text-gray-400 group-hover:text-white"
-                          )}
-                        >
-                          {item.icon}
-                        </span>
-                        <span>{item.name}</span>
-                        {item.badge && (
-                          <span
-                            className={cn(
-                              "ml-2 px-2 py-0.5 text-xs font-semibold rounded-full",
-                              item.badge === "AI"
-                                ? "bg-green-500/20 text-green-300"
-                                : item.badge === "Pro"
-                                ? "bg-yellow-500/20 text-yellow-300"
-                                : "bg-blue-500/20 text-blue-300"
-                            )}
-                          >
-                            {item.badge}
-                          </span>
-                        )}
-                        {item.isNew && (
-                          <motion.span
-                            animate={{ scale: [1, 1.1, 1] }}
-                            transition={{ duration: 2, repeat: Infinity }}
-                            className="ml-2 px-2 py-0.5 text-xs font-semibold bg-red-500/20 text-red-300 rounded-full"
-                          >
-                            NEW
-                          </motion.span>
-                        )}
-                      </div>
-                      <motion.div
-                        animate={{ rotate: isExpanded ? 180 : 0 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        <IconChevronDown className="w-4 h-4" />
-                      </motion.div>
-                    </button>
-                  ) : (
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        "flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 group",
-                        isActive
-                          ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/25"
-                          : "text-gray-300 hover:bg-white/10 hover:text-white hover:shadow-md hover:shadow-white/5"
-                      )}
-                      onClick={() => {
-                        // Close sidebar on mobile when navigating
-                        if (window.innerWidth < 768) {
-                          onClose();
-                        }
-                      }}
-                    >
-                      <span
-                        className={cn(
-                          "mr-3 transition-colors duration-200",
-                          isActive
-                            ? "text-white"
-                            : "text-gray-400 group-hover:text-white"
-                        )}
-                      >
-                        {item.icon}
-                      </span>
-                      <span className="flex-1">{item.name}</span>
-                      {item.badge && (
-                        <span
-                          className={cn(
-                            "ml-2 px-2 py-0.5 text-xs font-semibold rounded-full",
-                            item.badge === "AI"
-                              ? "bg-green-500/20 text-green-300"
-                              : item.badge === "Pro"
-                              ? "bg-yellow-500/20 text-yellow-300"
-                              : "bg-blue-500/20 text-blue-300"
-                          )}
-                        >
-                          {item.badge}
-                        </span>
-                      )}
-                      {item.isNew && (
-                        <motion.span
-                          animate={{ scale: [1, 1.1, 1] }}
-                          transition={{ duration: 2, repeat: Infinity }}
-                          className="ml-2 px-2 py-0.5 text-xs font-semibold bg-red-500/20 text-red-300 rounded-full"
-                        >
-                          NEW
-                        </motion.span>
-                      )}
-                    </Link>
-                  )}
+                      {scraperItems.map((item) => {
+                        const isActive =
+                          pathname === item.href ||
+                          (pathname.startsWith(item.href + "/") &&
+                            !scraperItems.some(
+                              (otherItem) =>
+                                otherItem.href !== item.href &&
+                                otherItem.href.startsWith(item.href + "/") &&
+                                pathname === otherItem.href
+                            ));
+                        const hasSubItems =
+                          item.subItems && item.subItems.length > 0;
+                        const isExpanded = expandedItems.includes(item.name);
 
-                  {/* Sub-items */}
-                  <AnimatePresence>
-                    {hasSubItems && isExpanded && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="ml-4 mt-2 space-y-1 overflow-hidden"
-                      >
-                        {item.subItems?.map((subItem) => {
-                          const isSubActive = pathname === subItem.href;
-                          return (
-                            <Link
-                              key={subItem.name}
-                              href={subItem.href}
-                              className={cn(
-                                "flex items-center px-4 py-2.5 text-sm rounded-lg transition-all duration-200 group",
-                                isSubActive
-                                  ? "bg-white/10 text-white shadow-sm"
-                                  : "text-gray-400 hover:bg-white/5 hover:text-gray-300"
-                              )}
-                              onClick={() => {
-                                if (window.innerWidth < 768) {
-                                  onClose();
-                                }
-                              }}
-                            >
-                              <span
+                        return (
+                          <div key={item.name}>
+                            {hasSubItems ? (
+                              <button
+                                onClick={() => toggleExpanded(item.name)}
                                 className={cn(
-                                  "w-2 h-2 rounded-full mr-3 transition-colors",
-                                  isSubActive
-                                    ? "bg-purple-400"
-                                    : "bg-gray-500 group-hover:bg-gray-400"
+                                  "w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 group",
+                                  isActive
+                                    ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                                    : "text-gray-400 hover:bg-blue-500/10 hover:text-blue-300 hover:border hover:border-blue-500/20"
                                 )}
-                              ></span>
-                              <span className="flex-1">{subItem.name}</span>
-                              {subItem.badge && (
+                              >
+                                <div className="flex items-center">
+                                  <span
+                                    className={cn(
+                                      "mr-3 transition-colors duration-200",
+                                      isActive
+                                        ? "text-blue-300"
+                                        : "text-gray-500 group-hover:text-blue-300"
+                                    )}
+                                  >
+                                    {item.icon}
+                                  </span>
+                                  <span>{item.name}</span>
+                                  {item.badge && (
+                                    <span
+                                      className={cn(
+                                        "ml-2 px-2 py-0.5 text-xs font-semibold rounded-full",
+                                        item.badge === "AI"
+                                          ? "bg-green-500/20 text-green-300"
+                                          : "bg-yellow-500/20 text-yellow-300"
+                                      )}
+                                    >
+                                      {item.badge}
+                                    </span>
+                                  )}
+                                </div>
+                                <motion.div
+                                  animate={{
+                                    rotate: isExpanded ? 180 : 0,
+                                  }}
+                                  transition={{ duration: 0.2 }}
+                                >
+                                  <IconChevronDown className="w-3 h-3" />
+                                </motion.div>
+                              </button>
+                            ) : (
+                              <Link
+                                href={item.href}
+                                className={cn(
+                                  "flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 group",
+                                  isActive
+                                    ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                                    : "text-gray-400 hover:bg-blue-500/10 hover:text-blue-300 hover:border hover:border-blue-500/20"
+                                )}
+                                onClick={() => {
+                                  if (window.innerWidth < 768) {
+                                    onClose();
+                                  }
+                                }}
+                              >
                                 <span
                                   className={cn(
-                                    "ml-2 px-2 py-0.5 text-xs font-semibold rounded-full",
-                                    subItem.badge === "AI"
-                                      ? "bg-green-500/20 text-green-300"
-                                      : subItem.badge === "Pro"
-                                      ? "bg-yellow-500/20 text-yellow-300"
-                                      : "bg-blue-500/20 text-blue-300"
+                                    "mr-3 transition-colors duration-200",
+                                    isActive
+                                      ? "text-blue-300"
+                                      : "text-gray-500 group-hover:text-blue-300"
                                   )}
                                 >
-                                  {subItem.badge}
+                                  {item.icon}
                                 </span>
-                              )}
-                              {subItem.isNew && (
-                                <motion.span
-                                  animate={{ scale: [1, 1.1, 1] }}
-                                  transition={{ duration: 2, repeat: Infinity }}
-                                  className="ml-2 px-2 py-0.5 text-xs font-semibold bg-red-500/20 text-red-300 rounded-full"
+                                <span className="flex-1">{item.name}</span>
+                              </Link>
+                            )}
+                            {hasSubItems && isExpanded && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="space-y-1 overflow-hidden pl-4"
+                              >
+                                {item.subItems!.map((subItem) => {
+                                  const isSubActive = pathname === subItem.href;
+                                  return (
+                                    <Link
+                                      key={subItem.name}
+                                      href={subItem.href}
+                                      className={cn(
+                                        "flex items-center px-4 py-2 text-sm rounded-lg transition-all duration-200 group",
+                                        isSubActive
+                                          ? "bg-blue-500/30 text-blue-200 border border-blue-500/40"
+                                          : "text-gray-400 hover:bg-blue-500/10 hover:text-blue-300"
+                                      )}
+                                      onClick={() => {
+                                        if (window.innerWidth < 768) {
+                                          onClose();
+                                        }
+                                      }}
+                                    >
+                                      <span className="flex-1">
+                                        {subItem.name}
+                                      </span>
+                                      {subItem.isNew && (
+                                        <motion.span
+                                          animate={{ scale: [1, 1.1, 1] }}
+                                          transition={{
+                                            duration: 2,
+                                            repeat: Infinity,
+                                          }}
+                                          className="ml-2 px-2 py-0.5 text-xs font-semibold bg-red-500/20 text-red-300 rounded-full"
+                                        >
+                                          NEW
+                                        </motion.span>
+                                      )}
+                                    </Link>
+                                  );
+                                })}
+                              </motion.div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
+            {/* Email Service Section */}
+            {emailItems.length > 0 && (
+              <div className="space-y-2">
+                <AnimatePresence>
+                  {expandedSections.includes("email") && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-1 overflow-hidden"
+                    >
+                      {emailItems.map((item) => {
+                        const isActive =
+                          pathname === item.href ||
+                          (pathname.startsWith(item.href + "/") &&
+                            !emailItems.some(
+                              (otherItem) =>
+                                otherItem.href !== item.href &&
+                                otherItem.href.startsWith(item.href + "/") &&
+                                pathname === otherItem.href
+                            ));
+                        const hasSubItems =
+                          item.subItems && item.subItems.length > 0;
+                        const isExpanded = expandedItems.includes(item.name);
+
+                        return (
+                          <div key={item.name}>
+                            {hasSubItems ? (
+                              <button
+                                onClick={() => toggleExpanded(item.name)}
+                                className={cn(
+                                  "w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 group",
+                                  isActive
+                                    ? "bg-pink-500/20 text-pink-300 border border-pink-500/30"
+                                    : "text-gray-400 hover:bg-pink-500/10 hover:text-pink-300 hover:border hover:border-pink-500/20"
+                                )}
+                              >
+                                <div className="flex items-center">
+                                  <span
+                                    className={cn(
+                                      "mr-3 transition-colors duration-200",
+                                      isActive
+                                        ? "text-pink-300"
+                                        : "text-gray-500 group-hover:text-pink-300"
+                                    )}
+                                  >
+                                    {item.icon}
+                                  </span>
+                                  <span>{item.name}</span>
+                                  {item.badge && (
+                                    <span
+                                      className={cn(
+                                        "ml-2 px-2 py-0.5 text-xs font-semibold rounded-full",
+                                        item.badge === "NEW"
+                                          ? "bg-pink-500/20 text-pink-300"
+                                          : "bg-yellow-500/20 text-yellow-300"
+                                      )}
+                                    >
+                                      {item.badge}
+                                    </span>
+                                  )}
+                                </div>
+                                <motion.div
+                                  animate={{ rotate: isExpanded ? 180 : 0 }}
+                                  transition={{ duration: 0.2 }}
                                 >
-                                  NEW
-                                </motion.span>
+                                  <IconChevronDown className="w-4 h-4" />
+                                </motion.div>
+                              </button>
+                            ) : (
+                              <Link
+                                href={item.href}
+                                className={cn(
+                                  "flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 group",
+                                  isActive
+                                    ? "bg-pink-500/20 text-pink-300 border border-pink-500/30"
+                                    : "text-gray-400 hover:bg-pink-500/10 hover:text-pink-300 hover:border hover:border-pink-500/20"
+                                )}
+                                onClick={() => {
+                                  if (window.innerWidth < 768) {
+                                    onClose();
+                                  }
+                                }}
+                              >
+                                <span
+                                  className={cn(
+                                    "mr-3 transition-colors duration-200",
+                                    isActive
+                                      ? "text-pink-300"
+                                      : "text-gray-500 group-hover:text-pink-300"
+                                  )}
+                                >
+                                  {item.icon}
+                                </span>
+                                <span className="flex-1">{item.name}</span>
+                                {item.badge && (
+                                  <span
+                                    className={cn(
+                                      "ml-2 px-2 py-0.5 text-xs font-semibold rounded-full",
+                                      item.badge === "NEW"
+                                        ? "bg-pink-500/20 text-pink-300"
+                                        : "bg-yellow-500/20 text-yellow-300"
+                                    )}
+                                  >
+                                    {item.badge}
+                                  </span>
+                                )}
+                              </Link>
+                            )}
+
+                            {/* Sub-items */}
+                            <AnimatePresence>
+                              {hasSubItems && isExpanded && (
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: "auto" }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="ml-4 mt-2 space-y-1 overflow-hidden"
+                                >
+                                  {item.subItems?.map((subItem) => {
+                                    const isSubActive =
+                                      pathname === subItem.href;
+                                    return (
+                                      <Link
+                                        key={subItem.name}
+                                        href={subItem.href}
+                                        className={cn(
+                                          "flex items-center px-4 py-2.5 text-sm rounded-lg transition-all duration-200 group",
+                                          isSubActive
+                                            ? "bg-pink-500/20 text-pink-300"
+                                            : "text-gray-400 hover:bg-pink-500/10 hover:text-pink-300"
+                                        )}
+                                        onClick={() => {
+                                          if (window.innerWidth < 768) {
+                                            onClose();
+                                          }
+                                        }}
+                                      >
+                                        <span
+                                          className={cn(
+                                            "w-2 h-2 rounded-full mr-3 transition-colors",
+                                            isSubActive
+                                              ? "bg-pink-400"
+                                              : "bg-gray-500 group-hover:bg-pink-400"
+                                          )}
+                                        ></span>
+                                        <span className="flex-1">
+                                          {subItem.name}
+                                        </span>
+                                      </Link>
+                                    );
+                                  })}
+                                </motion.div>
                               )}
-                            </Link>
-                          );
-                        })}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              );
-            })}
+                            </AnimatePresence>
+                          </div>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </nav>
 
           {/* Footer */}

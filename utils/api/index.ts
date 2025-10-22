@@ -29,6 +29,9 @@ export * from "./icpClient";
 // Feedback API
 export * from "./feedbackClient";
 
+// Email Service API
+export * from "./emailClient";
+
 // Re-export common types
 export type {
   // Auth types
