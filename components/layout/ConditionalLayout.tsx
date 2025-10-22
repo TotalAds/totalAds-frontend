@@ -1,14 +1,25 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import dynamic from 'next/dynamic';
+import { usePathname } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
 
-import EmailVerificationBanner from "@/components/common/EmailVerificationBanner";
-import MainSidebar from "@/components/navigation/MainSidebar";
-import TopNav from "@/components/navigation/TopNav";
-import ProductTour from "@/components/tour/ProductTour";
-import { useAuthContext } from "@/context/AuthContext";
-import FeedbackButton from "@/src/components/feedback/FeedbackButton";
+import EmailVerificationBanner from '@/components/common/EmailVerificationBanner';
+import TopNav from '@/components/navigation/TopNav';
+import { useAuthContext } from '@/context/AuthContext';
+
+// Dynamically import components that pull in framer-motion to avoid SSR vendor-chunk issues
+const MainSidebar = dynamic(
+  () => import("@/components/navigation/MainSidebar"),
+  { ssr: false }
+);
+const ProductTour = dynamic(() => import("@/components/tour/ProductTour"), {
+  ssr: false,
+});
+const FeedbackButton = dynamic(
+  () => import("@/src/components/feedback/FeedbackButton"),
+  { ssr: false }
+);
 
 interface ConditionalLayoutProps {
   children: React.ReactNode;

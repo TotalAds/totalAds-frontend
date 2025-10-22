@@ -1,0 +1,223 @@
+"use client";
+
+import { Code2, Eye, FileText } from "lucide-react";
+import { useState } from "react";
+import toast from "react-hot-toast";
+
+import { Button } from "@/components/ui/button";
+
+import CodeEditor from "./CodeEditor";
+import DesignEditor from "./DesignEditor";
+
+interface EmailTemplateEditorProps {
+  subject: string;
+  htmlContent: string;
+  availableVariables: string[];
+  onSubjectChange: (subject: string) => void;
+  onHtmlContentChange: (content: string) => void;
+}
+
+export default function EmailTemplateEditor({
+  subject,
+  htmlContent,
+  availableVariables,
+  onSubjectChange,
+  onHtmlContentChange,
+}: EmailTemplateEditorProps) {
+  const [editMode, setEditMode] = useState<"design" | "code">("design");
+  const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">(
+    "desktop"
+  );
+  const [showVariables, setShowVariables] = useState(false);
+
+  const handleInsertVariable = (variable: string) => {
+    // If we're in the Design (Tiptap) editor, dispatch a custom event that the child listens to
+    if (editMode === "design") {
+      window.dispatchEvent(
+        new CustomEvent("totalads:insert-variable", { detail: variable })
+      );
+      return;
+    }
+
+    // Fallback for Code editor (textarea)
+    const textarea = document.getElementById(
+      "codeEditor"
+    ) as HTMLTextAreaElement | null;
+    if (textarea) {
+      const start = textarea.selectionStart || 0;
+      const end = textarea.selectionEnd || 0;
+      const newContent =
+        htmlContent.substring(0, start) + variable + htmlContent.substring(end);
+
+      onHtmlContentChange(newContent);
+
+      setTimeout(() => {
+        const pos = start + variable.length;
+        textarea.selectionStart = pos;
+        textarea.selectionEnd = pos;
+        textarea.focus();
+      }, 0);
+      return;
+    }
+
+    // If no textarea found (edge case), append to content
+    onHtmlContentChange((htmlContent || "") + variable);
+  };
+
+  // Highlight variables in HTML content
+  const highlightVariables = (html: string) => {
+    return html.replace(
+      /\{\{(\w+)\}\}/g,
+      '<mark style="background-color: #fbbf24; color: #000; padding: 2px 4px; border-radius: 3px; font-weight: 600;">{{$1}}</mark>'
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Subject Input - Compact */}
+      <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-xl p-4">
+        <label className="block text-xs font-medium text-gray-300 mb-2">
+          Email Subject *
+        </label>
+        <input
+          type="text"
+          value={subject}
+          onChange={(e) => onSubjectChange(e.target.value)}
+          placeholder="e.g., {{firstName}}, check out our new product!"
+          className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+        />
+      </div>
+
+      {/* Email Content Editor - Full Width */}
+      <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-xl p-4">
+        {/* Header with Mode Tabs - Compact */}
+        <div className="flex items-center justify-between mb-3 pb-3 border-b border-white/10">
+          <div className="flex gap-1">
+            <button
+              onClick={() => setEditMode("design")}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition text-sm ${
+                editMode === "design"
+                  ? "bg-purple-600 text-white"
+                  : "bg-white/10 text-gray-300 hover:bg-white/20"
+              }`}
+            >
+              <FileText size={16} />
+              Design
+            </button>
+            <button
+              onClick={() => setEditMode("code")}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition text-sm ${
+                editMode === "code"
+                  ? "bg-purple-600 text-white"
+                  : "bg-white/10 text-gray-300 hover:bg-white/20"
+              }`}
+            >
+              <Code2 size={16} />
+              Code
+            </button>
+          </div>
+
+          <button
+            onClick={() => setShowVariables(!showVariables)}
+            className="text-xs text-purple-400 hover:text-purple-300 transition"
+          >
+            {showVariables ? "Hide" : "Show"} Variables
+          </button>
+        </div>
+
+        {/* Variables Helper - Compact */}
+        {showVariables && (
+          <div className="mb-3 p-2 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+            <p className="text-xs text-gray-300 mb-1.5">Available variables:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {availableVariables.map((variable) => (
+                <button
+                  key={variable}
+                  onClick={() => handleInsertVariable(variable)}
+                  className="px-2 py-1 bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 text-xs rounded transition"
+                >
+                  {variable}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Editor Content - 3 Column Layout */}
+        <div className="grid grid-cols-3 gap-3">
+          {/* Left: Editor (Takes more space) */}
+          <div className="col-span-2 space-y-1.5">
+            <h3 className="text-xs font-medium text-gray-300">
+              {editMode === "design" ? "Design Editor" : "HTML Code"}
+            </h3>
+            {editMode === "design" ? (
+              <DesignEditor
+                htmlContent={htmlContent}
+                onHtmlContentChange={onHtmlContentChange}
+              />
+            ) : (
+              <CodeEditor
+                htmlContent={htmlContent}
+                onHtmlContentChange={onHtmlContentChange}
+              />
+            )}
+          </div>
+
+          {/* Right: Preview (Compact) */}
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1">
+              <Eye size={14} className="text-gray-400" />
+              <h3 className="text-xs font-medium text-gray-300">Preview</h3>
+            </div>
+
+            {/* Preview Mode Tabs - Compact */}
+            <div className="flex gap-1 mb-2">
+              <button
+                onClick={() => setPreviewMode("desktop")}
+                className={`px-2 py-1 text-xs rounded transition ${
+                  previewMode === "desktop"
+                    ? "bg-purple-600 text-white"
+                    : "bg-white/10 text-gray-300 hover:bg-white/20"
+                }`}
+              >
+                💻
+              </button>
+              <button
+                onClick={() => setPreviewMode("mobile")}
+                className={`px-2 py-1 text-xs rounded transition ${
+                  previewMode === "mobile"
+                    ? "bg-purple-600 text-white"
+                    : "bg-white/10 text-gray-300 hover:bg-white/20"
+                }`}
+              >
+                📱
+              </button>
+            </div>
+
+            {/* Preview Container */}
+            <div
+              className={`bg-white rounded-lg overflow-hidden border border-white/20 ${
+                previewMode === "mobile" ? "mx-auto w-64" : "w-full"
+              }`}
+            >
+              <div className="bg-gray-100 p-3 min-h-80 max-h-80 overflow-y-auto">
+                {htmlContent ? (
+                  <div
+                    className="text-black text-xs leading-relaxed"
+                    dangerouslySetInnerHTML={{
+                      __html: highlightVariables(htmlContent),
+                    }}
+                  />
+                ) : (
+                  <div className="text-gray-400 text-center py-8 text-xs">
+                    <p>Preview will appear here</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
