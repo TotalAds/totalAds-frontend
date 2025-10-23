@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 import { Nunito_Sans } from "next/font/google";
+import { Suspense } from "react";
 
 import ConditionalLayout from "@/components/layout/ConditionalLayout";
 import { cn } from "@/utils/cn";
@@ -34,9 +35,11 @@ export default function RootLayout({
           "bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900",
         ])}
       >
-        <Provider>
-          <ConditionalLayout>{children}</ConditionalLayout>
-        </Provider>
+        <Suspense fallback={null}>
+          <Provider>
+            <ConditionalLayout>{children}</ConditionalLayout>
+          </Provider>
+        </Suspense>
         {/* subtle footer link */}
         <div className="fixed bottom-2 right-3 text-[10px] text-slate-400/60 hover:text-slate-300/80">
           <a href="/legal/data-use">Data use</a>
