@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import React, { useEffect, useState } from "react";
 
 import GetLogo from "@/components/common/getLogo";
-import TourTrigger from "@/components/tour/TourTrigger";
 import { useAuthContext } from "@/context/AuthContext";
 import {
   ContactMetrics,

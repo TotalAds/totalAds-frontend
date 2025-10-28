@@ -1,23 +1,16 @@
 "use client";
 
-import dynamic from 'next/dynamic';
-import { usePathname } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
+import React, { useEffect, useState } from "react";
 
-import EmailVerificationBanner from '@/components/common/EmailVerificationBanner';
-import TopNav from '@/components/navigation/TopNav';
-import { useAuthContext } from '@/context/AuthContext';
+import EmailVerificationBanner from "@/components/common/EmailVerificationBanner";
+import TopNav from "@/components/navigation/TopNav";
+import { useAuthContext } from "@/context/AuthContext";
 
 // Dynamically import components that pull in framer-motion to avoid SSR vendor-chunk issues
 const MainSidebar = dynamic(
   () => import("@/components/navigation/MainSidebar"),
-  { ssr: false }
-);
-const ProductTour = dynamic(() => import("@/components/tour/ProductTour"), {
-  ssr: false,
-});
-const FeedbackButton = dynamic(
-  () => import("@/src/components/feedback/FeedbackButton"),
   { ssr: false }
 );
 
@@ -108,20 +101,6 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
             </div>
           </footer> */}
         </div>
-
-        {/* Feedback Button - only show for authenticated users */}
-        {isAuthenticated && (
-          <FeedbackButton
-            variant="floating"
-            context={{
-              page: pathname,
-              feature: "general",
-            }}
-          />
-        )}
-
-        {/* Tour Components - only show for authenticated users */}
-        {isAuthenticated && <ProductTour />}
       </div>
     </div>
   );

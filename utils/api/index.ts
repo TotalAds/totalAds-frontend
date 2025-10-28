@@ -11,20 +11,11 @@ export { default as apiClient } from "./apiClient";
 // Authentication API
 export * from "./authClient";
 
-// Scraper API
-export * from "./scraperClient";
-
-// Token Management API
-export * from "./tokenClient";
-
 // Billing API
 export * from "./billingClient";
 
 // Usage Statistics API
 export * from "./usageClient";
-
-// ICP Management API
-export * from "./icpClient";
 
 // Feedback API
 export * from "./feedbackClient";
@@ -42,22 +33,7 @@ export type {
   ChangePasswordData,
 } from "./authClient";
 
-export type {
-  // ICP types
-  ICPProfile,
-  CreateICPProfileRequest,
-  UpdateICPProfileRequest,
-  ICPProfilesResponse,
-} from "./icpClient";
-
 // Scraper types are imported from components/scraper/utils/scraperTypes
-
-export type {
-  // Token types
-  ApiToken,
-  TokenUsage,
-  CreateTokenRequest,
-} from "./tokenClient";
 
 export type {
   // Billing types

@@ -2,8 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Import tour styles */
-@import '../styles/tour.css';
+
 
 @layer base {
   :root {

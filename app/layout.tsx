@@ -10,11 +10,6 @@ import { cn } from "@/utils/cn";
 
 import Provider from "./provider";
 
-// Import tour utils for testing (only in development)
-if (process.env.NODE_ENV === "development") {
-  import("@/utils/tourUtils");
-}
-
 const inter = Nunito_Sans({ subsets: ["latin"] });
 
 export const metadata: Metadata = {

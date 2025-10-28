@@ -5,9 +5,6 @@ import React, { useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 
 import { AuthProvider, useAuthContext } from "@/context/AuthContext";
-import { ScraperProvider } from "@/context/ScraperContext";
-import { TokenProvider } from "@/context/TokenContext";
-import { TourProvider } from "@/context/TourContext";
 import { identifyUser, resetIdentity } from "@/utils/analytics/track";
 import { getUtmForAnalytics, initUtmTracking } from "@/utils/analytics/utm";
 import { PostHogProvider } from "@posthog/react";
@@ -78,40 +75,34 @@ const Provider = ({ children }: { children: React.ReactNode }) => {
   return (
     <PostHogProvider client={posthog}>
       <AuthProvider>
-        <TokenProvider>
-          <ScraperProvider>
-            <TourProvider>
-              <PageViewTracker />
-              <UtmInitializer />
-              <AuthIdentify />
-              {children}
-              <Toaster
-                position="top-right"
-                toastOptions={{
-                  duration: 4000,
-                  style: {
-                    background: "rgba(15, 23, 42, 0.95)",
-                    color: "#fff",
-                    border: "1px solid rgba(255, 255, 255, 0.1)",
-                    backdropFilter: "blur(10px)",
-                  },
-                  success: {
-                    iconTheme: {
-                      primary: "#10b981",
-                      secondary: "#fff",
-                    },
-                  },
-                  error: {
-                    iconTheme: {
-                      primary: "#ef4444",
-                      secondary: "#fff",
-                    },
-                  },
-                }}
-              />
-            </TourProvider>
-          </ScraperProvider>
-        </TokenProvider>
+        <PageViewTracker />
+        <UtmInitializer />
+        <AuthIdentify />
+        {children}
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: "rgba(15, 23, 42, 0.95)",
+              color: "#fff",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              backdropFilter: "blur(10px)",
+            },
+            success: {
+              iconTheme: {
+                primary: "#10b981",
+                secondary: "#fff",
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: "#ef4444",
+                secondary: "#fff",
+              },
+            },
+          }}
+        />
       </AuthProvider>
     </PostHogProvider>
   );

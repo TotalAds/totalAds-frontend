@@ -49,7 +49,6 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
   const pathname = usePathname();
   const [expandedItems, setExpandedItems] = useState<string[]>([
     "Email Service",
-    "Lead Enhancement",
   ]);
   const [expandedSections, setExpandedSections] = useState<string[]>([
     "scraper",
@@ -57,37 +56,6 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
   ]);
 
   const navItems: NavItem[] = [
-    // Lead Enhancement Section
-    // {
-    //   name: "Enrichment",
-    //   href: "",
-    //   icon: <IconWorldWww className="w-5 h-5" />,
-    //   badge: "AI",
-    //   category: "scraper",
-    //   subItems: [
-    //     {
-    //       name: "Dashboard",
-    //       href: "/dashboard",
-    //     },
-    //     {
-    //       name: "Lead Enhancement",
-    //       href: "/lead-enhancement",
-    //     },
-    //     {
-    //       name: "ICP Profiles",
-    //       href: "/icp-profiles",
-    //       isNew: true,
-    //     },
-    //     {
-    //       name: "API Tokens",
-    //       href: "/api-tokens",
-    //     },
-    //     {
-    //       name: "Docs",
-    //       href: "/docs",
-    //     },
-    //   ],
-    // },
     // Email Service Section
     {
       name: "Email Service",
