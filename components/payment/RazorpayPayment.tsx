@@ -186,7 +186,7 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
               }`}
             >
               {isCurrentPlan && (
-                <div className="absolute top-3 right-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white text-xs font-semibold px-3 py-1 rounded-full">
+                <div className="absolute top-3 right-3 bg-brand-tertiary text-white text-xs font-semibold px-3 py-1 rounded-full">
                   Current Plan
                 </div>
               )}
@@ -243,7 +243,7 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
                 className={`w-full font-semibold py-2 px-4 rounded-lg transition-all ${
                   isCurrentPlan
                     ? "bg-gray-600 text-gray-300 cursor-not-allowed"
-                    : "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white"
+                    : "bg-brand-main hover:bg-brand-main/80 text-white"
                 } disabled:opacity-50`}
               >
                 {isCurrentPlan

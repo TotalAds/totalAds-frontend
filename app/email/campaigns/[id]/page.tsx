@@ -90,10 +90,10 @@ export default function CampaignDetailsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-bg-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
-          <p className="text-white text-lg">Loading campaign analytics...</p>
+          <p className="text-text-100 text-lg">Loading campaign analytics...</p>
         </div>
       </div>
     );
@@ -101,9 +101,9 @@ export default function CampaignDetailsPage() {
 
   if (!analytics) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-bg-100 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-white text-xl mb-4">Campaign not found</p>
+          <p className="text-text-100 text-xl mb-4">Campaign not found</p>
           <button
             onClick={() => router.back()}
             className="text-blue-400 hover:text-blue-300"
@@ -131,23 +131,23 @@ export default function CampaignDetailsPage() {
       case "paused":
         return "bg-yellow-500/20 border-yellow-500/50 text-yellow-300";
       case "draft":
-        return "bg-purple-500/20 border-purple-500/50 text-purple-300";
+        return "bg-brand-main/20 border-brand-main/50 text-brand-main";
       default:
         return "bg-slate-500/20 border-slate-500/50 text-slate-300";
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
+    <div className="min-h-screen bg-bg-100 p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <div className="flex justify-between items-start mb-6">
             <div>
-              <h1 className="text-4xl font-bold text-white mb-3">
+              <h1 className="text-4xl font-bold text-text-100 mb-3">
                 {campaign.name}
               </h1>
-              <p className="text-white/60 text-sm mb-4">
+              <p className="text-text-100/60 text-sm mb-4">
                 Subject: {campaign.subject}
               </p>
               <div className="flex items-center gap-3">
@@ -168,7 +168,7 @@ export default function CampaignDetailsPage() {
             </div>
             <button
               onClick={() => router.back()}
-              className="bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-lg transition"
+              className="bg-brand-main/10 hover:bg-brand-main/20 text-text-100 px-6 py-2 rounded-lg transition"
             >
               ← Back
             </button>
@@ -177,9 +177,9 @@ export default function CampaignDetailsPage() {
 
         {/* Progress Bar */}
         {campaign.status === "sending" && (
-          <div className="bg-white/10 backdrop-blur-xl rounded-lg border border-white/20 p-6 mb-8">
+          <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-6 mb-8">
             <div className="flex justify-between items-center mb-3">
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-text-100">
                 Sending Progress
               </h3>
               <span className="text-2xl font-bold text-blue-400">
@@ -188,24 +188,24 @@ export default function CampaignDetailsPage() {
             </div>
             <div className="w-full bg-slate-700 rounded-full h-3">
               <div
-                className="bg-gradient-to-r from-blue-600 to-blue-400 h-3 rounded-full transition-all duration-500"
+                className="bg-brand-tertiary h-3 rounded-full transition-all duration-500"
                 style={{ width: `${progress.percentage}%` }}
               ></div>
             </div>
-            <p className="text-white/60 text-sm mt-3">
+            <p className="text-text-100/60 text-sm mt-3">
               {progress.completed} of {progress.total} emails processed
             </p>
           </div>
         )}
 
         {/* Tabs */}
-        <div className="flex gap-4 mb-8 border-b border-white/10">
+        <div className="flex gap-4 mb-8 border-b border-brand-main/10">
           <button
             onClick={() => setActiveTab("overview")}
             className={`px-4 py-3 font-medium transition ${
               activeTab === "overview"
                 ? "text-blue-400 border-b-2 border-blue-400"
-                : "text-white/60 hover:text-white"
+                : "text-text-100/60 hover:text-text-100"
             }`}
           >
             📊 Overview
@@ -215,7 +215,7 @@ export default function CampaignDetailsPage() {
             className={`px-4 py-3 font-medium transition ${
               activeTab === "leads"
                 ? "text-blue-400 border-b-2 border-blue-400"
-                : "text-white/60 hover:text-white"
+                : "text-text-100/60 hover:text-text-100"
             }`}
           >
             👥 Leads ({metrics.totalLeads})
@@ -227,7 +227,7 @@ export default function CampaignDetailsPage() {
           <div className="space-y-8">
             {/* Primary KPIs */}
             <div>
-              <h2 className="text-2xl font-bold text-white mb-4">
+              <h2 className="text-2xl font-bold text-text-100 mb-4">
                 📈 Key Performance Indicators
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -266,7 +266,7 @@ export default function CampaignDetailsPage() {
 
             {/* Engagement Metrics */}
             <div>
-              <h2 className="text-2xl font-bold text-white mb-4">
+              <h2 className="text-2xl font-bold text-text-100 mb-4">
                 💬 Engagement Metrics
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -309,7 +309,7 @@ export default function CampaignDetailsPage() {
 
             {/* Error & Issue Metrics */}
             <div>
-              <h2 className="text-2xl font-bold text-white mb-4">
+              <h2 className="text-2xl font-bold text-text-100 mb-4">
                 ⚠️ Issues & Errors
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -348,7 +348,7 @@ export default function CampaignDetailsPage() {
 
             {/* Queue Status */}
             <div>
-              <h2 className="text-2xl font-bold text-white mb-4">
+              <h2 className="text-2xl font-bold text-text-100 mb-4">
                 ⚙️ Queue Status
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -377,33 +377,33 @@ export default function CampaignDetailsPage() {
             </div>
 
             {/* Campaign Info */}
-            <div className="bg-white/10 backdrop-blur-xl rounded-lg border border-white/20 p-6">
-              <h3 className="text-lg font-bold text-white mb-4">
+            <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-6">
+              <h3 className="text-lg font-bold text-text-100 mb-4">
                 ℹ️ Campaign Information
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div>
-                  <p className="text-white/60 text-sm">From</p>
-                  <p className="text-white mt-1 font-medium">
+                  <p className="text-text-100/60 text-sm">From</p>
+                  <p className="text-text-100 mt-1 font-medium">
                     {campaign.fromName || campaign.fromEmail}
                   </p>
                 </div>
                 <div>
-                  <p className="text-white/60 text-sm">Email</p>
-                  <p className="text-white mt-1 font-medium text-sm">
+                  <p className="text-text-100/60 text-sm">Email</p>
+                  <p className="text-text-100 mt-1 font-medium text-sm">
                     {campaign.fromEmail}
                   </p>
                 </div>
                 <div>
-                  <p className="text-white/60 text-sm">Created</p>
-                  <p className="text-white mt-1 font-medium">
+                  <p className="text-text-100/60 text-sm">Created</p>
+                  <p className="text-text-100 mt-1 font-medium">
                     {new Date(campaign.createdAt).toLocaleDateString()}
                   </p>
                 </div>
                 {campaign.startedAt && (
                   <div>
-                    <p className="text-white/60 text-sm">Started</p>
-                    <p className="text-white mt-1 font-medium">
+                    <p className="text-text-100/60 text-sm">Started</p>
+                    <p className="text-text-100 mt-1 font-medium">
                       {new Date(campaign.startedAt).toLocaleDateString()}
                     </p>
                   </div>

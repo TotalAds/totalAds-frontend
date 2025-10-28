@@ -58,42 +58,42 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <div className="min-h-screen flex items-center justify-center bg-bg-100">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-300">Loading...</p>
+          <div className="w-12 h-12 border-4 border-brand-main border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-text-200">Loading...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="min-h-screen bg-bg-100">
       {/* Header */}
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Welcome Section */}
-        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-8 mb-6">
-          <h2 className="text-3xl font-bold text-white mb-4">
+        <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-8 mb-6">
+          <h2 className="text-3xl font-bold text-text-100 mb-4">
             Welcome to Your Dashboard
           </h2>
-          <p className="text-gray-300">
+          <p className="text-text-200">
             Get started with TotalAds Email Service. Manage your email
             campaigns, domains, and leads.
           </p>
         </div>
 
         {/* Trend Chart (7/30 days) */}
-        <div className="w-full max-w-3xl mb-12 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4 text-white">
+        <div className="w-full max-w-3xl mb-12 bg-brand-main/10 backdrop-blur-xl border border-brand-main/20 rounded-2xl p-4 text-text-100">
           <div className="flex items-center justify-between mb-3">
             <div className="text-sm opacity-80">Daily Sends Trend</div>
             <div className="flex gap-2 text-xs">
               <button
                 className={`px-2 py-0.5 rounded ${
                   range === 7
-                    ? "bg-purple-500/30 text-purple-200"
-                    : "bg-white/10 text-gray-300"
+                    ? "bg-brand-main/20 text-brand-main"
+                    : "bg-brand-main/5 text-text-200"
                 }`}
                 onClick={() => {
                   setRange(7);
@@ -105,8 +105,8 @@ export default function DashboardPage() {
               <button
                 className={`px-2 py-0.5 rounded ${
                   range === 30
-                    ? "bg-purple-500/30 text-purple-200"
-                    : "bg-white/10 text-gray-300"
+                    ? "bg-brand-main/20 text-brand-main"
+                    : "bg-brand-main/5 text-text-200"
                 }`}
                 onClick={() => {
                   setRange(30);
@@ -160,7 +160,7 @@ export default function DashboardPage() {
             })}
           </div>
           {/* Legend */}
-          <div className="mt-3 flex gap-4 text-[11px] text-gray-300">
+          <div className="mt-3 flex gap-4 text-[11px] text-text-200">
             <span className="inline-flex items-center gap-1">
               <span className="w-2 h-2 bg-green-400 inline-block rounded-sm" />{" "}
               Sent
@@ -179,10 +179,10 @@ export default function DashboardPage() {
         {/* Features Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Domains */}
-          <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 hover:bg-white/15 transition">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center mb-4">
+          <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-6 hover:bg-brand-main/15 transition">
+            <div className="w-12 h-12 bg-brand-secondary rounded-lg flex items-center justify-center mb-4">
               <svg
-                className="w-6 h-6 text-white"
+                className="w-6 h-6 text-text-100"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -195,23 +195,25 @@ export default function DashboardPage() {
                 />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Domains</h3>
-            <p className="text-gray-400 mb-4">
+            <h3 className="text-xl font-semibold text-text-100 mb-2">
+              Domains
+            </h3>
+            <p className="text-text-200 mb-4">
               Verify and manage your email domains
             </p>
             <Link
               href="/email/domains"
-              className="text-purple-400 hover:text-purple-300 font-semibold"
+              className="text-brand-main hover:text-brand-secondary font-semibold"
             >
               Manage Domains →
             </Link>
           </div>
 
           {/* Leads */}
-          <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 hover:bg-white/15 transition">
-            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center mb-4">
+          <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-6 hover:bg-brand-main/15 transition">
+            <div className="w-12 h-12 bg-brand-secondary rounded-lg flex items-center justify-center mb-4">
               <svg
-                className="w-6 h-6 text-white"
+                className="w-6 h-6 text-text-100"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -224,23 +226,23 @@ export default function DashboardPage() {
                 />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Leads</h3>
-            <p className="text-gray-400 mb-4">
+            <h3 className="text-xl font-semibold text-text-100 mb-2">Leads</h3>
+            <p className="text-text-200 mb-4">
               Upload and manage your contact lists
             </p>
             <Link
               href="/email/leads"
-              className="text-purple-400 hover:text-purple-300 font-semibold"
+              className="text-brand-main hover:text-brand-secondary font-semibold"
             >
               Manage Leads →
             </Link>
           </div>
 
           {/* Campaigns */}
-          <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 hover:bg-white/15 transition">
-            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center mb-4">
+          <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-6 hover:bg-brand-main/15 transition">
+            <div className="w-12 h-12 bg-brand-secondary rounded-lg flex items-center justify-center mb-4">
               <svg
-                className="w-6 h-6 text-white"
+                className="w-6 h-6 text-text-100"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -253,23 +255,25 @@ export default function DashboardPage() {
                 />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Campaigns</h3>
-            <p className="text-gray-400 mb-4">
+            <h3 className="text-xl font-semibold text-text-100 mb-2">
+              Campaigns
+            </h3>
+            <p className="text-text-200 mb-4">
               Create and manage email campaigns
             </p>
             <Link
               href="/email/campaigns"
-              className="text-purple-400 hover:text-purple-300 font-semibold"
+              className="text-brand-main hover:text-brand-secondary font-semibold"
             >
               Create Campaign →
             </Link>
           </div>
 
           {/* Analytics */}
-          <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 hover:bg-white/15 transition">
-            <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center mb-4">
+          <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-6 hover:bg-brand-main/15 transition">
+            <div className="w-12 h-12 bg-brand-secondary rounded-lg flex items-center justify-center mb-4">
               <svg
-                className="w-6 h-6 text-white"
+                className="w-6 h-6 text-text-100"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -282,23 +286,25 @@ export default function DashboardPage() {
                 />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Analytics</h3>
-            <p className="text-gray-400 mb-4">
+            <h3 className="text-xl font-semibold text-text-100 mb-2">
+              Analytics
+            </h3>
+            <p className="text-text-200 mb-4">
               Track campaign performance and metrics
             </p>
             <Link
               href="/email/analytics"
-              className="text-purple-400 hover:text-purple-300 font-semibold"
+              className="text-brand-main hover:text-brand-secondary font-semibold"
             >
               View Analytics →
             </Link>
           </div>
 
           {/* Credits */}
-          <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 hover:bg-white/15 transition">
-            <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-amber-500 rounded-lg flex items-center justify-center mb-4">
+          <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-6 hover:bg-brand-main/15 transition">
+            <div className="w-12 h-12 bg-brand-secondary rounded-lg flex items-center justify-center mb-4">
               <svg
-                className="w-6 h-6 text-white"
+                className="w-6 h-6 text-text-100"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -311,15 +317,15 @@ export default function DashboardPage() {
                 />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">
+            <h3 className="text-xl font-semibold text-text-100 mb-2">
               Pricing & Plans
             </h3>
-            <p className="text-gray-400 mb-4">
+            <p className="text-text-200 mb-4">
               View pricing plans and manage your subscription
             </p>
             <Link
               href="/email/pricing"
-              className="text-purple-400 hover:text-purple-300 font-semibold"
+              className="text-brand-main hover:text-brand-secondary font-semibold"
             >
               View Plans →
             </Link>

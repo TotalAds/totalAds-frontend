@@ -205,7 +205,7 @@ export default function CampaignStep5Status({
             <div className="mb-2">
               <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
                 <div
-                  className="bg-gradient-to-r from-purple-600 to-pink-600 h-full transition-all duration-500"
+                  className="bg-brand-main h-full transition-all duration-500"
                   style={{ width: `${getProgressPercentage()}%` }}
                 />
               </div>

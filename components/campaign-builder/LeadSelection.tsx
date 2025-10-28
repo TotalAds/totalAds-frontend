@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { IconSearch, IconX } from "@tabler/icons-react";
 
-import emailClient from "@/utils/api/emailClient";
 import { Button } from "@/components/ui/button";
+import emailClient from "@/utils/api/emailClient";
+import { IconSearch, IconX } from "@tabler/icons-react";
 
 interface Lead {
   id: string;
@@ -83,9 +83,10 @@ export default function LeadSelection({
     onLeadsSelected(selected);
   };
 
-  const filteredLeads = leads.filter((lead) =>
-    lead.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lead.name?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredLeads = leads.filter(
+    (lead) =>
+      lead.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -293,7 +294,7 @@ export default function LeadSelection({
         <Button
           onClick={handleSelectLeads}
           disabled={selectedLeads.size === 0}
-          className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg transition disabled:opacity-50"
+          className="px-6 py-2 bg-brand-main hover:bg-brand-main/80 text-white rounded-lg transition disabled:opacity-50"
         >
           Select {selectedLeads.size} Lead{selectedLeads.size !== 1 ? "s" : ""}
         </Button>
@@ -301,4 +302,3 @@ export default function LeadSelection({
     </div>
   );
 }
-

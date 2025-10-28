@@ -191,30 +191,30 @@ export default function CampaignBuilderPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-bg-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mx-auto mb-4"></div>
-          <p className="text-white text-lg">Loading campaign...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-main mx-auto mb-4"></div>
+          <p className="text-text-100 text-lg">Loading campaign...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="min-h-screen bg-bg-100">
       {/* Header */}
-      <header className="backdrop-blur-xl bg-white/5 border-b border-white/10 sticky top-0 z-40">
+      <header className="backdrop-blur-xl bg-brand-main/5 border-b border-brand-main/10 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex justify-between items-center mb-2">
             <div>
-              <h1 className="text-xl font-bold text-white">Campaign Builder</h1>
-              <p className="text-gray-400 text-sm mt-1">
+              <h1 className="text-xl font-bold text-text-100">Campaign Builder</h1>
+              <p className="text-text-200 text-sm mt-1">
                 Create and send professional email campaigns
               </p>
             </div>
             <button
               onClick={handleCancel}
-              className="text-gray-400 hover:text-white transition"
+              className="text-text-200 hover:text-text-100 transition"
             >
               ✕
             </button>
@@ -227,24 +227,24 @@ export default function CampaignBuilderPage() {
                 <div
                   className={`flex items-center justify-center w-8 h-8 rounded-full font-semibold transition ${
                     state.step >= step.number
-                      ? "bg-purple-600 text-white"
-                      : "bg-white/10 text-gray-400"
+                      ? "bg-brand-main text-text-100"
+                      : "bg-brand-main/10 text-text-200"
                   }`}
                 >
                   {state.step > step.number ? "✓" : step.number}
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-white m-0 mb-1">
+                  <p className="text-sm font-medium text-text-100 m-0 mb-1">
                     {step.title}
                   </p>
-                  <p className="text-xs m-0 text-gray-400">
+                  <p className="text-xs m-0 text-text-200">
                     {step.description}
                   </p>
                 </div>
                 {index < STEPS.length - 1 && (
                   <div
                     className={`flex-1 h-1 mx-4 rounded transition ${
-                      state.step > step.number ? "bg-purple-600" : "bg-white/10"
+                      state.step > step.number ? "bg-brand-main" : "bg-brand-main/10"
                     }`}
                   />
                 )}

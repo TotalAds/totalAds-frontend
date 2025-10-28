@@ -1,12 +1,12 @@
 "use client";
 
-import { useRouter } from 'next/navigation';
-import React, { useState } from 'react';
-import toast from 'react-hot-toast';
+import { useRouter } from "next/navigation";
+import React, { useState } from "react";
+import toast from "react-hot-toast";
 
-import { useAuthContext } from '@/context/AuthContext';
-import { resendVerificationCode } from '@/utils/api/authClient';
-import { IconMail, IconRefresh, IconX } from '@tabler/icons-react';
+import { useAuthContext } from "@/context/AuthContext";
+import { resendVerificationCode } from "@/utils/api/authClient";
+import { IconMail, IconRefresh, IconX } from "@tabler/icons-react";
 
 interface EmailVerificationBannerProps {
   onDismiss?: () => void;
@@ -108,7 +108,7 @@ const EmailVerificationBanner: React.FC<EmailVerificationBannerProps> = ({
 
   // Banner variant - Short and compact design
   return (
-    <div className="backdrop-blur-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-400/30 rounded-xl p-3 mb-4 shadow-lg">
+    <div className="backdrop-blur-xl bg-brand-secondary/20 border border-brand-secondary/30 rounded-xl p-3 mb-4 shadow-lg">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-8 h-8 bg-amber-500/20 rounded-full">

@@ -117,21 +117,21 @@ export default function LeadsPage() {
   const totalPages = Math.ceil(total / limit);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
+    <div className="min-h-screen bg-bg-100 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-4xl font-bold text-white mb-2">
+            <h1 className="text-4xl font-bold text-text-100 mb-2">
               Lead Management
             </h1>
-            <p className="text-gray-400">
+            <p className="text-text-200">
               Manage and organize your email leads
             </p>
           </div>
           <button
             onClick={() => router.push("/email/leads/create")}
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02]"
+            className="flex items-center gap-2 px-6 py-3 bg-brand-main hover:bg-brand-main/80 text-text-100 font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02]"
           >
             <IconPlus size={20} />
             Add Lead
@@ -139,12 +139,12 @@ export default function LeadsPage() {
         </div>
 
         {/* Filters */}
-        <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6 mb-6">
+        <div className="bg-brand-main/10 backdrop-blur-md border border-brand-main/20 rounded-xl p-6 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
             {/* Search */}
             <div className="relative lg:col-span-2">
               <IconSearch
-                className="absolute left-3 top-3 text-gray-400"
+                className="absolute left-3 top-3 text-text-200"
                 size={20}
               />
               <input
@@ -152,7 +152,7 @@ export default function LeadsPage() {
                 placeholder="Search by email or name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full pl-10 pr-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:ring-2 focus:ring-brand-main"
               />
             </div>
 
@@ -163,7 +163,7 @@ export default function LeadsPage() {
                 setStatusFilter(e.target.value);
                 setPage(1);
               }}
-              className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="px-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 focus:outline-none focus:ring-2 focus:ring-brand-main"
             >
               <option value="">All Statuses</option>
               <option value="new">New</option>
@@ -178,8 +178,8 @@ export default function LeadsPage() {
 
         {/* Bulk Actions Bar */}
         {selectedLeadsForCampaign.size > 0 && (
-          <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl p-4 mb-6 flex items-center justify-between">
-            <div className="text-white">
+          <div className="bg-brand-main/10 border border-brand-main/30 rounded-xl p-4 mb-6 flex items-center justify-between">
+            <div className="text-text-100">
               <span className="font-semibold">
                 {selectedLeadsForCampaign.size}
               </span>{" "}
@@ -188,14 +188,14 @@ export default function LeadsPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowStartCampaignModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-lg transition-all duration-200"
+                className="flex items-center gap-2 px-4 py-2 bg-brand-main hover:bg-brand-main/80 text-text-100 font-semibold rounded-lg transition-all duration-200"
               >
                 <IconMail size={18} />
                 Start Campaign
               </button>
               <button
                 onClick={() => setSelectedLeadsForCampaign(new Set())}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+                className="px-4 py-2 bg-brand-main/10 hover:bg-brand-main/20 text-text-100 rounded-lg transition-colors"
               >
                 Clear
               </button>
@@ -204,17 +204,17 @@ export default function LeadsPage() {
         )}
 
         {/* Leads Table */}
-        <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl overflow-hidden">
+        <div className="bg-brand-main/10 backdrop-blur-md border border-brand-main/20 rounded-xl overflow-hidden">
           {isLoading ? (
-            <div className="p-8 text-center text-gray-400">
+            <div className="p-8 text-center text-text-200">
               Loading leads...
             </div>
           ) : filteredLeads.length === 0 ? (
-            <div className="p-8 text-center text-gray-400">
+            <div className="p-8 text-center text-text-200">
               No leads found.{" "}
               <a
                 href="/email/leads/create"
-                className="text-purple-400 hover:text-purple-300"
+                className="text-brand-main hover:text-brand-secondary"
               >
                 Create one
               </a>
@@ -223,9 +223,9 @@ export default function LeadsPage() {
             <>
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-white/5 border-b border-white/10">
+                  <thead className="bg-brand-main/5 border-b border-brand-main/10">
                     <tr>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300 w-12">
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200 w-12">
                         <input
                           type="checkbox"
                           checked={
@@ -241,25 +241,25 @@ export default function LeadsPage() {
                               setSelectedLeadsForCampaign(new Set());
                             }
                           }}
-                          className="w-4 h-4 rounded border-gray-300 text-purple-500 focus:ring-purple-500"
+                          className="w-4 h-4 rounded border-gray-300 text-brand-main focus:ring-brand-main"
                         />
                       </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
                         Email
                       </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
                         Name
                       </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
                         Company
                       </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
                         Role
                       </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
                         Campaign
                       </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
                         Actions
                       </th>
                     </tr>
@@ -268,7 +268,7 @@ export default function LeadsPage() {
                     {filteredLeads.map((lead) => (
                       <tr
                         key={lead.id}
-                        className="border-b border-white/10 hover:bg-white/5 transition-colors"
+                        className="border-b border-brand-main/10 hover:bg-brand-main/5 transition-colors"
                       >
                         <td className="px-6 py-4 text-sm w-12">
                           <input
@@ -283,19 +283,19 @@ export default function LeadsPage() {
                               }
                               setSelectedLeadsForCampaign(newSet);
                             }}
-                            className="w-4 h-4 rounded border-gray-300 text-purple-500 focus:ring-purple-500"
+                            className="w-4 h-4 rounded border-text-200 text-brand-main focus:ring-brand-main"
                           />
                         </td>
-                        <td className="px-6 py-4 text-sm text-white">
+                        <td className="px-6 py-4 text-sm text-text-100">
                           {lead.email}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-300">
+                        <td className="px-6 py-4 text-sm text-text-200">
                           {lead.name || "-"}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-300">
+                        <td className="px-6 py-4 text-sm text-text-200">
                           {lead.customFields?.company || "-"}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-300">
+                        <td className="px-6 py-4 text-sm text-text-200">
                           {lead.customFields?.role || "-"}
                         </td>
                         <td className="px-6 py-4 text-sm">
@@ -320,7 +320,7 @@ export default function LeadsPage() {
                               </button>
                             )
                           ) : (
-                            <span className="text-gray-500 text-xs">
+                            <span className="text-text-200 text-xs">
                               Unassociated
                             </span>
                           )}
@@ -328,7 +328,7 @@ export default function LeadsPage() {
                         <td className="px-6 py-4 text-sm flex gap-2">
                           <button
                             onClick={() => handleDelete(lead.id)}
-                            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                            className="p-2 hover:bg-brand-main/10 rounded-lg transition-colors"
                             title="Delete lead"
                           >
                             <IconTrash size={18} className="text-red-400" />
@@ -341,8 +341,8 @@ export default function LeadsPage() {
               </div>
 
               {/* Pagination */}
-              <div className="px-6 py-4 border-t border-white/10 flex justify-between items-center">
-                <div className="text-sm text-gray-400">
+              <div className="px-6 py-4 border-t border-brand-main/10 flex justify-between items-center">
+                <div className="text-sm text-text-200">
                   Showing {(page - 1) * limit + 1} to{" "}
                   {Math.min(page * limit, total)} of {total} leads
                 </div>
@@ -350,17 +350,17 @@ export default function LeadsPage() {
                   <button
                     onClick={() => setPage(Math.max(1, page - 1))}
                     disabled={page === 1}
-                    className="px-4 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                    className="px-4 py-2 bg-brand-main/10 hover:bg-brand-main/20 disabled:opacity-50 disabled:cursor-not-allowed text-text-100 rounded-lg transition-colors"
                   >
                     Previous
                   </button>
-                  <span className="px-4 py-2 text-white">
+                  <span className="px-4 py-2 text-text-100">
                     Page {page} of {totalPages}
                   </span>
                   <button
                     onClick={() => setPage(Math.min(totalPages, page + 1))}
                     disabled={page === totalPages}
-                    className="px-4 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                    className="px-4 py-2 bg-brand-main/10 hover:bg-brand-main/20 disabled:opacity-50 disabled:cursor-not-allowed text-text-100 rounded-lg transition-colors"
                   >
                     Next
                   </button>
@@ -375,26 +375,26 @@ export default function LeadsPage() {
           selectedLeadForCampaigns.campaigns &&
           selectedLeadForCampaigns.campaigns.length > 1 && (
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-slate-900 border border-white/20 rounded-2xl p-6 max-w-md w-full">
+              <div className="bg-slate-900 border border-brand-main/20 rounded-2xl p-6 max-w-md w-full">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-white">
+                  <h3 className="text-lg font-semibold text-text-100">
                     Associated Campaigns
                   </h3>
                   <button
                     onClick={() => setSelectedLeadForCampaigns(null)}
-                    className="p-1 hover:bg-white/10 rounded-lg transition-colors"
+                    className="p-1 hover:bg-brand-main/10 rounded-lg transition-colors"
                   >
-                    <IconX size={20} className="text-gray-400" />
+                    <IconX size={20} className="text-text-200" />
                   </button>
                 </div>
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {selectedLeadForCampaigns.campaigns.map((campaign) => (
                     <div
                       key={campaign.id}
-                      className="p-3 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors"
+                      className="p-3 bg-brand-main/5 border border-brand-main/10 rounded-lg hover:bg-brand-main/10 transition-colors"
                     >
                       <div className="flex items-center justify-between">
-                        <p className="text-sm text-white font-medium">
+                        <p className="text-sm text-text-100 font-medium">
                           {campaign.name}
                         </p>
                         {campaign.status && (
@@ -405,19 +405,19 @@ export default function LeadsPage() {
                                 : campaign.status === "sent"
                                 ? "bg-green-500/20 text-green-300"
                                 : campaign.status === "opened"
-                                ? "bg-purple-500/20 text-purple-300"
+                                ? "bg-brand-main/20 text-brand-main"
                                 : campaign.status === "clicked"
                                 ? "bg-pink-500/20 text-pink-300"
                                 : campaign.status === "bounced"
                                 ? "bg-red-500/20 text-red-300"
-                                : "bg-gray-500/20 text-gray-300"
+                                : "bg-gray-500/20 text-text-200"
                             }`}
                           >
                             {campaign.status}
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-400 mt-2">
+                      <p className="text-xs text-text-200 mt-2">
                         ID: {campaign.id}
                       </p>
                     </div>
@@ -430,46 +430,46 @@ export default function LeadsPage() {
         {/* Start Campaign Modal */}
         {showStartCampaignModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-white/20 rounded-2xl p-6 max-w-md w-full">
+            <div className="bg-slate-900 border border-brand-main/20 rounded-2xl p-6 max-w-md w-full">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">
+                <h3 className="text-lg font-semibold text-text-100">
                   Start Campaign with Selected Leads
                 </h3>
                 <button
                   onClick={() => setShowStartCampaignModal(false)}
-                  className="p-1 hover:bg-white/10 rounded-lg transition-colors"
+                  className="p-1 hover:bg-brand-main/10 rounded-lg transition-colors"
                 >
-                  <IconX size={20} className="text-gray-400" />
+                  <IconX size={20} className="text-text-200" />
                 </button>
               </div>
               <div className="space-y-4">
-                <p className="text-sm text-gray-300">
+                <p className="text-sm text-text-200">
                   You have selected{" "}
-                  <span className="font-semibold text-purple-300">
+                  <span className="font-semibold text-brand-main">
                     {selectedLeadsForCampaign.size}
                   </span>{" "}
                   lead{selectedLeadsForCampaign.size !== 1 ? "s" : ""}.
                 </p>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-text-200">
                   To start a campaign with these leads, go to the{" "}
                   <button
                     onClick={() => {
                       router.push("/email/campaigns/builder");
                       setShowStartCampaignModal(false);
                     }}
-                    className="text-purple-400 hover:text-purple-300 font-semibold"
+                    className="text-brand-main hover:text-brand-secondary font-semibold"
                   >
                     Campaign Builder
                   </button>{" "}
                   and select these leads in the lead selection step.
                 </p>
-                <div className="bg-white/5 border border-white/10 rounded-lg p-3 max-h-48 overflow-y-auto">
-                  <p className="text-xs text-gray-400 mb-2">Selected Leads:</p>
+                <div className="bg-brand-main/5 border border-brand-main/10 rounded-lg p-3 max-h-48 overflow-y-auto">
+                  <p className="text-xs text-text-200 mb-2">Selected Leads:</p>
                   <div className="space-y-1">
                     {Array.from(selectedLeadsForCampaign).map((leadId) => {
                       const lead = filteredLeads.find((l) => l.id === leadId);
                       return (
-                        <div key={leadId} className="text-xs text-gray-300">
+                        <div key={leadId} className="text-xs text-text-200">
                           {lead?.email}
                         </div>
                       );
@@ -479,7 +479,7 @@ export default function LeadsPage() {
                 <div className="flex gap-3 pt-4">
                   <button
                     onClick={() => setShowStartCampaignModal(false)}
-                    className="flex-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+                    className="flex-1 px-4 py-2 bg-brand-main/10 hover:bg-brand-main/20 text-text-100 rounded-lg transition-colors"
                   >
                     Cancel
                   </button>
@@ -488,7 +488,7 @@ export default function LeadsPage() {
                       router.push("/email/campaigns/builder");
                       setShowStartCampaignModal(false);
                     }}
-                    className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-lg transition-all duration-200"
+                    className="flex-1 px-4 py-2 bg-brand-main hover:bg-brand-main/80 text-text-100 font-semibold rounded-lg transition-all duration-200"
                   >
                     Go to Builder
                   </button>

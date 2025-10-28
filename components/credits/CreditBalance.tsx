@@ -209,7 +209,7 @@ const CreditBalance: React.FC<CreditBalanceProps> = ({
             className={
               isGlass
                 ? "bg-white/5 border border-white/10 rounded-lg p-4"
-                : "bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4"
+                : "bg-brand-tertiary/20 rounded-lg p-4"
             }
           >
             <div className="flex justify-between items-center">
@@ -356,7 +356,7 @@ const CreditBalance: React.FC<CreditBalanceProps> = ({
               onClick={onPurchaseClick}
               className={
                 isGlass
-                  ? "w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-3 px-4 rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-colors"
+                  ? "w-full bg-brand-main text-white py-3 px-4 rounded-lg font-medium hover:bg-brand-main/80 transition-colors"
                   : "w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors"
               }
             >
@@ -432,7 +432,7 @@ const CreditBalance: React.FC<CreditBalanceProps> = ({
               onClick={onPurchaseClick}
               className={
                 isGlass
-                  ? "w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-3 px-4 rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-colors"
+                  ? "w-full bg-brand-main text-white py-3 px-4 rounded-lg font-medium hover:bg-brand-main/80 transition-colors"
                   : "w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors"
               }
             >

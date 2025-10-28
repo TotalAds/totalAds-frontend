@@ -234,7 +234,7 @@ export default function CampaignStep2EmailTemplate({
                 return (
                   <div
                     key={index}
-                    className="p-4 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-lg hover:border-purple-500/50 transition"
+                    className="p-4 bg-brand-main/10 border border-brand-main/30 rounded-lg hover:border-brand-main/50 transition"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3 flex-1 min-w-0">

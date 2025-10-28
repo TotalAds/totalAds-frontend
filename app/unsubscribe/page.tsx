@@ -46,7 +46,7 @@ export default function UnsubscribePage() {
   }, [messageId]);
 
   return (
-    <div className="min-h-[60vh] flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-6">
+    <div className="min-h-[60vh] flex items-center justify-center bg-brand-black text-white p-6">
       <div className="max-w-md w-full rounded-2xl backdrop-blur-md bg-white/10 border border-white/20 p-8 shadow-2xl">
         <h1 className="text-2xl font-semibold mb-3">Email Preferences</h1>
         {!messageId && (

@@ -27,7 +27,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body
         className={cn(inter.className, [
-          "bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900",
+          "bg-bg-100 text-text-100 transition-colors duration-300",
         ])}
       >
         <Suspense fallback={null}>

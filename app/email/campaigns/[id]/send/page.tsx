@@ -1,11 +1,11 @@
 "use client";
 
-import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
-import emailClient from '@/utils/api/emailClient';
+import emailClient from "@/utils/api/emailClient";
 
 interface EmailSender {
   id: string;
@@ -171,7 +171,7 @@ export default function SendCampaignPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
+    <div className="min-h-screen bg-bg-100 p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -181,8 +181,8 @@ export default function SendCampaignPage() {
           >
             ← Back to Campaign
           </Link>
-          <h1 className="text-4xl font-bold text-white mb-2">Send Campaign</h1>
-          <p className="text-gray-400">
+          <h1 className="text-4xl font-bold text-text-100 mb-2">Send Campaign</h1>
+          <p className="text-text-200">
             Configure and send "{campaign.name}" to your leads
           </p>
         </div>
@@ -192,12 +192,12 @@ export default function SendCampaignPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Email Sender Selection */}
             <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-lg p-6">
-              <h2 className="text-xl font-bold text-white mb-4">
+              <h2 className="text-xl font-bold text-text-100 mb-4">
                 Select Email Sender
               </h2>
               {emailSenders.length === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-gray-400 mb-4">No email senders found</p>
+                  <p className="text-text-200 mb-4">No email senders found</p>
                   <Link
                     href="/email/domains"
                     className="text-blue-400 hover:text-blue-300 font-semibold"
@@ -221,10 +221,10 @@ export default function SendCampaignPage() {
                         className="w-4 h-4 text-blue-600"
                       />
                       <div className="ml-4 flex-1">
-                        <p className="text-white font-semibold">
+                        <p className="text-text-100 font-semibold">
                           {sender.email}
                         </p>
-                        <p className="text-gray-400 text-sm">
+                        <p className="text-text-200 text-sm">
                           Status: {sender.verificationStatus}
                           {sender.verificationStatus === "verified" && (
                             <span className="ml-2 text-green-400">
@@ -242,10 +242,10 @@ export default function SendCampaignPage() {
             {/* Leads Selection */}
             <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-lg p-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-white">
+                <h2 className="text-xl font-bold text-text-100">
                   Select Leads ({selectedLeads.length})
                 </h2>
-                <label className="flex items-center gap-2 text-gray-400 hover:text-white cursor-pointer">
+                <label className="flex items-center gap-2 text-text-200 hover:text-text-100 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={selectAll}
@@ -258,7 +258,7 @@ export default function SendCampaignPage() {
 
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {leads.length === 0 ? (
-                  <p className="text-gray-400 text-center py-8">
+                  <p className="text-text-200 text-center py-8">
                     No leads available
                   </p>
                 ) : (
@@ -276,11 +276,11 @@ export default function SendCampaignPage() {
                         className="w-4 h-4 text-blue-600"
                       />
                       <div className="ml-3 flex-1">
-                        <p className="text-white text-sm font-semibold">
+                        <p className="text-text-100 text-sm font-semibold">
                           {lead.email}
                         </p>
                         {lead.name && (
-                          <p className="text-gray-400 text-xs">{lead.name}</p>
+                          <p className="text-text-200 text-xs">{lead.name}</p>
                         )}
                       </div>
                     </label>
@@ -294,24 +294,24 @@ export default function SendCampaignPage() {
           <div className="space-y-6">
             {/* Campaign Preview */}
             <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-lg p-6">
-              <h3 className="text-lg font-bold text-white mb-4">
+              <h3 className="text-lg font-bold text-text-100 mb-4">
                 Campaign Preview
               </h3>
               <div className="space-y-3">
                 <div>
-                  <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">
+                  <p className="text-text-200 text-xs uppercase tracking-wide mb-1">
                     Campaign Name
                   </p>
-                  <p className="text-white font-semibold">{campaign.name}</p>
+                  <p className="text-text-100 font-semibold">{campaign.name}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">
+                  <p className="text-text-200 text-xs uppercase tracking-wide mb-1">
                     Subject
                   </p>
-                  <p className="text-white font-semibold">{campaign.subject}</p>
+                  <p className="text-text-100 font-semibold">{campaign.subject}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">
+                  <p className="text-text-200 text-xs uppercase tracking-wide mb-1">
                     Recipients
                   </p>
                   <p className="text-2xl font-bold text-blue-400">
@@ -327,7 +327,7 @@ export default function SendCampaignPage() {
               disabled={
                 sending || selectedLeads.length === 0 || !selectedSender
               }
-              className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-600 disabled:to-gray-700 text-white px-6 py-4 rounded-lg font-bold transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50"
+              className="w-full bg-brand-tertiary hover:bg-brand-tertiary/80 disabled:bg-gray-600 text-text-100 px-6 py-4 rounded-lg font-bold transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50"
             >
               {sending ? "Sending..." : `Send to ${selectedLeads.length} Leads`}
             </button>

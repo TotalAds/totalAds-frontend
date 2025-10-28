@@ -43,14 +43,14 @@ export function LoginComponent() {
     }
   };
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-brand-black flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Main Login Card */}
         <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl p-8 shadow-2xl">
           {/* Header */}
           <div className="text-center mb-8">
             <div className="flex items-center justify-center mb-6">
-              <div className="p-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-3xl">
+              <div className="p-4 bg-brand-main rounded-3xl">
                 <GetLogo className="w-10 h-10 text-white" />
               </div>
             </div>
@@ -149,7 +149,7 @@ export function LoginComponent() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-4 px-6 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-2xl text-lg transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              className="w-full py-4 px-6 bg-brand-main hover:bg-brand-main/80 text-white font-semibold rounded-2xl text-lg transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             >
               {isLoading ? (
                 <>

@@ -89,37 +89,37 @@ export default function EditLeadPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6 flex items-center justify-center">
-        <div className="text-white">Loading...</div>
+      <div className="min-h-screen bg-bg-100 p-6 flex items-center justify-center">
+        <div className="text-text-100">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
+    <div className="min-h-screen bg-bg-100 p-6">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <button
             onClick={() => router.back()}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+            className="p-2 hover:bg-brand-main/10 rounded-lg transition-colors"
           >
-            <IconArrowLeft size={24} className="text-white" />
+            <IconArrowLeft size={24} className="text-text-100" />
           </button>
           <div>
-            <h1 className="text-4xl font-bold text-white">Edit Lead</h1>
-            <p className="text-gray-400">Update lead information</p>
+            <h1 className="text-4xl font-bold text-text-100">Edit Lead</h1>
+            <p className="text-text-200">Update lead information</p>
           </div>
         </div>
 
         {/* Form */}
         <form
           onSubmit={handleSubmit}
-          className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-8 space-y-6"
+          className="bg-brand-main/10 backdrop-blur-md border border-brand-main/20 rounded-xl p-8 space-y-6"
         >
           {/* Name */}
           <div>
-            <label className="block text-sm font-semibold text-white mb-2">
+            <label className="block text-sm font-semibold text-text-100 mb-2">
               Name
             </label>
             <input
@@ -128,13 +128,13 @@ export default function EditLeadPage() {
               value={formData.name}
               onChange={handleChange}
               placeholder="John Doe"
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+              className="w-full px-4 py-3 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
             />
           </div>
 
           {/* Company */}
           <div>
-            <label className="block text-sm font-semibold text-white mb-2">
+            <label className="block text-sm font-semibold text-text-100 mb-2">
               Company
             </label>
             <input
@@ -143,13 +143,13 @@ export default function EditLeadPage() {
               value={formData.company}
               onChange={handleChange}
               placeholder="Acme Inc"
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+              className="w-full px-4 py-3 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
             />
           </div>
 
           {/* Role */}
           <div>
-            <label className="block text-sm font-semibold text-white mb-2">
+            <label className="block text-sm font-semibold text-text-100 mb-2">
               Role
             </label>
             <input
@@ -158,13 +158,13 @@ export default function EditLeadPage() {
               value={formData.role}
               onChange={handleChange}
               placeholder="CEO"
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+              className="w-full px-4 py-3 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
             />
           </div>
 
           {/* Tags */}
           <div>
-            <label className="block text-sm font-semibold text-white mb-2">
+            <label className="block text-sm font-semibold text-text-100 mb-2">
               Tags
             </label>
             <input
@@ -173,23 +173,23 @@ export default function EditLeadPage() {
               value={formData.tags}
               onChange={handleChange}
               placeholder="vip, prospect, high-priority"
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+              className="w-full px-4 py-3 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
             />
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-text-200 mt-1">
               Separate tags with commas
             </p>
           </div>
 
           {/* Status */}
           <div>
-            <label className="block text-sm font-semibold text-white mb-2">
+            <label className="block text-sm font-semibold text-text-100 mb-2">
               Status
             </label>
             <select
               name="status"
               value={formData.status}
               onChange={handleChange}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+              className="w-full px-4 py-3 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
             >
               <option value="new">New</option>
               <option value="sent">Sent</option>
@@ -205,14 +205,14 @@ export default function EditLeadPage() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="flex-1 px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition-all duration-200 border border-white/20"
+              className="flex-1 px-6 py-3 bg-brand-main/10 hover:bg-brand-main/20 text-text-100 font-semibold rounded-xl transition-all duration-200 border border-brand-main/20"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-60 disabled:cursor-not-allowed"
+              className="flex-1 px-6 py-3 bg-brand-main hover:bg-brand-main/80 text-text-100 font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isSaving ? "Saving..." : "Save Changes"}
             </button>

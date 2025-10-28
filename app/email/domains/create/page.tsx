@@ -1,12 +1,12 @@
 "use client";
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { toast } from 'react-hot-toast';
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { toast } from "react-hot-toast";
 
-import { Button } from '@/components/ui/button';
-import emailClient from '@/utils/api/emailClient';
+import { Button } from "@/components/ui/button";
+import emailClient from "@/utils/api/emailClient";
 
 export default function CreateDomainPage() {
   const router = useRouter();
@@ -69,13 +69,13 @@ export default function CreateDomainPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="min-h-screen bg-bg-100">
       {/* Header */}
-      <header className="backdrop-blur-xl bg-white/5 border-b border-white/10">
+      <header className="backdrop-blur-xl bg-brand-main/5 border-b border-brand-main/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <Link
             href="/email/domains"
-            className="text-purple-400 hover:text-purple-300 font-semibold"
+            className="text-brand-main hover:text-brand-secondary font-semibold"
           >
             ← Back to Domains
           </Link>
@@ -84,12 +84,12 @@ export default function CreateDomainPage() {
 
       {/* Main Content */}
       <main className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-8 shadow-2xl">
+        <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-8 shadow-2xl">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-brand-tertiary rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
-                className="w-8 h-8 text-white"
+                className="w-8 h-8 text-text-100"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -102,10 +102,10 @@ export default function CreateDomainPage() {
                 />
               </svg>
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">
+            <h1 className="text-3xl font-bold text-text-100 mb-2">
               Add New Domain
             </h1>
-            <p className="text-gray-300">
+            <p className="text-text-200">
               Enter your domain to get started with email campaigns
             </p>
           </div>
@@ -122,11 +122,11 @@ export default function CreateDomainPage() {
                 value={domain}
                 onChange={handleChange}
                 placeholder="example.com"
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition"
+                className="w-full px-4 py-3 bg-brand-main/5 border border-brand-main/10 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition"
                 disabled={loading}
               />
               {error && <p className="text-red-400 text-sm mt-1">{error}</p>}
-              <p className="text-gray-400 text-sm mt-2">
+              <p className="text-text-200 text-sm mt-2">
                 Enter your domain without www (e.g., example.com)
               </p>
             </div>
@@ -148,7 +148,7 @@ export default function CreateDomainPage() {
             <Button
               type="submit"
               disabled={loading || !domain}
-              className="w-full mt-6 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-semibold py-3 rounded-lg transition disabled:opacity-50"
+              className="w-full mt-6 bg-brand-tertiary hover:bg-brand-tertiary/80 text-text-100 font-semibold py-3 rounded-lg transition disabled:opacity-50"
             >
               {loading ? "Creating Domain..." : "Create Domain"}
             </Button>
@@ -156,13 +156,13 @@ export default function CreateDomainPage() {
 
           {/* Divider */}
           <div className="my-6 flex items-center">
-            <div className="flex-1 border-t border-white/10"></div>
-            <span className="px-3 text-gray-400 text-sm">or</span>
-            <div className="flex-1 border-t border-white/10"></div>
+            <div className="flex-1 border-t border-brand-main/10"></div>
+            <span className="px-3 text-text-200 text-sm">or</span>
+            <div className="flex-1 border-t border-brand-main/10"></div>
           </div>
 
           {/* Back to Domains */}
-          <p className="text-center text-gray-300">
+          <p className="text-center text-text-200">
             Already have domains?{" "}
             <Link
               href="/email/domains"
@@ -174,7 +174,7 @@ export default function CreateDomainPage() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-gray-400 text-sm mt-6">
+        <p className="text-center text-text-200 text-sm mt-6">
           Need help? Check our documentation for domain setup instructions
         </p>
       </main>

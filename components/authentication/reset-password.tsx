@@ -112,7 +112,7 @@ const ResetPasswordForm = () => {
 
   if (isValidating) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-brand-black flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 p-8">
             <div className="text-center">
@@ -134,7 +134,7 @@ const ResetPasswordForm = () => {
 
   if (!isValidCode) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-brand-black flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 p-8">
             <div className="text-center">
@@ -152,7 +152,7 @@ const ResetPasswordForm = () => {
                 <button
                   type="button"
                   onClick={() => router.push("/reset-password/enter-code")}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-transparent"
+                  className="w-full py-3 px-4 bg-brand-main hover:bg-brand-main/80 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-brand-main focus:ring-offset-2 focus:ring-offset-transparent"
                 >
                   Enter Code Manually
                 </button>
@@ -184,7 +184,7 @@ const ResetPasswordForm = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-brand-black flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 p-8">
           {/* Logo */}
@@ -306,7 +306,7 @@ const ResetPasswordForm = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 px-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-500 disabled:to-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-transparent"
+                className="w-full py-3 px-4 bg-brand-main hover:bg-brand-main/80 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-brand-main focus:ring-offset-2 focus:ring-offset-transparent"
               >
                 {isLoading ? (
                   <div className="flex items-center justify-center">
@@ -350,7 +350,7 @@ const ResetPasswordForm = () => {
               <button
                 type="button"
                 onClick={handleBackToLogin}
-                className="w-full py-3 px-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-transparent"
+                className="w-full py-3 px-4 bg-brand-main hover:bg-brand-main/80 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-brand-main focus:ring-offset-2 focus:ring-offset-transparent"
               >
                 Continue to Sign In
               </button>
@@ -366,7 +366,7 @@ const ResetPasswordComponent = (props: Props) => {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-brand-black flex items-center justify-center p-4">
           <div className="w-full max-w-md">
             <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 p-8">
               <div className="text-center">

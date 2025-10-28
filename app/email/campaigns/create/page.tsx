@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import toast from 'react-hot-toast';
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
-import emailClient from '@/utils/api/emailClient';
+import emailClient from "@/utils/api/emailClient";
 
 export default function CreateCampaignPage() {
   const router = useRouter();
@@ -69,14 +69,14 @@ export default function CreateCampaignPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
+    <div className="min-h-screen bg-bg-100 p-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold text-white mb-8">Create Campaign</h1>
+        <h1 className="text-4xl font-bold text-text-100 mb-8">Create Campaign</h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Campaign Name */}
-          <div className="bg-white/10 backdrop-blur-xl rounded-lg border border-white/20 p-6">
-            <label className="block text-white font-semibold mb-2">
+          <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-6">
+            <label className="block text-text-100 font-semibold mb-2">
               Campaign Name *
             </label>
             <input
@@ -85,13 +85,13 @@ export default function CreateCampaignPage() {
               value={formData.name}
               onChange={handleChange}
               placeholder="e.g., Q4 Product Launch"
-              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-purple-500"
+              className="w-full px-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:border-purple-500"
             />
           </div>
 
           {/* Email Subject */}
-          <div className="bg-white/10 backdrop-blur-xl rounded-lg border border-white/20 p-6">
-            <label className="block text-white font-semibold mb-2">
+          <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-6">
+            <label className="block text-text-100 font-semibold mb-2">
               Email Subject *
             </label>
             <input
@@ -100,14 +100,14 @@ export default function CreateCampaignPage() {
               value={formData.subject}
               onChange={handleChange}
               placeholder="e.g., Introducing Our New Product"
-              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-purple-500"
+              className="w-full px-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:border-purple-500"
             />
           </div>
 
           {/* From Name & Email */}
           <div className="grid grid-cols-2 gap-6">
-            <div className="bg-white/10 backdrop-blur-xl rounded-lg border border-white/20 p-6">
-              <label className="block text-white font-semibold mb-2">
+            <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-6">
+              <label className="block text-text-100 font-semibold mb-2">
                 From Name *
               </label>
               <input
@@ -116,11 +116,11 @@ export default function CreateCampaignPage() {
                 value={formData.fromName}
                 onChange={handleChange}
                 placeholder="e.g., John Doe"
-                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-purple-500"
+                className="w-full px-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:border-purple-500"
               />
             </div>
-            <div className="bg-white/10 backdrop-blur-xl rounded-lg border border-white/20 p-6">
-              <label className="block text-white font-semibold mb-2">
+            <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-6">
+              <label className="block text-text-100 font-semibold mb-2">
                 From Email *
               </label>
               <input
@@ -129,14 +129,14 @@ export default function CreateCampaignPage() {
                 value={formData.fromEmail}
                 onChange={handleChange}
                 placeholder="e.g., noreply@example.com"
-                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-purple-500"
+                className="w-full px-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:border-purple-500"
               />
             </div>
           </div>
 
           {/* HTML Content */}
-          <div className="bg-white/10 backdrop-blur-xl rounded-lg border border-white/20 p-6">
-            <label className="block text-white font-semibold mb-2">
+          <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-6">
+            <label className="block text-text-100 font-semibold mb-2">
               Email Content (HTML) *
             </label>
             <textarea
@@ -145,13 +145,13 @@ export default function CreateCampaignPage() {
               onChange={handleChange}
               placeholder="Enter HTML content. Use {{firstName}}, {{lastName}}, {{email}}, {{company}}, {{jobTitle}} for personalization"
               rows={10}
-              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-purple-500 font-mono text-sm"
+              className="w-full px-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:border-purple-500 font-mono text-sm"
             />
           </div>
 
           {/* Text Content */}
-          <div className="bg-white/10 backdrop-blur-xl rounded-lg border border-white/20 p-6">
-            <label className="block text-white font-semibold mb-2">
+          <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-6">
+            <label className="block text-text-100 font-semibold mb-2">
               Email Content (Text)
             </label>
             <textarea
@@ -160,13 +160,13 @@ export default function CreateCampaignPage() {
               onChange={handleChange}
               placeholder="Plain text version of email"
               rows={6}
-              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-purple-500"
+              className="w-full px-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:border-purple-500"
             />
           </div>
 
           {/* Description */}
-          <div className="bg-white/10 backdrop-blur-xl rounded-lg border border-white/20 p-6">
-            <label className="block text-white font-semibold mb-2">
+          <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-6">
+            <label className="block text-text-100 font-semibold mb-2">
               Description
             </label>
             <textarea
@@ -175,13 +175,13 @@ export default function CreateCampaignPage() {
               onChange={handleChange}
               placeholder="Campaign description"
               rows={3}
-              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-purple-500"
+              className="w-full px-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:border-purple-500"
             />
           </div>
 
           {/* Tags */}
-          <div className="bg-white/10 backdrop-blur-xl rounded-lg border border-white/20 p-6">
-            <label className="block text-white font-semibold mb-2">
+          <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-6">
+            <label className="block text-text-100 font-semibold mb-2">
               Tags (comma-separated)
             </label>
             <input
@@ -190,7 +190,7 @@ export default function CreateCampaignPage() {
               value={formData.tags}
               onChange={handleChange}
               placeholder="e.g., product, launch, q4"
-              className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-purple-500"
+              className="w-full px-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:border-purple-500"
             />
           </div>
 
@@ -199,14 +199,14 @@ export default function CreateCampaignPage() {
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white font-semibold py-3 rounded-lg transition"
+              className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-text-100 font-semibold py-3 rounded-lg transition"
             >
               {loading ? "Creating..." : "Create Campaign"}
             </button>
             <button
               type="button"
               onClick={() => router.back()}
-              className="flex-1 bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-lg transition"
+              className="flex-1 bg-brand-main/10 hover:bg-brand-main/20 text-text-100 font-semibold py-3 rounded-lg transition"
             >
               Cancel
             </button>

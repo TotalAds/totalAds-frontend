@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import React, { useEffect, useState } from "react";
 
 import GetLogo from "@/components/common/getLogo";
+import ThemeToggle from "@/components/common/ThemeToggle";
 import { useAuthContext } from "@/context/AuthContext";
 import {
   ContactMetrics,
@@ -87,7 +88,7 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
   }, [isAuthenticated]);
 
   return (
-    <header className="backdrop-blur-xl bg-slate-900/90 border-b border-white/10 flex-shrink-0 z-50">
+    <header className="backdrop-blur-xl bg-bg-200 border-b border-brand-main/20 flex-shrink-0 z-50 transition-colors duration-300">
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           {/* Logo and Sidebar Toggle */}
@@ -98,8 +99,8 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
                 className={cn(
                   "p-2 rounded-xl transition-all duration-200 mr-3",
                   isSidebarOpen
-                    ? "text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 hover:text-purple-300"
-                    : "text-gray-300 hover:bg-white/10 hover:text-white"
+                    ? "text-brand-main bg-brand-main/10 hover:bg-brand-main/20 hover:text-brand-secondary"
+                    : "text-text-200 hover:bg-brand-main/10 hover:text-brand-main"
                 )}
                 title={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
               >
@@ -111,52 +112,47 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
               </button>
             )}
             <Link href="/email/dashboard" className="flex items-center group">
-              <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl mr-3 group-hover:scale-110 transition-transform duration-200">
-                <GetLogo className="h-6 w-6 text-white" />
+              <div className="p-2 bg-brand-main rounded-xl mr-3 group-hover:scale-110 transition-transform duration-200">
+                <GetLogo className="h-6 w-6 text-text-100" />
               </div>
-              <span className="text-xl font-bold text-white">Leadsnipper</span>
+              <span className="text-xl font-bold text-text-100">
+                Leadsnipper
+              </span>
             </Link>
           </div>
 
           {/* Right side - User Menu or Auth Links */}
           <div className="flex items-center space-x-6">
-            {/* Tour Button - only show for authenticated users on specific pages */}
-            {/* {shouldShowTour && (
-              <TourTrigger variant="help" className="hidden md:flex">
-                Tour
-              </TourTrigger>
-            )} */}
-
             {isAuthenticated && subInfo && metrics && (
               <div className="relative group">
                 <button
-                  className="p-2 rounded-xl hover:bg-white/10"
+                  className="p-2 rounded-xl hover:bg-brand-main/10"
                   aria-label="Plan & quota"
                   title="Plan & quota"
                 >
-                  <IconInfoCircle className="h-5 w-5 text-gray-300" />
+                  <IconInfoCircle className="h-5 w-5 text-text-200" />
                 </button>
-                <div className="absolute right-0 mt-2 w-96 p-4 rounded-xl bg-slate-900/95 border border-white/20 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                  <div className="text-sm text-white space-y-3">
+                <div className="absolute right-0 mt-2 w-96 p-4 rounded-xl bg-bg-100 border border-brand-main/20 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  <div className="text-sm text-text-100 space-y-3">
                     {/* Plan Chip */}
                     <div className="font-semibold">
                       <Link
                         href="/email/pricing"
-                        className="inline-block px-3 py-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full text-sm text-white hover:from-purple-600 hover:to-pink-600 transition"
+                        className="inline-block px-3 py-1 bg-brand-main rounded-full text-sm text-white hover:bg-brand-secondary transition"
                       >
                         {subInfo.tierDisplayName || subInfo.tierName}
                       </Link>
                     </div>
 
                     {/* Contact Metrics */}
-                    <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-                      <div className="text-xs text-gray-400 mb-2">Contacts</div>
-                      <div className="text-lg font-semibold text-white">
+                    <div className="bg-brand-main/5 rounded-lg p-3 border border-brand-main/10">
+                      <div className="text-xs text-text-200 mb-2">Contacts</div>
+                      <div className="text-lg font-semibold text-text-100">
                         {metrics.contacts.total} / {metrics.contacts.limit}
                       </div>
-                      <div className="w-full bg-white/10 rounded-full h-1.5 mt-2">
+                      <div className="w-full bg-brand-main/10 rounded-full h-1.5 mt-2">
                         <div
-                          className="bg-gradient-to-r from-blue-500 to-cyan-500 h-1.5 rounded-full"
+                          className="bg-brand-tertiary h-1.5 rounded-full"
                           style={{
                             width: `${
                               metrics.contacts.limit > 0
@@ -174,16 +170,16 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
                     </div>
 
                     {/* Email Metrics */}
-                    <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-                      <div className="text-xs text-gray-400 mb-2">
+                    <div className="bg-brand-main/5 rounded-lg p-3 border border-brand-main/10">
+                      <div className="text-xs text-text-200 mb-2">
                         Emails This Month
                       </div>
-                      <div className="text-lg font-semibold text-white">
+                      <div className="text-lg font-semibold text-text-100">
                         {metrics.emails.used} / {metrics.emails.allocated}
                       </div>
-                      <div className="w-full bg-white/10 rounded-full h-1.5 mt-2">
+                      <div className="w-full bg-brand-main/10 rounded-full h-1.5 mt-2">
                         <div
-                          className="bg-gradient-to-r from-green-500 to-emerald-500 h-1.5 rounded-full"
+                          className="bg-brand-main h-1.5 rounded-full"
                           style={{
                             width: `${
                               metrics.emails.allocated > 0
@@ -199,21 +195,21 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
                         />
                       </div>
                       {metrics.emails.remaining > 0 && (
-                        <div className="text-xs text-gray-400 mt-1">
+                        <div className="text-xs text-text-200 mt-1">
                           {metrics.emails.remaining} remaining
                         </div>
                       )}
                     </div>
 
                     {/* Daily Limit */}
-                    <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-                      <div className="text-xs text-gray-400 mb-1">
+                    <div className="bg-brand-main/5 rounded-lg p-3 border border-brand-main/10">
+                      <div className="text-xs text-text-200 mb-1">
                         Daily Limit
                       </div>
-                      <div className="text-lg font-semibold text-white">
+                      <div className="text-lg font-semibold text-text-100">
                         {subInfo.dailyRemaining} / {subInfo.dailyCap} today
                       </div>
-                      <div className="text-xs text-gray-400 mt-1">
+                      <div className="text-xs text-text-200 mt-1">
                         Resets:{" "}
                         {new Date(subInfo.dailyResetAt).toLocaleTimeString()}
                       </div>
@@ -223,25 +219,28 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
               </div>
             )}
 
+            {/* Theme Toggle */}
+            <ThemeToggle />
+
             {/* User Menu */}
             {isAuthenticated ? (
               <div className="relative">
                 <button
                   onClick={toggleUserMenu}
-                  className="flex items-center text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 p-2 hover:bg-white/10 transition-colors duration-200"
+                  className="flex items-center text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-main p-2 hover:bg-brand-main/10 transition-colors duration-200"
                 >
                   <span className="sr-only">Open user menu</span>
-                  <div className="h-8 w-8 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white font-semibold">
+                  <div className="h-8 w-8 rounded-xl bg-brand-main flex items-center justify-center text-text-100 font-semibold">
                     {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
                   </div>
-                  <span className="ml-3 text-sm font-medium text-white hidden md:block">
+                  <span className="ml-3 text-sm font-medium text-text-100 hidden md:block">
                     {user?.name || "User"}
                   </span>
-                  <IconChevronDown className="ml-1 h-4 w-4 text-gray-300 hidden md:block" />
+                  <IconChevronDown className="ml-1 h-4 w-4 text-text-200 hidden md:block" />
                 </button>
 
                 {isUserMenuOpen && (
-                  <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-xl shadow-lg backdrop-blur-xl bg-slate-900/90 border border-white/10 ring-1 ring-black ring-opacity-5">
+                  <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-xl shadow-lg backdrop-blur-xl bg-bg-100 border border-brand-main/10 ring-1 ring-black ring-opacity-5 transition-colors duration-300">
                     <div
                       className="py-1"
                       role="menu"
@@ -250,7 +249,7 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
                     >
                       <Link
                         href="/profile"
-                        className="block px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+                        className="block px-4 py-2 text-sm text-text-200 hover:bg-brand-main/10 hover:text-brand-main"
                         role="menuitem"
                         onClick={() => setIsUserMenuOpen(false)}
                       >
@@ -258,7 +257,7 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
                       </Link>
                       <Link
                         href="/billing"
-                        className="block px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+                        className="block px-4 py-2 text-sm text-text-200 hover:bg-brand-main/10 hover:text-brand-main"
                         role="menuitem"
                         onClick={() => setIsUserMenuOpen(false)}
                       >
@@ -270,7 +269,7 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
                           handleLogout();
                           setIsUserMenuOpen(false);
                         }}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white"
+                        className="block w-full text-left px-4 py-2 text-sm text-text-200 hover:bg-brand-main/10 hover:text-brand-main"
                         role="menuitem"
                       >
                         Sign out
@@ -283,13 +282,13 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
               <div className="flex items-center space-x-2">
                 <Link
                   href="/login"
-                  className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white"
+                  className="px-4 py-2 text-sm font-medium text-text-200 hover:text-text-100"
                 >
                   Log in
                 </Link>
                 <Link
                   href="/signup"
-                  className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl hover:from-purple-600 hover:to-pink-600"
+                  className="px-4 py-2 text-sm font-medium text-white bg-brand-main rounded-xl hover:bg-brand-main/80"
                 >
                   Sign up
                 </Link>

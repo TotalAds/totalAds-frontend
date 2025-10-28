@@ -123,7 +123,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
       <div
         data-tour="sidebar"
         className={cn(
-          "w-64 backdrop-blur-xl bg-slate-900/95 border-r border-white/20 transition-all duration-300 ease-in-out shadow-2xl flex-shrink-0",
+          "w-64 backdrop-blur-xl bg-bg-200 border-r border-brand-main/20 transition-all duration-300 ease-in-out shadow-xl flex-shrink-0",
           // Mobile behavior: fixed overlay
           "fixed left-0 top-16 h-[calc(100vh-4rem)] z-40 md:relative md:top-0 md:h-full",
           // Show/hide behavior
@@ -138,28 +138,30 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
           <div className="md:hidden flex justify-end p-4 pt-6">
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-gray-300 hover:bg-white/10 hover:text-white transition-colors duration-200"
+              className="p-2 rounded-xl text-text-200 hover:bg-brand-main/10 hover:text-brand-main transition-colors duration-200"
             >
               <IconX className="h-5 w-5" />
             </button>
           </div>
 
           {/* Header with brand */}
-          <div className="px-6 py-6 border-b border-white/10">
+          <div className="px-6 py-6 border-b border-brand-main/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                  <GetLogo className="w-5 h-5 text-white" />
+                <div className="w-8 h-8 bg-brand-main rounded-lg flex items-center justify-center">
+                  <GetLogo className="w-5 h-5 text-text-100" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-white">Leadsnipper</h2>
-                  <p className="text-xs text-gray-400">AI-Powered</p>
+                  <h2 className="text-sm font-bold text-text-100">
+                    Leadsnipper
+                  </h2>
+                  <p className="text-xs text-text-200">AI-Powered</p>
                 </div>
               </div>
               {onToggle && (
                 <button
                   onClick={onToggle}
-                  className="hidden md:flex p-1.5 rounded-lg text-gray-400 hover:bg-white/10 hover:text-white transition-colors duration-200"
+                  className="hidden md:flex p-1.5 rounded-lg text-text-200 hover:bg-brand-main/10 hover:text-brand-main transition-colors duration-200"
                   title="Collapse sidebar"
                 >
                   <IconChevronLeft className="h-4 w-4" />
@@ -170,163 +172,6 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
 
           {/* Navigation */}
           <nav className="px-4 py-6 space-y-6 flex-1 overflow-y-auto thin-scrollbar">
-            {/* Scraper Section */}
-            {scraperItems.length > 0 && (
-              <div className="space-y-2">
-                <AnimatePresence>
-                  {expandedSections.includes("scraper") && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="space-y-1 overflow-hidden"
-                    >
-                      {scraperItems.map((item) => {
-                        const isActive =
-                          pathname.includes(item.href) ||
-                          (pathname.startsWith(item.href + "/") &&
-                            !scraperItems.some(
-                              (otherItem) =>
-                                otherItem.href !== item.href &&
-                                otherItem.href.startsWith(item.href + "/") &&
-                                pathname === otherItem.href
-                            ));
-                        const hasSubItems =
-                          item.subItems && item.subItems.length > 0;
-                        const isExpanded = expandedItems.includes(item.name);
-
-                        return (
-                          <div key={item.name}>
-                            {hasSubItems ? (
-                              <button
-                                onClick={() => toggleExpanded(item.name)}
-                                className={cn(
-                                  "w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 group",
-                                  isActive
-                                    ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
-                                    : "text-gray-400 hover:bg-blue-500/10 hover:text-blue-300 hover:border hover:border-blue-500/20"
-                                )}
-                              >
-                                <div className="flex items-center">
-                                  <span
-                                    className={cn(
-                                      "mr-3 transition-colors duration-200",
-                                      isActive
-                                        ? "text-blue-300"
-                                        : "text-gray-500 group-hover:text-blue-300"
-                                    )}
-                                  >
-                                    {item.icon}
-                                  </span>
-                                  <span>{item.name}</span>
-                                  {item.badge && (
-                                    <span
-                                      className={cn(
-                                        "ml-2 px-2 py-0.5 text-xs font-semibold rounded-full",
-                                        item.badge === "AI"
-                                          ? "bg-green-500/20 text-green-300"
-                                          : "bg-yellow-500/20 text-yellow-300"
-                                      )}
-                                    >
-                                      {item.badge}
-                                    </span>
-                                  )}
-                                </div>
-                                <motion.div
-                                  animate={{
-                                    rotate: isExpanded ? 180 : 0,
-                                  }}
-                                  transition={{ duration: 0.2 }}
-                                >
-                                  <IconChevronDown className="w-3 h-3" />
-                                </motion.div>
-                              </button>
-                            ) : (
-                              <Link
-                                href={item.href}
-                                className={cn(
-                                  "flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 group",
-                                  isActive
-                                    ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
-                                    : "text-gray-400 hover:bg-blue-500/10 hover:text-blue-300 hover:border hover:border-blue-500/20"
-                                )}
-                                onClick={() => {
-                                  if (window.innerWidth < 768) {
-                                    onClose();
-                                  }
-                                }}
-                              >
-                                <span
-                                  className={cn(
-                                    "mr-3 transition-colors duration-200",
-                                    isActive
-                                      ? "text-blue-300"
-                                      : "text-gray-500 group-hover:text-blue-300"
-                                  )}
-                                >
-                                  {item.icon}
-                                </span>
-                                <span className="flex-1">{item.name}</span>
-                              </Link>
-                            )}
-                            {hasSubItems && isExpanded && (
-                              <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: "auto" }}
-                                exit={{ opacity: 0, height: 0 }}
-                                transition={{ duration: 0.2 }}
-                                className="space-y-1 overflow-hidden pl-4"
-                              >
-                                {item.subItems!.map((subItem) => {
-                                  const isSubActive = pathname.includes(
-                                    subItem.href
-                                  );
-                                  return (
-                                    <Link
-                                      key={subItem.name}
-                                      href={subItem.href}
-                                      className={cn(
-                                        "flex items-center px-4 py-2 text-sm rounded-lg transition-all duration-200 group",
-                                        isSubActive
-                                          ? "bg-blue-500/30 text-blue-200 border border-blue-500/40"
-                                          : "text-gray-400 hover:bg-blue-500/10 hover:text-blue-300"
-                                      )}
-                                      onClick={() => {
-                                        if (window.innerWidth < 768) {
-                                          onClose();
-                                        }
-                                      }}
-                                    >
-                                      <span className="flex-1">
-                                        {subItem.name}
-                                      </span>
-                                      {subItem.isNew && (
-                                        <motion.span
-                                          animate={{ scale: [1, 1.1, 1] }}
-                                          transition={{
-                                            duration: 2,
-                                            repeat: Infinity,
-                                          }}
-                                          className="ml-2 px-2 py-0.5 text-xs font-semibold bg-red-500/20 text-red-300 rounded-full"
-                                        >
-                                          NEW
-                                        </motion.span>
-                                      )}
-                                    </Link>
-                                  );
-                                })}
-                              </motion.div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
-
             {/* Email Service Section */}
             {emailItems.length > 0 && (
               <div className="space-y-2">
@@ -361,8 +206,8 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
                                 className={cn(
                                   "w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 group",
                                   isActive
-                                    ? "bg-pink-500/20 text-pink-300 border border-pink-500/30"
-                                    : "text-gray-400 hover:bg-pink-500/10 hover:text-pink-300 hover:border hover:border-pink-500/20"
+                                    ? "bg-brand-main/20 text-brand-main border border-brand-main/30"
+                                    : "text-text-200 hover:bg-brand-main/10 hover:text-brand-main hover:border hover:border-brand-main/20"
                                 )}
                               >
                                 <div className="flex items-center">
@@ -370,8 +215,8 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
                                     className={cn(
                                       "mr-3 transition-colors duration-200",
                                       isActive
-                                        ? "text-pink-300"
-                                        : "text-gray-500 group-hover:text-pink-300"
+                                        ? "text-brand-main"
+                                        : "text-text-200 group-hover:text-brand-main"
                                     )}
                                   >
                                     {item.icon}
@@ -382,7 +227,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
                                       className={cn(
                                         "ml-2 px-2 py-0.5 text-xs font-semibold rounded-full",
                                         item.badge === "NEW"
-                                          ? "bg-pink-500/20 text-pink-300"
+                                          ? "bg-brand-main/20 text-brand-main"
                                           : "bg-yellow-500/20 text-yellow-300"
                                       )}
                                     >
@@ -403,8 +248,8 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
                                 className={cn(
                                   "flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 group",
                                   isActive
-                                    ? "bg-pink-500/20 text-pink-300 border border-pink-500/30"
-                                    : "text-gray-400 hover:bg-pink-500/10 hover:text-pink-300 hover:border hover:border-pink-500/20"
+                                    ? "bg-brand-main/20 text-brand-main border border-brand-main/30"
+                                    : "text-text-200 hover:bg-brand-main/10 hover:text-brand-main hover:border hover:border-brand-main/20"
                                 )}
                                 onClick={() => {
                                   if (window.innerWidth < 768) {
@@ -416,8 +261,8 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
                                   className={cn(
                                     "mr-3 transition-colors duration-200",
                                     isActive
-                                      ? "text-pink-300"
-                                      : "text-gray-500 group-hover:text-pink-300"
+                                      ? "text-brand-main"
+                                      : "text-text-200 group-hover:text-brand-main"
                                   )}
                                 >
                                   {item.icon}
@@ -428,7 +273,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
                                     className={cn(
                                       "ml-2 px-2 py-0.5 text-xs font-semibold rounded-full",
                                       item.badge === "NEW"
-                                        ? "bg-pink-500/20 text-pink-300"
+                                        ? "bg-brand-main/20 text-brand-main"
                                         : "bg-yellow-500/20 text-yellow-300"
                                     )}
                                   >
@@ -459,8 +304,8 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
                                         className={cn(
                                           "flex items-center px-4 py-2.5 text-sm rounded-lg transition-all duration-200 group",
                                           isSubActive
-                                            ? "bg-pink-500/20 text-pink-300"
-                                            : "text-gray-400 hover:bg-pink-500/10 hover:text-pink-300"
+                                            ? "bg-brand-main/20 text-brand-main"
+                                            : "text-text-200 hover:bg-brand-main/10 hover:text-brand-main"
                                         )}
                                         onClick={() => {
                                           if (window.innerWidth < 768) {
@@ -472,8 +317,8 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
                                           className={cn(
                                             "w-2 h-2 rounded-full mr-3 transition-colors",
                                             isSubActive
-                                              ? "bg-pink-400"
-                                              : "bg-gray-500 group-hover:bg-pink-400"
+                                              ? "bg-brand-main"
+                                              : "bg-text-200 group-hover:bg-brand-main"
                                           )}
                                         ></span>
                                         <span className="flex-1">
@@ -496,8 +341,8 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
           </nav>
 
           {/* Footer */}
-          <div className="px-4 py-4 border-t border-white/10 mt-auto">
-            <div className="flex items-center justify-between text-xs text-gray-400">
+          <div className="px-4 py-4 border-t border-brand-main/10 mt-auto">
+            <div className="flex items-center justify-between text-xs text-text-200">
               <span>© 2025 LeadSnipper</span>
               <span className="flex items-center space-x-1">
                 <span>v1.0.0</span>

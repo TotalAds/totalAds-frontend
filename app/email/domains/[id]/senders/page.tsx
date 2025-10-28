@@ -1,12 +1,12 @@
 "use client";
 
-import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { toast } from 'react-hot-toast';
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
 
-import { Button } from '@/components/ui/button';
-import emailClient from '@/utils/api/emailClient';
+import { Button } from "@/components/ui/button";
+import emailClient from "@/utils/api/emailClient";
 
 interface EmailSender {
   id: string;
@@ -169,28 +169,28 @@ export default function EmailSendersPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <div className="min-h-screen flex items-center justify-center bg-bg-100">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-300">Loading email senders...</p>
+          <div className="w-12 h-12 border-4 border-brand-main border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-text-200">Loading email senders...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="min-h-screen bg-bg-100">
       {/* Header */}
-      <header className="backdrop-blur-xl bg-white/5 border-b border-white/10">
+      <header className="backdrop-blur-xl bg-brand-main/5 border-b border-brand-main/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div>
             <Link
               href={`/email/domains/${domainId}`}
-              className="text-purple-400 hover:text-purple-300 font-semibold mb-2 inline-block"
+              className="text-brand-main hover:text-brand-secondary font-semibold mb-2 inline-block"
             >
               ← Back to Domain
             </Link>
-            <h1 className="text-2xl font-bold text-white">Email Senders</h1>
+            <h1 className="text-2xl font-bold text-text-100">Email Senders</h1>
           </div>
         </div>
       </header>
@@ -198,8 +198,8 @@ export default function EmailSendersPage() {
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Add New Sender Form */}
-        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-xl p-6 mb-8">
-          <h2 className="text-lg font-semibold text-white mb-4">
+        <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-xl p-6 mb-8">
+          <h2 className="text-lg font-semibold text-text-100 mb-4">
             Add New Email Sender
           </h2>
           <form onSubmit={handleCreateSender} className="flex gap-3">
@@ -212,32 +212,32 @@ export default function EmailSendersPage() {
               }
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
-              className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
+              className="flex-1 px-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:border-brand-main"
               disabled={creating}
             />
             <Button
               type="submit"
               disabled={creating}
-              className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-6 py-2 rounded-lg transition disabled:opacity-50"
+              className="bg-brand-tertiary hover:bg-brand-tertiary/80 text-text-100 px-6 py-2 rounded-lg transition disabled:opacity-50"
             >
               {creating ? "Adding..." : "Add Sender"}
             </Button>
           </form>
-          <p className="text-gray-400 text-sm mt-3">
+          <p className="text-text-200 text-sm mt-3">
             AWS SES will send a verification email to this address. You must
             click the verification link to complete setup.
           </p>
         </div>
 
         {/* Email Senders List */}
-        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">
+        <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-text-100 mb-4">
             Your Email Senders ({senders.length})
           </h2>
 
           {senders.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-400">No email senders added yet</p>
+              <p className="text-text-200">No email senders added yet</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -247,8 +247,8 @@ export default function EmailSendersPage() {
                   className="bg-black/30 rounded-lg p-4 flex items-center justify-between"
                 >
                   <div className="flex-1">
-                    <p className="text-white font-mono">{sender.email}</p>
-                    <p className="text-gray-400 text-sm">
+                    <p className="text-text-100 font-mono">{sender.email}</p>
+                    <p className="text-text-200 text-sm">
                       Created: {new Date(sender.createdAt).toLocaleDateString()}
                     </p>
                   </div>
@@ -259,7 +259,7 @@ export default function EmailSendersPage() {
                     {sender.verificationStatus === "pending" && (
                       <Button
                         onClick={() => handleVerifySender(sender.id)}
-                        className="bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white px-4 py-2 rounded-lg transition text-sm"
+                        className="bg-brand-main hover:bg-brand-main/80 text-text-100 px-4 py-2 rounded-lg transition text-sm"
                       >
                         Check Status
                       </Button>
@@ -267,7 +267,7 @@ export default function EmailSendersPage() {
 
                     <Button
                       onClick={() => handleDeleteSender(sender.id)}
-                      className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg transition text-sm"
+                      className="bg-brand-secondary hover:bg-brand-secondary/80 text-text-100 px-4 py-2 rounded-lg transition text-sm"
                     >
                       Delete
                     </Button>
@@ -283,7 +283,7 @@ export default function EmailSendersPage() {
           <h3 className="text-lg font-semibold text-blue-300 mb-3">
             How Email Verification Works
           </h3>
-          <ol className="text-gray-300 space-y-2 text-sm">
+          <ol className="text-text-200 space-y-2 text-sm">
             <li>
               1. Enter an email address from your verified domain{" "}
               {domain && `(${domain.domain})`}
@@ -297,7 +297,7 @@ export default function EmailSendersPage() {
             <li>5. Click "Check Status" to confirm verification</li>
             <li>6. Once verified, you can use this email to send campaigns</li>
           </ol>
-          <p className="text-gray-400 text-xs mt-4 border-t border-blue-500/20 pt-4">
+          <p className="text-text-200 text-xs mt-4 border-t border-blue-500/20 pt-4">
             <strong>Why domain matching?</strong> AWS SES requires email senders
             to use verified domains to maintain account reputation and ensure
             high email deliverability. This is an industry best practice.

@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 interface QuickStartProps {
   className?: string;
@@ -43,7 +43,7 @@ export default function QuickStart({ className = "" }: QuickStartProps) {
         />
         <button
           onClick={go}
-          className="px-4 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
+          className="px-4 py-3 rounded-xl bg-brand-main hover:bg-brand-main/80 text-white"
         >
           Go
         </button>

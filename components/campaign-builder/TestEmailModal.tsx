@@ -189,7 +189,7 @@ export function TestEmailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="bg-gradient-to-br from-slate-900 to-slate-800 border border-white/10 max-w-2xl">
+      <DialogContent className="bg-slate-900 border border-white/10 max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-white text-2xl">
             Send Test Email
@@ -319,7 +319,7 @@ export function TestEmailModal({
             disabled={
               loading || !testEmail || !selectedDomainId || !selectedSenderId
             }
-            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50"
+            className="bg-brand-main hover:bg-brand-main/80 disabled:opacity-50"
           >
             {loading ? "Sending..." : "Send Test Email"}
           </Button>

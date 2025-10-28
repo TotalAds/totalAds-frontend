@@ -97,12 +97,12 @@ const VerifyEmailComponent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-brand-black p-4">
       <div className="relative w-full max-w-md">
         <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl p-8 shadow-2xl">
           <div className="text-center mb-8">
             <div className="flex items-center justify-center mb-4">
-              <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl">
+              <div className="p-3 bg-brand-main rounded-2xl">
                 <GetLogo className="w-8 h-8 text-white" />
               </div>
             </div>
@@ -151,7 +151,7 @@ const VerifyEmailComponent: React.FC = () => {
             <button
               type="submit"
               disabled={isLoading || code.length < 6}
-              className="w-full py-3 px-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full py-3 px-4 bg-brand-main hover:bg-brand-main/80 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-brand-main focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-60 disabled:cursor-not-allowed"
             >
               Verify Email
             </button>

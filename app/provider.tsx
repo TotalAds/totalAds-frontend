@@ -5,6 +5,7 @@ import React, { useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 
 import { AuthProvider, useAuthContext } from "@/context/AuthContext";
+import { ThemeProvider } from "@/context/ThemeContext";
 import { identifyUser, resetIdentity } from "@/utils/analytics/track";
 import { getUtmForAnalytics, initUtmTracking } from "@/utils/analytics/utm";
 import { PostHogProvider } from "@posthog/react";
@@ -74,36 +75,38 @@ const Provider = ({ children }: { children: React.ReactNode }) => {
   useInitPosthog();
   return (
     <PostHogProvider client={posthog}>
-      <AuthProvider>
-        <PageViewTracker />
-        <UtmInitializer />
-        <AuthIdentify />
-        {children}
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: "rgba(15, 23, 42, 0.95)",
-              color: "#fff",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-              backdropFilter: "blur(10px)",
-            },
-            success: {
-              iconTheme: {
-                primary: "#10b981",
-                secondary: "#fff",
+      <ThemeProvider>
+        <AuthProvider>
+          <PageViewTracker />
+          <UtmInitializer />
+          <AuthIdentify />
+          {children}
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              duration: 4000,
+              style: {
+                background: "rgba(15, 23, 42, 0.95)",
+                color: "#fff",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                backdropFilter: "blur(10px)",
               },
-            },
-            error: {
-              iconTheme: {
-                primary: "#ef4444",
-                secondary: "#fff",
+              success: {
+                iconTheme: {
+                  primary: "#10b981",
+                  secondary: "#fff",
+                },
               },
-            },
-          }}
-        />
-      </AuthProvider>
+              error: {
+                iconTheme: {
+                  primary: "#ef4444",
+                  secondary: "#fff",
+                },
+              },
+            }}
+          />
+        </AuthProvider>
+      </ThemeProvider>
     </PostHogProvider>
   );
 };
