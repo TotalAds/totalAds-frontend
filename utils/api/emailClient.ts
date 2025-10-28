@@ -3,9 +3,9 @@
  * Handles all email service API calls (domains, campaigns, analytics, credits)
  */
 
-import axios, { AxiosError } from 'axios';
+import axios, { AxiosError } from "axios";
 
-import { tokenStorage } from '../auth/tokenStorage';
+import { tokenStorage } from "../auth/tokenStorage";
 
 // API base URL for token refresh
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -329,6 +329,8 @@ export interface Campaign {
   domainId: string;
   createdAt: string;
   updatedAt: string;
+  queuedForTodayCount?: number;
+  scheduledForTomorrowCount?: number;
 }
 
 export const getCampaigns = async (
@@ -464,6 +466,90 @@ export const getCampaignAnalytics = async (
   }
 };
 
+// ============ LEADS API ============
+
+export interface Lead {
+  id: string;
+  email: string;
+  name?: string;
+  company?: string;
+  role?: string;
+  tags?: string;
+  category?: string;
+  campaignId?: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const getLeads = async (
+  page: number = 1,
+  limit: number = 10,
+  status?: string,
+  tags?: string,
+  category?: string,
+  campaignId?: string
+): Promise<{ data: { leads: Lead[]; pagination: any } }> => {
+  try {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+    if (status) params.append("status", status);
+    if (tags) params.append("tags", tags);
+    if (category) params.append("category", category);
+    if (campaignId) params.append("campaignId", campaignId);
+
+    const response = await emailClient.get(`/api/leads?${params.toString()}`);
+    return response.data || { data: { leads: [], pagination: {} } };
+  } catch (error: any) {
+    console.error("Failed to fetch leads:", error);
+    throw error;
+  }
+};
+
+export const getLeadById = async (leadId: string): Promise<Lead> => {
+  try {
+    const response = await emailClient.get(`/api/leads/${leadId}`);
+    return response.data?.data || response.data;
+  } catch (error: any) {
+    console.error("Failed to fetch lead:", error);
+    throw error;
+  }
+};
+
+export const createLead = async (leadData: any): Promise<Lead> => {
+  try {
+    const response = await emailClient.post("/api/leads", leadData);
+    return response.data?.data || response.data;
+  } catch (error: any) {
+    console.error("Failed to create lead:", error);
+    throw error;
+  }
+};
+
+export const updateLead = async (
+  leadId: string,
+  leadData: any
+): Promise<Lead> => {
+  try {
+    const response = await emailClient.put(`/api/leads/${leadId}`, leadData);
+    return response.data?.data || response.data;
+  } catch (error: any) {
+    console.error("Failed to update lead:", error);
+    throw error;
+  }
+};
+
+export const deleteLead = async (leadId: string): Promise<void> => {
+  try {
+    await emailClient.delete(`/api/leads/${leadId}`);
+  } catch (error: any) {
+    console.error("Failed to delete lead:", error);
+    throw error;
+  }
+};
+
 // ============ CREDITS API ============
 
 export interface Credits {
@@ -490,6 +576,235 @@ export const purchaseCredits = async (amount: number): Promise<any> => {
     return response.data?.data || response.data;
   } catch (error: any) {
     console.error("Failed to purchase credits:", error);
+    throw error;
+  }
+};
+
+// ============ REPUTATION (QUOTA) API ============
+
+export interface ReputationStatus {
+  allowed: boolean;
+  cap: number;
+  remaining: number;
+  used: number;
+  resetAt: string;
+  override?: number | null;
+}
+
+export type QuotaCardData = ReputationStatus;
+
+export const getReputationStatus = async (): Promise<ReputationStatus> => {
+  try {
+    const response = await emailClient.get(`/api/reputation/me`);
+    const data = response.data || {};
+    return {
+      allowed: !!data.allowed,
+      cap: Number(data.cap || 0),
+      remaining: Number(data.remaining || 0),
+      used: Number(data.used || 0),
+      resetAt: data.resetAt || new Date().toISOString(),
+      override: data.override ?? null,
+    };
+  } catch (error: any) {
+    console.error("Failed to fetch reputation status:", error);
+    throw error;
+  }
+};
+
+export const getQuotaCardData = async (): Promise<QuotaCardData> => {
+  try {
+    const resp = await emailClient.get(`/api/reputation/quota-card`);
+    const d = resp.data?.data || resp.data || {};
+    return {
+      allowed: !!d.allowed,
+      cap: Number(d.cap || 0),
+      remaining: Number(d.remaining || 0),
+      used: Number(d.used || 0),
+      resetAt: d.resetAt || new Date().toISOString(),
+      override: d.override ?? null,
+    };
+  } catch (error: any) {
+    console.error("Failed to fetch quota card data:", error);
+    throw error;
+  }
+};
+
+// ============ SUBSCRIPTION INFO ==========
+export interface SubscriptionInfo {
+  tierName: string;
+  tierDisplayName: string;
+  monthlyEmailLimit: number;
+  monthlyCredits: number;
+  monthlyAllocated: number;
+  monthlyUsed: number;
+  monthlyRemaining: number;
+  dailyCap: number;
+  dailyRemaining: number;
+  dailyResetAt: string;
+}
+
+export const getSubscriptionInfo = async (): Promise<SubscriptionInfo> => {
+  try {
+    const resp = await emailClient.get(`/api/payment/subscription/me`);
+    const d = resp.data?.data || resp.data || {};
+    const tier = d.tier || {};
+    const credits = d.credits || {};
+    const quota = d.quota || {};
+    return {
+      tierName: tier.name || d.tierName || "free_trial",
+      tierDisplayName:
+        tier.displayName || d.tierDisplayName || tier.name || "Free Trial",
+      monthlyEmailLimit: Number(
+        tier.monthlyEmailLimit ?? d.monthlyEmailLimit ?? 0
+      ),
+      monthlyCredits: Number(tier.monthlyCredits ?? d.monthlyCredits ?? 0),
+      monthlyAllocated: Number(
+        credits.allocated ?? credits.allocatedCredits ?? d.monthlyAllocated ?? 0
+      ),
+      monthlyUsed: Number(
+        credits.used ?? credits.usedCredits ?? d.monthlyUsed ?? 0
+      ),
+      monthlyRemaining: Number(
+        credits.remaining ?? credits.remainingCredits ?? d.monthlyRemaining ?? 0
+      ),
+      dailyCap: Number(quota.cap ?? d.dailyCap ?? 0),
+      dailyRemaining: Number(quota.remaining ?? d.dailyRemaining ?? 0),
+      dailyResetAt: quota.resetAt || d.dailyResetAt || new Date().toISOString(),
+    };
+  } catch (error: any) {
+    console.error("Failed to fetch subscription info:", error);
+    throw error;
+  }
+};
+
+export interface ContactMetrics {
+  tier: {
+    id: string;
+    name: string;
+    displayName: string;
+    monthlyEmailLimit: number;
+    monthlyCredits: number;
+  } | null;
+  contacts: {
+    total: number;
+    limit: number;
+  };
+  emails: {
+    used: number;
+    allocated: number;
+    remaining: number;
+  };
+}
+
+export const getContactMetrics = async (): Promise<ContactMetrics> => {
+  try {
+    const resp = await emailClient.get(`/api/payment/contact-metrics`);
+    return (
+      resp.data?.data || {
+        tier: null,
+        contacts: { total: 0, limit: 0 },
+        emails: { used: 0, allocated: 0, remaining: 0 },
+      }
+    );
+  } catch (error: any) {
+    console.error("Failed to fetch contact metrics:", error);
+    throw error;
+  }
+};
+
+// Lead Categories
+export interface LeadCategory {
+  id: string;
+  name: string;
+  color?: string;
+  description?: string;
+}
+
+export const getLeadCategories = async (): Promise<LeadCategory[]> => {
+  try {
+    const resp = await emailClient.get(`/api/lead-categories`);
+    return resp.data?.data || [];
+  } catch (error: any) {
+    console.error("Failed to fetch lead categories:", error);
+    throw error;
+  }
+};
+
+// Lead Tags
+export interface LeadTag {
+  id: string;
+  name: string;
+  color?: string;
+  description?: string;
+}
+
+export const getLeadTags = async (): Promise<LeadTag[]> => {
+  try {
+    const resp = await emailClient.get(`/api/lead-tags`);
+    return resp.data?.data || [];
+  } catch (error: any) {
+    console.error("Failed to fetch lead tags:", error);
+    throw error;
+  }
+};
+
+export interface DailyCounterRow {
+  date: string; // YYYY-MM-DD
+  sentCount: number;
+  bounceCount: number;
+  complaintCount: number;
+}
+
+export const getDailyCounters = async (
+  days: number = 7
+): Promise<DailyCounterRow[]> => {
+  try {
+    const resp = await emailClient.get(`/api/reputation/daily-counters`, {
+      params: { days },
+    });
+    return resp.data?.data || [];
+  } catch (error: any) {
+    console.error("Failed to fetch daily counters:", error);
+    throw error;
+  }
+};
+
+// Campaigns
+export interface Campaign {
+  id: string;
+  name: string;
+  status: string;
+  totalLeads: number;
+}
+
+export const getUserCampaigns = async (): Promise<Campaign[]> => {
+  try {
+    const resp = await emailClient.get(`/api/leads/campaigns/list`);
+    return resp.data?.data || [];
+  } catch (error: any) {
+    console.error("Failed to fetch campaigns:", error);
+    throw error;
+  }
+};
+
+export const startCampaignFromLeads = async (
+  domainId: string,
+  campaignData: {
+    name: string;
+    description?: string;
+    sequence: any[];
+    leadIds: string[];
+    senderId: string;
+  }
+): Promise<any> => {
+  try {
+    const resp = await emailClient.post(
+      `/api/domains/${domainId}/campaigns/send`,
+      campaignData
+    );
+    return resp.data?.data || resp.data;
+  } catch (error: any) {
+    console.error("Failed to start campaign:", error);
     throw error;
   }
 };

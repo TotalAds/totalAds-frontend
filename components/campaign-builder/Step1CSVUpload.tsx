@@ -1,18 +1,32 @@
 "use client";
 
-import Papa from 'papaparse';
-import { useRef, useState } from 'react';
-import toast from 'react-hot-toast';
-import * as XLSX from 'xlsx';
+import Papa from "papaparse";
+import { useRef, useState } from "react";
+import toast from "react-hot-toast";
+import * as XLSX from "xlsx";
 
-import { CampaignBuilderState } from '@/app/email/campaigns/builder/page';
-import { Button } from '@/components/ui/button';
-import { findDuplicateEmails, isValidEmail } from '@/utils/validation/emailValidator';
+import { CampaignBuilderState } from "@/app/email/campaigns/builder/page";
+import { Button } from "@/components/ui/button";
+import {
+  findDuplicateEmails,
+  isValidEmail,
+} from "@/utils/validation/emailValidator";
+
+import LeadSelection from "./LeadSelection";
 
 interface Step1Props {
   state: CampaignBuilderState;
   setState: (state: CampaignBuilderState) => void;
   onNext: () => void;
+}
+
+interface Lead {
+  id: string;
+  email: string;
+  name?: string;
+  customFields?: Record<string, any>;
+  campaigns?: Array<{ id: string; name: string }>;
+  createdAt: Date;
 }
 
 export default function CampaignStep1CSVUpload({
@@ -23,6 +37,8 @@ export default function CampaignStep1CSVUpload({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [uploadMode, setUploadMode] = useState<"csv" | "leads">("csv");
+  const [showLeadSelection, setShowLeadSelection] = useState(false);
 
   const handleFileUpload = async (file: File) => {
     if (!file) return;
@@ -230,10 +246,90 @@ export default function CampaignStep1CSVUpload({
     });
   };
 
+  const handleLeadsSelected = (selectedLeads: Lead[]) => {
+    // Convert leads to CSV format with custom fields stored in customFields
+    const csvData = selectedLeads.map((lead) => {
+      const row: Record<string, any> = {
+        email: lead.email,
+        name: lead.name || "",
+      };
+
+      // Add custom fields directly (not prefixed with custom_)
+      // Only include user-facing fields, not internal fields like leadId
+      if (lead.customFields) {
+        Object.entries(lead.customFields).forEach(([key, value]) => {
+          row[key] = value || "";
+        });
+      }
+
+      return row;
+    });
+
+    const columns = Object.keys(csvData[0] || {});
+
+    setState({
+      ...state,
+      csvData,
+      columns,
+    });
+
+    setShowLeadSelection(false);
+    toast.success(`Selected ${selectedLeads.length} leads`);
+  };
+
+  if (showLeadSelection) {
+    return (
+      <LeadSelection
+        onLeadsSelected={handleLeadsSelected}
+        onCancel={() => setShowLeadSelection(false)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Mode Selection */}
+      {state.csvData.length === 0 && (
+        <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6">
+          <p className="text-white font-semibold mb-4">
+            Choose how to add leads:
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button
+              onClick={() => setUploadMode("csv")}
+              className={`p-4 rounded-lg border-2 transition ${
+                uploadMode === "csv"
+                  ? "border-purple-500 bg-purple-500/10"
+                  : "border-white/20 bg-white/5 hover:border-white/30"
+              }`}
+            >
+              <p className="text-white font-semibold">Upload CSV/Excel</p>
+              <p className="text-gray-400 text-sm mt-1">
+                Upload a file with your leads
+              </p>
+            </button>
+            <button
+              onClick={() => {
+                setUploadMode("leads");
+                setShowLeadSelection(true);
+              }}
+              className={`p-4 rounded-lg border-2 transition ${
+                uploadMode === "leads"
+                  ? "border-purple-500 bg-purple-500/10"
+                  : "border-white/20 bg-white/5 hover:border-white/30"
+              }`}
+            >
+              <p className="text-white font-semibold">Select from Leads</p>
+              <p className="text-gray-400 text-sm mt-1">
+                Choose from your existing leads
+              </p>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Upload Area */}
-      {state.csvData.length === 0 ? (
+      {state.csvData.length === 0 && uploadMode === "csv" ? (
         <div
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}

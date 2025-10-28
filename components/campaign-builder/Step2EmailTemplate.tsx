@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import toast from "react-hot-toast";
 
 import { CampaignBuilderState } from "@/app/email/campaigns/builder/page";
@@ -13,6 +12,12 @@ interface Step2Props {
   setState: (state: CampaignBuilderState) => void;
   onNext: () => void;
   onPrev: () => void;
+}
+
+interface ComplianceStatus {
+  hasUnsubscribeLink: boolean;
+  hasPhysicalAddress: boolean;
+  hasAddressInput: boolean;
 }
 
 export default function CampaignStep2EmailTemplate({
@@ -77,8 +82,48 @@ export default function CampaignStep2EmailTemplate({
     });
   };
 
-  // Extract variables from CSV columns
-  const availableVariables = state.columns.map((col) => `{{${col}}}`);
+  // Extract variables from CSV columns, filtering out internal database fields
+  const INTERNAL_FIELDS = [
+    "id",
+    "lead_id",
+    "user_id",
+    "created_at",
+    "updated_at",
+    "campaign_id",
+    "category_id",
+    "status",
+    "enriched_data",
+    "bounce_reason",
+    "complaint_reason",
+    "unsubscribe_reason",
+    "last_email_sent_at",
+    "last_interaction_at",
+  ];
+
+  const availableVariables = state.columns
+    .filter((e) => e !== "__EMPTY")
+    .filter((e) => !INTERNAL_FIELDS.includes(e.toLowerCase()))
+    .map((e) => `{{${e.trim()}}}`);
+  // Check compliance status
+  const getComplianceStatus = (): ComplianceStatus => {
+    const hasUnsubscribeLink = /{{\s*unsubscribe_link\s*}}/i.test(
+      state.emailTemplate.htmlContent
+    );
+    const hasPhysicalAddress = /{{\s*physical_address\s*}}/i.test(
+      state.emailTemplate.htmlContent
+    );
+    const hasAddressInput = !!(
+      state.physicalAddress && state.physicalAddress.trim()
+    );
+
+    return {
+      hasUnsubscribeLink,
+      hasPhysicalAddress,
+      hasAddressInput,
+    };
+  };
+
+  const complianceStatus = getComplianceStatus();
 
   const handleNext = () => {
     if (!state.emailTemplate.subject.trim()) {
@@ -89,6 +134,7 @@ export default function CampaignStep2EmailTemplate({
       toast.error("Email content is required");
       return;
     }
+    // Physical address optional; backend will auto-insert default if missing
 
     // Extract variables used in template
     const variableRegex = /\{\{(\w+)\}\}/g;
@@ -110,6 +156,7 @@ export default function CampaignStep2EmailTemplate({
         subject={state.emailTemplate.subject}
         htmlContent={state.emailTemplate.htmlContent}
         availableVariables={availableVariables}
+        complianceStatus={complianceStatus}
         onSubjectChange={(subject) =>
           setState({
             ...state,
@@ -129,7 +176,6 @@ export default function CampaignStep2EmailTemplate({
           })
         }
       />
-
       {/* Attachments */}
       <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
         <label className="block text-sm font-medium text-gray-300 mb-4">

@@ -14,13 +14,14 @@ import { IconMail, IconRefresh, IconShieldCheck } from "@tabler/icons-react";
 
 const VerifyEmailComponent: React.FC = () => {
   const router = useRouter();
-  const { state, refreshUser } = useAuthContext();
+  const { state, refreshUser, logoutUser } = useAuthContext();
   const { user } = state;
 
   const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [resent, setResent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState(5 * 60); // 5 minutes in seconds
 
   useEffect(() => {
     // If already verified, go to onboarding or dashboard
@@ -28,6 +29,32 @@ const VerifyEmailComponent: React.FC = () => {
       router.replace("/onboarding");
     }
   }, [user?.emailVerified, router]);
+
+  // Session timeout for verification pending state (5 minutes)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev <= 1) {
+          // Session expired, logout user
+          logoutUser();
+          router.replace("/login");
+          toast.error(
+            "Your verification session has expired. Please log in again."
+          );
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [logoutUser, router]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
 
   const handleResend = async () => {
     setIsLoading(true);
@@ -39,7 +66,9 @@ const VerifyEmailComponent: React.FC = () => {
     } catch (err) {
       console.error(err);
       setError(
-        err instanceof Error ? err.message : "Failed to resend verification email."
+        err instanceof Error
+          ? err.message
+          : "Failed to resend verification email."
       );
     } finally {
       setIsLoading(false);
@@ -58,7 +87,9 @@ const VerifyEmailComponent: React.FC = () => {
     } catch (err) {
       console.error(err);
       setError(
-        err instanceof Error ? err.message : "Failed to verify email. Try again."
+        err instanceof Error
+          ? err.message
+          : "Failed to verify email. Try again."
       );
     } finally {
       setIsLoading(false);
@@ -75,16 +106,21 @@ const VerifyEmailComponent: React.FC = () => {
                 <GetLogo className="w-8 h-8 text-white" />
               </div>
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">Verify Your Email</h1>
+            <h1 className="text-3xl font-bold text-white mb-2">
+              Verify Your Email
+            </h1>
             <p className="text-gray-300 text-sm">
-              We sent a 6-character verification code to your email. Enter it below
-              to verify your account.
+              We sent a 6-character verification code to your email. Enter it
+              below to verify your account.
             </p>
           </div>
 
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="code" className="text-sm font-medium text-gray-200">
+              <label
+                htmlFor="code"
+                className="text-sm font-medium text-gray-200"
+              >
                 Verification Code
               </label>
               <input
@@ -141,6 +177,24 @@ const VerifyEmailComponent: React.FC = () => {
               <IconMail className="h-4 w-4 mr-2" />
               Logged in as {user?.email || "your email"}
             </div>
+
+            {/* Session Timer */}
+            <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-200 text-sm rounded-lg p-3 text-center">
+              Session expires in:{" "}
+              <span className="font-bold">{formatTime(timeRemaining)}</span>
+            </div>
+
+            {/* Back to Login Button */}
+            <button
+              type="button"
+              onClick={() => {
+                logoutUser();
+                router.push("/login");
+              }}
+              className="w-full py-3 px-4 bg-gray-600/20 hover:bg-gray-600/30 text-gray-300 font-medium rounded-xl transition-all duration-200 border border-gray-500/20 hover:border-gray-500/30 focus:outline-none focus:ring-2 focus:ring-gray-500/50"
+            >
+              Back to Login
+            </button>
           </form>
         </div>
       </div>
@@ -149,4 +203,3 @@ const VerifyEmailComponent: React.FC = () => {
 };
 
 export default VerifyEmailComponent;
-

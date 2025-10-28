@@ -3,7 +3,7 @@
 import React from "react";
 
 import CreditBalance from "@/components/credits/CreditBalance";
-import PaddlePayment from "@/components/payment/PaddlePayment";
+import RazorpayPayment from "@/components/payment/RazorpayPayment";
 import { cn } from "@/lib/utils";
 import {
   IconCalendar,
@@ -548,11 +548,7 @@ export function PaymentModal({
               <IconX className="w-6 h-6" />
             </button>
           </div>
-          <PaddlePayment
-            onSuccess={onSuccess}
-            onError={onError}
-            variant="glass"
-          />
+          <RazorpayPayment onSuccess={onSuccess} onError={onError} />
         </div>
       </div>
     </div>

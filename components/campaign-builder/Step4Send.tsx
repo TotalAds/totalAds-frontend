@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from 'react';
-import toast from 'react-hot-toast';
+import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
-import { CampaignBuilderState } from '@/app/email/campaigns/builder/page';
-import { Button } from '@/components/ui/button';
-import emailClient, { getDomains } from '@/utils/api/emailClient';
+import { CampaignBuilderState } from "@/app/email/campaigns/builder/page";
+import { Button } from "@/components/ui/button";
+import emailClient, { getDomains } from "@/utils/api/emailClient";
 
 interface Step4Props {
   state: CampaignBuilderState;
@@ -254,8 +254,6 @@ export default function CampaignStep4Send({
           `/api/domains/${state.domainId}/campaigns/${campaignId}/send`,
           {
             senderId: state.senderId,
-            // leadIds is now optional - backend will fetch from campaign
-            // This allows for 50k+ emails without passing large arrays
           }
         );
 

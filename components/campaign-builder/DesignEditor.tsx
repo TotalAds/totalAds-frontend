@@ -7,7 +7,9 @@ import {
   AlignLeft,
   AlignRight,
   Bold,
-  Image as ImageIcon,
+  Heading1,
+  Heading2,
+  Heading3,
   Italic,
   Link as LinkIcon,
   List,
@@ -20,7 +22,6 @@ import { useEffect } from "react";
 
 import Color from "@tiptap/extension-color";
 import Highlight from "@tiptap/extension-highlight";
-import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
 import { TextStyle } from "@tiptap/extension-text-style";
@@ -43,7 +44,6 @@ export default function DesignEditor({
       Link.configure({
         openOnClick: false,
       }),
-      Image,
       TextAlign.configure({
         types: ["heading", "paragraph"],
       }),
@@ -89,13 +89,6 @@ export default function DesignEditor({
     }
   };
 
-  const addImage = () => {
-    const url = prompt("Enter image URL:");
-    if (url) {
-      editor.chain().focus().setImage({ src: url }).run();
-    }
-  };
-
   return (
     <div className="space-y-2">
       {/* Toolbar */}
@@ -134,6 +127,49 @@ export default function DesignEditor({
             title="Underline"
           >
             <UnderlineIcon size={16} />
+          </button>
+
+          <div className="w-px bg-white/10" />
+
+          {/* Headings */}
+          <button
+            onClick={() =>
+              editor.chain().focus().toggleHeading({ level: 1 }).run()
+            }
+            className={`p-2 rounded transition ${
+              editor.isActive("heading", { level: 1 })
+                ? "bg-purple-600 text-white"
+                : "bg-white/10 text-gray-300 hover:bg-white/20"
+            }`}
+            title="Heading 1"
+          >
+            <Heading1 size={16} />
+          </button>
+          <button
+            onClick={() =>
+              editor.chain().focus().toggleHeading({ level: 2 }).run()
+            }
+            className={`p-2 rounded transition ${
+              editor.isActive("heading", { level: 2 })
+                ? "bg-purple-600 text-white"
+                : "bg-white/10 text-gray-300 hover:bg-white/20"
+            }`}
+            title="Heading 2"
+          >
+            <Heading2 size={16} />
+          </button>
+          <button
+            onClick={() =>
+              editor.chain().focus().toggleHeading({ level: 3 }).run()
+            }
+            className={`p-2 rounded transition ${
+              editor.isActive("heading", { level: 2 })
+                ? "bg-purple-600 text-white"
+                : "bg-white/10 text-gray-300 hover:bg-white/20"
+            }`}
+            title="Heading 3"
+          >
+            <Heading3 size={16} />
           </button>
 
           <div className="w-px bg-white/10" />
@@ -208,13 +244,6 @@ export default function DesignEditor({
             title="Add Link"
           >
             <LinkIcon size={16} />
-          </button>
-          <button
-            onClick={addImage}
-            className="p-2 rounded bg-white/10 text-gray-300 hover:bg-white/20 transition"
-            title="Add Image"
-          >
-            <ImageIcon size={16} />
           </button>
 
           <div className="w-px bg-white/10" />

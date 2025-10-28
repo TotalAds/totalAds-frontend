@@ -42,8 +42,21 @@ export default function CampaignStep3Preview({
       }
     });
 
-    // Then, remove any remaining unreplaced variables
-    result = result.replace(/\{\{(\w+)\}\}/g, "");
+    // Then, remove any remaining unreplaced variables (except compliance tokens)
+    result = result.replace(
+      /\{\{(?!unsubscribe_link|physical_address)(\w+)\}\}/g,
+      ""
+    );
+
+    // Hide compliance tokens in preview (they're shown in actual emails)
+    result = result.replace(
+      /\{\{\s*unsubscribe_link\s*\}\}/gi,
+      "[Unsubscribe Link]"
+    );
+    result = result.replace(
+      /\{\{\s*physical_address\s*\}\}/gi,
+      "[Company Address]"
+    );
 
     return result;
   };

@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 import CampaignStep1CSVUpload from "@/components/campaign-builder/Step1CSVUpload";
@@ -9,6 +9,7 @@ import CampaignStep2EmailTemplate from "@/components/campaign-builder/Step2Email
 import CampaignStep3Preview from "@/components/campaign-builder/Step3Preview";
 import CampaignStep4Send from "@/components/campaign-builder/Step4Send";
 import CampaignStep5Status from "@/components/campaign-builder/Step5Status";
+import emailClient from "@/utils/api/emailClient";
 
 export interface CampaignBuilderState {
   step: number;
@@ -30,6 +31,7 @@ export interface CampaignBuilderState {
   campaignDescription: string;
   senderId: string;
   domainId: string;
+  physicalAddress: string;
   campaignId?: string;
   sendingStatus?: {
     total: number;
@@ -50,6 +52,10 @@ const STEPS = [
 
 export default function CampaignBuilderPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const campaignIdParam = searchParams.get("id");
+  const [isLoading, setIsLoading] = useState(!!campaignIdParam);
+
   const [state, setState] = useState<CampaignBuilderState>({
     step: 1,
     csvData: [],
@@ -65,7 +71,51 @@ export default function CampaignBuilderPage() {
     campaignDescription: "",
     senderId: "",
     domainId: "",
+    physicalAddress: "",
   });
+
+  // Load campaign data if editing
+  useEffect(() => {
+    if (!campaignIdParam) {
+      setIsLoading(false);
+      return;
+    }
+
+    const loadCampaignData = async () => {
+      try {
+        setIsLoading(true);
+        const response = await emailClient.get(
+          `/api/campaigns/${campaignIdParam}`
+        );
+        const campaign = response.data?.data;
+
+        if (campaign) {
+          setState((prev) => ({
+            ...prev,
+            campaignId: campaign.id,
+            campaignName: campaign.name || "",
+            campaignDescription: campaign.description || "",
+            emailTemplate: {
+              subject: campaign.subject || "",
+              htmlContent: campaign.htmlContent || "",
+              textContent: campaign.textContent || "",
+              attachments: [],
+            },
+            domainId: campaign.domainId || "",
+            senderId: campaign.senderId || "",
+            variables: campaign.variables || [],
+          }));
+        }
+      } catch (error: any) {
+        console.error("Failed to load campaign:", error);
+        toast.error("Failed to load campaign data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadCampaignData();
+  }, [campaignIdParam]);
 
   const handleNextStep = () => {
     if (state.step < 5) {
@@ -138,6 +188,17 @@ export default function CampaignBuilderPage() {
         return null;
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mx-auto mb-4"></div>
+          <p className="text-white text-lg">Loading campaign...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">

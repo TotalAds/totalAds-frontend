@@ -1,24 +1,49 @@
 "use client";
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { toast } from 'react-hot-toast';
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
 
-import { Button } from '@/components/ui/button';
-import { tokenStorage } from '@/utils/auth/tokenStorage';
+import { Button } from "@/components/ui/button";
+import {
+  DailyCounterRow,
+  getDailyCounters,
+  getQuotaCardData,
+  QuotaCardData,
+} from "@/utils/api/emailClient";
+import { tokenStorage } from "@/utils/auth/tokenStorage";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [userName, setUserName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [quota, setQuota] = useState<QuotaCardData | null>(null);
+  const [counters, setCounters] = useState<DailyCounterRow[]>([]);
+  const [range, setRange] = useState<7 | 30>(7);
 
   useEffect(() => {
     // Get user name from localStorage
     const storedUserName = localStorage.getItem("userName");
     setUserName(storedUserName);
     setLoading(false);
+    fetchQuotaAndCounters(7);
   }, []);
+
+  const fetchQuotaAndCounters = async (days: 7 | 30) => {
+    try {
+      const [q, dc] = await Promise.all([
+        getQuotaCardData(),
+        getDailyCounters(days),
+      ]);
+      setQuota(q);
+      setCounters(dc || []);
+    } catch (error) {
+      console.error("Failed to fetch quota/counters:", error);
+      setQuota(null);
+      setCounters([]);
+    }
+  };
 
   const handleLogout = () => {
     // Clear tokens and localStorage
@@ -49,14 +74,106 @@ export default function DashboardPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Welcome Section */}
-        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-8 mb-8">
+        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-8 mb-6">
           <h2 className="text-3xl font-bold text-white mb-4">
             Welcome to Your Dashboard
           </h2>
-          <p className="text-gray-300 mb-6">
+          <p className="text-gray-300">
             Get started with TotalAds Email Service. Manage your email
             campaigns, domains, and leads.
           </p>
+        </div>
+
+        {/* Trend Chart (7/30 days) */}
+        <div className="w-full max-w-3xl mb-12 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4 text-white">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm opacity-80">Daily Sends Trend</div>
+            <div className="flex gap-2 text-xs">
+              <button
+                className={`px-2 py-0.5 rounded ${
+                  range === 7
+                    ? "bg-purple-500/30 text-purple-200"
+                    : "bg-white/10 text-gray-300"
+                }`}
+                onClick={() => {
+                  setRange(7);
+                  fetchQuotaAndCounters(7);
+                }}
+              >
+                7d
+              </button>
+              <button
+                className={`px-2 py-0.5 rounded ${
+                  range === 30
+                    ? "bg-purple-500/30 text-purple-200"
+                    : "bg-white/10 text-gray-300"
+                }`}
+                onClick={() => {
+                  setRange(30);
+                  fetchQuotaAndCounters(30);
+                }}
+              >
+                30d
+              </button>
+            </div>
+          </div>
+          {/* Simple bar chart */}
+          <div className="h-36 flex items-end gap-1">
+            {(counters || []).map((d, idx) => {
+              const max = Math.max(1, ...counters.map((x) => x.sentCount));
+              const sentH = Math.round((d.sentCount / max) * 100);
+              const bounceH = Math.round((d.bounceCount / max) * 100);
+              const compH = Math.round((d.complaintCount / max) * 100);
+              return (
+                <div key={idx} className="flex-1 flex items-end justify-center">
+                  <div className="w-2 flex items-end gap-[2px]">
+                    <div
+                      className="bg-green-400/80"
+                      style={{
+                        height: `${sentH}%`,
+                        width: "6px",
+                        borderRadius: "2px",
+                      }}
+                      title={`${d.date}: Sent ${d.sentCount}`}
+                    />
+                    <div
+                      className="bg-red-400/80"
+                      style={{
+                        height: `${bounceH}%`,
+                        width: "6px",
+                        borderRadius: "2px",
+                      }}
+                      title={`${d.date}: Bounced ${d.bounceCount}`}
+                    />
+                    <div
+                      className="bg-amber-400/80"
+                      style={{
+                        height: `${compH}%`,
+                        width: "6px",
+                        borderRadius: "2px",
+                      }}
+                      title={`${d.date}: Complaints ${d.complaintCount}`}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {/* Legend */}
+          <div className="mt-3 flex gap-4 text-[11px] text-gray-300">
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 bg-green-400 inline-block rounded-sm" />{" "}
+              Sent
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 bg-red-400 inline-block rounded-sm" />{" "}
+              Bounced
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 bg-amber-400 inline-block rounded-sm" />{" "}
+              Complaints
+            </span>
+          </div>
         </div>
 
         {/* Features Grid */}
@@ -194,15 +311,17 @@ export default function DashboardPage() {
                 />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Credits</h3>
+            <h3 className="text-xl font-semibold text-white mb-2">
+              Pricing & Plans
+            </h3>
             <p className="text-gray-400 mb-4">
-              Manage your email credits and billing
+              View pricing plans and manage your subscription
             </p>
             <Link
-              href="/email/credits"
+              href="/email/pricing"
               className="text-purple-400 hover:text-purple-300 font-semibold"
             >
-              View Credits →
+              View Plans →
             </Link>
           </div>
         </div>

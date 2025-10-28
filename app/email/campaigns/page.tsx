@@ -264,6 +264,23 @@ export default function CampaignsPage() {
                         </td>
                         <td className="px-6 py-4">
                           {getStatusBadge(campaign.status)}
+                          {typeof (campaign as any)
+                            .scheduledForTomorrowCount === "number" &&
+                            (campaign as any).scheduledForTomorrowCount > 0 && (
+                              <span className="ml-2 inline-flex items-center">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-500/20 text-purple-300">
+                                  Scheduled for tomorrow
+                                </span>
+                                <span
+                                  className="ml-1 w-4 h-4 inline-flex items-center justify-center rounded-full border border-purple-400/40 text-purple-300 text-[10px] cursor-default"
+                                  title={`${
+                                    (campaign as any).scheduledForTomorrowCount
+                                  } scheduled for tomorrow`}
+                                >
+                                  i
+                                </span>
+                              </span>
+                            )}
                         </td>
                         <td className="px-6 py-4 text-gray-400 text-sm">
                           {new Date(campaign.createdAt).toLocaleDateString()}

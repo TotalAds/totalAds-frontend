@@ -1,0 +1,304 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
+import { IconSearch, IconX } from "@tabler/icons-react";
+
+import emailClient from "@/utils/api/emailClient";
+import { Button } from "@/components/ui/button";
+
+interface Lead {
+  id: string;
+  email: string;
+  name?: string;
+  company?: string;
+  role?: string;
+  category?: string;
+  tags?: string;
+  campaigns?: Array<{ id: string; name: string }>;
+  createdAt: Date;
+}
+
+interface LeadSelectionProps {
+  onLeadsSelected: (leads: Lead[]) => void;
+  onCancel: () => void;
+}
+
+export default function LeadSelection({
+  onLeadsSelected,
+  onCancel,
+}: LeadSelectionProps) {
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    loadLeads();
+  }, [page, limit, statusFilter, categoryFilter, companyFilter, roleFilter]);
+
+  const loadLeads = async () => {
+    try {
+      setIsLoading(true);
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+
+      if (statusFilter) params.append("status", statusFilter);
+      if (categoryFilter) params.append("category", categoryFilter);
+      if (companyFilter) params.append("company", companyFilter);
+      if (roleFilter) params.append("role", roleFilter);
+
+      const response = await emailClient.get<any>(
+        `/api/leads?${params.toString()}`
+      );
+
+      if (response.data?.data) {
+        setLeads(response.data.data.leads);
+        setTotal(response.data.data.pagination.total);
+      }
+    } catch (error: any) {
+      console.error("Failed to load leads:", error);
+      toast.error("Failed to load leads");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSelectLeads = () => {
+    if (selectedLeads.size === 0) {
+      toast.error("Please select at least one lead");
+      return;
+    }
+
+    const selected = leads.filter((lead) => selectedLeads.has(lead.id));
+    onLeadsSelected(selected);
+  };
+
+  const filteredLeads = leads.filter((lead) =>
+    lead.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    lead.name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Filters */}
+      <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* Search */}
+          <div className="relative lg:col-span-2">
+            <IconSearch
+              className="absolute left-3 top-3 text-gray-400"
+              size={20}
+            />
+            <input
+              type="text"
+              placeholder="Search by email or name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+
+          {/* Status Filter */}
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
+            className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            <option value="">All Statuses</option>
+            <option value="new">New</option>
+            <option value="sent">Sent</option>
+            <option value="opened">Opened</option>
+            <option value="clicked">Clicked</option>
+            <option value="bounced">Bounced</option>
+          </select>
+
+          {/* Category Filter */}
+          <select
+            value={categoryFilter}
+            onChange={(e) => {
+              setCategoryFilter(e.target.value);
+              setPage(1);
+            }}
+            className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            <option value="">All Categories</option>
+            <option value="prospect">Prospect</option>
+            <option value="customer">Customer</option>
+            <option value="partner">Partner</option>
+          </select>
+
+          {/* Company Filter */}
+          <input
+            type="text"
+            placeholder="Filter by company..."
+            value={companyFilter}
+            onChange={(e) => {
+              setCompanyFilter(e.target.value);
+              setPage(1);
+            }}
+            className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
+
+          {/* Role Filter */}
+          <input
+            type="text"
+            placeholder="Filter by role..."
+            value={roleFilter}
+            onChange={(e) => {
+              setRoleFilter(e.target.value);
+              setPage(1);
+            }}
+            className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
+        </div>
+      </div>
+
+      {/* Leads Table */}
+      <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl overflow-hidden">
+        {isLoading ? (
+          <div className="p-8 text-center text-gray-400">Loading leads...</div>
+        ) : filteredLeads.length === 0 ? (
+          <div className="p-8 text-center text-gray-400">No leads found.</div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-white/5 border-b border-white/10">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300 w-12">
+                      <input
+                        type="checkbox"
+                        checked={
+                          selectedLeads.size === filteredLeads.length &&
+                          filteredLeads.length > 0
+                        }
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedLeads(
+                              new Set(filteredLeads.map((l) => l.id))
+                            );
+                          } else {
+                            setSelectedLeads(new Set());
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-gray-300 text-purple-500 focus:ring-purple-500"
+                      />
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
+                      Email
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
+                      Name
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
+                      Company
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
+                      Role
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredLeads.map((lead) => (
+                    <tr
+                      key={lead.id}
+                      className="border-b border-white/10 hover:bg-white/5 transition-colors"
+                    >
+                      <td className="px-6 py-4 text-sm w-12">
+                        <input
+                          type="checkbox"
+                          checked={selectedLeads.has(lead.id)}
+                          onChange={(e) => {
+                            const newSet = new Set(selectedLeads);
+                            if (e.target.checked) {
+                              newSet.add(lead.id);
+                            } else {
+                              newSet.delete(lead.id);
+                            }
+                            setSelectedLeads(newSet);
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-purple-500 focus:ring-purple-500"
+                        />
+                      </td>
+                      <td className="px-6 py-4 text-sm text-white">
+                        {lead.email}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-300">
+                        {lead.name || "-"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-300">
+                        {lead.company || "-"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-300">
+                        {lead.role || "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            <div className="px-6 py-4 border-t border-white/10 flex justify-between items-center">
+              <div className="text-sm text-gray-400">
+                {selectedLeads.size} of {total} leads selected
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => setPage(Math.max(1, page - 1))}
+                  disabled={page === 1}
+                  className="px-3 py-1 text-sm bg-white/10 hover:bg-white/20 text-white rounded disabled:opacity-50"
+                >
+                  Previous
+                </Button>
+                <span className="px-3 py-1 text-sm text-gray-400">
+                  Page {page} of {Math.ceil(total / limit)}
+                </span>
+                <Button
+                  onClick={() =>
+                    setPage(Math.min(Math.ceil(total / limit), page + 1))
+                  }
+                  disabled={page >= Math.ceil(total / limit)}
+                  className="px-3 py-1 text-sm bg-white/10 hover:bg-white/20 text-white rounded disabled:opacity-50"
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-3 justify-end">
+        <Button
+          onClick={onCancel}
+          className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition"
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSelectLeads}
+          disabled={selectedLeads.size === 0}
+          className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg transition disabled:opacity-50"
+        >
+          Select {selectedLeads.size} Lead{selectedLeads.size !== 1 ? "s" : ""}
+        </Button>
+      </div>
+    </div>
+  );
+}
+

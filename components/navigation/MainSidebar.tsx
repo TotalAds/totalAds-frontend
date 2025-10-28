@@ -58,36 +58,36 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
 
   const navItems: NavItem[] = [
     // Lead Enhancement Section
-    {
-      name: "Enrichment",
-      href: "",
-      icon: <IconWorldWww className="w-5 h-5" />,
-      badge: "AI",
-      category: "scraper",
-      subItems: [
-        {
-          name: "Dashboard",
-          href: "/dashboard",
-        },
-        {
-          name: "Lead Enhancement",
-          href: "/lead-enhancement",
-        },
-        {
-          name: "ICP Profiles",
-          href: "/icp-profiles",
-          isNew: true,
-        },
-        {
-          name: "API Tokens",
-          href: "/api-tokens",
-        },
-        {
-          name: "Docs",
-          href: "/docs",
-        },
-      ],
-    },
+    // {
+    //   name: "Enrichment",
+    //   href: "",
+    //   icon: <IconWorldWww className="w-5 h-5" />,
+    //   badge: "AI",
+    //   category: "scraper",
+    //   subItems: [
+    //     {
+    //       name: "Dashboard",
+    //       href: "/dashboard",
+    //     },
+    //     {
+    //       name: "Lead Enhancement",
+    //       href: "/lead-enhancement",
+    //     },
+    //     {
+    //       name: "ICP Profiles",
+    //       href: "/icp-profiles",
+    //       isNew: true,
+    //     },
+    //     {
+    //       name: "API Tokens",
+    //       href: "/api-tokens",
+    //     },
+    //     {
+    //       name: "Docs",
+    //       href: "/docs",
+    //     },
+    //   ],
+    // },
     // Email Service Section
     {
       name: "Email Service",
@@ -109,8 +109,12 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
           href: "/email/campaigns",
         },
         {
-          name: "Credits",
-          href: "/email/credits",
+          name: "Leads",
+          href: "/email/leads",
+        },
+        {
+          name: "Pricing & Plans",
+          href: "/email/pricing",
         },
       ],
     },
@@ -212,7 +216,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
                     >
                       {scraperItems.map((item) => {
                         const isActive =
-                          pathname === item.href ||
+                          pathname.includes(item.href) ||
                           (pathname.startsWith(item.href + "/") &&
                             !scraperItems.some(
                               (otherItem) =>
@@ -307,7 +311,9 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
                                 className="space-y-1 overflow-hidden pl-4"
                               >
                                 {item.subItems!.map((subItem) => {
-                                  const isSubActive = pathname === subItem.href;
+                                  const isSubActive = pathname.includes(
+                                    subItem.href
+                                  );
                                   return (
                                     <Link
                                       key={subItem.name}
@@ -367,7 +373,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
                     >
                       {emailItems.map((item) => {
                         const isActive =
-                          pathname === item.href ||
+                          pathname.includes(item.href) ||
                           (pathname.startsWith(item.href + "/") &&
                             !emailItems.some(
                               (otherItem) =>
@@ -475,8 +481,9 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
                                   className="ml-4 mt-2 space-y-1 overflow-hidden"
                                 >
                                   {item.subItems?.map((subItem) => {
-                                    const isSubActive =
-                                      pathname === subItem.href;
+                                    const isSubActive = pathname.includes(
+                                      subItem.href
+                                    );
                                     return (
                                       <Link
                                         key={subItem.name}

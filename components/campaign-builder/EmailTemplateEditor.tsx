@@ -9,10 +9,17 @@ import { Button } from "@/components/ui/button";
 import CodeEditor from "./CodeEditor";
 import DesignEditor from "./DesignEditor";
 
+interface ComplianceStatus {
+  hasUnsubscribeLink: boolean;
+  hasPhysicalAddress: boolean;
+  hasAddressInput: boolean;
+}
+
 interface EmailTemplateEditorProps {
   subject: string;
   htmlContent: string;
   availableVariables: string[];
+  complianceStatus?: ComplianceStatus;
   onSubjectChange: (subject: string) => void;
   onHtmlContentChange: (content: string) => void;
 }
@@ -21,6 +28,7 @@ export default function EmailTemplateEditor({
   subject,
   htmlContent,
   availableVariables,
+  complianceStatus,
   onSubjectChange,
   onHtmlContentChange,
 }: EmailTemplateEditorProps) {
@@ -29,6 +37,7 @@ export default function EmailTemplateEditor({
     "desktop"
   );
   const [showVariables, setShowVariables] = useState(false);
+  // Compliance help removed; backend auto-inserts unsubscribe + address footer
 
   const handleInsertVariable = (variable: string) => {
     // If we're in the Design (Tiptap) editor, dispatch a custom event that the child listens to
@@ -117,12 +126,14 @@ export default function EmailTemplateEditor({
             </button>
           </div>
 
-          <button
-            onClick={() => setShowVariables(!showVariables)}
-            className="text-xs text-purple-400 hover:text-purple-300 transition"
-          >
-            {showVariables ? "Hide" : "Show"} Variables
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowVariables(!showVariables)}
+              className="text-xs text-purple-400 hover:text-purple-300 transition"
+            >
+              {showVariables ? "Hide" : "Show"} Variables
+            </button>
+          </div>
         </div>
 
         {/* Variables Helper - Compact */}

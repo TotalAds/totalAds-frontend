@@ -22,7 +22,7 @@ export function LoginComponent() {
       if (!state.user.emailVerified) {
         router.push("/verify-email");
       } else {
-        router.push("/dashboard");
+        router.push("/email/dashboard");
       }
     }
   }, [isAuthenticated, state.user, router]);

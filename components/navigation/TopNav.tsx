@@ -2,13 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import GetLogo from "@/components/common/getLogo";
 import TourTrigger from "@/components/tour/TourTrigger";
 import { useAuthContext } from "@/context/AuthContext";
+import {
+  ContactMetrics,
+  getContactMetrics,
+  getSubscriptionInfo,
+  SubscriptionInfo,
+} from "@/utils/api/emailClient";
 import { cn } from "@/utils/cn";
-import { IconChevronDown, IconMenu2, IconMenuDeep } from "@tabler/icons-react";
+import {
+  IconChevronDown,
+  IconInfoCircle,
+  IconMenu2,
+  IconMenuDeep,
+} from "@tabler/icons-react";
 
 interface TopNavProps {
   onSidebarToggle?: () => void;
@@ -17,6 +28,7 @@ interface TopNavProps {
 
 const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
   const pathname = usePathname();
+
   const { state, logoutUser } = useAuthContext();
   const { isAuthenticated, user } = state;
 
@@ -36,6 +48,44 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
     "/api-tokens",
   ];
   const shouldShowTour = isAuthenticated && tourEnabledPages.includes(pathname);
+
+  const [subInfo, setSubInfo] = useState<SubscriptionInfo | null>(null);
+  const [metrics, setMetrics] = useState<ContactMetrics | null>(null);
+
+  const refreshSubscriptionInfo = async () => {
+    if (isAuthenticated) {
+      try {
+        const [info, contactMetrics] = await Promise.all([
+          getSubscriptionInfo(),
+          getContactMetrics(),
+        ]);
+        setSubInfo(info);
+        setMetrics(contactMetrics);
+      } catch (e: unknown) {
+        console.warn("Failed to load subscription info", e);
+        setSubInfo(null);
+        setMetrics(null);
+      }
+    }
+  };
+
+  useEffect(() => {
+    refreshSubscriptionInfo();
+  }, [isAuthenticated]);
+
+  // Refresh subscription info when page becomes visible (user returns from payment)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && isAuthenticated) {
+        refreshSubscriptionInfo();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isAuthenticated]);
 
   return (
     <header className="backdrop-blur-xl bg-slate-900/90 border-b border-white/10 flex-shrink-0 z-50">
@@ -61,7 +111,7 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
                 )}
               </button>
             )}
-            <Link href="/dashboard" className="flex items-center group">
+            <Link href="/email/dashboard" className="flex items-center group">
               <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl mr-3 group-hover:scale-110 transition-transform duration-200">
                 <GetLogo className="h-6 w-6 text-white" />
               </div>
@@ -72,10 +122,106 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
           {/* Right side - User Menu or Auth Links */}
           <div className="flex items-center space-x-6">
             {/* Tour Button - only show for authenticated users on specific pages */}
-            {shouldShowTour && (
+            {/* {shouldShowTour && (
               <TourTrigger variant="help" className="hidden md:flex">
                 Tour
               </TourTrigger>
+            )} */}
+
+            {isAuthenticated && subInfo && metrics && (
+              <div className="relative group">
+                <button
+                  className="p-2 rounded-xl hover:bg-white/10"
+                  aria-label="Plan & quota"
+                  title="Plan & quota"
+                >
+                  <IconInfoCircle className="h-5 w-5 text-gray-300" />
+                </button>
+                <div className="absolute right-0 mt-2 w-96 p-4 rounded-xl bg-slate-900/95 border border-white/20 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  <div className="text-sm text-white space-y-3">
+                    {/* Plan Chip */}
+                    <div className="font-semibold">
+                      <Link
+                        href="/email/pricing"
+                        className="inline-block px-3 py-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full text-sm text-white hover:from-purple-600 hover:to-pink-600 transition"
+                      >
+                        {subInfo.tierDisplayName || subInfo.tierName}
+                      </Link>
+                    </div>
+
+                    {/* Contact Metrics */}
+                    <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                      <div className="text-xs text-gray-400 mb-2">Contacts</div>
+                      <div className="text-lg font-semibold text-white">
+                        {metrics.contacts.total} / {metrics.contacts.limit}
+                      </div>
+                      <div className="w-full bg-white/10 rounded-full h-1.5 mt-2">
+                        <div
+                          className="bg-gradient-to-r from-blue-500 to-cyan-500 h-1.5 rounded-full"
+                          style={{
+                            width: `${
+                              metrics.contacts.limit > 0
+                                ? Math.min(
+                                    100,
+                                    (metrics.contacts.total /
+                                      metrics.contacts.limit) *
+                                      100
+                                  )
+                                : 0
+                            }%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Email Metrics */}
+                    <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                      <div className="text-xs text-gray-400 mb-2">
+                        Emails This Month
+                      </div>
+                      <div className="text-lg font-semibold text-white">
+                        {metrics.emails.used} / {metrics.emails.allocated}
+                      </div>
+                      <div className="w-full bg-white/10 rounded-full h-1.5 mt-2">
+                        <div
+                          className="bg-gradient-to-r from-green-500 to-emerald-500 h-1.5 rounded-full"
+                          style={{
+                            width: `${
+                              metrics.emails.allocated > 0
+                                ? Math.min(
+                                    100,
+                                    (metrics.emails.used /
+                                      metrics.emails.allocated) *
+                                      100
+                                  )
+                                : 0
+                            }%`,
+                          }}
+                        />
+                      </div>
+                      {metrics.emails.remaining > 0 && (
+                        <div className="text-xs text-gray-400 mt-1">
+                          {metrics.emails.remaining} remaining
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Daily Limit */}
+                    <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                      <div className="text-xs text-gray-400 mb-1">
+                        Daily Limit
+                      </div>
+                      <div className="text-lg font-semibold text-white">
+                        {subInfo.dailyRemaining} / {subInfo.dailyCap} today
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        Resets:{" "}
+                        {new Date(subInfo.dailyResetAt).toLocaleTimeString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* User Menu */}
