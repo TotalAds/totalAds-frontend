@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
+import { useAuthContext } from "@/context/AuthContext";
 import {
   DailyCounterRow,
   getDailyCounters,
@@ -16,11 +17,22 @@ import { tokenStorage } from "@/utils/auth/tokenStorage";
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { state } = useAuthContext();
   const [userName, setUserName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [quota, setQuota] = useState<QuotaCardData | null>(null);
   const [counters, setCounters] = useState<DailyCounterRow[]>([]);
   const [range, setRange] = useState<7 | 30>(7);
+
+  useEffect(() => {
+    // Check if user has completed onboarding
+    if (!state.isLoading && state.isAuthenticated && state.user) {
+      if (!state.user.onboardingCompleted) {
+        router.push("/onboarding");
+        return;
+      }
+    }
+  }, [state.isLoading, state.isAuthenticated, state.user, router]);
 
   useEffect(() => {
     // Get user name from localStorage
