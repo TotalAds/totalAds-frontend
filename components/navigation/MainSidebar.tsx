@@ -69,10 +69,6 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
           href: "/email/dashboard",
         },
         {
-          name: "Domains",
-          href: "/email/domains",
-        },
-        {
           name: "Campaigns",
           href: "/email/campaigns",
         },
@@ -83,6 +79,10 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
         {
           name: "Pricing & Plans",
           href: "/email/pricing",
+        },
+        {
+          name: "Settings",
+          href: "/email/settings",
         },
       ],
     },
