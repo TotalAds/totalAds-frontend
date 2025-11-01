@@ -94,12 +94,12 @@ export default function CampaignStep5Status({
         >
           {Array.from({ length: 80 }).map((_, i) => {
             const colors = [
-              "#ef4444",
-              "#f59e0b",
-              "#10b981",
-              "#3b82f6",
-              "#8b5cf6",
-              "#ec4899",
+              "#eb857a", // brand-main
+              "#f4cdc1", // brand-secondary
+              "#9DD0c7", // brand-tertiary
+              "#0be881", // success
+              "#ffd32a", // warning
+              "#ff3f34", // error
             ];
             const left = Math.random() * 100;
             const duration = 2 + Math.random() * 2;
@@ -121,11 +121,11 @@ export default function CampaignStep5Status({
           })}
         </div>
 
-        <div className="backdrop-blur-xl bg-green-500/10 border border-green-500/20 rounded-2xl p-6">
+        <div className="backdrop-blur-xl bg-success/10 border border-success/20 rounded-2xl p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center">
+            <div className="w-12 h-12 bg-success/20 rounded-full flex items-center justify-center">
               <svg
-                className="w-6 h-6 text-green-400"
+                className="w-6 h-6 text-success"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -139,10 +139,10 @@ export default function CampaignStep5Status({
               </svg>
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-green-400">
+              <h3 className="text-lg font-semibold text-success">
                 Congratulations! Your campaign has started 🎉
               </h3>
-              <p className="text-green-300/80 text-sm">
+              <p className="text-success/80 text-sm">
                 Delivering to {state.csvData.length} lead
                 {state.csvData.length === 1 ? "" : "s"}. Redirecting to campaign
                 details in {countdown}s...
@@ -178,24 +178,24 @@ export default function CampaignStep5Status({
 
       {/* Real-time Status */}
       {loading ? (
-        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-12 text-center">
-          <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-300">Loading campaign status...</p>
+        <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-12 text-center">
+          <div className="w-12 h-12 border-4 border-brand-main border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-text-200">Loading campaign status...</p>
         </div>
       ) : (
         <>
           {/* Progress Bar */}
-          <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
+          <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-text-100">
                 Delivery Progress
               </h3>
               <button
                 onClick={() => setAutoRefresh(!autoRefresh)}
                 className={`text-xs px-3 py-1 rounded transition ${
                   autoRefresh
-                    ? "bg-green-500/20 text-green-300"
-                    : "bg-gray-500/20 text-gray-300"
+                    ? "bg-success/20 text-success"
+                    : "bg-text-200/20 text-text-200"
                 }`}
               >
                 {autoRefresh ? "Auto-refresh ON" : "Auto-refresh OFF"}
@@ -203,7 +203,7 @@ export default function CampaignStep5Status({
             </div>
 
             <div className="mb-2">
-              <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
+              <div className="w-full bg-brand-main/10 rounded-full h-3 overflow-hidden">
                 <div
                   className="bg-brand-main h-full transition-all duration-500"
                   style={{ width: `${getProgressPercentage()}%` }}
@@ -211,7 +211,7 @@ export default function CampaignStep5Status({
               </div>
             </div>
 
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-text-200">
               {getProgressPercentage()}% complete ({status?.stats?.sent || 0} of{" "}
               {status?.stats?.total || 0} sent)
             </p>
@@ -219,89 +219,93 @@ export default function CampaignStep5Status({
 
           {/* Statistics Grid */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-4 text-center">
-              <p className="text-2xl font-bold text-blue-400">
+            <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-4 text-center">
+              <p className="text-2xl font-bold text-brand-main">
                 {status?.stats?.total || 0}
               </p>
-              <p className="text-xs text-gray-400 mt-1">Total</p>
+              <p className="text-xs text-text-200 mt-1">Total</p>
             </div>
-            <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-4 text-center">
-              <p className="text-2xl font-bold text-green-400">
+            <div className="backdrop-blur-xl bg-success/5 border border-success/20 rounded-2xl p-4 text-center">
+              <p className="text-2xl font-bold text-success">
                 {status?.stats?.sent || 0}
               </p>
-              <p className="text-xs text-gray-400 mt-1">Sent</p>
+              <p className="text-xs text-text-200 mt-1">Sent</p>
             </div>
-            <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-4 text-center">
-              <p className="text-2xl font-bold text-purple-400">
+            <div className="backdrop-blur-xl bg-brand-secondary/5 border border-brand-secondary/20 rounded-2xl p-4 text-center">
+              <p className="text-2xl font-bold text-brand-secondary">
                 {status?.stats?.processing || 0}
               </p>
-              <p className="text-xs text-gray-400 mt-1">Processing</p>
+              <p className="text-xs text-text-200 mt-1">Processing</p>
             </div>
-            <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-4 text-center">
-              <p className="text-2xl font-bold text-yellow-400">
+            <div className="backdrop-blur-xl bg-warning/5 border border-warning/20 rounded-2xl p-4 text-center">
+              <p className="text-2xl font-bold text-warning">
                 {status?.stats?.bounced || 0}
               </p>
-              <p className="text-xs text-gray-400 mt-1">Bounced</p>
+              <p className="text-xs text-text-200 mt-1">Bounced</p>
             </div>
-            <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-4 text-center">
-              <p className="text-2xl font-bold text-red-400">
+            <div className="backdrop-blur-xl bg-error/5 border border-error/20 rounded-2xl p-4 text-center">
+              <p className="text-2xl font-bold text-error">
                 {status?.stats?.failed || 0}
               </p>
-              <p className="text-xs text-gray-400 mt-1">Failed</p>
+              <p className="text-xs text-text-200 mt-1">Failed</p>
             </div>
           </div>
 
           {/* Campaign Info */}
-          <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">
+          <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-6">
+            <h3 className="text-lg font-semibold text-text-100 mb-4">
               Campaign Details
             </h3>
             <div className="grid grid-cols-2 gap-6 text-sm">
               <div>
-                <p className="text-gray-400">Campaign Name:</p>
-                <p className="text-white font-medium">{state.campaignName}</p>
+                <p className="text-text-200">Campaign Name:</p>
+                <p className="text-text-100 font-medium">
+                  {state.campaignName}
+                </p>
               </div>
               <div>
-                <p className="text-gray-400">Campaign ID:</p>
-                <p className="text-white font-mono text-xs">
+                <p className="text-text-200">Campaign ID:</p>
+                <p className="text-text-100 font-mono text-xs">
                   {state.campaignId}
                 </p>
               </div>
               <div>
-                <p className="text-gray-400">Status:</p>
-                <p className="text-white font-medium">
-                  <span className="inline-block px-2 py-1 bg-green-500/20 text-green-300 rounded text-xs">
+                <p className="text-text-200">Status:</p>
+                <p className="text-text-100 font-medium">
+                  <span className="inline-block px-2 py-1 bg-success/20 text-success rounded text-xs">
                     Sending
                   </span>
                 </p>
               </div>
               <div>
-                <p className="text-gray-400">Total Leads:</p>
-                <p className="text-white font-medium">{state.csvData.length}</p>
+                <p className="text-text-200">Total Leads:</p>
+                <p className="text-text-100 font-medium">
+                  {state.csvData.length}
+                </p>
               </div>
             </div>
           </div>
 
           {/* Next Steps */}
-          <div className="backdrop-blur-xl bg-purple-500/10 border border-purple-500/20 rounded-2xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">
+          <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-6">
+            <h3 className="text-lg font-semibold text-text-100 mb-4">
               What&apos;s Next?
             </h3>
-            <ul className="space-y-2 text-sm text-gray-300">
+            <ul className="space-y-2 text-sm text-text-200">
               <li className="flex items-start">
-                <span className="text-purple-400 mr-2">→</span>
+                <span className="text-brand-main mr-2">→</span>
                 <span>Monitor delivery progress in real-time</span>
               </li>
               <li className="flex items-start">
-                <span className="text-purple-400 mr-2">→</span>
+                <span className="text-brand-main mr-2">→</span>
                 <span>Track opens, clicks, and bounces</span>
               </li>
               <li className="flex items-start">
-                <span className="text-purple-400 mr-2">→</span>
+                <span className="text-brand-main mr-2">→</span>
                 <span>View detailed analytics for each recipient</span>
               </li>
               <li className="flex items-start">
-                <span className="text-purple-400 mr-2">→</span>
+                <span className="text-brand-main mr-2">→</span>
                 <span>Pause or stop the campaign if needed</span>
               </li>
             </ul>
@@ -313,13 +317,13 @@ export default function CampaignStep5Status({
       <div className="flex justify-between gap-4">
         <Button
           onClick={handleBackToCampaigns}
-          className="bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-lg transition"
+          className="bg-brand-main/10 hover:bg-brand-main/20 text-brand-main px-6 py-2 rounded-lg transition"
         >
           Back to Campaigns
         </Button>
         <Button
           onClick={handleViewCampaign}
-          className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition"
+          className="bg-brand-main hover:bg-brand-main/90 text-brand-white px-6 py-2 rounded-lg transition"
         >
           View Campaign Details →
         </Button>

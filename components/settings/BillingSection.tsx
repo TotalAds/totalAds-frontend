@@ -38,6 +38,12 @@ const BillingSection = () => {
   const formatCents = (cents: number, currency: string = "INR") =>
     formatCurrency(cents / 100, currency);
 
+  const formatMaybeDate = (iso?: string) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? "—" : format(d, "MMM dd, yyyy");
+  };
+
   useEffect(() => {
     fetchBillingData();
   }, []);
@@ -49,19 +55,33 @@ const BillingSection = () => {
         getBillingInfo(),
         getPaymentHistory(1, 50),
       ]);
-      // Normalize envelopes from backend
-      const normalizedBilling = (billing as any)?.data ?? billing;
+
+      // Normalize billing data from backend
+      let normalizedBilling = billing;
+      if (billing && typeof billing === "object") {
+        // Handle nested response envelopes
+        if ((billing as any)?.data) {
+          normalizedBilling = (billing as any).data;
+        } else if ((billing as any)?.payload?.data) {
+          normalizedBilling = (billing as any).payload.data;
+        }
+      }
+
+      // Normalize history data from backend
       const rawHistory = history as any;
-      const historyArray = Array.isArray(rawHistory?.data)
-        ? rawHistory.data
-        : Array.isArray(rawHistory?.payload?.data)
-        ? rawHistory.payload.data
-        : Array.isArray(rawHistory)
-        ? rawHistory
-        : [];
-      setBillingData(normalizedBilling);
+      let historyArray: PaymentRecord[] = [];
+      if (Array.isArray(rawHistory)) {
+        historyArray = rawHistory;
+      } else if (Array.isArray(rawHistory?.data)) {
+        historyArray = rawHistory.data;
+      } else if (Array.isArray(rawHistory?.payload?.data)) {
+        historyArray = rawHistory.payload.data;
+      }
+
+      setBillingData(normalizedBilling as BillingOverview);
       setPaymentHistory(historyArray);
     } catch (error: any) {
+      console.error("Billing fetch error:", error);
       toast.error(error?.message || "Failed to fetch billing data");
     } finally {
       setIsLoading(false);
@@ -99,21 +119,25 @@ const BillingSection = () => {
             <div className="rounded-xl border border-brand-main/10 bg-bg-300/40 p-5 shadow-sm hover:shadow-md transition">
               <p className="text-text-200 text-sm mb-1">Current Plan</p>
               <p className="text-2xl font-bold text-brand-main">
-                {billingData.currentPlan}
+                {billingData.currentPlan || "—"}
               </p>
             </div>
 
             <div className="rounded-xl border border-brand-main/10 bg-bg-300/40 p-5 shadow-sm hover:shadow-md transition">
               <p className="text-text-200 text-sm mb-1">Available Credits</p>
               <p className="text-2xl font-bold text-text-100">
-                {billingData.currentCredits}
+                {typeof billingData.currentCredits === "number"
+                  ? billingData.currentCredits
+                  : "—"}
               </p>
             </div>
 
             <div className="rounded-xl border border-brand-main/10 bg-bg-300/40 p-5 shadow-sm hover:shadow-md transition">
               <p className="text-text-200 text-sm mb-1">Monthly Limit</p>
               <p className="text-2xl font-bold text-text-100">
-                {billingData.monthlyLimit}
+                {typeof billingData.monthlyLimit === "number"
+                  ? billingData.monthlyLimit.toLocaleString()
+                  : "—"}
               </p>
             </div>
 
@@ -128,7 +152,7 @@ const BillingSection = () => {
           <div className="mt-4 p-4 bg-bg-300/40 border border-brand-main/10 rounded-xl">
             <p className="text-text-100 text-sm">
               <span className="font-medium">Next Billing Date:</span>{" "}
-              {format(new Date(billingData.nextBillingDate), "MMM dd, yyyy")}
+              {formatMaybeDate(billingData.nextBillingDate)}
             </p>
           </div>
         </div>

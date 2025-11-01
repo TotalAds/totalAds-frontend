@@ -1,12 +1,19 @@
 "use client";
 
 import Papa from "papaparse";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import * as XLSX from "xlsx";
 
 import { CampaignBuilderState } from "@/app/email/campaigns/builder/page";
+import CreatableSelect from "@/components/common/CreatableSelect";
 import { Button } from "@/components/ui/button";
+import emailClient, {
+  getLeadCategories,
+  getLeadTags,
+  LeadCategory,
+  LeadTag,
+} from "@/utils/api/emailClient";
 import {
   findDuplicateEmails,
   isValidEmail,
@@ -39,6 +46,28 @@ export default function CampaignStep1CSVUpload({
   const [dragActive, setDragActive] = useState(false);
   const [uploadMode, setUploadMode] = useState<"csv" | "leads">("csv");
   const [showLeadSelection, setShowLeadSelection] = useState(false);
+
+  // Local cache of normalized rows for re-validating when email column changes
+  const [rawRows, setRawRows] = useState<Array<Record<string, any>>>([]);
+  const [tagOptions, setTagOptions] = useState<LeadTag[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<LeadCategory[]>([]);
+
+  useEffect(() => {
+    // Prefetch existing tags and categories to populate the selectors
+    (async () => {
+      try {
+        const [tags, categories] = await Promise.all([
+          getLeadTags(),
+          getLeadCategories(),
+        ]);
+        setTagOptions(tags || []);
+        setCategoryOptions(categories || []);
+      } catch (e) {
+        // Non-blocking
+        console.warn("Failed to prefetch tags/categories", e);
+      }
+    })();
+  }, []);
 
   const handleFileUpload = async (file: File) => {
     if (!file) return;
@@ -85,17 +114,11 @@ export default function CampaignStep1CSVUpload({
         return;
       }
 
-      // Derive columns and drop blank/unnamed headers
+      // Derive columns and drop blank/unnamed headers like __EMPTY or Unnamed: *
       const rawCols = Object.keys(cleanedRows[0] || {});
-      const columns = rawCols.filter((c) => String(c || "").trim().length > 0);
-
-      // Ensure email column exists (case-insensitive)
-      const hasEmail = columns.some((col) => col.toLowerCase() === "email");
-      if (!hasEmail) {
-        toast.error("File must contain an 'email' column");
-        setUploading(false);
-        return;
-      }
+      const columns = rawCols
+        .map((c) => String(c || "").trim())
+        .filter((c) => c.length > 0 && !/^(__?empty|empty|unnamed)/i.test(c));
 
       // Hard limit rows
       if (cleanedRows.length > 5000) {
@@ -104,12 +127,35 @@ export default function CampaignStep1CSVUpload({
         return;
       }
 
+      // Helper: infer email column by header name or by scanning values
+      const inferEmailColumn = (
+        cols: string[],
+        rows: Array<Record<string, any>>
+      ): string | null => {
+        const direct = cols.find((c) => c.toLowerCase() === "email");
+        if (direct) return direct;
+        let bestCol: string | null = null;
+        let bestCount = 0;
+        for (const c of cols) {
+          let count = 0;
+          for (let i = 0; i < Math.min(rows.length, 200); i++) {
+            const v = String(rows[i]?.[c] ?? "").trim();
+            if (v && isValidEmail(v)) count++;
+          }
+          if (count > bestCount) {
+            bestCount = count;
+            bestCol = c;
+          }
+        }
+        return bestCount > 0 ? bestCol : null;
+      };
+
       // Normalize each row: remove blank/unnamed columns and null values
       const normalized = cleanedRows.map((r) => {
         const obj: Record<string, any> = {};
         for (const k of Object.keys(r)) {
           const nk = String(k || "").trim();
-          if (nk) {
+          if (nk && !/^(__?empty|empty|unnamed)/i.test(nk)) {
             // Only include non-null, non-undefined, non-empty values
             const val = r[k];
             const strVal = String(val ?? "").trim();
@@ -121,9 +167,27 @@ export default function CampaignStep1CSVUpload({
         return obj;
       });
 
-      // Validate emails
-      const emailField =
-        columns.find((col) => col.toLowerCase() === "email") || "email";
+      // Store normalized rows for revalidation on manual email column selection
+      setRawRows(normalized);
+
+      const inferred = inferEmailColumn(columns, normalized);
+      if (!inferred) {
+        // No email column could be detected - let the user select manually
+        setState({
+          ...state,
+          csvData: normalized,
+          columns,
+          emailColumn: "",
+        });
+        toast.error(
+          "We couldn't detect the email column. Please select it below to continue."
+        );
+        setUploading(false);
+        return;
+      }
+
+      // Validate with inferred email column
+      const emailField = inferred;
       const invalidEmails: Array<{ email: string; index: number }> = [];
       const validatedData: typeof normalized = [];
 
@@ -173,6 +237,7 @@ export default function CampaignStep1CSVUpload({
         ...state,
         csvData: validatedData,
         columns,
+        emailColumn: emailField,
       });
 
       toast.success(
@@ -243,7 +308,46 @@ export default function CampaignStep1CSVUpload({
       ...state,
       csvData: [],
       columns: [],
+      emailColumn: "",
+      selectedTags: [],
+      selectedCategories: [],
     });
+  };
+
+  const handleEmailColumnChange = (col: string) => {
+    if (!col) {
+      setState({ ...state, emailColumn: "" });
+      return;
+    }
+    const invalidEmails: Array<{ email: string; index: number }> = [];
+    const validatedData: Array<Record<string, any>> = [];
+
+    rawRows.forEach((row, index) => {
+      const email = String(row[col] ?? "").trim();
+      if (!email || !isValidEmail(email)) {
+        invalidEmails.push({ email: email || "EMPTY", index });
+        return;
+      }
+      validatedData.push(row);
+    });
+
+    const { duplicates } = findDuplicateEmails(validatedData, col);
+    if (invalidEmails.length > 0) {
+      toast.error(
+        `Selected column has ${invalidEmails.length} invalid email rows. Please fix your file or choose another column.`
+      );
+      // Still allow selection, but filtered rows will be used
+    }
+    if (duplicates.length > 0) {
+      toast.error(
+        `Found ${duplicates.length} duplicate email(s). Remove duplicates in your file to ensure best results.`
+      );
+    }
+
+    setState({ ...state, emailColumn: col, csvData: validatedData });
+    toast.success(
+      `Using "${col}" as email column. ${validatedData.length} valid leads ready.`
+    );
   };
 
   const handleLeadsSelected = (selectedLeads: Lead[]) => {
@@ -299,12 +403,12 @@ export default function CampaignStep1CSVUpload({
               onClick={() => setUploadMode("csv")}
               className={`p-4 rounded-lg border-2 transition ${
                 uploadMode === "csv"
-                  ? "border-purple-500 bg-purple-500/10"
-                  : "border-white/20 bg-white/5 hover:border-white/30"
+                  ? "border-brand-main bg-brand-main/10"
+                  : "border-brand-main/20 bg-brand-main/5 hover:border-brand-main/30"
               }`}
             >
-              <p className="text-white font-semibold">Upload CSV/Excel</p>
-              <p className="text-gray-400 text-sm mt-1">
+              <p className="text-text-100 font-semibold">Upload CSV/Excel</p>
+              <p className="text-text-200 text-sm mt-1">
                 Upload a file with your leads
               </p>
             </button>
@@ -315,12 +419,12 @@ export default function CampaignStep1CSVUpload({
               }}
               className={`p-4 rounded-lg border-2 transition ${
                 uploadMode === "leads"
-                  ? "border-purple-500 bg-purple-500/10"
-                  : "border-white/20 bg-white/5 hover:border-white/30"
+                  ? "border-brand-main bg-brand-main/10"
+                  : "border-brand-main/20 bg-brand-main/5 hover:border-brand-main/30"
               }`}
             >
-              <p className="text-white font-semibold">Select from Leads</p>
-              <p className="text-gray-400 text-sm mt-1">
+              <p className="text-text-100 font-semibold">Select from Leads</p>
+              <p className="text-text-200 text-sm mt-1">
                 Choose from your existing leads
               </p>
             </button>
@@ -337,13 +441,13 @@ export default function CampaignStep1CSVUpload({
           onDrop={handleDrop}
           className={`backdrop-blur-xl border-2 border-dashed rounded-2xl p-12 text-center transition ${
             dragActive
-              ? "border-purple-500 bg-purple-500/10"
-              : "border-white/20 bg-white/5 hover:border-white/30"
+              ? "border-brand-main bg-brand-main/10"
+              : "border-brand-main/20 bg-brand-main/5 hover:border-brand-main/30"
           }`}
         >
           <div className="w-16 h-16 bg-brand-main rounded-full flex items-center justify-center mx-auto mb-4">
             <svg
-              className="w-8 h-8 text-white"
+              className="w-8 h-8 text-brand-white"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -356,16 +460,16 @@ export default function CampaignStep1CSVUpload({
               />
             </svg>
           </div>
-          <h3 className="text-xl font-semibold text-white mb-2">
+          <h3 className="text-xl font-semibold text-text-100 mb-2">
             Upload Your Leads
           </h3>
-          <p className="text-gray-400 mb-6">
+          <p className="text-text-200 mb-6">
             Drag and drop your CSV or Excel file here, or click to browse
           </p>
           <Button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition"
+            className="bg-brand-main hover:bg-brand-main/90 text-brand-white px-6 py-2 rounded-lg transition"
           >
             {uploading ? "Uploading..." : "Choose File"}
           </Button>
@@ -378,21 +482,21 @@ export default function CampaignStep1CSVUpload({
             }
             className="hidden"
           />
-          <p className="text-xs text-gray-500 mt-4">
+          <p className="text-xs text-text-200/60 mt-4">
             Supported formats: CSV, XLSX (Max 50MB, 5000 rows)
           </p>
         </div>
       ) : (
         <>
           {/* Preview */}
-          <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
+          <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-text-100">
                 Preview ({state.csvData.length} leads)
               </h3>
               <Button
                 onClick={handleCancel}
-                className="bg-red-600/20 hover:bg-red-600/30 text-red-300 text-xs px-3 py-1 rounded transition"
+                className="bg-error/20 hover:bg-error/30 text-error text-xs px-3 py-1 rounded transition"
               >
                 Change File
               </Button>
@@ -400,20 +504,73 @@ export default function CampaignStep1CSVUpload({
 
             {/* Columns */}
             <div className="mb-4">
-              <p className="text-sm text-gray-400 mb-2">Columns detected:</p>
+              <p className="text-sm text-text-200 mb-2">Columns detected:</p>
               <div className="flex flex-wrap gap-2">
                 {state.columns.map((col) => (
                   <span
                     key={col}
                     className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      col.toLowerCase() === "email"
-                        ? "bg-green-500/20 text-green-300"
-                        : "bg-blue-500/20 text-blue-300"
+                      col === state.emailColumn
+                        ? "bg-success/20 text-success"
+                        : "bg-brand-main/20 text-brand-main"
                     }`}
                   >
                     {col}
                   </span>
                 ))}
+              </div>
+              {/* Email Column + Tagging */}
+              <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4 my-4">
+                <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-4">
+                  <label className="block text-sm font-medium text-text-200 mb-2">
+                    Choose Email Column *
+                  </label>
+                  <select
+                    value={state.emailColumn || ""}
+                    onChange={(e) => handleEmailColumnChange(e.target.value)}
+                    className="w-full px-3 py-2 bg-brand-main/5 border border-brand-main/20 rounded-lg text-text-100 focus:outline-none focus:ring-2 focus:ring-brand-main"
+                  >
+                    <option value="">Select column</option>
+                    {state.columns.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-text-200/60 mt-2">
+                    Auto-detected: {state.emailColumn || "none"}
+                  </p>
+                </div>
+
+                <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-4">
+                  <CreatableSelect
+                    label="Tags (optional)"
+                    options={tagOptions}
+                    value={state.selectedTags}
+                    onChange={(vals) =>
+                      setState({ ...state, selectedTags: vals })
+                    }
+                    onCreateNew={async (name) => ({
+                      id: `new-${Date.now()}`,
+                      name,
+                    })}
+                  />
+                </div>
+
+                <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-4">
+                  <CreatableSelect
+                    label="Categories (Segmentation)"
+                    options={categoryOptions}
+                    value={state.selectedCategories}
+                    onChange={(vals) =>
+                      setState({ ...state, selectedCategories: vals })
+                    }
+                    onCreateNew={async (name) => ({
+                      id: `new-${Date.now()}`,
+                      name,
+                    })}
+                  />
+                </div>
               </div>
             </div>
 
@@ -421,11 +578,11 @@ export default function CampaignStep1CSVUpload({
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-white/10">
+                  <tr className="border-b border-brand-main/10">
                     {state.columns.map((col) => (
                       <th
                         key={col}
-                        className="px-4 py-2 text-left text-gray-300 font-medium"
+                        className="px-4 py-2 text-left text-text-200 font-medium"
                       >
                         {col}
                       </th>
@@ -436,12 +593,12 @@ export default function CampaignStep1CSVUpload({
                   {state.csvData.slice(0, 5).map((row, idx) => (
                     <tr
                       key={idx}
-                      className="border-b border-white/10 hover:bg-white/5"
+                      className="border-b border-brand-main/10 hover:bg-brand-main/5"
                     >
                       {state.columns.map((col) => (
                         <td
                           key={`${idx}-${col}`}
-                          className="px-4 py-2 text-gray-300 truncate"
+                          className="px-4 py-2 text-text-200 truncate"
                         >
                           {row[col] || "-"}
                         </td>
@@ -461,8 +618,8 @@ export default function CampaignStep1CSVUpload({
 
           {/* Campaign Info */}
           <div className="grid grid-cols-2 gap-6">
-            <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+            <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-6">
+              <label className="block text-sm font-medium text-text-200 mb-2">
                 Campaign Name *
               </label>
               <input
@@ -472,11 +629,11 @@ export default function CampaignStep1CSVUpload({
                   setState({ ...state, campaignName: e.target.value })
                 }
                 placeholder="e.g., Q4 Product Launch"
-                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full px-4 py-2 bg-brand-main/5 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200/50 focus:outline-none focus:ring-2 focus:ring-brand-main"
               />
             </div>
-            <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+            <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-6">
+              <label className="block text-sm font-medium text-text-200 mb-2">
                 Description
               </label>
               <input
@@ -486,7 +643,7 @@ export default function CampaignStep1CSVUpload({
                   setState({ ...state, campaignDescription: e.target.value })
                 }
                 placeholder="Campaign description"
-                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full px-4 py-2 bg-brand-main/5 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200/50 focus:outline-none focus:ring-2 focus:ring-brand-main"
               />
             </div>
           </div>
@@ -497,14 +654,18 @@ export default function CampaignStep1CSVUpload({
       <div className="flex justify-end gap-4">
         <Button
           onClick={() => window.history.back()}
-          className="bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-lg transition"
+          className="bg-brand-main/10 hover:bg-brand-main/20 text-brand-main px-6 py-2 rounded-lg transition"
         >
           Cancel
         </Button>
         <Button
           onClick={onNext}
-          disabled={state.csvData.length === 0 || !state.campaignName}
-          className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white px-6 py-2 rounded-lg transition"
+          disabled={
+            state.csvData.length === 0 ||
+            !state.campaignName ||
+            !state.emailColumn
+          }
+          className="bg-brand-main hover:bg-brand-main/90 disabled:bg-brand-main/50 text-brand-white px-6 py-2 rounded-lg transition"
         >
           Next: Email Template →
         </Button>

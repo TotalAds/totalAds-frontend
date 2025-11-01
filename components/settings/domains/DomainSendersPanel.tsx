@@ -12,6 +12,7 @@ import {
   IconLoader,
   IconMail,
   IconTrash,
+  IconX,
 } from "@tabler/icons-react";
 
 interface Props {
@@ -27,6 +28,13 @@ interface Sender {
   createdAt?: string;
 }
 
+interface Domain {
+  id: string;
+  domain: string;
+  verificationStatus: "pending" | "verified" | "failed";
+  dkimStatus: "pending" | "verified" | "failed";
+}
+
 export default function DomainSendersPanel({
   domainId,
   domainName,
@@ -36,12 +44,24 @@ export default function DomainSendersPanel({
   const [senders, setSenders] = useState<Sender[]>([]);
   const [newEmail, setNewEmail] = useState("");
   const [creating, setCreating] = useState(false);
+  const [domain, setDomain] = useState<Domain | null>(null);
 
   const domainPart = useMemo(() => domainName || "", [domainName]);
 
   useEffect(() => {
+    fetchDomain();
     fetchSenders();
   }, [domainId]);
+
+  const fetchDomain = async () => {
+    try {
+      const res = await emailClient.get(`/api/domains/${domainId}`);
+      const data = res?.data?.data ?? res?.data;
+      setDomain(data);
+    } catch (error: any) {
+      console.error("Failed to load domain:", error);
+    }
+  };
 
   const fetchSenders = async () => {
     try {
@@ -59,6 +79,18 @@ export default function DomainSendersPanel({
   };
 
   const handleAddSender = async () => {
+    // Check if domain is verified
+    if (
+      !domain ||
+      domain.verificationStatus !== "verified" ||
+      domain.dkimStatus !== "verified"
+    ) {
+      toast.error(
+        "Your domain must be fully verified before adding senders. Please verify your domain first."
+      );
+      return;
+    }
+
     if (!newEmail || !newEmail.includes("@")) {
       toast.error("Please enter a valid email address");
       return;
@@ -115,12 +147,16 @@ export default function DomainSendersPanel({
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-xl font-semibold text-text-100">Email Senders</h3>
+          <h2 className="text-2xl font-bold text-text-100">Email Senders</h2>
           {domainName && (
-            <p className="text-text-200 text-sm">Domain: {domainName}</p>
+            <p className="text-text-200 text-sm mt-1">
+              Manage senders for{" "}
+              <span className="font-mono text-brand-main">{domainName}</span>
+            </p>
           )}
         </div>
         <Button onClick={onBack} variant="outline" className="text-sm">
@@ -128,70 +164,192 @@ export default function DomainSendersPanel({
         </Button>
       </div>
 
+      {/* Domain Verification Status */}
+      {domain &&
+        (domain.verificationStatus === "verified" &&
+        domain.dkimStatus === "verified" ? (
+          <div className="border border-green-500/20 rounded-lg p-4 bg-green-500/10">
+            <div className="flex items-center gap-2">
+              <IconCheck className="w-5 h-5 text-green-400" />
+              <div>
+                <p className="text-green-400 font-semibold text-sm">
+                  Domain Verified
+                </p>
+                <p className="text-green-300/80 text-xs mt-1">
+                  Your domain is verified. You can now add senders.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="border border-red-500/20 rounded-lg p-4 bg-red-500/10">
+            <div className="flex items-center gap-2">
+              <IconX className="w-5 h-5 text-red-400" />
+              <div>
+                <p className="text-red-400 font-semibold text-sm">
+                  Domain Not Verified
+                </p>
+                <p className="text-red-300/80 text-xs mt-1">
+                  Please verify your domain before adding senders. Go back and
+                  complete domain verification.
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+
       {/* Create sender */}
-      <div className="border border-brand-main/20 rounded-lg p-4 bg-bg-300/50">
-        <label className="block text-sm font-medium text-text-100 mb-2">
-          New sender email
-        </label>
-        <div className="flex gap-2 items-center">
-          <Input
-            placeholder={domainPart ? `name@${domainPart}` : "name@example.com"}
-            value={newEmail}
-            onChange={(e) => setNewEmail(e.target.value)}
-            containerClass="flex flex-1 "
-          />
+      <div className="border border-brand-main/20 rounded-lg p-6 bg-gradient-to-br from-bg-300/50 to-bg-200/30">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-text-100">
+            Add New Sender
+          </h3>
+          <p className="text-text-200 text-sm mt-1">
+            Create a new email sender for this domain
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-text-100 mb-2">
+              Email Address
+            </label>
+            <Input
+              placeholder={
+                domainPart ? `name@${domainPart}` : "name@example.com"
+              }
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              containerClass="flex flex-1"
+              disabled={
+                !domain ||
+                domain.verificationStatus !== "verified" ||
+                domain.dkimStatus !== "verified"
+              }
+            />
+            {domainPart && (
+              <p className="text-text-300 text-xs mt-2">
+                Email must belong to{" "}
+                <span className="font-mono">@{domainPart}</span>
+              </p>
+            )}
+          </div>
+
           <Button
             onClick={handleAddSender}
-            disabled={creating}
-            className="bg-brand-main text-white text-sm"
+            disabled={
+              creating ||
+              !domain ||
+              domain.verificationStatus !== "verified" ||
+              domain.dkimStatus !== "verified"
+            }
+            className="w-full bg-brand-main hover:bg-brand-main/90 text-white text-sm py-3"
           >
             {creating ? (
-              <IconLoader className="w-4 h-4 mr-2 animate-spin" />
+              <>
+                <IconLoader className="w-4 h-4 mr-2 animate-spin" />
+                Adding Sender...
+              </>
             ) : (
-              <IconMail className="w-4 h-4 mr-2" />
+              <>
+                <IconMail className="w-4 h-4 mr-2" />
+                Add Sender
+              </>
             )}
-            Add Sender
           </Button>
+
+          {(!domain ||
+            domain.verificationStatus !== "verified" ||
+            domain.dkimStatus !== "verified") && (
+            <p className="text-yellow-400/80 text-xs bg-yellow-500/10 border border-yellow-500/20 rounded p-3">
+              ⚠️ Domain must be fully verified before adding senders
+            </p>
+          )}
         </div>
       </div>
 
       {/* List senders */}
-      <div className="border border-brand-main/20 rounded-lg p-4">
+      <div className="border border-brand-main/20 rounded-lg p-6 bg-bg-300/30">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-text-100">
+            Active Senders
+          </h3>
+          <p className="text-text-200 text-sm mt-1">
+            {senders.length} sender{senders.length !== 1 ? "s" : ""} configured
+          </p>
+        </div>
+
         {loading ? (
-          <div className="text-center py-6">
+          <div className="text-center py-8">
             <IconLoader className="w-6 h-6 animate-spin mx-auto text-brand-main" />
+            <p className="text-text-200 text-sm mt-2">Loading senders...</p>
           </div>
         ) : senders.length === 0 ? (
-          <div className="text-sm text-text-200">No senders yet.</div>
+          <div className="text-center py-8 border border-dashed border-brand-main/20 rounded-lg">
+            <IconMail className="w-8 h-8 text-text-300 mx-auto mb-2" />
+            <p className="text-text-200 text-sm">No senders yet</p>
+            <p className="text-text-300 text-xs mt-1">
+              Add your first sender above to get started
+            </p>
+          </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {senders.map((sender) => (
               <div
                 key={sender.id}
-                className="flex items-center justify-between border border-brand-main/20 rounded-md p-3"
+                className="flex items-center justify-between border border-brand-main/20 rounded-lg p-4 bg-bg-200/50 hover:bg-bg-200/80 transition-colors"
               >
-                <div className="flex items-center gap-2">
-                  <IconMail className="w-4 h-4 text-brand-main" />
-                  <span className="text-text-100 text-sm">{sender.email}</span>
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="w-10 h-10 rounded-lg bg-brand-main/10 flex items-center justify-center">
+                    <IconMail className="w-5 h-5 text-brand-main" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-text-100 font-medium text-sm">
+                      {sender.email}
+                    </p>
+                    {sender.createdAt && (
+                      <p className="text-text-300 text-xs">
+                        Added {new Date(sender.createdAt).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-text-200">
-                    {sender.verificationStatus}
-                  </span>
+
+                <div className="flex items-center gap-3">
+                  {/* Status Badge */}
+                  {sender.verificationStatus === "verified" ? (
+                    <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20">
+                      <IconCheck className="w-3 h-3 text-green-400" />
+                      <span className="text-xs text-green-400 font-medium">
+                        Verified
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/20">
+                      <IconLoader className="w-3 h-3 text-yellow-400 animate-spin" />
+                      <span className="text-xs text-yellow-400 font-medium">
+                        Pending
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Actions */}
                   {sender.verificationStatus === "pending" && (
                     <Button
                       onClick={() => handleVerifySender(sender.id)}
-                      className="bg-brand-main text-white text-xs"
+                      className="bg-brand-main hover:bg-brand-main/90 text-white text-xs py-1 px-3"
                     >
                       <IconCheck className="w-3 h-3 mr-1" /> Check Status
                     </Button>
                   )}
-                  <div
+
+                  <button
                     onClick={() => handleDeleteSender(sender.id)}
-                    className="text-red-400 p-2 py-1"
+                    className="text-red-400 hover:text-red-300 p-2 hover:bg-red-500/10 rounded transition-colors"
+                    title="Delete sender"
                   >
-                    <IconTrash size={20} />
-                  </div>
+                    <IconTrash size={18} />
+                  </button>
                 </div>
               </div>
             ))}

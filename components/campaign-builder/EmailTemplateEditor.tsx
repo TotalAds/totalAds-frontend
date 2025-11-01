@@ -36,7 +36,7 @@ export default function EmailTemplateEditor({
   const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">(
     "desktop"
   );
-  const [showVariables, setShowVariables] = useState(false);
+  const [showVariables, setShowVariables] = useState(true);
   // Compliance help removed; backend auto-inserts unsubscribe + address footer
 
   const handleInsertVariable = (variable: string) => {
@@ -84,8 +84,8 @@ export default function EmailTemplateEditor({
   return (
     <div className="space-y-4">
       {/* Subject Input - Compact */}
-      <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-xl p-4">
-        <label className="block text-xs font-medium text-gray-300 mb-2">
+      <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-xl p-4">
+        <label className="block text-xs font-medium text-text-200 mb-2">
           Email Subject *
         </label>
         <input
@@ -93,21 +93,21 @@ export default function EmailTemplateEditor({
           value={subject}
           onChange={(e) => onSubjectChange(e.target.value)}
           placeholder="e.g., {{firstName}}, check out our new product!"
-          className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+          className="w-full px-3 py-2 bg-brand-main/5 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200/50 focus:outline-none focus:ring-2 focus:ring-brand-main text-sm"
         />
       </div>
 
       {/* Email Content Editor - Full Width */}
-      <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-xl p-4">
+      <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-xl p-4">
         {/* Header with Mode Tabs - Compact */}
-        <div className="flex items-center justify-between mb-3 pb-3 border-b border-white/10">
+        <div className="flex items-center justify-between mb-3 pb-3 border-b border-brand-main/10">
           <div className="flex gap-1">
             <button
               onClick={() => setEditMode("design")}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition text-sm ${
                 editMode === "design"
-                  ? "bg-purple-600 text-white"
-                  : "bg-white/10 text-gray-300 hover:bg-white/20"
+                  ? "bg-brand-main text-brand-white"
+                  : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
               }`}
             >
               <FileText size={16} />
@@ -117,8 +117,8 @@ export default function EmailTemplateEditor({
               onClick={() => setEditMode("code")}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition text-sm ${
                 editMode === "code"
-                  ? "bg-purple-600 text-white"
-                  : "bg-white/10 text-gray-300 hover:bg-white/20"
+                  ? "bg-brand-main text-brand-white"
+                  : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
               }`}
             >
               <Code2 size={16} />
@@ -129,7 +129,7 @@ export default function EmailTemplateEditor({
           <div className="flex gap-2">
             <button
               onClick={() => setShowVariables(!showVariables)}
-              className="text-xs text-purple-400 hover:text-purple-300 transition"
+              className="text-xs text-brand-main hover:text-brand-main/80 transition"
             >
               {showVariables ? "Hide" : "Show"} Variables
             </button>
@@ -138,14 +138,14 @@ export default function EmailTemplateEditor({
 
         {/* Variables Helper - Compact */}
         {showVariables && (
-          <div className="mb-3 p-2 bg-purple-500/10 border border-purple-500/20 rounded-lg">
-            <p className="text-xs text-gray-300 mb-1.5">Available variables:</p>
+          <div className="mb-3 p-2 bg-brand-main/10 border border-brand-main/20 rounded-lg">
+            <p className="text-xs text-text-200 mb-1.5">Available variables:</p>
             <div className="flex flex-wrap gap-1.5">
               {availableVariables.map((variable) => (
                 <button
                   key={variable}
                   onClick={() => handleInsertVariable(variable)}
-                  className="px-2 py-1 bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 text-xs rounded transition"
+                  className="px-2 py-1 bg-brand-main/30 hover:bg-brand-main/50 text-brand-main text-xs rounded transition"
                 >
                   {variable}
                 </button>
@@ -158,7 +158,7 @@ export default function EmailTemplateEditor({
         <div className="grid grid-cols-3 gap-3">
           {/* Left: Editor (Takes more space) */}
           <div className="col-span-2 space-y-1.5">
-            <h3 className="text-xs font-medium text-gray-300">
+            <h3 className="text-xs font-medium text-text-200">
               {editMode === "design" ? "Design Editor" : "HTML Code"}
             </h3>
             {editMode === "design" ? (
@@ -177,8 +177,8 @@ export default function EmailTemplateEditor({
           {/* Right: Preview (Compact) */}
           <div className="space-y-1.5">
             <div className="flex items-center gap-1">
-              <Eye size={14} className="text-gray-400" />
-              <h3 className="text-xs font-medium text-gray-300">Preview</h3>
+              <Eye size={14} className="text-text-200" />
+              <h3 className="text-xs font-medium text-text-200">Preview</h3>
             </div>
 
             {/* Preview Mode Tabs - Compact */}
@@ -187,8 +187,8 @@ export default function EmailTemplateEditor({
                 onClick={() => setPreviewMode("desktop")}
                 className={`px-2 py-1 text-xs rounded transition ${
                   previewMode === "desktop"
-                    ? "bg-purple-600 text-white"
-                    : "bg-white/10 text-gray-300 hover:bg-white/20"
+                    ? "bg-brand-main text-brand-white"
+                    : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
                 }`}
               >
                 💻
@@ -197,8 +197,8 @@ export default function EmailTemplateEditor({
                 onClick={() => setPreviewMode("mobile")}
                 className={`px-2 py-1 text-xs rounded transition ${
                   previewMode === "mobile"
-                    ? "bg-purple-600 text-white"
-                    : "bg-white/10 text-gray-300 hover:bg-white/20"
+                    ? "bg-brand-main text-brand-white"
+                    : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
                 }`}
               >
                 📱
@@ -207,20 +207,20 @@ export default function EmailTemplateEditor({
 
             {/* Preview Container */}
             <div
-              className={`bg-white rounded-lg overflow-hidden border border-white/20 ${
+              className={`bg-brand-white rounded-lg overflow-hidden border border-brand-main/20 ${
                 previewMode === "mobile" ? "mx-auto w-64" : "w-full"
               }`}
             >
-              <div className="bg-gray-100 p-3 min-h-80 max-h-80 overflow-y-auto">
+              <div className="bg-bg-200 p-3 min-h-80 max-h-80 overflow-y-auto">
                 {htmlContent ? (
                   <div
-                    className="text-black text-xs leading-relaxed"
+                    className="text-text-100 text-xs leading-relaxed"
                     dangerouslySetInnerHTML={{
                       __html: highlightVariables(htmlContent),
                     }}
                   />
                 ) : (
-                  <div className="text-gray-400 text-center py-8 text-xs">
+                  <div className="text-text-200/60 text-center py-8 text-xs">
                     <p>Preview will appear here</p>
                   </div>
                 )}

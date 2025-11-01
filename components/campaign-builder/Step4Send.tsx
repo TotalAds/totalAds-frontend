@@ -119,7 +119,7 @@ export default function CampaignStep4Send({
                 delayMinutes: 0,
               },
             ],
-            tags: [],
+            tags: state.selectedTags?.map((t: any) => t.name) || [],
           }
         );
 
@@ -150,10 +150,21 @@ export default function CampaignStep4Send({
       let leadIds: string[] = [];
 
       try {
+        // Ensure the backend receives a normalized `email` field based on selected emailColumn
+        const csvDataForApi = state.csvData.map((row: any) => {
+          if (state.emailColumn && state.emailColumn !== "email") {
+            return { ...row, email: row[state.emailColumn] };
+          }
+          return row;
+        });
+
         const leadsResponse = await emailClient.post(
           `/api/domains/${state.domainId}/campaigns/leads/create-from-csv`,
           {
-            csvData: state.csvData,
+            csvData: csvDataForApi,
+            // Send tag/category names for bulk assignment
+            tags: state.selectedTags?.map((t: any) => t.name) || [],
+            categories: state.selectedCategories?.map((c: any) => c.name) || [],
           }
         );
 
@@ -292,19 +303,19 @@ export default function CampaignStep4Send({
   return (
     <div className="space-y-6">
       {/* Domain Selection */}
-      <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+      <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-6">
+        <label className="block text-sm font-medium text-text-200 mb-2">
           Select Domain *
         </label>
         {loadingDomains ? (
-          <div className="text-gray-400 text-sm">Loading domains...</div>
+          <div className="text-text-200 text-sm">Loading domains...</div>
         ) : (
           <select
             value={state.domainId}
             onChange={(e) => {
               setState({ ...state, domainId: e.target.value, senderId: "" });
             }}
-            className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full px-4 py-2 bg-brand-main/5 border border-brand-main/20 rounded-lg text-text-100 focus:outline-none focus:ring-2 focus:ring-brand-main"
           >
             <option value="">Choose a domain...</option>
             {domains.map((domain) => (
@@ -317,21 +328,21 @@ export default function CampaignStep4Send({
       </div>
 
       {/* Email Sender Selection */}
-      <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+      <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-6">
+        <label className="block text-sm font-medium text-text-200 mb-2">
           Select Email Sender *
         </label>
         {loadingSenders ? (
-          <div className="text-gray-400 text-sm">Loading senders...</div>
+          <div className="text-text-200 text-sm">Loading senders...</div>
         ) : senders.length === 0 ? (
-          <div className="text-gray-400 text-sm">
+          <div className="text-text-200 text-sm">
             No verified senders for this domain. Please verify a sender first.
           </div>
         ) : (
           <select
             value={state.senderId}
             onChange={(e) => setState({ ...state, senderId: e.target.value })}
-            className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full px-4 py-2 bg-brand-main/5 border border-brand-main/20 rounded-lg text-text-100 focus:outline-none focus:ring-2 focus:ring-brand-main"
           >
             <option value="">Choose a sender...</option>
             {senders.map((sender) => (
@@ -345,53 +356,55 @@ export default function CampaignStep4Send({
 
       {/* Summary */}
       <div className="grid grid-cols-2 gap-6">
-        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
-          <h3 className="text-lg font-semibold text-white mb-4">
+        <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-6">
+          <h3 className="text-lg font-semibold text-text-100 mb-4">
             Campaign Summary
           </h3>
           <div className="space-y-3 text-sm">
             <div>
-              <p className="text-gray-400">Campaign Name:</p>
-              <p className="text-white font-medium">{state.campaignName}</p>
+              <p className="text-text-200">Campaign Name:</p>
+              <p className="text-text-100 font-medium">{state.campaignName}</p>
             </div>
             <div>
-              <p className="text-gray-400">Total Leads:</p>
-              <p className="text-white font-medium">{state.csvData.length}</p>
+              <p className="text-text-200">Total Leads:</p>
+              <p className="text-text-100 font-medium">
+                {state.csvData.length}
+              </p>
             </div>
             <div>
-              <p className="text-gray-400">Subject:</p>
-              <p className="text-white font-medium truncate">
+              <p className="text-text-200">Subject:</p>
+              <p className="text-text-100 font-medium truncate">
                 {state.emailTemplate.subject}
               </p>
             </div>
             <div>
-              <p className="text-gray-400">Credits Required:</p>
-              <p className="font-medium text-lg text-green-400">
+              <p className="text-text-200">Credits Required:</p>
+              <p className="font-medium text-lg text-success">
                 {state.csvData.length}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
-          <h3 className="text-lg font-semibold text-white mb-4">
+        <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-6">
+          <h3 className="text-lg font-semibold text-text-100 mb-4">
             Important Notes
           </h3>
-          <ul className="space-y-2 text-sm text-gray-300">
+          <ul className="space-y-2 text-sm text-text-200">
             <li className="flex items-start">
-              <span className="text-purple-400 mr-2">•</span>
+              <span className="text-brand-main mr-2">•</span>
               <span>Tracking pixel will be added automatically</span>
             </li>
             <li className="flex items-start">
-              <span className="text-purple-400 mr-2">•</span>
+              <span className="text-brand-main mr-2">•</span>
               <span>Opens and clicks will be tracked</span>
             </li>
             <li className="flex items-start">
-              <span className="text-purple-400 mr-2">•</span>
+              <span className="text-brand-main mr-2">•</span>
               <span>Bounces and complaints will be monitored</span>
             </li>
             <li className="flex items-start">
-              <span className="text-purple-400 mr-2">•</span>
+              <span className="text-brand-main mr-2">•</span>
               <span>You can pause or stop the campaign anytime</span>
             </li>
           </ul>
@@ -402,14 +415,14 @@ export default function CampaignStep4Send({
       <div className="flex justify-between gap-4">
         <Button
           onClick={onPrev}
-          className="bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-lg transition"
+          className="bg-brand-main/10 hover:bg-brand-main/20 text-brand-main px-6 py-2 rounded-lg transition"
         >
           ← Back
         </Button>
         <Button
           onClick={handleSend}
           disabled={sending || !state.domainId || !state.senderId}
-          className="bg-green-600 hover:bg-green-700 disabled:bg-green-800 text-white px-6 py-2 rounded-lg transition"
+          className="bg-success hover:bg-success/90 disabled:bg-success/50 text-brand-white px-6 py-2 rounded-lg transition"
         >
           {sending ? "Sending..." : "Send Campaign →"}
         </Button>

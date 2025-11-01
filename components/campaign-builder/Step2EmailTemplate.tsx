@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import toast from "react-hot-toast";
 
 import { CampaignBuilderState } from "@/app/email/campaigns/builder/page";
@@ -28,6 +29,15 @@ export default function CampaignStep2EmailTemplate({
 }: Step2Props) {
   const MAX_ATTACHMENTS = 1;
   const MAX_FILE_SIZE = 7 * 1024 * 1024; // 7MB
+  const [showPreview, setShowPreview] = useState(false);
+
+  const replacePlaceholders = (input: string, values: Record<string, any>) =>
+    input.replace(/\{\{\s*([^}]+)\s*\}\}/g, (_m, key) => {
+      const k = String(key || "").trim();
+      const v = values?.[k];
+      if (v == null || String(v).trim().length === 0) return `{{${k}}}`;
+      return String(v);
+    });
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -177,19 +187,19 @@ export default function CampaignStep2EmailTemplate({
         }
       />
       {/* Attachments */}
-      <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
-        <label className="block text-sm font-medium text-gray-300 mb-4">
+      <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-6">
+        <label className="block text-sm font-medium text-text-200 mb-4">
           📎 Attachment (Max 1 file, 7MB)
         </label>
 
         {/* File Upload Area */}
         <div className="mb-4">
-          <label className="flex items-center justify-center w-full px-4 py-6 border-2 border-dashed border-white/20 rounded-lg cursor-pointer hover:border-purple-500 hover:bg-purple-500/5 transition">
+          <label className="flex items-center justify-center w-full px-4 py-6 border-2 border-dashed border-brand-main/20 rounded-lg cursor-pointer hover:border-brand-main hover:bg-brand-main/5 transition">
             <div className="text-center">
-              <p className="text-sm text-gray-300">
+              <p className="text-sm text-text-200">
                 Click to upload or drag and drop
               </p>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-text-200/60 mt-1">
                 PDF, DOC, DOCX, XLS, XLSX, PNG, JPG (Max 7MB)
               </p>
             </div>
@@ -210,9 +220,9 @@ export default function CampaignStep2EmailTemplate({
         {/* Attached Files List */}
         {(state.emailTemplate.attachments || []).length > 0 && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+            <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/30 rounded-lg">
               <span className="text-lg">✅</span>
-              <p className="text-sm text-green-300">
+              <p className="text-sm text-success">
                 {(state.emailTemplate.attachments || []).length} file attached -
                 Ready to send
               </p>
@@ -242,10 +252,10 @@ export default function CampaignStep2EmailTemplate({
                           {getFileIcon(fileType)}
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-white truncate">
+                          <p className="text-sm font-medium text-text-100 truncate">
                             {attachment.name}
                           </p>
-                          <div className="flex gap-3 mt-2 text-xs text-gray-400">
+                          <div className="flex gap-3 mt-2 text-xs text-text-200/60">
                             <span>📦 {sizeInMB} MB</span>
                             <span>📋 {fileType}</span>
                           </div>
@@ -253,7 +263,7 @@ export default function CampaignStep2EmailTemplate({
                       </div>
                       <button
                         onClick={() => handleRemoveAttachment(index)}
-                        className="px-3 py-2 bg-red-600/20 hover:bg-red-600/40 text-red-300 text-xs rounded-lg transition whitespace-nowrap"
+                        className="px-3 py-2 bg-error/20 hover:bg-error/40 text-error text-xs rounded-lg transition whitespace-nowrap"
                       >
                         ✕ Remove
                       </button>
@@ -270,17 +280,74 @@ export default function CampaignStep2EmailTemplate({
       <div className="flex justify-between gap-4">
         <Button
           onClick={onPrev}
-          className="bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-lg transition"
+          className="bg-brand-main/10 hover:bg-brand-main/20 text-brand-main px-6 py-2 rounded-lg transition"
         >
           ← Back
         </Button>
-        <Button
-          onClick={handleNext}
-          className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition"
-        >
-          Next: Preview →
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setShowPreview(true)}
+            className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-lg text-xs transition"
+          >
+            Preview
+          </Button>
+          <Button
+            onClick={handleNext}
+            className="bg-brand-main hover:bg-brand-main/90 text-brand-white px-6 py-2 rounded-lg transition"
+          >
+            Next: Send →
+          </Button>
+        </div>
       </div>
+
+      {/* Preview Modal */}
+      {showPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="w-full max-w-3xl bg-slate-900 border border-white/20 rounded-xl p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">Preview</h3>
+              <button
+                onClick={() => setShowPreview(false)}
+                className="text-gray-300 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            {(() => {
+              const sample = state.csvData?.[0] || {};
+              const email = sample?.[state.emailColumn] || sample?.email || "";
+              const replacedSubject = replacePlaceholders(
+                state.emailTemplate.subject || "",
+                sample
+              );
+              const replacedBody = replacePlaceholders(
+                state.emailTemplate.htmlContent || "",
+                sample
+              );
+              return (
+                <div className="space-y-4">
+                  <div className="text-sm text-gray-300">
+                    <div>
+                      <span className="text-gray-400">To:</span>{" "}
+                      {email || "(no email)"}
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Subject:</span>{" "}
+                      {replacedSubject}
+                    </div>
+                  </div>
+                  <div className="border border-white/10 rounded-lg p-4 bg-white/5">
+                    <div
+                      className="prose prose-invert max-w-none"
+                      dangerouslySetInnerHTML={{ __html: replacedBody }}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

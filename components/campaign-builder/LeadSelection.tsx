@@ -38,11 +38,20 @@ export default function LeadSelection({
   const [categoryFilter, setCategoryFilter] = useState("");
   const [companyFilter, setCompanyFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
+  const [campaignFilter, setCampaignFilter] = useState("");
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadLeads();
-  }, [page, limit, statusFilter, categoryFilter, companyFilter, roleFilter]);
+  }, [
+    page,
+    limit,
+    statusFilter,
+    categoryFilter,
+    companyFilter,
+    roleFilter,
+    campaignFilter,
+  ]);
 
   const loadLeads = async () => {
     try {
@@ -56,6 +65,7 @@ export default function LeadSelection({
       if (categoryFilter) params.append("category", categoryFilter);
       if (companyFilter) params.append("company", companyFilter);
       if (roleFilter) params.append("role", roleFilter);
+      if (campaignFilter) params.append("campaignId", campaignFilter);
 
       const response = await emailClient.get<any>(
         `/api/leads?${params.toString()}`
@@ -93,7 +103,7 @@ export default function LeadSelection({
     <div className="space-y-6">
       {/* Filters */}
       <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           {/* Search */}
           <div className="relative lg:col-span-2">
             <IconSearch
@@ -160,6 +170,18 @@ export default function LeadSelection({
             value={roleFilter}
             onChange={(e) => {
               setRoleFilter(e.target.value);
+              setPage(1);
+            }}
+            className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
+
+          {/* Campaign Filter */}
+          <input
+            type="text"
+            placeholder="Filter by campaign ID..."
+            value={campaignFilter}
+            onChange={(e) => {
+              setCampaignFilter(e.target.value);
               setPage(1);
             }}
             className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"

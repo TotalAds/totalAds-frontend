@@ -71,21 +71,21 @@ export default function CodeEditor({
       <div className="flex gap-1.5">
         <button
           onClick={handleFormat}
-          className="px-2 py-1 text-xs bg-white/10 hover:bg-white/20 text-gray-300 rounded transition"
+          className="px-2 py-1 text-xs bg-brand-main/10 hover:bg-brand-main/20 text-text-200 rounded transition"
           title="Format HTML"
         >
           ✨ Format
         </button>
         <button
           onClick={handleMinify}
-          className="px-2 py-1 text-xs bg-white/10 hover:bg-white/20 text-gray-300 rounded transition"
+          className="px-2 py-1 text-xs bg-brand-main/10 hover:bg-brand-main/20 text-text-200 rounded transition"
           title="Minify HTML"
         >
           📦 Minify
         </button>
         <button
           onClick={handleCopy}
-          className="px-2 py-1 text-xs bg-white/10 hover:bg-white/20 text-gray-300 rounded transition flex items-center gap-1"
+          className="px-2 py-1 text-xs bg-brand-main/10 hover:bg-brand-main/20 text-text-200 rounded transition flex items-center gap-1"
           title="Copy HTML"
         >
           {copied ? (
@@ -106,12 +106,12 @@ export default function CodeEditor({
         value={htmlContent}
         onChange={(e) => onHtmlContentChange(e.target.value)}
         placeholder="Enter HTML content here..."
-        className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-xs min-h-80 max-h-80 overflow-y-auto"
+        className="w-full px-3 py-2 bg-brand-main/5 border border-brand-main/10 rounded-lg text-text-100 placeholder-text-200/50 focus:outline-none focus:ring-2 focus:ring-brand-main font-mono text-xs min-h-80 max-h-80 overflow-y-auto"
         spellCheck="false"
       />
 
       {/* Info */}
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-text-200">
         💡 Use {"{"}
         {"{"}variable{"}"}
         {"}"} for personalization

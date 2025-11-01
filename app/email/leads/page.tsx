@@ -300,25 +300,14 @@ export default function LeadsPage() {
                         </td>
                         <td className="px-6 py-4 text-sm">
                           {lead.campaigns && lead.campaigns.length > 0 ? (
-                            lead.campaigns.length === 1 ? (
-                              <button
-                                onClick={() =>
-                                  setSelectedLeadForCampaigns(lead)
-                                }
-                                className="px-2 py-1 bg-blue-500/20 text-blue-300 text-xs rounded-full hover:bg-blue-500/30 transition-colors"
-                              >
-                                {lead.campaigns[0].name}
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() =>
-                                  setSelectedLeadForCampaigns(lead)
-                                }
-                                className="px-2 py-1 bg-blue-500/20 text-blue-300 text-xs rounded-full hover:bg-blue-500/30 transition-colors"
-                              >
-                                {lead.campaigns.length} campaigns
-                              </button>
-                            )
+                            <button
+                              onClick={() => setSelectedLeadForCampaigns(lead)}
+                              className="px-3 py-1 bg-brand-main/20 text-brand-main text-xs rounded-full hover:bg-brand-main/30 transition-colors font-medium"
+                            >
+                              {lead.campaigns.length === 1
+                                ? lead.campaigns[0].name
+                                : `${lead.campaigns.length} campaigns`}
+                            </button>
                           ) : (
                             <span className="text-text-200 text-xs">
                               Unassociated
@@ -373,12 +362,13 @@ export default function LeadsPage() {
         {/* Campaigns Modal */}
         {selectedLeadForCampaigns &&
           selectedLeadForCampaigns.campaigns &&
-          selectedLeadForCampaigns.campaigns.length > 1 && (
+          selectedLeadForCampaigns.campaigns.length > 0 && (
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-slate-900 border border-brand-main/20 rounded-2xl p-6 max-w-md w-full">
+              <div className="bg-gradient-to-br from-bg-200 to-bg-300 border border-brand-main/20 rounded-2xl p-6 max-w-md w-full shadow-2xl">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-text-100">
-                    Associated Campaigns
+                    Associated Campaigns (
+                    {selectedLeadForCampaigns.campaigns.length})
                   </h3>
                   <button
                     onClick={() => setSelectedLeadForCampaigns(null)}

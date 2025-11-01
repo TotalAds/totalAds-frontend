@@ -146,24 +146,27 @@ const DomainsSection = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-text-100">Email Domains</h2>
-          <p className="text-text-200 text-sm mt-1">
-            Manage your verified email domains
-          </p>
+      {/* Header - Only show Add Domain button on list view */}
+      {mode === "list" && (
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold text-text-100">Email Domains</h2>
+            <p className="text-text-200 text-sm mt-1">
+              Manage your verified email domains
+            </p>
+          </div>
+          <Button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="bg-brand-main hover:bg-brand-main/90 text-white py-3 px-4 text-sm"
+          >
+            <IconPlus className="w-4 h-4 mr-2" />
+            Add Domain
+          </Button>
         </div>
-        <Button
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="bg-brand-main hover:bg-brand-main/90 text-white py-3 px-4 text-sm"
-        >
-          <IconPlus className="w-4 h-4 mr-2" />
-          Add Domain
-        </Button>
-      </div>
+      )}
 
-      {/* Add Domain Form */}
-      {showAddForm && (
+      {/* Add Domain Form - Only show on list view */}
+      {mode === "list" && showAddForm && (
         <div className="rounded-xl border border-brand-main/10 p-5 space-y-4 bg-bg-300/40 shadow-sm">
           <div className="space-y-2">
             <label className="block text-xs font-semibold text-text-100 uppercase tracking-wide">
@@ -232,8 +235,10 @@ const DomainsSection = () => {
               >
                 <div className="flex-1">
                   <p className="font-medium text-text-100">{domain.domain}</p>
-                  <div className="flex gap-2 mt-2">
-                    {getStatusBadge(domain.verificationStatus)}
+                  <div className="flex gap-2 mt-2 items-center">
+                    <span className="text-xs">Domain:</span>{" "}
+                    {getStatusBadge(domain.verificationStatus)} |{" "}
+                    <span className="text-xs">DKIM:</span>{" "}
                     {getStatusBadge(domain.dkimStatus)}
                   </div>
                 </div>

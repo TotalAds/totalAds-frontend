@@ -6,15 +6,15 @@ import toast from "react-hot-toast";
 
 import CampaignStep1CSVUpload from "@/components/campaign-builder/Step1CSVUpload";
 import CampaignStep2EmailTemplate from "@/components/campaign-builder/Step2EmailTemplate";
-import CampaignStep3Preview from "@/components/campaign-builder/Step3Preview";
 import CampaignStep4Send from "@/components/campaign-builder/Step4Send";
 import CampaignStep5Status from "@/components/campaign-builder/Step5Status";
-import emailClient from "@/utils/api/emailClient";
+import emailClient, { LeadCategory, LeadTag } from "@/utils/api/emailClient";
 
 export interface CampaignBuilderState {
   step: number;
   csvData: Array<Record<string, string>>;
   columns: string[];
+  emailColumn: string; // which column contains the email
   emailTemplate: {
     subject: string;
     htmlContent: string;
@@ -32,6 +32,8 @@ export interface CampaignBuilderState {
   senderId: string;
   domainId: string;
   physicalAddress: string;
+  selectedTags: LeadTag[];
+  selectedCategories: LeadCategory[]; // aka segmentation
   campaignId?: string;
   sendingStatus?: {
     total: number;
@@ -45,9 +47,8 @@ export interface CampaignBuilderState {
 const STEPS = [
   { number: 1, title: "Upload CSV", description: "Upload your leads" },
   { number: 2, title: "Email Template", description: "Create your email" },
-  { number: 3, title: "Preview", description: "Review sample email" },
-  { number: 4, title: "Send", description: "Configure & send" },
-  { number: 5, title: "Status", description: "Track results" },
+  { number: 3, title: "Send", description: "Configure & send" },
+  { number: 4, title: "Status", description: "Track results" },
 ];
 
 export default function CampaignBuilderPage() {
@@ -60,6 +61,7 @@ export default function CampaignBuilderPage() {
     step: 1,
     csvData: [],
     columns: [],
+    emailColumn: "email",
     emailTemplate: {
       subject: "",
       htmlContent: "",
@@ -72,6 +74,8 @@ export default function CampaignBuilderPage() {
     senderId: "",
     domainId: "",
     physicalAddress: "",
+    selectedTags: [],
+    selectedCategories: [],
   });
 
   // Load campaign data if editing
@@ -118,7 +122,7 @@ export default function CampaignBuilderPage() {
   }, [campaignIdParam]);
 
   const handleNextStep = () => {
-    if (state.step < 5) {
+    if (state.step < 4) {
       setState((prev) => ({ ...prev, step: prev.step + 1 }));
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -160,15 +164,6 @@ export default function CampaignBuilderPage() {
         );
       case 3:
         return (
-          <CampaignStep3Preview
-            state={state}
-            setState={setState}
-            onNext={handleNextStep}
-            onPrev={handlePreviousStep}
-          />
-        );
-      case 4:
-        return (
           <CampaignStep4Send
             state={state}
             setState={setState}
@@ -176,7 +171,7 @@ export default function CampaignBuilderPage() {
             onPrev={handlePreviousStep}
           />
         );
-      case 5:
+      case 4:
         return (
           <CampaignStep5Status
             state={state}
@@ -204,13 +199,12 @@ export default function CampaignBuilderPage() {
     <div className="min-h-screen bg-bg-100">
       {/* Header */}
       <header className="backdrop-blur-xl bg-brand-main/5 border-b border-brand-main/10 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-center mb-2">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div className="flex justify-between items-center mb-3">
             <div>
-              <h1 className="text-xl font-bold text-text-100">Campaign Builder</h1>
-              <p className="text-text-200 text-sm mt-1">
-                Create and send professional email campaigns
-              </p>
+              <h1 className="text-lg font-bold text-text-100">
+                Campaign Builder
+              </h1>
             </div>
             <button
               onClick={handleCancel}
@@ -221,11 +215,14 @@ export default function CampaignBuilderPage() {
           </div>
 
           {/* Progress Steps */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             {STEPS.map((step, index) => (
-              <div key={step.number} className="flex items-center flex-1">
+              <div
+                key={step.number}
+                className="flex items-center flex-1 min-w-0"
+              >
                 <div
-                  className={`flex items-center justify-center w-8 h-8 rounded-full font-semibold transition ${
+                  className={`flex items-center justify-center w-6 h-6 rounded-full font-semibold text-xs transition flex-shrink-0 ${
                     state.step >= step.number
                       ? "bg-brand-main text-text-100"
                       : "bg-brand-main/10 text-text-200"
@@ -233,18 +230,17 @@ export default function CampaignBuilderPage() {
                 >
                   {state.step > step.number ? "✓" : step.number}
                 </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-text-100 m-0 mb-1">
+                <div className="ml-2 min-w-0">
+                  <p className="text-xs font-medium text-text-100 m-0 truncate">
                     {step.title}
-                  </p>
-                  <p className="text-xs m-0 text-text-200">
-                    {step.description}
                   </p>
                 </div>
                 {index < STEPS.length - 1 && (
                   <div
-                    className={`flex-1 h-1 mx-4 rounded transition ${
-                      state.step > step.number ? "bg-brand-main" : "bg-brand-main/10"
+                    className={`flex-1 h-0.5 mx-2 rounded transition ${
+                      state.step > step.number
+                        ? "bg-brand-main"
+                        : "bg-brand-main/10"
                     }`}
                   />
                 )}

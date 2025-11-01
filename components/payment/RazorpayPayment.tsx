@@ -237,21 +237,30 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
                 </li>
               </ul>
 
-              <button
-                onClick={() => handlePayment(tier.id)}
-                disabled={loading || !!isCurrentPlan}
-                className={`w-full font-semibold py-2 px-4 rounded-lg transition-all ${
-                  isCurrentPlan
-                    ? "bg-gray-600 text-gray-300 cursor-not-allowed"
-                    : "bg-brand-main hover:bg-brand-main/80 text-white"
-                } disabled:opacity-50`}
-              >
-                {isCurrentPlan
-                  ? "Current Plan"
-                  : loading
-                  ? "Processing..."
-                  : "Subscribe"}
-              </button>
+              {tier?.name === "pay_as_you_go" ? (
+                <button
+                  disabled={loading || !!isCurrentPlan}
+                  className={`w-full font-semibold py-2 px-4 rounded-lg transition-all ${"bg-brand-main hover:bg-brand-main/80 text-white"} disabled:opacity-50`}
+                >
+                  Contact Us
+                </button>
+              ) : (
+                <button
+                  onClick={() => handlePayment(tier.id)}
+                  disabled={loading || !!isCurrentPlan}
+                  className={`w-full font-semibold py-2 px-4 rounded-lg transition-all ${
+                    isCurrentPlan
+                      ? "bg-gray-600 text-gray-300 cursor-not-allowed"
+                      : "bg-brand-main hover:bg-brand-main/80 text-white"
+                  } disabled:opacity-50`}
+                >
+                  {isCurrentPlan
+                    ? "Current Plan"
+                    : loading
+                    ? "Processing..."
+                    : "Subscribe"}
+                </button>
+              )}
             </div>
           );
         })}
