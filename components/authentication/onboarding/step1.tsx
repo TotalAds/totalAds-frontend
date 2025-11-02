@@ -1,19 +1,18 @@
 "use client";
 
-import React, { useState } from 'react';
-import toast from 'react-hot-toast';
+import React, { useState } from "react";
+import toast from "react-hot-toast";
 
-import apiClient from '@/utils/api/apiClient';
+import apiClient from "@/utils/api/apiClient";
 
-import { OnboardingData } from '../onboarding';
+import { OnboardingData } from "../onboarding";
 
 interface Step1Props {
   onComplete: (data: Partial<OnboardingData>) => void;
-  onSkip: () => void;
   isLoading: boolean;
 }
 
-export function OnboardingStep1({ onComplete, onSkip, isLoading }: Step1Props) {
+export function OnboardingStep1({ onComplete, isLoading }: Step1Props) {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -160,17 +159,9 @@ export function OnboardingStep1({ onComplete, onSkip, isLoading }: Step1Props) {
 
       <div className="flex gap-3 pt-4">
         <button
-          type="button"
-          onClick={onSkip}
-          disabled={isLoading || submitting}
-          className="flex-1 py-3 px-4 text-sm font-medium text-text-100 bg-bg-200 rounded-lg hover:bg-bg-300 transition-colors disabled:opacity-50"
-        >
-          Skip
-        </button>
-        <button
           type="submit"
           disabled={isLoading || submitting}
-          className="flex-1 py-3 px-4 text-sm font-medium text-white bg-brand-main rounded-lg hover:bg-brand-main/90 transition-colors disabled:opacity-50"
+          className="w-full py-3 px-4 text-sm font-medium text-white bg-brand-main rounded-lg hover:bg-brand-main/90 transition-colors disabled:opacity-50"
         >
           {submitting ? "Saving..." : "Next"}
         </button>

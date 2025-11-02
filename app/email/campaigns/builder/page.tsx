@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -8,7 +9,11 @@ import CampaignStep1CSVUpload from "@/components/campaign-builder/Step1CSVUpload
 import CampaignStep2EmailTemplate from "@/components/campaign-builder/Step2EmailTemplate";
 import CampaignStep4Send from "@/components/campaign-builder/Step4Send";
 import CampaignStep5Status from "@/components/campaign-builder/Step5Status";
-import emailClient, { LeadCategory, LeadTag } from "@/utils/api/emailClient";
+import emailClient, {
+  getCampaignEligibility,
+  LeadCategory,
+  LeadTag,
+} from "@/utils/api/emailClient";
 
 export interface CampaignBuilderState {
   step: number;
@@ -57,6 +62,11 @@ export default function CampaignBuilderPage() {
   const searchParams = useSearchParams();
   const campaignIdParam = searchParams.get("id");
   const [isLoading, setIsLoading] = useState(!!campaignIdParam);
+  const [eligibility, setEligibility] = useState<null | {
+    eligible: boolean;
+    verifiedDomainCount: number;
+    verifiedSenderCount: number;
+  }>(null);
 
   const [state, setState] = useState<CampaignBuilderState>({
     step: 1,
@@ -79,6 +89,24 @@ export default function CampaignBuilderPage() {
     selectedTags: [],
     selectedCategories: [],
   });
+
+  // Check campaign eligibility on mount
+  useEffect(() => {
+    const checkEligibility = async () => {
+      try {
+        const data = await getCampaignEligibility();
+        setEligibility(data);
+      } catch (error: any) {
+        toast.error("Failed to check campaign eligibility");
+        setEligibility({
+          eligible: false,
+          verifiedDomainCount: 0,
+          verifiedSenderCount: 0,
+        });
+      }
+    };
+    checkEligibility();
+  }, []);
 
   // Load campaign data if editing
   useEffect(() => {
@@ -190,7 +218,7 @@ export default function CampaignBuilderPage() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || eligibility === null) {
     return (
       <div className="min-h-screen bg-bg-100 flex items-center justify-center">
         <div className="text-center">
@@ -258,7 +286,47 @@ export default function CampaignBuilderPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {renderStep()}
+        {eligibility && !eligibility.eligible ? (
+          <div className="max-w-3xl mx-auto">
+            <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-8 text-center">
+              <h2 className="text-2xl font-bold text-text-100 mb-2">
+                You're almost ready to send
+              </h2>
+              <p className="text-text-200 mb-6">
+                To build a campaign, you'll need at least one verified domain
+                with DKIM and one verified sender.
+              </p>
+              <div className="space-y-2 text-left max-w-md mx-auto mb-6">
+                {eligibility.verifiedDomainCount === 0 && (
+                  <p className="text-text-200">
+                    • No verified domains found. Verify your domain first.
+                  </p>
+                )}
+                {eligibility.verifiedSenderCount === 0 && (
+                  <p className="text-text-200">
+                    • No verified senders found. Add and verify a sender.
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center justify-center gap-3">
+                <Link
+                  href="/email/domains"
+                  className="px-4 py-2 rounded-lg bg-brand-main text-text-100"
+                >
+                  Manage Domains
+                </Link>
+                <Link
+                  href="/email/domains"
+                  className="px-4 py-2 rounded-lg bg-brand-main/20 text-text-100 border border-brand-main/30"
+                >
+                  Add Sender
+                </Link>
+              </div>
+            </div>
+          </div>
+        ) : (
+          renderStep()
+        )}
       </main>
     </div>
   );

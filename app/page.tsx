@@ -16,6 +16,8 @@ export default function Home() {
       if (isAuthenticated && state.user) {
         if (!state.user.emailVerified) {
           router.push("/verify-email");
+        } else if (!state.user.onboardingCompleted) {
+          router.push("/onboarding");
         } else {
           router.push("/dashboard");
         }

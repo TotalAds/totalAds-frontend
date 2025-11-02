@@ -14,6 +14,7 @@ import {
   IconKey,
   IconSparkles,
   IconTarget,
+  IconWorld,
   IconWorldWww,
   IconX,
 } from "@tabler/icons-react";
@@ -75,6 +76,10 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
         {
           name: "Leads",
           href: "/email/leads",
+        },
+        {
+          name: "Domains",
+          href: "/email/domains",
         },
         {
           name: "Pricing & Plans",

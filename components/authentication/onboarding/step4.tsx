@@ -58,7 +58,7 @@ export function OnboardingStep4({
     // Validate E.164 format
     if (!/^\+[1-9]\d{1,14}$/.test(phoneNumber)) {
       toast.error(
-        "Please enter phone number in E.164 format (e.g., +919926488445)"
+        "Please enter phone number in E.164 format (e.g., +919999988888)"
       );
       return;
     }
@@ -115,7 +115,7 @@ export function OnboardingStep4({
       // Redirect to dashboard after a short delay
       setTimeout(() => {
         router.push("/email/dashboard");
-      }, 1000);
+      }, 3000);
     } catch (error: any) {
       console.error("Verify OTP error:", error);
       toast.error(error.response?.data?.message || "Failed to verify OTP");
@@ -140,11 +140,11 @@ export function OnboardingStep4({
               type="tel"
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
-              placeholder="+919926488445"
+              placeholder="+919999988888"
               className="w-full px-3 py-2 text-sm border border-bg-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-main bg-bg-100 text-text-100"
             />
             <p className="text-xs text-text-200 mt-1">
-              Format: +[country code][number] (e.g., +919926488445)
+              Format: +[country code][number] (e.g., +919999988888)
             </p>
           </div>
 

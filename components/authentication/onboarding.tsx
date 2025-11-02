@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import toast from "react-hot-toast";
 
 import GetLogo from "@/components/common/getLogo";
+
 import OnboardingStep1 from "./onboarding/step1";
 import OnboardingStep2 from "./onboarding/step2";
 import OnboardingStep3 from "./onboarding/step3";
@@ -44,30 +45,6 @@ export function OnboardingComponent() {
     setFormData((prev) => ({ ...prev, ...stepData }));
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handleSkip = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch("/api/onboarding/skip", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to skip onboarding");
-      }
-
-      toast.success("Onboarding skipped");
-      router.push("/email/dashboard");
-    } catch (error) {
-      console.error("Skip error:", error);
-      toast.error("Failed to skip onboarding");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -119,7 +96,6 @@ export function OnboardingComponent() {
           {currentStep === 1 && (
             <OnboardingStep1
               onComplete={handleStepComplete}
-              onSkip={handleSkip}
               isLoading={isLoading}
             />
           )}
@@ -157,4 +133,3 @@ export function OnboardingComponent() {
 }
 
 export default OnboardingComponent;
-

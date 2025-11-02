@@ -809,4 +809,21 @@ export const startCampaignFromLeads = async (
   }
 };
 
+export interface CampaignEligibility {
+  eligible: boolean;
+  verifiedDomainCount: number;
+  verifiedSenderCount: number;
+}
+
+export const getCampaignEligibility =
+  async (): Promise<CampaignEligibility> => {
+    try {
+      const resp = await emailClient.get(`/api/eligibility/campaign`);
+      return resp.data?.data || resp.data;
+    } catch (error: any) {
+      console.error("Failed to check campaign eligibility:", error);
+      throw error;
+    }
+  };
+
 export default emailClient;

@@ -24,6 +24,7 @@ interface EmailSender {
   email: string;
   displayName?: string;
   domainId: string;
+  verificationStatus: "pending" | "verified" | "failed";
 }
 
 export default function CampaignStep4Send({
@@ -71,7 +72,9 @@ export default function CampaignStep4Send({
       });
       const allSenders = response.data?.data?.senders || [];
       const filteredSenders = allSenders.filter(
-        (sender: EmailSender) => sender.domainId === state.domainId
+        (sender: EmailSender) =>
+          sender.domainId === state.domainId &&
+          sender.verificationStatus === "verified"
       );
       console.log(filteredSenders, state, "------------");
       setSenders(filteredSenders);

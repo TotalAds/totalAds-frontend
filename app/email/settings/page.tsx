@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
 import BillingSection from "@/components/settings/BillingSection";
-import DomainsSection from "@/components/settings/DomainsSection";
 import ProfileSection from "@/components/settings/ProfileSection";
 import RoadmapSection from "@/components/settings/RoadmapSection";
 import UsageSection from "@/components/settings/UsageSection";
@@ -16,10 +15,9 @@ import {
   IconMap,
   IconRoadSign,
   IconUser,
-  IconZoomQuestion,
 } from "@tabler/icons-react";
 
-type SettingsTab = "profile" | "domains" | "billing" | "roadmap" | "usage";
+type SettingsTab = "profile" | "billing" | "roadmap" | "usage";
 
 interface SettingsNavItem {
   id: SettingsTab;
@@ -49,12 +47,6 @@ const SettingsPage = () => {
       label: "Profile",
       icon: <IconUser className="w-5 h-5" />,
       description: "Manage your profile information",
-    },
-    {
-      id: "domains",
-      label: "Domains",
-      icon: <IconZoomQuestion className="w-5 h-5" />,
-      description: "Manage email domains",
     },
     {
       id: "billing",
@@ -122,9 +114,6 @@ const SettingsPage = () => {
             <div className="backdrop-blur-xl bg-bg-200 border border-brand-main/20 rounded-xl p-6 md:p-8">
               {/* Profile Section */}
               {activeTab === "profile" && <ProfileSection />}
-
-              {/* Domains Section */}
-              {activeTab === "domains" && <DomainsSection />}
 
               {/* Billing Section */}
               {activeTab === "billing" && <BillingSection />}

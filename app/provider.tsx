@@ -4,6 +4,7 @@ import posthog from "posthog-js";
 import React, { useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 
+import OnboardingProtectionWrapper from "@/components/layout/OnboardingProtectionWrapper";
 import { AuthProvider, useAuthContext } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { identifyUser, resetIdentity } from "@/utils/analytics/track";
@@ -80,7 +81,7 @@ const Provider = ({ children }: { children: React.ReactNode }) => {
           <PageViewTracker />
           <UtmInitializer />
           <AuthIdentify />
-          {children}
+          <OnboardingProtectionWrapper>{children}</OnboardingProtectionWrapper>
           <Toaster
             position="top-right"
             toastOptions={{
