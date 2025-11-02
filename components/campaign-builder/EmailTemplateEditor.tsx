@@ -17,19 +17,23 @@ interface ComplianceStatus {
 
 interface EmailTemplateEditorProps {
   subject: string;
+  previewText?: string;
   htmlContent: string;
   availableVariables: string[];
   complianceStatus?: ComplianceStatus;
   onSubjectChange: (subject: string) => void;
+  onPreviewTextChange?: (preview: string) => void;
   onHtmlContentChange: (content: string) => void;
 }
 
 export default function EmailTemplateEditor({
   subject,
+  previewText,
   htmlContent,
   availableVariables,
   complianceStatus,
   onSubjectChange,
+  onPreviewTextChange,
   onHtmlContentChange,
 }: EmailTemplateEditorProps) {
   const [editMode, setEditMode] = useState<"design" | "code">("design");
@@ -95,6 +99,33 @@ export default function EmailTemplateEditor({
           placeholder="e.g., {{firstName}}, check out our new product!"
           className="w-full px-3 py-2 bg-brand-main/5 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200/50 focus:outline-none focus:ring-2 focus:ring-brand-main text-sm"
         />
+      </div>
+
+      {/* Preview Text Input - Optional */}
+      <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-xl p-4">
+        <label className="block text-xs font-medium text-text-200 mb-2">
+          Preview Text (optional)
+        </label>
+        <input
+          type="text"
+          value={previewText || ""}
+          onChange={(e) =>
+            onPreviewTextChange && onPreviewTextChange(e.target.value)
+          }
+          placeholder="This shows in the inbox preview — keep it under 100 characters"
+          aria-describedby="preview-text-help"
+          className="w-full px-3 py-2 bg-brand-main/5 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200/50 focus:outline-none focus:ring-2 focus:ring-brand-main text-sm"
+        />
+        <p
+          id="preview-text-help"
+          className={`mt-2 text-[11px] ${
+            (previewText || "").length > 100 ? "text-error" : "text-text-200/70"
+          }`}
+        >
+          The preview text provides recipients with more information about the
+          content of your email. For maximum impact, we recommend keeping it
+          under 100 characters. {(previewText || "").length}/100
+        </p>
       </div>
 
       {/* Email Content Editor - Full Width */}

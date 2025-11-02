@@ -8,7 +8,7 @@ import * as XLSX from "xlsx";
 import { CampaignBuilderState } from "@/app/email/campaigns/builder/page";
 import CreatableSelect from "@/components/common/CreatableSelect";
 import { Button } from "@/components/ui/button";
-import emailClient, {
+import {
   getLeadCategories,
   getLeadTags,
   LeadCategory,
@@ -73,12 +73,6 @@ export default function CampaignStep1CSVUpload({
     if (!file) return;
 
     // Validate file type
-    const validTypes = [
-      "text/csv",
-      "application/vnd.ms-excel",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    ];
-
     const isCSV =
       file.type === "text/csv" || file.name.toLowerCase().endsWith(".csv");
     const isExcel =
@@ -394,8 +388,8 @@ export default function CampaignStep1CSVUpload({
     <div className="space-y-6">
       {/* Mode Selection */}
       {state.csvData.length === 0 && (
-        <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6">
-          <p className="text-white font-semibold mb-4">
+        <div className="bg-brand-main/5 backdrop-blur-md border border-brand-main/20 rounded-xl p-6">
+          <p className="text-text-100 font-semibold mb-4">
             Choose how to add leads:
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -610,7 +604,7 @@ export default function CampaignStep1CSVUpload({
             </div>
 
             {state.csvData.length > 5 && (
-              <p className="text-xs text-gray-400 mt-2">
+              <p className="text-xs text-text-200/60 mt-2">
                 Showing 5 of {state.csvData.length} rows
               </p>
             )}

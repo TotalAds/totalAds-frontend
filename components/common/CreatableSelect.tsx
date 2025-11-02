@@ -1,7 +1,8 @@
-'use client';
+"use client";
 
-import { IconChevronDown, IconX } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
+
+import { IconChevronDown, IconX } from "@tabler/icons-react";
 
 interface Option {
   id: string;
@@ -25,13 +26,13 @@ export default function CreatableSelect({
   value,
   onChange,
   onCreateNew,
-  placeholder = 'Select or create...',
+  placeholder = "Select or create...",
   label,
   isMulti = true,
   isLoading = false,
 }: CreatableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [inputValue, setInputValue] = useState('');
+  const [inputValue, setInputValue] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -47,8 +48,8 @@ export default function CreatableSelect({
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleSelect = (option: Option) => {
@@ -63,7 +64,7 @@ export default function CreatableSelect({
       onChange([option]);
       setIsOpen(false);
     }
-    setInputValue('');
+    setInputValue("");
   };
 
   const handleRemove = (id: string) => {
@@ -77,9 +78,9 @@ export default function CreatableSelect({
     try {
       const newOption = await onCreateNew(inputValue.trim());
       handleSelect(newOption);
-      setInputValue('');
+      setInputValue("");
     } catch (error) {
-      console.error('Error creating new option:', error);
+      console.error("Error creating new option:", error);
     } finally {
       setIsCreating(false);
     }
@@ -98,7 +99,7 @@ export default function CreatableSelect({
   return (
     <div ref={containerRef} className="relative w-full">
       {label && (
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-text-200 mb-2">
           {label}
         </label>
       )}
@@ -107,13 +108,13 @@ export default function CreatableSelect({
         {/* Selected values display */}
         <div
           onClick={() => setIsOpen(!isOpen)}
-          className="min-h-10 px-3 py-2 bg-white/5 border border-white/20 rounded-lg cursor-pointer flex flex-wrap gap-2 items-center hover:bg-white/10 transition-colors"
+          className="min-h-10 px-3 py-2 bg-brand-main/5 border border-brand-main/20 rounded-lg cursor-pointer flex flex-wrap gap-2 items-center hover:bg-brand-main/10 transition-colors"
         >
           {value.length > 0 ? (
             value.map((item) => (
               <div
                 key={item.id}
-                className="flex items-center gap-1 px-2 py-1 bg-white/10 rounded text-sm text-white"
+                className="flex items-center gap-1 px-2 py-1 bg-brand-main/10 rounded text-sm text-text-100"
               >
                 {item.color && (
                   <div
@@ -127,35 +128,35 @@ export default function CreatableSelect({
                     e.stopPropagation();
                     handleRemove(item.id);
                   }}
-                  className="hover:text-red-400 transition-colors"
+                  className="hover:text-brand-main transition-colors"
                 >
                   <IconX size={14} />
                 </button>
               </div>
             ))
           ) : (
-            <span className="text-gray-400">{placeholder}</span>
+            <span className="text-text-200/60">{placeholder}</span>
           )}
           <IconChevronDown
             size={18}
-            className={`ml-auto text-gray-400 transition-transform ${
-              isOpen ? 'rotate-180' : ''
+            className={`ml-auto text-text-200/60 transition-transform ${
+              isOpen ? "rotate-180" : ""
             }`}
           />
         </div>
 
         {/* Dropdown menu */}
         {isOpen && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-white/20 rounded-lg shadow-lg z-50">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-bg-100  border border-brand-main/20 rounded-lg shadow-lg z-50 backdrop-blur-xl">
             {/* Search input */}
-            <div className="p-2 border-b border-white/10">
+            <div className="p-2 border-b border-brand-main/20">
               <input
                 ref={inputRef}
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 placeholder="Search or create..."
-                className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 bg-brand-main/5 border border-brand-main/20 rounded text-text-100 placeholder-text-200/60 focus:outline-none focus:ring-2 focus:ring-brand-main"
                 disabled={isLoading}
               />
             </div>
@@ -167,7 +168,7 @@ export default function CreatableSelect({
                   <button
                     key={option.id}
                     onClick={() => handleSelect(option)}
-                    className="w-full text-left px-3 py-2 hover:bg-white/10 transition-colors flex items-center gap-2 text-white"
+                    className="w-full text-left px-3 py-2 hover:bg-brand-main/10 transition-colors flex items-center gap-2 text-text-100"
                   >
                     {option.color && (
                       <div
@@ -179,7 +180,7 @@ export default function CreatableSelect({
                   </button>
                 ))
               ) : (
-                <div className="px-3 py-2 text-gray-400 text-sm">
+                <div className="px-3 py-2 text-text-200/60 text-sm">
                   No options found
                 </div>
               )}
@@ -187,13 +188,13 @@ export default function CreatableSelect({
 
             {/* Create new option */}
             {canCreate && onCreateNew && (
-              <div className="border-t border-white/10 p-2">
+              <div className="border-t border-brand-main/20 p-2">
                 <button
                   onClick={handleCreateNew}
                   disabled={isCreating}
-                  className="w-full px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded text-sm transition-colors disabled:opacity-50"
+                  className="w-full px-3 py-2 bg-brand-main/20 hover:bg-brand-main/30 text-brand-main rounded text-sm transition-colors disabled:opacity-50"
                 >
-                  {isCreating ? 'Creating...' : `Create "${inputValue}"`}
+                  {isCreating ? "Creating..." : `Create "${inputValue}"`}
                 </button>
               </div>
             )}
@@ -203,4 +204,3 @@ export default function CreatableSelect({
     </div>
   );
 }
-

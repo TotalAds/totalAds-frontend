@@ -24,6 +24,7 @@ interface Props {
 interface Sender {
   id: string;
   email: string;
+  displayName?: string;
   verificationStatus: "pending" | "verified" | "failed";
   createdAt?: string;
 }
@@ -43,6 +44,7 @@ export default function DomainSendersPanel({
   const [loading, setLoading] = useState(false);
   const [senders, setSenders] = useState<Sender[]>([]);
   const [newEmail, setNewEmail] = useState("");
+  const [newDisplayName, setNewDisplayName] = useState("");
   const [creating, setCreating] = useState(false);
   const [domain, setDomain] = useState<Domain | null>(null);
 
@@ -95,6 +97,10 @@ export default function DomainSendersPanel({
       toast.error("Please enter a valid email address");
       return;
     }
+    if (!newDisplayName.trim()) {
+      toast.error("Please enter a display name");
+      return;
+    }
     if (domainPart && !newEmail.endsWith(`@${domainPart}`)) {
       toast.error(`Email must belong to @${domainPart}`);
       return;
@@ -104,11 +110,13 @@ export default function DomainSendersPanel({
       setCreating(true);
       const res = await emailClient.post("/api/email-senders", {
         email: newEmail,
+        displayName: newDisplayName,
         domainId,
       });
       if (res?.data?.success) {
         toast.success("Sender added");
         setNewEmail("");
+        setNewDisplayName("");
         await fetchSenders();
       }
     } catch (error: any) {
@@ -235,6 +243,26 @@ export default function DomainSendersPanel({
             )}
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-text-100 mb-2">
+              Sender Name (Display Name)
+            </label>
+            <Input
+              placeholder="Enter the name you want recipients to see in their inbox"
+              value={newDisplayName}
+              onChange={(e) => setNewDisplayName(e.target.value)}
+              containerClass="flex flex-1"
+              disabled={
+                !domain ||
+                domain.verificationStatus !== "verified" ||
+                domain.dkimStatus !== "verified"
+              }
+            />
+            <p className="text-text-300 text-xs mt-2">
+              This name will appear in recipients' inboxes as the sender
+            </p>
+          </div>
+
           <Button
             onClick={handleAddSender}
             disabled={
@@ -305,7 +333,10 @@ export default function DomainSendersPanel({
                   </div>
                   <div className="flex-1">
                     <p className="text-text-100 font-medium text-sm">
-                      {sender.email}
+                      {sender.displayName && <span>{sender.displayName} </span>}
+                      <span className="text-text-200">
+                        &lt;{sender.email}&gt;
+                      </span>
                     </p>
                     {sender.createdAt && (
                       <p className="text-text-300 text-xs">

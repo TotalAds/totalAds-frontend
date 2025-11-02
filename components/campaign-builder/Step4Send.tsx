@@ -22,6 +22,7 @@ interface Domain {
 interface EmailSender {
   id: string;
   email: string;
+  displayName?: string;
   domainId: string;
 }
 
@@ -115,6 +116,7 @@ export default function CampaignStep4Send({
             sequence: [
               {
                 subject: state.emailTemplate.subject,
+                previewText: state.emailTemplate.previewText || "",
                 body: state.emailTemplate.htmlContent,
                 delayMinutes: 0,
               },
@@ -347,7 +349,9 @@ export default function CampaignStep4Send({
             <option value="">Choose a sender...</option>
             {senders.map((sender) => (
               <option key={sender.id} value={sender.id}>
-                {sender.email}
+                {sender.displayName
+                  ? `${sender.displayName} <${sender.email}>`
+                  : sender.email}
               </option>
             ))}
           </select>

@@ -164,6 +164,7 @@ export default function CampaignStep2EmailTemplate({
       {/* Email Template Editor */}
       <EmailTemplateEditor
         subject={state.emailTemplate.subject}
+        previewText={state.emailTemplate.previewText || ""}
         htmlContent={state.emailTemplate.htmlContent}
         availableVariables={availableVariables}
         complianceStatus={complianceStatus}
@@ -173,6 +174,15 @@ export default function CampaignStep2EmailTemplate({
             emailTemplate: {
               ...state.emailTemplate,
               subject,
+            },
+          })
+        }
+        onPreviewTextChange={(previewText) =>
+          setState({
+            ...state,
+            emailTemplate: {
+              ...state.emailTemplate,
+              previewText,
             },
           })
         }
@@ -287,7 +297,7 @@ export default function CampaignStep2EmailTemplate({
         <div className="flex items-center gap-2">
           <Button
             onClick={() => setShowPreview(true)}
-            className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-lg text-xs transition"
+            className="bg-brand-main/10 hover:bg-brand-main/20 text-text-100 px-3 py-2 rounded-lg text-xs transition"
           >
             Preview
           </Button>
@@ -302,13 +312,13 @@ export default function CampaignStep2EmailTemplate({
 
       {/* Preview Modal */}
       {showPreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-3xl bg-slate-900 border border-white/20 rounded-xl p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-3xl bg-brand-main/5 border border-brand-main/20 rounded-xl p-6 shadow-xl backdrop-blur-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">Preview</h3>
+              <h3 className="text-lg font-semibold text-text-100">Preview</h3>
               <button
                 onClick={() => setShowPreview(false)}
-                className="text-gray-300 hover:text-white"
+                className="text-text-200/60 hover:text-text-100 transition-colors"
               >
                 ✕
               </button>
@@ -326,19 +336,19 @@ export default function CampaignStep2EmailTemplate({
               );
               return (
                 <div className="space-y-4">
-                  <div className="text-sm text-gray-300">
+                  <div className="text-sm text-text-200">
                     <div>
-                      <span className="text-gray-400">To:</span>{" "}
+                      <span className="text-text-200/60">To:</span>{" "}
                       {email || "(no email)"}
                     </div>
                     <div>
-                      <span className="text-gray-400">Subject:</span>{" "}
+                      <span className="text-text-200/60">Subject:</span>{" "}
                       {replacedSubject}
                     </div>
                   </div>
-                  <div className="border border-white/10 rounded-lg p-4 bg-white/5">
+                  <div className="border border-brand-main/20 rounded-lg p-4 bg-brand-main/5">
                     <div
-                      className="prose prose-invert max-w-none"
+                      className="prose prose-invert max-w-none text-text-100"
                       dangerouslySetInnerHTML={{ __html: replacedBody }}
                     />
                   </div>

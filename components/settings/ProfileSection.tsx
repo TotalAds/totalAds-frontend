@@ -6,24 +6,14 @@ import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TimezoneSelect } from "@/components/ui/timezone-select";
 import { useAuthContext } from "@/context/AuthContext";
 import apiClient from "@/utils/api/apiClient";
 import { IconCheck, IconLoader } from "@tabler/icons-react";
 
 interface ProfileData {
-  name: string;
   email: string;
   firstName?: string;
   lastName?: string;
-  phoneNumber?: string;
-  company?: string;
-  jobTitle?: string;
-  profilePicture?: string;
-  billingEmail?: string;
-  timezone?: string;
-  isActive?: boolean;
-  marketingUpdatesOptIn?: boolean;
   companyAddress?: string;
   companyZipcode?: string;
   companyCity?: string;
@@ -35,8 +25,9 @@ const ProfileSection = () => {
   const { user } = state;
 
   const [profileData, setProfileData] = useState<ProfileData>({
-    name: user?.name || "",
     email: user?.email || "",
+    firstName: "",
+    lastName: "",
   });
 
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
@@ -66,8 +57,8 @@ const ProfileSection = () => {
   }, []);
 
   const handleUpdateProfile = async () => {
-    if (!profileData.name?.trim()) {
-      toast.error("Name is required");
+    if (!profileData.firstName?.trim() || !profileData.lastName?.trim()) {
+      toast.error("First name and last name are required");
       return;
     }
 
@@ -104,7 +95,6 @@ const ProfileSection = () => {
       <Tabs defaultValue="personal" className="w-full">
         <TabsList className="">
           <TabsTrigger value="personal">Personal Info</TabsTrigger>
-          <TabsTrigger value="system">System</TabsTrigger>
           <TabsTrigger value="address">Address</TabsTrigger>
         </TabsList>
 
@@ -112,25 +102,12 @@ const ProfileSection = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="space-y-2">
               <label className="block text-xs font-semibold text-text-100 uppercase tracking-wide">
-                Full Name
-              </label>
-              <Input
-                type="text"
-                name="name"
-                value={profileData.name}
-                onChange={handleProfileChange}
-                placeholder="Enter your full name"
-                className="w-full"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-text-100 uppercase tracking-wide">
                 First Name
               </label>
               <Input
                 type="text"
                 name="firstName"
-                value={(profileData as any).firstName || ""}
+                value={profileData.firstName || ""}
                 onChange={handleProfileChange}
                 placeholder="First name"
                 className="w-full"
@@ -143,13 +120,13 @@ const ProfileSection = () => {
               <Input
                 type="text"
                 name="lastName"
-                value={(profileData as any).lastName || ""}
+                value={profileData.lastName || ""}
                 onChange={handleProfileChange}
                 placeholder="Last name"
                 className="w-full"
               />
             </div>
-            <div className="space-y-2">
+            <div className="md:col-span-2 space-y-2">
               <label className="block text-xs font-semibold text-text-100 uppercase tracking-wide">
                 Email Address
               </label>
@@ -160,113 +137,6 @@ const ProfileSection = () => {
                 disabled
                 className="w-full opacity-60"
               />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-text-100 uppercase tracking-wide">
-                Phone Number
-              </label>
-              <Input
-                type="text"
-                name="phoneNumber"
-                value={(profileData as any).phoneNumber || ""}
-                onChange={handleProfileChange}
-                placeholder="e.g., +1 555 000 0000"
-                className="w-full"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-text-100 uppercase tracking-wide">
-                Company
-              </label>
-              <Input
-                type="text"
-                name="company"
-                value={(profileData as any).company || ""}
-                onChange={handleProfileChange}
-                placeholder="Company name"
-                className="w-full"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-text-100 uppercase tracking-wide">
-                Job Title
-              </label>
-              <Input
-                type="text"
-                name="jobTitle"
-                value={(profileData as any).jobTitle || ""}
-                onChange={handleProfileChange}
-                placeholder="e.g., Growth Lead"
-                className="w-full"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-text-100 uppercase tracking-wide">
-                Billing Email
-              </label>
-              <Input
-                type="email"
-                name="billingEmail"
-                value={(profileData as any).billingEmail || ""}
-                onChange={handleProfileChange}
-                placeholder="Billing contact email"
-                className="w-full"
-              />
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="system" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-1 gap-5">
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-text-100 uppercase tracking-wide">
-                Timezone
-              </label>
-              <TimezoneSelect
-                value={(profileData as any).timezone || ""}
-                onChange={(value) =>
-                  setProfileData((prev) => ({ ...prev, timezone: value }))
-                }
-                placeholder="Select your timezone"
-              />
-            </div>
-            <div className="space-y-3">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <Input
-                  type="checkbox"
-                  name="isActive"
-                  checked={Boolean((profileData as any).isActive)}
-                  onChange={(e) =>
-                    setProfileData((prev) => ({
-                      ...prev,
-                      isActive: e.target.checked,
-                    }))
-                  }
-                  className="w-4 h-4"
-                />
-                <span className="text-xs font-semibold text-text-100 uppercase tracking-wide">
-                  Active
-                </span>
-              </label>
-            </div>
-            <div className="space-y-3">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <Input
-                  type="checkbox"
-                  name="marketingUpdatesOptIn"
-                  checked={Boolean((profileData as any).marketingUpdatesOptIn)}
-                  onChange={(e) =>
-                    setProfileData((prev) => ({
-                      ...prev,
-                      marketingUpdatesOptIn: e.target.checked,
-                    }))
-                  }
-                  className="w-4 h-4"
-                />
-                <span className="text-xs font-semibold text-text-100 uppercase tracking-wide">
-                  Marketing Updates Opt-in
-                </span>
-              </label>
             </div>
           </div>
         </TabsContent>

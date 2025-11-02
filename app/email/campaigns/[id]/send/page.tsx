@@ -10,6 +10,7 @@ import emailClient from "@/utils/api/emailClient";
 interface EmailSender {
   id: string;
   email: string;
+  displayName?: string;
   verificationStatus: "pending" | "verified" | "failed";
   domainId: string;
 }
@@ -181,7 +182,9 @@ export default function SendCampaignPage() {
           >
             ← Back to Campaign
           </Link>
-          <h1 className="text-4xl font-bold text-text-100 mb-2">Send Campaign</h1>
+          <h1 className="text-4xl font-bold text-text-100 mb-2">
+            Send Campaign
+          </h1>
           <p className="text-text-200">
             Configure and send "{campaign.name}" to your leads
           </p>
@@ -222,7 +225,12 @@ export default function SendCampaignPage() {
                       />
                       <div className="ml-4 flex-1">
                         <p className="text-text-100 font-semibold">
-                          {sender.email}
+                          {sender.displayName && (
+                            <span>{sender.displayName} </span>
+                          )}
+                          <span className="text-text-200">
+                            &lt;{sender.email}&gt;
+                          </span>
                         </p>
                         <p className="text-text-200 text-sm">
                           Status: {sender.verificationStatus}
@@ -308,7 +316,9 @@ export default function SendCampaignPage() {
                   <p className="text-text-200 text-xs uppercase tracking-wide mb-1">
                     Subject
                   </p>
-                  <p className="text-text-100 font-semibold">{campaign.subject}</p>
+                  <p className="text-text-100 font-semibold">
+                    {campaign.subject}
+                  </p>
                 </div>
                 <div>
                   <p className="text-text-200 text-xs uppercase tracking-wide mb-1">

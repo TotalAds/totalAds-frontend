@@ -41,7 +41,7 @@ export function TestEmailModal({
     []
   );
   const [senders, setSenders] = useState<
-    Array<{ id: string; email: string; domainId: string }>
+    Array<{ id: string; email: string; displayName?: string; domainId: string }>
   >([]);
   const [selectedDomainId, setSelectedDomainId] = useState<string>(
     domainId || ""
@@ -189,12 +189,12 @@ export function TestEmailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="bg-slate-900 border border-white/10 max-w-2xl">
+      <DialogContent className="bg-brand-main/5 border border-brand-main/20 max-w-2xl backdrop-blur-xl">
         <DialogHeader>
-          <DialogTitle className="text-white text-2xl">
+          <DialogTitle className="text-text-100 text-2xl">
             Send Test Email
           </DialogTitle>
-          <DialogDescription className="text-gray-300 text-sm">
+          <DialogDescription className="text-text-200/70 text-sm">
             Configure sender and recipient for your test email
           </DialogDescription>
         </DialogHeader>
@@ -202,8 +202,8 @@ export function TestEmailModal({
         <div className="space-y-6 py-4">
           {/* Step 1: Domain Selection */}
           <div className="space-y-2">
-            <label className="block text-sm font-semibold text-white">
-              1. Select Domain <span className="text-red-400">*</span>
+            <label className="block text-sm font-semibold text-text-100">
+              1. Select Domain <span className="text-error">*</span>
             </label>
             <select
               value={selectedDomainId}
@@ -212,7 +212,7 @@ export function TestEmailModal({
                 setSelectedSenderId("");
               }}
               disabled={loading || loadingDomains || domains.length === 0}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 transition"
+              className="w-full px-4 py-3 bg-brand-main/5 border border-brand-main/20 rounded-lg text-text-100 text-sm focus:outline-none focus:ring-2 focus:ring-brand-main disabled:opacity-50 transition"
             >
               <option value="">
                 {loadingDomains ? "Loading domains..." : "Choose a domain..."}
@@ -224,7 +224,7 @@ export function TestEmailModal({
               ))}
             </select>
             {domains.length === 0 && !loadingDomains && (
-              <p className="text-xs text-red-400">
+              <p className="text-xs text-error">
                 No domains found. Please create a domain first.
               </p>
             )}
@@ -232,8 +232,8 @@ export function TestEmailModal({
 
           {/* Step 2: Sender Selection */}
           <div className="space-y-2">
-            <label className="block text-sm font-semibold text-white">
-              2. Select Sender Email <span className="text-red-400">*</span>
+            <label className="block text-sm font-semibold text-text-100">
+              2. Select Sender Email <span className="text-error">*</span>
             </label>
             <select
               value={selectedSenderId}
@@ -244,19 +244,19 @@ export function TestEmailModal({
                 !selectedDomainId ||
                 senders.length === 0
               }
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 transition"
+              className="w-full px-4 py-3 bg-brand-main/5 border border-brand-main/20 rounded-lg text-text-100 text-sm focus:outline-none focus:ring-2 focus:ring-brand-main disabled:opacity-50 transition"
             >
               <option value="">
                 {loadingSenders ? "Loading senders..." : "Choose a sender..."}
               </option>
               {senders.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.email}
+                  {s.displayName ? `${s.displayName} <${s.email}>` : s.email}
                 </option>
               ))}
             </select>
             {selectedDomainId && senders.length === 0 && !loadingSenders && (
-              <p className="text-xs text-red-400">
+              <p className="text-xs text-error">
                 No senders found for this domain. Please add a sender first.
               </p>
             )}
@@ -264,8 +264,8 @@ export function TestEmailModal({
 
           {/* Step 3: Test Email Address */}
           <div className="space-y-2">
-            <label className="block text-sm font-semibold text-white">
-              3. Test Email Address <span className="text-red-400">*</span>
+            <label className="block text-sm font-semibold text-text-100">
+              3. Test Email Address <span className="text-error">*</span>
             </label>
             <input
               type="email"
@@ -273,21 +273,21 @@ export function TestEmailModal({
               value={testEmail}
               onChange={(e) => setTestEmail(e.target.value)}
               disabled={loading}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50 transition"
+              className="w-full px-4 py-3 bg-brand-main/5 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200/50 text-sm focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent disabled:opacity-50 transition"
             />
           </div>
 
           {/* Step 4: Template Variables */}
           {templateVariables.length > 0 && (
             <div className="space-y-2">
-              <label className="block text-sm font-semibold text-white">
+              <label className="block text-sm font-semibold text-text-100">
                 4. Template Variables{" "}
-                <span className="text-gray-400">(Optional)</span>
+                <span className="text-text-200/60">(Optional)</span>
               </label>
-              <div className="space-y-3 max-h-40 overflow-y-auto bg-white/5 p-3 rounded-lg border border-white/10">
+              <div className="space-y-3 max-h-40 overflow-y-auto bg-brand-main/5 p-3 rounded-lg border border-brand-main/10">
                 {templateVariables.map((variable) => (
                   <div key={variable}>
-                    <label className="block text-xs text-gray-400 mb-1">
+                    <label className="block text-xs text-text-200/60 mb-1">
                       {`{{${variable}}}`}
                     </label>
                     <input
@@ -301,7 +301,7 @@ export function TestEmailModal({
                         })
                       }
                       disabled={loading}
-                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50 transition"
+                      className="w-full px-3 py-2 bg-brand-main/5 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200/50 text-sm focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent disabled:opacity-50 transition"
                     />
                   </div>
                 ))}
@@ -310,7 +310,7 @@ export function TestEmailModal({
           )}
         </div>
 
-        <div className="flex gap-3 justify-end pt-4 border-t border-white/10">
+        <div className="flex gap-3 justify-end pt-4 border-t border-brand-main/10">
           <Button onClick={onClose} variant="ghost" disabled={loading}>
             Cancel
           </Button>

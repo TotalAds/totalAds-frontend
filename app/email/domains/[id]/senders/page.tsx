@@ -11,6 +11,7 @@ import emailClient from "@/utils/api/emailClient";
 interface EmailSender {
   id: string;
   email: string;
+  displayName?: string;
   domainId: string;
   verificationStatus: string;
   verificationEmailSentAt: string;
@@ -247,7 +248,12 @@ export default function EmailSendersPage() {
                   className="bg-black/30 rounded-lg p-4 flex items-center justify-between"
                 >
                   <div className="flex-1">
-                    <p className="text-text-100 font-mono">{sender.email}</p>
+                    <p className="text-text-100 font-medium">
+                      {sender.displayName && <span>{sender.displayName} </span>}
+                      <span className="font-mono text-text-200">
+                        &lt;{sender.email}&gt;
+                      </span>
+                    </p>
                     <p className="text-text-200 text-sm">
                       Created: {new Date(sender.createdAt).toLocaleDateString()}
                     </p>

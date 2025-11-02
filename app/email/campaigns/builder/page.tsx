@@ -17,6 +17,7 @@ export interface CampaignBuilderState {
   emailColumn: string; // which column contains the email
   emailTemplate: {
     subject: string;
+    previewText?: string;
     htmlContent: string;
     textContent: string;
     attachments?: Array<{
@@ -64,6 +65,7 @@ export default function CampaignBuilderPage() {
     emailColumn: "email",
     emailTemplate: {
       subject: "",
+      previewText: "",
       htmlContent: "",
       textContent: "",
       attachments: [],
@@ -101,6 +103,10 @@ export default function CampaignBuilderPage() {
             campaignDescription: campaign.description || "",
             emailTemplate: {
               subject: campaign.subject || "",
+              previewText:
+                (campaign.sequence?.[0]?.previewText as string) ||
+                (campaign.previewText as string) ||
+                "",
               htmlContent: campaign.htmlContent || "",
               textContent: campaign.textContent || "",
               attachments: [],
