@@ -82,6 +82,11 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
           href: "/email/domains",
         },
         {
+          name: "Warmup",
+          href: "/email/warmup/accounts",
+          badge: "BETA",
+        },
+        {
           name: "Pricing & Plans",
           href: "/email/pricing",
         },
