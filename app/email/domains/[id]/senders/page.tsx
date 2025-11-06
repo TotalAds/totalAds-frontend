@@ -34,6 +34,7 @@ export default function EmailSendersPage() {
   const [domain, setDomain] = useState<Domain | null>(null);
   const [loading, setLoading] = useState(true);
   const [newEmail, setNewEmail] = useState("");
+  const [newDisplayName, setNewDisplayName] = useState("");
   const [creating, setCreating] = useState(false);
   const [emailError, setEmailError] = useState("");
 
@@ -78,6 +79,11 @@ export default function EmailSendersPage() {
       return;
     }
 
+    if (!newDisplayName.trim()) {
+      toast.error("Please enter a display name");
+      return;
+    }
+
     // Validate email domain matches verified domain
     if (domain) {
       const emailDomain = newEmail.split("@")[1]?.toLowerCase();
@@ -94,12 +100,14 @@ export default function EmailSendersPage() {
       setCreating(true);
       const response = await emailClient.post("/api/email-senders", {
         email: newEmail,
+        displayName: newDisplayName,
         domainId,
       });
 
       if (response.data.success) {
         toast.success(response.data.data.message);
         setNewEmail("");
+        setNewDisplayName("");
         await fetchSenders();
       }
     } catch (error: any) {
@@ -203,26 +211,36 @@ export default function EmailSendersPage() {
           <h2 className="text-lg font-semibold text-text-100 mb-4">
             Add New Email Sender
           </h2>
-          <form onSubmit={handleCreateSender} className="flex gap-3">
-            <input
-              type="email"
-              placeholder={
-                domain
-                  ? `Enter email address (e.g., noreply@${domain.domain})`
-                  : "Enter email address"
-              }
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              className="flex-1 px-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:border-brand-main"
-              disabled={creating}
-            />
-            <Button
-              type="submit"
-              disabled={creating}
-              className="bg-brand-tertiary hover:bg-brand-tertiary/80 text-text-100 px-6 py-2 rounded-lg transition disabled:opacity-50"
-            >
-              {creating ? "Adding..." : "Add Sender"}
-            </Button>
+          <form onSubmit={handleCreateSender} className="space-y-4">
+            <div className="flex gap-3">
+              <input
+                type="email"
+                placeholder={
+                  domain
+                    ? `Enter email address (e.g., noreply@${domain.domain})`
+                    : "Enter email address"
+                }
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                className="flex-1 px-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:border-brand-main"
+                disabled={creating}
+              />
+              <input
+                type="text"
+                placeholder="Display Name (e.g., Support Team)"
+                value={newDisplayName}
+                onChange={(e) => setNewDisplayName(e.target.value)}
+                className="flex-1 px-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:border-brand-main"
+                disabled={creating}
+              />
+              <Button
+                type="submit"
+                disabled={creating}
+                className="bg-brand-tertiary hover:bg-brand-tertiary/80 text-text-100 px-6 py-2 rounded-lg transition disabled:opacity-50"
+              >
+                {creating ? "Adding..." : "Add Sender"}
+              </Button>
+            </div>
           </form>
           <p className="text-text-200 text-sm mt-3">
             AWS SES will send a verification email to this address. You must

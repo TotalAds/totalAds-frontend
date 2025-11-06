@@ -40,15 +40,6 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
     await logoutUser();
   };
 
-  // Define pages where tour should be available
-  const tourEnabledPages = [
-    "/dashboard",
-    "/scraper",
-    "/icp-profiles",
-    "/api-tokens",
-  ];
-  const shouldShowTour = isAuthenticated && tourEnabledPages.includes(pathname);
-
   const [subInfo, setSubInfo] = useState<SubscriptionInfo | null>(null);
   const [metrics, setMetrics] = useState<ContactMetrics | null>(null);
 
@@ -247,7 +238,7 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
                       aria-orientation="vertical"
                       aria-labelledby="user-menu"
                     >
-                      <Link
+                      {/* <Link
                         href="/profile"
                         className="block px-4 py-2 text-sm text-text-200 hover:bg-brand-main/10 hover:text-brand-main"
                         role="menuitem"
@@ -262,7 +253,7 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
                         onClick={() => setIsUserMenuOpen(false)}
                       >
                         Billing
-                      </Link>
+                      </Link> */}
 
                       <button
                         onClick={() => {

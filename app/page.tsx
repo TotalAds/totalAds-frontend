@@ -19,7 +19,7 @@ export default function Home() {
         } else if (!state.user.onboardingCompleted) {
           router.push("/onboarding");
         } else {
-          router.push("/dashboard");
+          router.push("/email/dashboard");
         }
       } else {
         router.push(appendUtmToPath("/login"));
