@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
+import MultiSelect from "@/components/common/MultiSelect";
 import { Button } from "@/components/ui/button";
 import emailClient from "@/utils/api/emailClient";
-import { IconSearch, IconX } from "@tabler/icons-react";
+import { IconFilter, IconSearch, IconX } from "@tabler/icons-react";
 
 interface Lead {
   id: string;
@@ -17,6 +18,21 @@ interface Lead {
   tags?: string;
   campaigns?: Array<{ id: string; name: string }>;
   createdAt: Date;
+}
+
+interface FilterOption {
+  id: string;
+  name: string;
+  color?: string;
+  status?: string;
+  count?: number;
+}
+
+interface FilterOptions {
+  categories: FilterOption[];
+  tags: FilterOption[];
+  campaigns: FilterOption[];
+  statuses: Array<{ value: string; label: string; count: number }>;
 }
 
 interface LeadSelectionProps {
@@ -34,11 +50,16 @@ export default function LeadSelection({
   const [limit, setLimit] = useState(10);
   const [total, setTotal] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [companyFilter, setCompanyFilter] = useState("");
-  const [roleFilter, setRoleFilter] = useState("");
-  const [campaignFilter, setCampaignFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [campaignFilter, setCampaignFilter] = useState<string[]>([]);
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
+    categories: [],
+    tags: [],
+    campaigns: [],
+    statuses: [],
+  });
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -46,12 +67,40 @@ export default function LeadSelection({
   }, [
     page,
     limit,
+    searchTerm,
     statusFilter,
     categoryFilter,
-    companyFilter,
-    roleFilter,
+    tagFilter,
     campaignFilter,
   ]);
+
+  useEffect(() => {
+    loadFilterOptions();
+  }, [statusFilter, categoryFilter, tagFilter, campaignFilter]);
+
+  const loadFilterOptions = async () => {
+    try {
+      const params = new URLSearchParams();
+
+      if (categoryFilter.length > 0)
+        params.append("categoryIds", categoryFilter.join(","));
+      if (tagFilter.length > 0) params.append("tagIds", tagFilter.join(","));
+      if (campaignFilter.length > 0)
+        params.append("campaignIds", campaignFilter.join(","));
+      if (statusFilter.length > 0)
+        params.append("statuses", statusFilter.join(","));
+
+      const response = await emailClient.get<{ data: FilterOptions }>(
+        `/api/leads/filter-options?${params.toString()}`
+      );
+
+      if (response.data?.data) {
+        setFilterOptions(response.data.data);
+      }
+    } catch (error: any) {
+      console.error("Failed to load filter options:", error);
+    }
+  };
 
   const loadLeads = async () => {
     try {
@@ -61,11 +110,13 @@ export default function LeadSelection({
         limit: limit.toString(),
       });
 
-      if (statusFilter) params.append("status", statusFilter);
-      if (categoryFilter) params.append("category", categoryFilter);
-      if (companyFilter) params.append("company", companyFilter);
-      if (roleFilter) params.append("role", roleFilter);
-      if (campaignFilter) params.append("campaignId", campaignFilter);
+      if (searchTerm) params.append("search", searchTerm);
+      if (statusFilter.length > 0) params.append("status", statusFilter[0]); // Backend currently supports single status
+      if (categoryFilter.length > 0)
+        params.append("categoryIds", categoryFilter.join(","));
+      if (tagFilter.length > 0) params.append("tagIds", tagFilter.join(","));
+      if (campaignFilter.length > 0)
+        params.append("campaignIds", campaignFilter.join(","));
 
       const response = await emailClient.get<any>(
         `/api/leads?${params.toString()}`
@@ -93,17 +144,48 @@ export default function LeadSelection({
     onLeadsSelected(selected);
   };
 
-  const filteredLeads = leads.filter(
-    (lead) =>
-      lead.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const clearAllFilters = () => {
+    setSearchTerm("");
+    setStatusFilter([]);
+    setCategoryFilter([]);
+    setTagFilter([]);
+    setCampaignFilter([]);
+    setPage(1);
+  };
+
+  const hasActiveFilters =
+    searchTerm ||
+    statusFilter.length > 0 ||
+    categoryFilter.length > 0 ||
+    tagFilter.length > 0 ||
+    campaignFilter.length > 0;
 
   return (
     <div className="space-y-6">
       {/* Filters */}
-      <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+      <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6 relative z-50">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <IconFilter size={20} className="text-gray-400" />
+            <h3 className="text-white font-semibold">Filters</h3>
+            {hasActiveFilters && (
+              <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full">
+                {total} results
+              </span>
+            )}
+          </div>
+          {hasActiveFilters && (
+            <button
+              onClick={clearAllFilters}
+              className="flex items-center gap-1 text-sm text-gray-400 hover:text-white transition-colors"
+            >
+              <IconX size={16} />
+              Clear all
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Search */}
           <div className="relative lg:col-span-2">
             <IconSearch
@@ -114,90 +196,87 @@ export default function LeadSelection({
               type="text"
               placeholder="Search by email or name..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
               className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
           </div>
 
-          {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
-            className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-          >
-            <option value="">All Statuses</option>
-            <option value="new">New</option>
-            <option value="sent">Sent</option>
-            <option value="opened">Opened</option>
-            <option value="clicked">Clicked</option>
-            <option value="bounced">Bounced</option>
-          </select>
-
           {/* Category Filter */}
-          <select
-            value={categoryFilter}
-            onChange={(e) => {
-              setCategoryFilter(e.target.value);
+          <MultiSelect
+            options={filterOptions.categories}
+            selectedIds={categoryFilter}
+            onChange={(selected) => {
+              setCategoryFilter(selected);
               setPage(1);
             }}
-            className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-          >
-            <option value="">All Categories</option>
-            <option value="prospect">Prospect</option>
-            <option value="customer">Customer</option>
-            <option value="partner">Partner</option>
-          </select>
-
-          {/* Company Filter */}
-          <input
-            type="text"
-            placeholder="Filter by company..."
-            value={companyFilter}
-            onChange={(e) => {
-              setCompanyFilter(e.target.value);
-              setPage(1);
-            }}
-            className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            placeholder="Categories"
+            searchable
+            theme="light"
           />
 
-          {/* Role Filter */}
-          <input
-            type="text"
-            placeholder="Filter by role..."
-            value={roleFilter}
-            onChange={(e) => {
-              setRoleFilter(e.target.value);
+          {/* Tag Filter */}
+          <MultiSelect
+            options={filterOptions.tags}
+            selectedIds={tagFilter}
+            onChange={(selected) => {
+              setTagFilter(selected);
               setPage(1);
             }}
-            className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            placeholder="Tags"
+            searchable
+            theme="light"
           />
 
           {/* Campaign Filter */}
-          <input
-            type="text"
-            placeholder="Filter by campaign ID..."
-            value={campaignFilter}
-            onChange={(e) => {
-              setCampaignFilter(e.target.value);
+          <MultiSelect
+            options={filterOptions.campaigns}
+            selectedIds={campaignFilter}
+            onChange={(selected) => {
+              setCampaignFilter(selected);
               setPage(1);
             }}
-            className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            placeholder="Campaigns"
+            searchable
+            theme="light"
+          />
+
+          {/* Status Filter */}
+          <MultiSelect
+            options={filterOptions.statuses.map((s) => ({
+              id: s.value,
+              name: s.label,
+              count: s.count,
+            }))}
+            selectedIds={statusFilter}
+            onChange={(selected) => {
+              setStatusFilter(selected);
+              setPage(1);
+            }}
+            placeholder="Status"
+            searchable
+            theme="light"
           />
         </div>
       </div>
 
       {/* Leads Table */}
-      <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl overflow-hidden">
+      <div
+        className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl"
+        style={{ overflow: "visible" }}
+      >
         {isLoading ? (
           <div className="p-8 text-center text-gray-400">Loading leads...</div>
-        ) : filteredLeads.length === 0 ? (
+        ) : leads.length === 0 ? (
           <div className="p-8 text-center text-gray-400">No leads found.</div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div
+              className="overflow-x-auto"
+              style={{ borderRadius: "0.75rem" }}
+            >
               <table className="w-full">
                 <thead className="bg-white/5 border-b border-white/10">
                   <tr>
@@ -205,14 +284,12 @@ export default function LeadSelection({
                       <input
                         type="checkbox"
                         checked={
-                          selectedLeads.size === filteredLeads.length &&
-                          filteredLeads.length > 0
+                          selectedLeads.size === leads.length &&
+                          leads.length > 0
                         }
                         onChange={(e) => {
                           if (e.target.checked) {
-                            setSelectedLeads(
-                              new Set(filteredLeads.map((l) => l.id))
-                            );
+                            setSelectedLeads(new Set(leads.map((l) => l.id)));
                           } else {
                             setSelectedLeads(new Set());
                           }
@@ -235,7 +312,7 @@ export default function LeadSelection({
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredLeads.map((lead) => (
+                  {leads.map((lead) => (
                     <tr
                       key={lead.id}
                       className="border-b border-white/10 hover:bg-white/5 transition-colors"

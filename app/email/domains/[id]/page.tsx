@@ -107,12 +107,17 @@ export default function DomainDetailsPage() {
             >
               ← Back to Domains
             </Link>
-            <h1 className="text-2xl font-bold text-text-100">{domain.domain}</h1>
+            <h1 className="text-2xl font-bold text-text-100">
+              {domain.domain}
+            </h1>
           </div>
           <div className="flex gap-3">
             <Link href={`/email/domains/${domain.id}/verify`}>
               <Button className="bg-brand-tertiary hover:bg-brand-tertiary/80 text-text-100 px-6 py-2 rounded-lg transition">
-                Verify Domain
+                {domain.verificationStatus === "verified" ||
+                domain.dkimStatus === "verified"
+                  ? "View DNS Records"
+                  : "Verify Domain"}
               </Button>
             </Link>
             <Link href={`/email/domains/${domain.id}/senders`}>
@@ -160,7 +165,6 @@ export default function DomainDetailsPage() {
             </p>
           </div>
         </div>
-
         {/* Domain Information */}
         <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-xl p-6 mb-8">
           <h3 className="text-lg font-semibold text-text-100 mb-4">
@@ -186,7 +190,9 @@ export default function DomainDetailsPage() {
                 <label className="text-text-200 text-sm">
                   Mail From Domain
                 </label>
-                <p className="text-text-100 font-mono">{domain.mailFromDomain}</p>
+                <p className="text-text-100 font-mono">
+                  {domain.mailFromDomain}
+                </p>
               </div>
             )}
             <div>
@@ -197,34 +203,6 @@ export default function DomainDetailsPage() {
             </div>
           </div>
         </div>
-
-        {/* DNS Records */}
-        {domain.dkimTokens && (
-          <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-xl p-6 mb-8">
-            <h3 className="text-lg font-semibold text-text-100 mb-4">
-              DKIM Records
-            </h3>
-            <div className="space-y-3">
-              {domain.dkimTokens.tokens &&
-              Array.isArray(domain.dkimTokens.tokens) ? (
-                domain.dkimTokens.tokens.map((token: string, index: number) => (
-                  <div
-                    key={index}
-                    className="bg-black/30 rounded p-3 text-text-200 text-sm font-mono overflow-x-auto"
-                  >
-                    <div className="text-text-200">Record {index + 1}:</div>
-                    <div>{token}</div>
-                  </div>
-                ))
-              ) : (
-                <div className="bg-black/30 rounded p-3 text-text-200 text-sm font-mono overflow-x-auto">
-                  No DKIM tokens available
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Sending Quota */}
         {domain.sendingQuota && (
           <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-xl p-6">

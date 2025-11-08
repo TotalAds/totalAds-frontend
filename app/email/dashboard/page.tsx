@@ -23,6 +23,10 @@ export default function DashboardPage() {
   const [quota, setQuota] = useState<QuotaCardData | null>(null);
   const [counters, setCounters] = useState<DailyCounterRow[]>([]);
   const [range, setRange] = useState<7 | 30>(7);
+  const hasAnyData = (counters || []).some(
+    (c) =>
+      (c.sentCount || 0) + (c.bounceCount || 0) + (c.complaintCount || 0) > 0
+  );
 
   useEffect(() => {
     // Check if user has completed onboarding
@@ -130,47 +134,65 @@ export default function DashboardPage() {
             </div>
           </div>
           {/* Simple bar chart */}
-          <div className="h-36 flex items-end gap-1">
-            {(counters || []).map((d, idx) => {
-              const max = Math.max(1, ...counters.map((x) => x.sentCount));
-              const sentH = Math.round((d.sentCount / max) * 100);
-              const bounceH = Math.round((d.bounceCount / max) * 100);
-              const compH = Math.round((d.complaintCount / max) * 100);
-              return (
-                <div key={idx} className="flex-1 flex items-end justify-center">
-                  <div className="w-2 flex items-end gap-[2px]">
-                    <div
-                      className="bg-green-400/80"
-                      style={{
-                        height: `${sentH}%`,
-                        width: "6px",
-                        borderRadius: "2px",
-                      }}
-                      title={`${d.date}: Sent ${d.sentCount}`}
-                    />
-                    <div
-                      className="bg-red-400/80"
-                      style={{
-                        height: `${bounceH}%`,
-                        width: "6px",
-                        borderRadius: "2px",
-                      }}
-                      title={`${d.date}: Bounced ${d.bounceCount}`}
-                    />
-                    <div
-                      className="bg-amber-400/80"
-                      style={{
-                        height: `${compH}%`,
-                        width: "6px",
-                        borderRadius: "2px",
-                      }}
-                      title={`${d.date}: Complaints ${d.complaintCount}`}
-                    />
+          {hasAnyData ? (
+            <div className="h-36 flex items-end gap-1">
+              {(counters || []).map((d, idx) => {
+                const max = Math.max(
+                  1,
+                  ...counters.map((x) =>
+                    Math.max(
+                      x.sentCount || 0,
+                      x.bounceCount || 0,
+                      x.complaintCount || 0
+                    )
+                  )
+                );
+                const sentH = Math.round((d.sentCount / max) * 100);
+                const bounceH = Math.round((d.bounceCount / max) * 100);
+                const compH = Math.round((d.complaintCount / max) * 100);
+                return (
+                  <div
+                    key={idx}
+                    className="flex-1 flex items-end justify-center"
+                  >
+                    <div className="w-2 flex items-end gap-[2px]">
+                      <div
+                        className="bg-green-400/80"
+                        style={{
+                          height: `${sentH}%`,
+                          width: "6px",
+                          borderRadius: "2px",
+                        }}
+                        title={`${d.date}: Sent ${d.sentCount}`}
+                      />
+                      <div
+                        className="bg-red-400/80"
+                        style={{
+                          height: `${bounceH}%`,
+                          width: "6px",
+                          borderRadius: "2px",
+                        }}
+                        title={`${d.date}: Bounced ${d.bounceCount}`}
+                      />
+                      <div
+                        className="bg-amber-400/80"
+                        style={{
+                          height: `${compH}%`,
+                          width: "6px",
+                          borderRadius: "2px",
+                        }}
+                        title={`${d.date}: Complaints ${d.complaintCount}`}
+                      />
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="h-36 flex items-center justify-center text-text-200 text-sm">
+              No data yet for this period
+            </div>
+          )}
           {/* Legend */}
           <div className="mt-3 flex gap-4 text-[11px] text-text-200">
             <span className="inline-flex items-center gap-1">
