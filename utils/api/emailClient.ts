@@ -641,6 +641,7 @@ export interface SubscriptionInfo {
   dailyCap: number;
   dailyRemaining: number;
   dailyResetAt: string;
+  status?: "active" | "paused" | "cancelled" | "expired" | "trial" | string;
 }
 
 export const getSubscriptionInfo = async (): Promise<SubscriptionInfo> => {
@@ -650,6 +651,7 @@ export const getSubscriptionInfo = async (): Promise<SubscriptionInfo> => {
     const tier = d.tier || {};
     const credits = d.credits || {};
     const quota = d.quota || {};
+    const subscription = d.subscription || {};
     return {
       tierName: tier.name || d.tierName || "free_trial",
       tierDisplayName:
@@ -670,6 +672,7 @@ export const getSubscriptionInfo = async (): Promise<SubscriptionInfo> => {
       dailyCap: Number(quota.cap ?? d.dailyCap ?? 0),
       dailyRemaining: Number(quota.remaining ?? d.dailyRemaining ?? 0),
       dailyResetAt: quota.resetAt || d.dailyResetAt || new Date().toISOString(),
+      status: subscription.status || d.subscription?.status,
     };
   } catch (error: any) {
     console.error("Failed to fetch subscription info:", error);

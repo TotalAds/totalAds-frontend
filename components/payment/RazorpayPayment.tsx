@@ -3,8 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
-import { useAuthContext } from "@/context/AuthContext";
-import apiClient from "@/utils/api/apiClient";
 import emailClient, {
   getSubscriptionInfo,
   SubscriptionInfo,
@@ -40,9 +38,7 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
   onSuccess,
   onError,
 }) => {
-  const { state } = useAuthContext();
   const [tiers, setTiers] = useState<PricingTier[]>([]);
-  const [selectedTier, setSelectedTier] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
   const [currentSubscription, setCurrentSubscription] =
@@ -173,8 +169,12 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {tiers.map((tier) => {
+          const isTierMatch =
+            !!currentSubscription && currentSubscription.tierName === tier.name;
+          const status = currentSubscription?.status || "active";
           const isCurrentPlan =
-            currentSubscription && currentSubscription.tierName === tier.name;
+            isTierMatch && (status === "active" || status === "trial");
+          const isExpiredCurrentTier = isTierMatch && status === "expired";
 
           return (
             <div
@@ -182,12 +182,19 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
               className={`relative bg-white/10 backdrop-blur-md border rounded-xl p-6 transition-all ${
                 isCurrentPlan
                   ? "border-green-500/50 ring-2 ring-green-500/20"
+                  : isExpiredCurrentTier
+                  ? "border-red-500/50 ring-2 ring-red-500/20"
                   : "border-white/20 hover:border-white/40"
               }`}
             >
               {isCurrentPlan && (
                 <div className="absolute top-3 right-3 bg-brand-tertiary text-white text-xs font-semibold px-3 py-1 rounded-full">
                   Current Plan
+                </div>
+              )}
+              {!isCurrentPlan && isExpiredCurrentTier && (
+                <div className="absolute top-3 right-3 bg-red-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
+                  Expired
                 </div>
               )}
 
@@ -247,7 +254,7 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
               ) : (
                 <button
                   onClick={() => handlePayment(tier.id)}
-                  disabled={loading || !isCurrentPlan}
+                  disabled={loading || isCurrentPlan}
                   className={`w-full font-semibold py-2 px-4 rounded-lg transition-all ${
                     isCurrentPlan
                       ? "bg-gray-600 text-gray-300 cursor-not-allowed"
