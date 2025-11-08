@@ -247,7 +247,7 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
               ) : (
                 <button
                   onClick={() => handlePayment(tier.id)}
-                  disabled={loading || !!isCurrentPlan}
+                  disabled={loading || !isCurrentPlan}
                   className={`w-full font-semibold py-2 px-4 rounded-lg transition-all ${
                     isCurrentPlan
                       ? "bg-gray-600 text-gray-300 cursor-not-allowed"
