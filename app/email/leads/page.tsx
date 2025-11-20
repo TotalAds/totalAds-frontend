@@ -592,7 +592,7 @@ export default function LeadsPage() {
                   <p className="text-xs text-text-200 mb-2">Selected Leads:</p>
                   <div className="space-y-1">
                     {Array.from(selectedLeadsForCampaign).map((leadId) => {
-                      const lead = filteredLeads.find((l) => l.id === leadId);
+                      const lead = leads.find((l) => l.id === leadId);
                       return (
                         <div key={leadId} className="text-xs text-text-200">
                           {lead?.email}

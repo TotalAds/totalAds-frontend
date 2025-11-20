@@ -1,21 +1,31 @@
 "use client";
 
-import { motion } from 'framer-motion';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { toast } from 'react-hot-toast';
+import { motion } from "framer-motion";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
 
-import { Button } from '@/components/ui/button';
-import { useAuthContext } from '@/context/AuthContext';
+import { Button } from "@/components/ui/button";
+import WarmupStatusPanel from "@/components/warmup/WarmupStatusPanel";
+import { useAuthContext } from "@/context/AuthContext";
 import {
-    deleteWarmupAccount, getWarmupAccounts, getWarmupPairs, getWarmupPairStats, getWarmupStats,
-    getWarmupStatsSummary, toggleWarmupAccount, WarmupAccount, WarmupPair, WarmupPairStats,
-    WarmupStats, WarmupStatsSummary
-} from '@/utils/api/warmupClient';
-import { IconCheck, IconPlus, IconTrash, IconX } from '@tabler/icons-react';
+  deleteWarmupAccount,
+  getWarmupAccounts,
+  getWarmupPairs,
+  getWarmupPairStats,
+  getWarmupStats,
+  getWarmupStatsSummary,
+  toggleWarmupAccount,
+  WarmupAccount,
+  WarmupPair,
+  WarmupPairStats,
+  WarmupStats,
+  WarmupStatsSummary,
+} from "@/utils/api/warmupClient";
+import { IconCheck, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 
-type TabType = "accounts" | "pairs" | "statistics";
+type TabType = "accounts" | "pairs" | "statistics" | "status";
 type PairStatus =
   | "scheduled"
   | "sent"
@@ -234,7 +244,7 @@ export default function WarmupAccountsPage() {
               Manage your email warmup accounts and monitor performance
             </p>
           </div>
-          <Link href="/email/warmup/add">
+          <Link href="/email/warmup/connect">
             <Button className="bg-brand-main hover:bg-brand-main/80 text-text-100 px-6 py-2 rounded-lg transition flex items-center gap-2">
               <IconPlus className="w-4 h-4" />
               Add Account
@@ -257,7 +267,7 @@ export default function WarmupAccountsPage() {
             <p className="text-text-200 mb-6">
               Create your first warmup account to get started
             </p>
-            <Link href="/email/warmup/add">
+            <Link href="/email/warmup/connect">
               <Button className="bg-brand-main hover:bg-brand-main/80 text-text-100 px-6 py-2 rounded-lg transition">
                 Create Your First Account
               </Button>
@@ -307,6 +317,18 @@ export default function WarmupAccountsPage() {
                 }`}
               >
                 Statistics
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab("status");
+                }}
+                className={`px-4 py-3 font-medium transition border-b-2 ${
+                  activeTab === "status"
+                    ? "border-brand-main text-brand-main"
+                    : "border-transparent text-text-200 hover:text-text-100"
+                }`}
+              >
+                Status
               </button>
             </div>
 
@@ -423,6 +445,39 @@ export default function WarmupAccountsPage() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+
+            {/* Status Tab */}
+            {activeTab === "status" && (
+              <div className="space-y-6">
+                {/* Account Selector */}
+                <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-6">
+                  <label className="block text-text-100 font-medium mb-2">
+                    Select Account
+                  </label>
+                  <select
+                    value={selectedAccountId || ""}
+                    onChange={(e) => handleAccountChange(e.target.value)}
+                    className="px-4 py-2 bg-bg-300 border border-brand-main/20 rounded-lg text-text-100 focus:outline-none focus:border-brand-main"
+                  >
+                    {accounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.email}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {/* Panel */}
+                {selectedAccountId ? (
+                  <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-6">
+                    <WarmupStatusPanel accountId={selectedAccountId} />
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-text-200">
+                    Select an account to view status
+                  </div>
+                )}
               </div>
             )}
 

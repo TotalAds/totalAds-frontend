@@ -22,13 +22,28 @@ export default function OAuthCallbackPage() {
       try {
         const code = searchParams.get("code");
         const state = searchParams.get("state");
-        const provider = searchParams.get("provider");
+        let provider = searchParams.get("provider");
+
+        let decodedState: any | null = null;
+        if (state) {
+          try {
+            const json = atob(state);
+            decodedState = JSON.parse(json);
+          } catch (error) {
+            console.error("Failed to decode OAuth state:", error);
+          }
+        }
+
+        if (!provider && decodedState?.provider) {
+          provider = decodedState.provider;
+        }
 
         if (!code || !state || !provider) {
           throw new Error("Missing OAuth parameters");
         }
 
         // Validate provider
+        // Note: "yahoo" is temporarily disabled in frontend but backend support exists
         if (!["gmail", "outlook", "zoho"].includes(provider)) {
           throw new Error("Invalid provider");
         }
@@ -51,17 +66,48 @@ export default function OAuthCallbackPage() {
           sessionStorage.setItem(dedupeKey, "1");
         }
 
+        // Read OAuth warmup settings from sessionStorage (set on connect page)
+        let displayName: string | undefined;
+        let username: string | undefined;
+        let timezone: string | undefined;
+        let dailyLimit: number | undefined;
+
+        if (typeof window !== "undefined") {
+          try {
+            const raw = sessionStorage.getItem(
+              `warmup:oauth:settings:${provider}`
+            );
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              displayName = parsed.displayName || undefined;
+              username = parsed.username || undefined;
+              timezone = parsed.timezone || undefined;
+              if (typeof parsed.dailyLimit === "number") {
+                dailyLimit = parsed.dailyLimit;
+              }
+            }
+          } catch (settingsError) {
+            console.error(
+              "Failed to read OAuth settings from sessionStorage:",
+              settingsError
+            );
+          }
+        }
+
+        const payload: any = {
+          code,
+          state,
+        };
+
+        if (displayName) payload.displayName = displayName;
+        if (username) payload.username = username;
+        if (timezone) payload.timezone = timezone;
+        if (typeof dailyLimit === "number") payload.dailyLimit = dailyLimit;
+
         // Send callback to backend using axios (project convention)
         const { data } = await axios.post(
           `${emailServiceUrl}/api/warmup/oauth/${provider}/callback`,
-          {
-            code,
-            state,
-            displayName: searchParams.get("displayName") || undefined,
-            dailyLimit: searchParams.get("dailyLimit")
-              ? parseInt(searchParams.get("dailyLimit")!)
-              : undefined,
-          },
+          payload,
           {
             headers: {
               "Content-Type": "application/json",

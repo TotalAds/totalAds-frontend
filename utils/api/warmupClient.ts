@@ -111,8 +111,11 @@ warmupClient.interceptors.response.use(
 export interface WarmupAccount {
   id: string;
   email: string;
-  provider: "gmail" | "outlook" | "yahoo" | "zoho" | "custom";
+  provider: "gmail" | "outlook" | "yahoo" | "zoho" | "custom" | "ses_smtp";
   displayName: string;
+  username?: string;
+  mailDisplayName?: string;
+  timezone?: string;
   warmupEnabled: boolean;
   dailyLimit: number;
   warmupStage: number;
@@ -130,9 +133,13 @@ export interface WarmupAccount {
 
 export interface CreateWarmupAccountRequest {
   email: string;
-  provider: "gmail" | "outlook" | "yahoo" | "zoho" | "custom";
+  provider: "gmail" | "outlook" | "yahoo" | "zoho" | "custom" | "ses_smtp";
   displayName?: string;
+  username?: string;
+  mailDisplayName?: string;
+  timezone?: string;
   dailyLimit?: number;
+  adminBypass?: boolean;
 }
 
 export interface UpdateWarmupAccountRequest {
@@ -369,6 +376,48 @@ export const getWarmupPairStats = async (
     console.error("Failed to fetch warmup pair stats:", error);
     throw error;
   }
+};
+
+// ============================================================================
+// WARMUP STATUS
+// ============================================================================
+export interface WarmupStatusResponse {
+  account: {
+    id: string;
+    email: string;
+    displayName: string;
+    timezone?: string;
+    spamRate: number;
+    reputationScore: number;
+    warmupEnabled: boolean;
+  };
+  scalingProfile: any | null;
+  health: {
+    clampedByHealth: boolean;
+    spamRate: number;
+    reputationScore: number;
+    paused: boolean;
+  };
+  today: {
+    plannedInitials: number;
+    sentInitials: number;
+    remainingInitials: number;
+  };
+  tomorrow: {
+    tdws: number;
+    headroomPct: number;
+    plannedInitials: number;
+    expectedReplies: number;
+    newInitialsBudget: number;
+  };
+  updatedAt: string;
+}
+
+export const getWarmupStatus = async (
+  accountId: string
+): Promise<WarmupStatusResponse> => {
+  const response = await warmupClient.get(`/status/${accountId}`);
+  return response.data?.data;
 };
 
 export default warmupClient;
