@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import MultiSelect from "@/components/common/MultiSelect";
+import { LeadVerificationModal } from "@/components/leads/LeadVerificationModal";
 import emailClient, {
   Campaign,
   getUserCampaigns,
@@ -27,6 +28,8 @@ interface Lead {
   campaignId?: string;
   campaigns?: Array<{ id: string; name: string; status?: string }>;
   createdAt: Date;
+  verificationStatus?: string | null;
+  isSafeToSend?: boolean | null;
 }
 
 interface ListResponse {
@@ -66,6 +69,7 @@ export default function LeadsPage() {
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [campaignFilter, setCampaignFilter] = useState<string[]>([]);
+  const [verificationFilter, setVerificationFilter] = useState<string[]>([]);
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     categories: [],
     tags: [],
@@ -79,6 +83,8 @@ export default function LeadsPage() {
   const [selectedLeadsForCampaign, setSelectedLeadsForCampaign] = useState<
     Set<string>
   >(new Set());
+  const [selectedLeadForVerification, setSelectedLeadForVerification] =
+    useState<Lead | null>(null);
 
   useEffect(() => {
     loadLeads();
@@ -91,6 +97,7 @@ export default function LeadsPage() {
     categoryFilter,
     tagFilter,
     campaignFilter,
+    verificationFilter,
   ]);
 
   useEffect(() => {
@@ -145,6 +152,8 @@ export default function LeadsPage() {
       if (tagFilter.length > 0) params.append("tagIds", tagFilter.join(","));
       if (campaignFilter.length > 0)
         params.append("campaignIds", campaignFilter.join(","));
+      if (verificationFilter.length > 0)
+        params.append("verification", verificationFilter.join(","));
 
       const response = await emailClient.get<{ data: ListResponse }>(
         `/api/leads?${params.toString()}`
@@ -175,12 +184,17 @@ export default function LeadsPage() {
     }
   };
 
+  const handleVerifyLead = (lead: Lead) => {
+    setSelectedLeadForVerification(lead);
+  };
+
   const clearAllFilters = () => {
     setSearchTerm("");
     setStatusFilter([]);
     setCategoryFilter([]);
     setTagFilter([]);
     setCampaignFilter([]);
+    setVerificationFilter([]);
     setPage(1);
   };
 
@@ -189,9 +203,91 @@ export default function LeadsPage() {
     statusFilter.length > 0 ||
     categoryFilter.length > 0 ||
     tagFilter.length > 0 ||
-    campaignFilter.length > 0;
+    campaignFilter.length > 0 ||
+    verificationFilter.length > 0;
 
   const totalPages = Math.ceil(total / limit);
+
+  const renderVerificationBadge = (lead: Lead) => {
+    const hasStatus = !!lead.verificationStatus;
+    const hasSafeFlag = typeof lead.isSafeToSend === "boolean";
+
+    if (!hasStatus && !hasSafeFlag) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium bg-slate-700/40 text-slate-200 border border-slate-600/50 hover:bg-slate-700/60 transition-colors cursor-default">
+          <svg
+            className="w-3.5 h-3.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          Unverified
+        </span>
+      );
+    }
+
+    const status = (lead.verificationStatus || "").toLowerCase();
+    const isSafe = lead.isSafeToSend === true;
+    const riskyStatuses = [
+      "invalid",
+      "disposable",
+      "spamtrap",
+      "catch_all",
+      "role_account",
+    ];
+    const isRisky =
+      lead.isSafeToSend === false || riskyStatuses.includes(status || "");
+
+    if (isSafe) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/50 hover:bg-emerald-500/25 transition-colors cursor-default">
+          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+            <path
+              fillRule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+              clipRule="evenodd"
+            />
+          </svg>
+          Safe to send
+        </span>
+      );
+    }
+
+    if (isRisky) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-medium bg-red-500/15 text-red-300 border border-red-500/50 hover:bg-red-500/25 transition-colors cursor-default">
+          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+            <path
+              fillRule="evenodd"
+              d="M13.477 14.89A6 6 0 015.11 2.526a6 6 0 008.367 8.368zM17.5 11a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"
+              clipRule="evenodd"
+            />
+          </svg>
+          Risky{status ? ` (${status})` : ""}
+        </span>
+      );
+    }
+
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-medium bg-amber-500/15 text-amber-200 border border-amber-500/50 hover:bg-amber-500/25 transition-colors cursor-default">
+        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+          <path
+            fillRule="evenodd"
+            d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+            clipRule="evenodd"
+          />
+        </svg>
+        {status ? `Status: ${status}` : "Verification info available"}
+      </span>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-bg-100 p-6">
@@ -238,7 +334,7 @@ export default function LeadsPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
             {/* Search */}
             <div className="relative lg:col-span-2">
               <IconSearch
@@ -307,6 +403,21 @@ export default function LeadsPage() {
               }}
               placeholder="Status"
               searchable
+            />
+
+            {/* Verification Filter */}
+            <MultiSelect
+              options={[
+                { id: "safe", name: "Safe to send" },
+                { id: "risky", name: "Risky" },
+                { id: "unverified", name: "Unverified" },
+              ]}
+              selectedIds={verificationFilter}
+              onChange={(selected) => {
+                setVerificationFilter(selected);
+                setPage(1);
+              }}
+              placeholder="Verification"
             />
           </div>
         </div>
@@ -422,7 +533,10 @@ export default function LeadsPage() {
                           />
                         </td>
                         <td className="px-6 py-4 text-sm text-text-100">
-                          {lead.email}
+                          <div className="flex items-center gap-2">
+                            <span>{lead.email}</span>
+                            {renderVerificationBadge(lead)}
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-sm text-text-200">
                           {lead.name || "-"}
@@ -450,6 +564,13 @@ export default function LeadsPage() {
                           )}
                         </td>
                         <td className="px-6 py-4 text-sm flex gap-2">
+                          <button
+                            onClick={() => handleVerifyLead(lead)}
+                            className="p-2 hover:bg-brand-main/10 rounded-lg transition-colors"
+                            title="Verify with Reoon"
+                          >
+                            <IconMail size={18} className="text-brand-main" />
+                          </button>
                           <button
                             onClick={() => handleDelete(lead.id)}
                             className="p-2 hover:bg-brand-main/10 rounded-lg transition-colors"
@@ -608,6 +729,7 @@ export default function LeadsPage() {
                   >
                     Cancel
                   </button>
+
                   <button
                     onClick={() => {
                       router.push("/email/campaigns/builder");
@@ -622,6 +744,11 @@ export default function LeadsPage() {
             </div>
           </div>
         )}
+        <LeadVerificationModal
+          isOpen={!!selectedLeadForVerification}
+          lead={selectedLeadForVerification}
+          onClose={() => setSelectedLeadForVerification(null)}
+        />
       </div>
     </div>
   );

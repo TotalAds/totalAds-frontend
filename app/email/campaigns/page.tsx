@@ -24,6 +24,8 @@ export default function CampaignsPage() {
   const [selectedDomain, setSelectedDomain] = useState<string>("");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [reoonFilter, setReoonFilter] = useState<"all" | "on" | "off">("all");
+  const [showReoonLegend, setShowReoonLegend] = useState(false);
   const limit = 10;
 
   useEffect(() => {
@@ -118,6 +120,12 @@ export default function CampaignsPage() {
 
   const totalPages = Math.ceil(total / limit);
 
+  const filteredCampaigns = campaigns.filter((campaign) => {
+    if (reoonFilter === "all") return true;
+    const reoonUsed = !!(campaign as any).reoonVerificationSummary?.used;
+    return reoonFilter === "on" ? reoonUsed : !reoonUsed;
+  });
+
   return (
     <div className="min-h-screen bg-bg-100">
       {/* Header */}
@@ -163,6 +171,144 @@ export default function CampaignsPage() {
           </select>
         </div>
 
+        {/* Reoon Filter Chips */}
+        {campaigns && campaigns.length > 0 && (
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setReoonFilter("all")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  reoonFilter === "all"
+                    ? "bg-brand-main text-text-100"
+                    : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
+                }`}
+              >
+                All Campaigns
+              </button>
+              <button
+                onClick={() => setReoonFilter("on")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                  reoonFilter === "on"
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                    : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
+                }`}
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                Reoon: On
+              </button>
+              <button
+                onClick={() => setReoonFilter("off")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                  reoonFilter === "off"
+                    ? "bg-slate-700/40 text-slate-200 border border-slate-600/50"
+                    : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
+                }`}
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M13.477 14.89A6 6 0 015.11 2.526a6 6 0 008.367 8.368zM17.5 11a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                Reoon: Off
+              </button>
+            </div>
+            <div className="relative">
+              <button
+                onClick={() => setShowReoonLegend(!showReoonLegend)}
+                className="p-2 hover:bg-brand-main/10 rounded-lg transition-colors text-text-200 hover:text-text-100"
+                title="Learn about Reoon verification"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+              {showReoonLegend && (
+                <div className="absolute right-0 mt-2 w-80 bg-bg-200 border border-brand-main/20 rounded-lg p-4 shadow-xl z-50">
+                  <h4 className="text-sm font-semibold text-text-100 mb-3">
+                    Reoon Email Verification
+                  </h4>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0">
+                        <svg
+                          className="w-4 h-4 text-emerald-300 mt-0.5"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-medium text-text-100">Reoon: On</p>
+                        <p className="text-text-200">
+                          Email verification was used for this campaign. Risky
+                          leads were filtered out before sending.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0">
+                        <svg
+                          className="w-4 h-4 text-slate-300 mt-0.5"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M13.477 14.89A6 6 0 015.11 2.526a6 6 0 008.367 8.368zM17.5 11a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-medium text-text-100">Reoon: Off</p>
+                        <p className="text-text-200">
+                          Email verification was not used. All leads were sent
+                          without verification filtering.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-brand-main/10">
+                      <p className="text-text-200 text-xs">
+                        The &quot;risky removed&quot; count shows how many leads
+                        were excluded as risky during verification.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
@@ -194,7 +340,7 @@ export default function CampaignsPage() {
               Please select a domain to view campaigns
             </p>
           </div>
-        ) : campaigns?.length === 0 ? (
+        ) : filteredCampaigns?.length === 0 && campaigns?.length === 0 ? (
           <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-12 text-center">
             <div className="w-16 h-16 bg-brand-main rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
@@ -223,6 +369,36 @@ export default function CampaignsPage() {
               </Button>
             </Link>
           </div>
+        ) : filteredCampaigns?.length === 0 ? (
+          <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-12 text-center">
+            <div className="w-16 h-16 bg-brand-main rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg
+                className="w-8 h-8 text-text-100"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4m0 4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-text-100 mb-2">
+              No Campaigns Found
+            </h3>
+            <p className="text-text-200 mb-6">
+              No campaigns match the selected filter
+            </p>
+            <button
+              onClick={() => setReoonFilter("all")}
+              className="bg-brand-main hover:bg-brand-main/80 text-text-100 px-6 py-2 rounded-lg transition"
+            >
+              Clear Filter
+            </button>
+          </div>
         ) : (
           <>
             {/* Campaigns Table */}
@@ -249,7 +425,7 @@ export default function CampaignsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {campaigns?.map((campaign) => (
+                    {filteredCampaigns?.map((campaign) => (
                       <tr
                         key={campaign.id}
                         className="border-b border-brand-main/10 hover:bg-brand-main/5 transition"
@@ -283,6 +459,39 @@ export default function CampaignsPage() {
                                 </span>
                               </span>
                             )}
+                          {(() => {
+                            const reoonSummary = (campaign as any)
+                              .reoonVerificationSummary;
+                            const used = !!reoonSummary?.used;
+                            const excludedAsRisky =
+                              typeof reoonSummary?.excludedAsRisky === "number"
+                                ? reoonSummary.excludedAsRisky
+                                : null;
+
+                            if (!used && excludedAsRisky == null) {
+                              return (
+                                <div className="mt-1">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-700/60 text-text-200 border border-slate-500/40">
+                                    Reoon: Off
+                                  </span>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div className="mt-1 flex items-center gap-2">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/40">
+                                  Reoon: On
+                                </span>
+                                {excludedAsRisky !== null &&
+                                  excludedAsRisky > 0 && (
+                                    <span className="text-[10px] text-emerald-200/80">
+                                      {excludedAsRisky} risky removed
+                                    </span>
+                                  )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-6 py-4 text-text-200 text-sm">
                           {new Date(campaign.createdAt).toLocaleDateString()}

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
 import BillingSection from "@/components/settings/BillingSection";
+import IntegrationsSection from "@/components/settings/IntegrationsSection";
 import ProfileSection from "@/components/settings/ProfileSection";
 import RoadmapSection from "@/components/settings/RoadmapSection";
 import UsageSection from "@/components/settings/UsageSection";
@@ -13,11 +14,12 @@ import {
   IconChevronRight,
   IconCreditCard,
   IconMap,
+  IconPlug,
   IconRoadSign,
   IconUser,
 } from "@tabler/icons-react";
 
-type SettingsTab = "profile" | "billing" | "roadmap" | "usage";
+type SettingsTab = "profile" | "billing" | "roadmap" | "usage" | "integrations";
 
 interface SettingsNavItem {
   id: SettingsTab;
@@ -55,16 +57,22 @@ const SettingsPage = () => {
       description: "View billing and payment history",
     },
     {
-      id: "roadmap",
-      label: "Roadmap",
-      icon: <IconRoadSign className="w-5 h-5" />,
-      description: "Product roadmap and features",
-    },
-    {
       id: "usage",
       label: "Usage",
       icon: <IconMap className="w-5 h-5" />,
       description: "Email usage and quota tracking",
+    },
+    {
+      id: "integrations",
+      label: "Integrations",
+      icon: <IconPlug className="w-5 h-5" />,
+      description: "Manage third-party integrations like Reoon",
+    },
+    {
+      id: "roadmap",
+      label: "Roadmap",
+      icon: <IconRoadSign className="w-5 h-5" />,
+      description: "Product roadmap and features",
     },
   ];
 
@@ -118,11 +126,14 @@ const SettingsPage = () => {
               {/* Billing Section */}
               {activeTab === "billing" && <BillingSection />}
 
-              {/* Roadmap Section */}
-              {activeTab === "roadmap" && <RoadmapSection />}
-
               {/* Usage Section */}
               {activeTab === "usage" && <UsageSection />}
+
+              {/* Integrations Section */}
+              {activeTab === "integrations" && <IntegrationsSection />}
+
+              {/* Roadmap Section */}
+              {activeTab === "roadmap" && <RoadmapSection />}
             </div>
           </div>
         </div>

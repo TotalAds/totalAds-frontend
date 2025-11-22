@@ -51,6 +51,13 @@ interface CampaignAnalytics {
     completed: number;
     total: number;
   };
+  reoon?: {
+    used: boolean;
+    mode: string | null;
+    totalLeadsBeforeVerification: number | null;
+    totalLeadsAfterVerification: number | null;
+    excludedAsRisky: number | null;
+  } | null;
 }
 
 export default function CampaignDetailsPage() {
@@ -119,6 +126,7 @@ export default function CampaignDetailsPage() {
   const metrics = analytics.metrics;
   const rates = analytics.rates;
   const progress = analytics.progress;
+  const reoon = analytics.reoon;
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
@@ -262,6 +270,57 @@ export default function CampaignDetailsPage() {
                   description={`${rates.clickRate.toFixed(1)}% click rate`}
                 />
               </div>
+            </div>
+
+            {/* Reoon Verification Summary */}
+            <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-6">
+              <h2 className="text-2xl font-bold text-text-100 mb-2">
+                🛡️ Reoon Verification Summary
+              </h2>
+              {reoon && reoon.used ? (
+                <div className="space-y-3 text-sm text-text-100">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+                    <div>
+                      <p className="text-text-100/60 text-xs">
+                        Leads before filtering
+                      </p>
+                      <p className="text-text-100 mt-1 font-semibold text-lg">
+                        {reoon.totalLeadsBeforeVerification ??
+                          metrics.totalLeads}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-text-100/60 text-xs">
+                        Excluded as risky
+                      </p>
+                      <p className="text-red-300 mt-1 font-semibold text-lg">
+                        {reoon.excludedAsRisky ?? 0}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-text-100/60 text-xs">
+                        Final leads sent
+                      </p>
+                      <p className="text-emerald-300 mt-1 font-semibold text-lg">
+                        {reoon.totalLeadsAfterVerification ??
+                          metrics.totalLeads}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-text-100/70 text-xs">
+                    Verification mode: {reoon.mode || "power"}. Reoon
+                    verification helped protect your sender reputation by
+                    filtering out risky addresses before sending.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-text-100/70 mt-2">
+                  Reoon verification was not used for this campaign. All leads
+                  were sent without pre-verification. Configure Reoon in
+                  Settings → Integrations to reduce bounces and protect
+                  deliverability.
+                </p>
+              )}
             </div>
 
             {/* Engagement Metrics */}

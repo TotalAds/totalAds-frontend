@@ -4,8 +4,11 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 import { CampaignBuilderState } from "@/app/email/campaigns/builder/page";
+import CampaignReoonVerificationModal from "@/components/campaign-builder/CampaignReoonVerificationModal";
+import CampaignSendImportantNotes from "@/components/campaign-builder/CampaignSendImportantNotes";
 import { Button } from "@/components/ui/button";
 import emailClient, { getDomains } from "@/utils/api/emailClient";
+import { verifyCampaignLeadsWithReoon } from "@/utils/api/reoonClient";
 
 interface Step4Props {
   state: CampaignBuilderState;
@@ -83,6 +86,183 @@ export default function CampaignStep4Send({
       console.error(error);
     } finally {
       setLoadingSenders(false);
+    }
+  };
+
+  const [showReoonModal, setShowReoonModal] = useState(false);
+  const [reoonModalPayload, setReoonModalPayload] = useState<{
+    domainId: string;
+    campaignId: string;
+    leadIds: string[];
+  } | null>(null);
+
+  const handleReoonDecision = async (decision: {
+    usedVerification: boolean;
+    filteredLeadIds: string[];
+  }) => {
+    if (!reoonModalPayload) {
+      setShowReoonModal(false);
+      setSending(false);
+      return;
+    }
+
+    const { domainId, campaignId, leadIds } = reoonModalPayload;
+    const idsToUse =
+      decision &&
+      decision.filteredLeadIds &&
+      decision.filteredLeadIds.length > 0
+        ? decision.filteredLeadIds
+        : leadIds;
+
+    setShowReoonModal(false);
+
+    try {
+      // Step 3: Add leads to campaign
+      toast.loading("Adding leads to campaign...");
+
+      try {
+        await emailClient.post(
+          `/api/domains/${domainId}/campaigns/${campaignId}/add-leads`,
+          {
+            leadIds: idsToUse,
+          }
+        );
+
+        toast.dismiss();
+        toast.success("Leads added to campaign successfully!");
+      } catch (addLeadsError: any) {
+        toast.dismiss();
+        const errorMsg =
+          addLeadsError.response?.data?.message ||
+          addLeadsError.message ||
+          "Failed to add leads to campaign";
+        toast.error(errorMsg);
+        console.error("Add leads error:", addLeadsError);
+        return;
+      }
+
+      // Step 2.5: Upload attachment if exists
+      if (
+        state.emailTemplate.attachments &&
+        state.emailTemplate.attachments.length > 0
+      ) {
+        toast.loading("Uploading attachment...");
+        try {
+          const attachment = state.emailTemplate.attachments[0];
+          const fileBuffer = await attachment.file.arrayBuffer();
+          const base64 = Buffer.from(fileBuffer).toString("base64");
+
+          const attachmentResponse = await emailClient.post(
+            `/api/domains/${domainId}/campaigns/${campaignId}/upload-attachment`,
+            {
+              fileBuffer: base64,
+              fileName: attachment.name,
+              mimeType: attachment.type,
+            }
+          );
+
+          const attachmentData = attachmentResponse.data?.data;
+          toast.dismiss();
+          toast.success("Attachment uploaded successfully!");
+
+          // Update campaign with attachment metadata
+          await emailClient.patch(
+            `/api/domains/${domainId}/campaigns/${campaignId}`,
+            {
+              attachment: attachmentData,
+            }
+          );
+        } catch (attachmentError: any) {
+          toast.dismiss();
+          const errorMsg =
+            attachmentError.response?.data?.message ||
+            attachmentError.message ||
+            "Failed to upload attachment";
+          toast.error(errorMsg);
+          console.error("Attachment upload error:", attachmentError);
+          // Continue without attachment
+        }
+      }
+
+      // Step 2.75: Persist Reoon verification summary on campaign (for analytics)
+      if (decision.usedVerification) {
+        const totalLeadsBeforeVerification = leadIds.length;
+        const totalLeadsAfterVerification = idsToUse.length;
+        const excludedAsRisky =
+          totalLeadsBeforeVerification - totalLeadsAfterVerification;
+
+        try {
+          const summaryPayload = {
+            reoonVerificationSummary: {
+              used: true,
+              mode: "power",
+              totalLeadsBeforeVerification,
+              totalLeadsAfterVerification,
+              excludedAsRisky,
+            },
+          };
+
+          const updateResponse = await emailClient.patch(
+            `/api/domains/${domainId}/campaigns/${campaignId}`,
+            summaryPayload
+          );
+
+          if (!updateResponse.data?.success) {
+            console.warn(
+              "Failed to store Reoon verification summary on campaign",
+              updateResponse.data
+            );
+          }
+        } catch (summaryError: any) {
+          console.error(
+            "Error while storing Reoon verification summary on campaign:",
+            summaryError
+          );
+          // Do not block sending the campaign if summary storage fails
+        }
+      }
+
+      // Step 3: Send campaign to leads
+      toast.loading(`Sending campaign...`);
+
+      try {
+        const sendResponse = await emailClient.post(
+          `/api/domains/${domainId}/campaigns/${campaignId}/send`,
+          {
+            senderId: state.senderId,
+          }
+        );
+
+        if (sendResponse.data?.success) {
+          const sentCount =
+            sendResponse.data?.data?.sentCount || idsToUse.length;
+          setState({
+            ...state,
+            campaignId,
+          });
+          toast.dismiss();
+          toast.success(`Campaign sent successfully to ${sentCount} leads!`);
+          onNext();
+        } else {
+          toast.dismiss();
+          toast.error("Failed to send campaign");
+        }
+      } catch (sendError: any) {
+        toast.dismiss();
+        const errorMsg =
+          sendError.response?.data?.message ||
+          sendError.message ||
+          "Failed to send campaign";
+        toast.error(errorMsg);
+        console.error("Campaign send error:", sendError);
+      }
+    } catch (error: any) {
+      toast.dismiss();
+      toast.error(error.response?.data?.message || "Failed to send campaign");
+      console.error(error);
+    } finally {
+      setSending(false);
+      setReoonModalPayload(null);
     }
   };
 
@@ -195,112 +375,19 @@ export default function CampaignStep4Send({
         return;
       }
 
-      // Step 3: Add leads to campaign
-      toast.loading("Adding leads to campaign...");
+      // Step 2.5: Optional Reoon verification before adding leads
 
-      try {
-        await emailClient.post(
-          `/api/domains/${state.domainId}/campaigns/${campaignId}/add-leads`,
-          {
-            leadIds,
-          }
-        );
-
-        toast.dismiss();
-        toast.success("Leads added to campaign successfully!");
-      } catch (addLeadsError: any) {
-        toast.dismiss();
-        const errorMsg =
-          addLeadsError.response?.data?.message ||
-          addLeadsError.message ||
-          "Failed to add leads to campaign";
-        toast.error(errorMsg);
-        console.error("Add leads error:", addLeadsError);
-        return;
-      }
-
-      // Step 2.5: Upload attachment if exists
-      if (
-        state.emailTemplate.attachments &&
-        state.emailTemplate.attachments.length > 0
-      ) {
-        toast.loading("Uploading attachment...");
-        try {
-          const attachment = state.emailTemplate.attachments[0];
-          const fileBuffer = await attachment.file.arrayBuffer();
-          const base64 = Buffer.from(fileBuffer).toString("base64");
-
-          const attachmentResponse = await emailClient.post(
-            `/api/domains/${state.domainId}/campaigns/${campaignId}/upload-attachment`,
-            {
-              fileBuffer: base64,
-              fileName: attachment.name,
-              mimeType: attachment.type,
-            }
-          );
-
-          attachmentData = attachmentResponse.data?.data;
-          toast.dismiss();
-          toast.success("Attachment uploaded successfully!");
-
-          // Update campaign with attachment metadata
-          await emailClient.patch(
-            `/api/domains/${state.domainId}/campaigns/${campaignId}`,
-            {
-              attachment: attachmentData,
-            }
-          );
-        } catch (attachmentError: any) {
-          toast.dismiss();
-          const errorMsg =
-            attachmentError.response?.data?.message ||
-            attachmentError.message ||
-            "Failed to upload attachment";
-          toast.error(errorMsg);
-          console.error("Attachment upload error:", attachmentError);
-          // Continue without attachment
-        }
-      }
-
-      // Step 3: Send campaign to leads
-      toast.loading(`Sending campaign...`);
-
-      try {
-        const sendResponse = await emailClient.post(
-          `/api/domains/${state.domainId}/campaigns/${campaignId}/send`,
-          {
-            senderId: state.senderId,
-          }
-        );
-
-        if (sendResponse.data?.success) {
-          const sentCount =
-            sendResponse.data?.data?.sentCount || leadIds.length;
-          setState({
-            ...state,
-            campaignId,
-          });
-          toast.dismiss();
-          toast.success(`Campaign sent successfully to ${sentCount} leads!`);
-          onNext();
-        } else {
-          toast.dismiss();
-          toast.error("Failed to send campaign");
-        }
-      } catch (sendError: any) {
-        toast.dismiss();
-        const errorMsg =
-          sendError.response?.data?.message ||
-          sendError.message ||
-          "Failed to send campaign";
-        toast.error(errorMsg);
-        console.error("Campaign send error:", sendError);
-      }
+      // Ask user whether they want to run Reoon verification via rich modal
+      setReoonModalPayload({
+        domainId: state.domainId,
+        campaignId,
+        leadIds,
+      });
+      setShowReoonModal(true);
     } catch (error: any) {
       toast.dismiss();
       toast.error(error.response?.data?.message || "Failed to send campaign");
       console.error(error);
-    } finally {
       setSending(false);
     }
   };
@@ -393,29 +480,7 @@ export default function CampaignStep4Send({
           </div>
         </div>
 
-        <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-6">
-          <h3 className="text-lg font-semibold text-text-100 mb-4">
-            Important Notes
-          </h3>
-          <ul className="space-y-2 text-sm text-text-200">
-            <li className="flex items-start">
-              <span className="text-brand-main mr-2">•</span>
-              <span>Tracking pixel will be added automatically</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-brand-main mr-2">•</span>
-              <span>Opens and clicks will be tracked</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-brand-main mr-2">•</span>
-              <span>Bounces and complaints will be monitored</span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-brand-main mr-2">•</span>
-              <span>You can pause or stop the campaign anytime</span>
-            </li>
-          </ul>
-        </div>
+        <CampaignSendImportantNotes />
       </div>
 
       {/* Navigation */}
@@ -434,6 +499,18 @@ export default function CampaignStep4Send({
           {sending ? "Sending..." : "Send Campaign →"}
         </Button>
       </div>
+
+      {reoonModalPayload && (
+        <CampaignReoonVerificationModal
+          open={showReoonModal}
+          domainId={reoonModalPayload.domainId}
+          campaignId={reoonModalPayload.campaignId}
+          leadIds={reoonModalPayload.leadIds}
+          onDecision={async (decision) => {
+            await handleReoonDecision(decision);
+          }}
+        />
+      )}
     </div>
   );
 }
