@@ -1,9 +1,9 @@
 "use client";
 
-import axios from 'axios';
+import axios from "axios";
 
-import { tokenStorage } from '../auth/tokenStorage';
-import apiClient from './apiClient';
+import { tokenStorage } from "../auth/tokenStorage";
+import apiClient from "./apiClient";
 
 /**
  * Type definitions for authentication
@@ -30,6 +30,8 @@ export interface UserProfile {
   onboardingCompleted: boolean;
   onboardingStep: number | null;
   onboardingSkipped: boolean;
+  foundingMember?: boolean;
+  foundingTierLockedPrice?: number;
 }
 
 export interface AuthResponse {
