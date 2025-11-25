@@ -24,10 +24,12 @@ function CompactDNSRecord({
   valueLabel,
   valueValue,
   type,
+  priority,
   copiedIndex,
   onCopy,
   nameId,
   valueId,
+  priorityId,
 }: {
   recordNumber?: number;
   nameLabel: string;
@@ -35,10 +37,12 @@ function CompactDNSRecord({
   valueLabel: string;
   valueValue: string;
   type: string;
+  priority?: string;
   copiedIndex: string | null;
   onCopy: (text: string, id: string) => void;
   nameId: string;
   valueId: string;
+  priorityId?: string;
 }) {
   return (
     <div className="bg-bg-200/50 rounded-lg p-4 border border-bg-300 hover:border-primary-100/20 transition-all">
@@ -80,6 +84,31 @@ function CompactDNSRecord({
             </button>
           </div>
         </div>
+        {priority && (
+          <div>
+            <label className="text-xs font-semibold text-text-300 uppercase tracking-wide block mb-1.5">
+              Priority
+            </label>
+            <div className="flex items-center gap-2 bg-bg-100 rounded-md p-2.5 border border-bg-300">
+              <code className="text-text-100 font-mono text-xs break-all flex-1">
+                {priority}
+              </code>
+              <button
+                onClick={() =>
+                  onCopy(priority, priorityId || `${nameId}-priority`)
+                }
+                className="p-1.5 hover:bg-primary-100/20 rounded transition flex-shrink-0"
+                title="Copy"
+              >
+                {copiedIndex === (priorityId || `${nameId}-priority`) ? (
+                  <IconCheck className="w-3.5 h-3.5 text-green-400" />
+                ) : (
+                  <IconCopy className="w-3.5 h-3.5 text-primary-100" />
+                )}
+              </button>
+            </div>
+          </div>
+        )}
         <div>
           <label className="text-xs font-semibold text-text-300 uppercase tracking-wide block mb-1.5">
             {valueLabel}
@@ -315,10 +344,12 @@ export default function VerifyDomainPage() {
                           valueLabel="Value"
                           valueValue={dns.dnsRecords.mailFrom.mx.value}
                           type="MX"
+                          priority={dns.dnsRecords.mailFrom.mx.priority}
                           copiedIndex={copiedIndex}
                           onCopy={copyToClipboard}
                           nameId="mx-name"
                           valueId="mx-value"
+                          priorityId="mx-priority"
                         />
 
                         {/* Custom MAIL FROM - SPF Record */}
@@ -520,10 +551,12 @@ export default function VerifyDomainPage() {
                             valueLabel="Value"
                             valueValue={dns.dnsRecords.mailFrom.mx.value}
                             type="MX"
+                            priority={dns.dnsRecords.mailFrom.mx.priority}
                             copiedIndex={copiedIndex}
                             onCopy={copyToClipboard}
                             nameId="mx-name-verified"
                             valueId="mx-value-verified"
+                            priorityId="mx-priority-verified"
                           />
                         )}
 
