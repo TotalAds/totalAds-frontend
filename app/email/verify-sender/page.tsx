@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
-import emailClient from "@/utils/api/emailClient";
-import { IconCheck, IconLoader, IconX } from "@tabler/icons-react";
+import emailClient from '@/utils/api/emailClient';
+import { IconCheck, IconLoader, IconX } from '@tabler/icons-react';
 
 export default function VerifySenderPage() {
   const router = useRouter();
@@ -26,9 +26,13 @@ export default function VerifySenderPage() {
       }
 
       try {
-        const response = await emailClient.post("/email-senders/verify-token", {
-          token,
-        });
+        // Use public endpoint (no auth required) for email verification from link
+        const response = await emailClient.post(
+          "/public/email-senders/verify-token",
+          {
+            token,
+          }
+        );
 
         if (response.data.success) {
           setStatus("success");

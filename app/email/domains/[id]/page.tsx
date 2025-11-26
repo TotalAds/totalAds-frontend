@@ -175,16 +175,7 @@ export default function DomainDetailsPage() {
               <label className="text-text-200 text-sm">Domain</label>
               <p className="text-text-100 font-mono">{domain.domain}</p>
             </div>
-            {domain.sesIdentityArn && (
-              <div>
-                <label className="text-text-200 text-sm">
-                  SES Identity ARN
-                </label>
-                <p className="text-text-100 font-mono text-sm break-all">
-                  {domain.sesIdentityArn}
-                </p>
-              </div>
-            )}
+
             {domain.mailFromDomain && (
               <div>
                 <label className="text-text-200 text-sm">
