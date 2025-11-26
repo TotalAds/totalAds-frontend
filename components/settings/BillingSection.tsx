@@ -1,6 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
+import { PauseIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
@@ -20,7 +21,6 @@ import {
   IconAward,
   IconDownload,
   IconLoader,
-  IconPause,
   IconPlayerPlay,
   IconX,
 } from "@tabler/icons-react";
@@ -279,7 +279,7 @@ const BillingSection = () => {
                       disabled={isActionLoading}
                       className="flex items-center gap-2"
                     >
-                      <IconPause className="w-4 h-4" />
+                      <PauseIcon className="w-4 h-4" />
                       Pause
                     </Button>
                     <Button
@@ -334,7 +334,9 @@ const BillingSection = () => {
                   </p>
                   <p className="text-base font-medium text-red-400">
                     Will cancel on{" "}
-                    {formatMaybeDate(subscriptionData.nextBillingDate)}
+                    {formatMaybeDate(
+                      subscriptionData.nextBillingDate as string
+                    )}
                   </p>
                 </div>
               )}
