@@ -1,12 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { toast } from "react-hot-toast";
+import React, { useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
 
-import emailClient, {
-  getSubscriptionInfo,
-  SubscriptionInfo,
-} from "@/utils/api/emailClient";
+import emailClient, { getSubscriptionInfo, SubscriptionInfo } from '@/utils/api/emailClient';
 
 declare global {
   interface Window {
@@ -63,7 +60,9 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
           emailClient.get("/api/payment/pricing-tiers"),
           getSubscriptionInfo(),
         ]);
-        setTiers(tiersResponse.data.data || []);
+        const fetchedTiers = tiersResponse.data.data || [];
+
+        setTiers(fetchedTiers);
         setCurrentSubscription(subInfo);
       } catch (error) {
         console.error("Failed to fetch data:", error);
@@ -78,6 +77,9 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
       toast.error("Payment system not ready. Please refresh the page.");
       return;
     }
+
+    // Find the tier to get its details for logging
+    const selectedTier = tiers.find((t) => t.id === tierId);
 
     try {
       setLoading(true);
@@ -168,7 +170,7 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {tiers.map((tier) => {
+        {tiers.map((tier, index) => {
           const isTierMatch =
             !!currentSubscription && currentSubscription.tierName === tier.name;
           const status = currentSubscription?.status || "active";
@@ -206,7 +208,11 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
               <div className="mb-4">
                 <div className="text-3xl font-bold text-white">
                   {tier.monthlyPriceInPaise === 0 ? (
-                    "Free"
+                    tier?.name === "pay_as_you_go" ? (
+                      "Contact Us"
+                    ) : (
+                      "Free"
+                    )
                   ) : (
                     <>
                       ₹{(tier.monthlyPriceInPaise / 100).toFixed(0)}
