@@ -3,9 +3,9 @@
  * Handles all email service API calls (domains, campaigns, analytics, credits)
  */
 
-import axios, { AxiosError } from "axios";
+import axios, { AxiosError } from 'axios';
 
-import { tokenStorage } from "../auth/tokenStorage";
+import { tokenStorage } from '../auth/tokenStorage';
 
 // API base URL for token refresh
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -829,5 +829,101 @@ export const getCampaignEligibility =
       throw error;
     }
   };
+
+// Enhanced Campaign Analytics Types
+export interface TimeSeriesDataPoint {
+  date: string;
+  sent: number;
+  opened: number;
+  clicked: number;
+  bounced: number;
+  complained: number;
+  unsubscribed: number;
+}
+
+export interface EnhancedCampaignAnalytics {
+  campaign: {
+    id: string;
+    name: string;
+    subject: string;
+    fromName: string;
+    fromEmail: string;
+    status: string;
+    createdAt: string | null;
+    startedAt: string | null;
+    updatedAt: string | null;
+  };
+  summary: {
+    totalLeads: number;
+    totalSent: number;
+    totalDelivered: number;
+    totalOpened: number;
+    totalClicked: number;
+    totalBounced: number;
+    totalFailed: number;
+    totalComplained: number;
+    totalUnsubscribed: number;
+    pending: number;
+    processing: number;
+  };
+  rates: {
+    openRate: number;
+    clickRate: number;
+    bounceRate: number;
+    complaintRate: number;
+    deliveryRate: number;
+    unsubscribeRate: number;
+    ctrRate: number;
+  };
+  timeSeries: TimeSeriesDataPoint[];
+  appliedFilters: {
+    dateRange: string;
+    startDate?: string;
+    endDate?: string;
+    tagIds?: string[];
+    categoryIds?: string[];
+    statuses?: string[];
+  };
+}
+
+export interface EnhancedAnalyticsFilters {
+  dateRange?: "7d" | "30d" | "custom";
+  startDate?: string;
+  endDate?: string;
+  tagIds?: string[];
+  categoryIds?: string[];
+  status?: string[];
+}
+
+export const getEnhancedCampaignAnalytics = async (
+  campaignId: string,
+  filters?: EnhancedAnalyticsFilters
+): Promise<EnhancedCampaignAnalytics> => {
+  try {
+    const params = new URLSearchParams();
+    if (filters?.dateRange) params.append("dateRange", filters.dateRange);
+    if (filters?.startDate) params.append("startDate", filters.startDate);
+    if (filters?.endDate) params.append("endDate", filters.endDate);
+    if (filters?.tagIds) {
+      filters.tagIds.forEach((id) => params.append("tagIds", id));
+    }
+    if (filters?.categoryIds) {
+      filters.categoryIds.forEach((id) => params.append("categoryIds", id));
+    }
+    if (filters?.status) {
+      filters.status.forEach((s) => params.append("status", s));
+    }
+
+    const queryString = params.toString();
+    const url = `/api/analytics/campaigns/${campaignId}/analytics/enhanced${
+      queryString ? `?${queryString}` : ""
+    }`;
+    const resp = await emailClient.get(url);
+    return resp.data?.data || resp.data;
+  } catch (error: any) {
+    console.error("Failed to fetch enhanced campaign analytics:", error);
+    throw error;
+  }
+};
 
 export default emailClient;

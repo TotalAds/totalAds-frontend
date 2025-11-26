@@ -1,11 +1,19 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import toast from "react-hot-toast";
+import { Download, RefreshCw } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 
-import KPICard from "@/components/campaign-analytics/KPICard";
-import emailClient from "@/utils/api/emailClient";
+import { FilterPanel } from '@/components/campaign-analytics/FilterPanel';
+import KPICard from '@/components/campaign-analytics/KPICard';
+import { MetricsSummary } from '@/components/campaign-analytics/MetricsSummary';
+import { TrendChart } from '@/components/campaign-analytics/TrendChart';
+import { Button } from '@/components/ui/button';
+import emailClient, {
+    EnhancedAnalyticsFilters, EnhancedCampaignAnalytics, getEnhancedCampaignAnalytics
+} from '@/utils/api/emailClient';
+import { exportCampaignAnalyticsToPDF } from '@/utils/pdfExport';
 
 interface CampaignAnalytics {
   campaign: {
@@ -65,21 +73,20 @@ export default function CampaignDetailsPage() {
   const params = useParams();
   const campaignId = params.id as string;
   const [analytics, setAnalytics] = useState<CampaignAnalytics | null>(null);
+  const [enhancedAnalytics, setEnhancedAnalytics] =
+    useState<EnhancedCampaignAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "leads">("overview");
+  const [enhancedLoading, setEnhancedLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<"overview" | "trends" | "leads">(
+    "overview"
+  );
+  const [filters, setFilters] = useState<EnhancedAnalyticsFilters>({
+    dateRange: "30d",
+  });
+  const [isExporting, setIsExporting] = useState(false);
+  const chartRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetchCampaignAnalytics();
-    // Auto-refresh every 5s while sending
-    const interval = setInterval(() => {
-      if (analytics?.campaign.status === "sending") {
-        fetchCampaignAnalytics();
-      }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [campaignId, analytics?.campaign.status]);
-
-  const fetchCampaignAnalytics = async () => {
+  const fetchCampaignAnalytics = useCallback(async () => {
     try {
       setLoading(true);
       const response = await emailClient.get(
@@ -93,6 +100,61 @@ export default function CampaignDetailsPage() {
     } finally {
       setLoading(false);
     }
+  }, [campaignId]);
+
+  const fetchEnhancedAnalytics = useCallback(async () => {
+    try {
+      setEnhancedLoading(true);
+      const data = await getEnhancedCampaignAnalytics(campaignId, filters);
+      setEnhancedAnalytics(data);
+    } catch (error: any) {
+      console.error("Failed to fetch enhanced analytics:", error);
+      toast.error("Failed to fetch trend data");
+    } finally {
+      setEnhancedLoading(false);
+    }
+  }, [campaignId, filters]);
+
+  useEffect(() => {
+    fetchCampaignAnalytics();
+    fetchEnhancedAnalytics();
+    // Auto-refresh every 5s while sending
+    const interval = setInterval(() => {
+      if (analytics?.campaign.status === "sending") {
+        fetchCampaignAnalytics();
+        fetchEnhancedAnalytics();
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [
+    campaignId,
+    analytics?.campaign.status,
+    fetchCampaignAnalytics,
+    fetchEnhancedAnalytics,
+  ]);
+
+  const handleExportPDF = async () => {
+    if (!enhancedAnalytics) return;
+    setIsExporting(true);
+    try {
+      await exportCampaignAnalyticsToPDF(enhancedAnalytics, chartRef.current, {
+        filename: `campaign-${enhancedAnalytics.campaign.name}-analytics`,
+      });
+      toast.success("PDF exported successfully!");
+    } catch (error) {
+      console.error("PDF export failed:", error);
+      toast.error("Failed to export PDF");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleApplyFilters = () => {
+    fetchEnhancedAnalytics();
+  };
+
+  const handleResetFilters = () => {
+    setFilters({ dateRange: "30d" });
   };
 
   if (loading) {
@@ -174,12 +236,32 @@ export default function CampaignDetailsPage() {
                 )}
               </div>
             </div>
-            <button
-              onClick={() => router.back()}
-              className="bg-brand-main/10 hover:bg-brand-main/20 text-text-100 px-6 py-2 rounded-lg transition"
-            >
-              ← Back
-            </button>
+            <div className="flex items-center gap-3">
+              <FilterPanel
+                filters={filters}
+                onFiltersChange={setFilters}
+                onApply={handleApplyFilters}
+                onReset={handleResetFilters}
+              />
+              <Button
+                onClick={handleExportPDF}
+                disabled={isExporting || !enhancedAnalytics}
+                className="bg-[#eb857a] text-white hover:bg-[#d9746a]"
+              >
+                {isExporting ? (
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                Export PDF
+              </Button>
+              <button
+                onClick={() => router.back()}
+                className="bg-brand-main/10 hover:bg-brand-main/20 text-text-100 px-6 py-2 rounded-lg transition"
+              >
+                ← Back
+              </button>
+            </div>
           </div>
         </div>
 
@@ -218,16 +300,16 @@ export default function CampaignDetailsPage() {
           >
             📊 Overview
           </button>
-          {/* <button
-            onClick={() => setActiveTab("leads")}
+          <button
+            onClick={() => setActiveTab("trends")}
             className={`px-4 py-3 font-medium transition ${
-              activeTab === "leads"
+              activeTab === "trends"
                 ? "text-blue-400 border-b-2 border-blue-400"
                 : "text-text-100/60 hover:text-text-100"
             }`}
           >
-            👥 Leads ({metrics.totalLeads})
-          </button> */}
+            📈 Trends
+          </button>
         </div>
 
         {/* Overview Tab */}
@@ -469,6 +551,94 @@ export default function CampaignDetailsPage() {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Trends Tab */}
+        {activeTab === "trends" && (
+          <div className="space-y-8">
+            {/* Enhanced Metrics Summary */}
+            {enhancedAnalytics && (
+              <>
+                <div>
+                  <h2 className="text-2xl font-bold text-text-100 mb-4">
+                    📊 Performance Summary
+                  </h2>
+                  <MetricsSummary
+                    summary={enhancedAnalytics.summary}
+                    rates={enhancedAnalytics.rates}
+                  />
+                </div>
+
+                {/* Trend Charts */}
+                <div ref={chartRef} className="space-y-6">
+                  <TrendChart
+                    data={enhancedAnalytics.timeSeries}
+                    title="Email Performance Over Time"
+                    height={350}
+                    metrics={["sent", "opened", "clicked"]}
+                  />
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <TrendChart
+                      data={enhancedAnalytics.timeSeries}
+                      title="Delivery Metrics"
+                      height={250}
+                      metrics={["sent", "bounced"]}
+                      showLegend={true}
+                    />
+                    <TrendChart
+                      data={enhancedAnalytics.timeSeries}
+                      title="Engagement Metrics"
+                      height={250}
+                      metrics={["opened", "clicked"]}
+                      showLegend={true}
+                    />
+                  </div>
+                </div>
+
+                {/* Applied Filters Info */}
+                {enhancedAnalytics.appliedFilters && (
+                  <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-4">
+                    <p className="text-text-100/60 text-sm">
+                      Showing data for:{" "}
+                      <span className="text-text-100 font-medium">
+                        {enhancedAnalytics.appliedFilters.dateRange === "7d"
+                          ? "Last 7 days"
+                          : enhancedAnalytics.appliedFilters.dateRange === "30d"
+                          ? "Last 30 days"
+                          : `${
+                              enhancedAnalytics.appliedFilters.startDate?.split(
+                                "T"
+                              )[0]
+                            } to ${
+                              enhancedAnalytics.appliedFilters.endDate?.split(
+                                "T"
+                              )[0]
+                            }`}
+                      </span>
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {enhancedLoading && (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto mb-4"></div>
+                  <p className="text-text-100/60">Loading trend data...</p>
+                </div>
+              </div>
+            )}
+
+            {!enhancedLoading && !enhancedAnalytics && (
+              <div className="text-center py-12">
+                <p className="text-text-100/60">
+                  No trend data available for this campaign.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
