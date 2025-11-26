@@ -253,7 +253,8 @@ emailClient.interceptors.response.use(
 export interface Domain {
   id: string;
   domain: string;
-  verificationStatus: boolean;
+  verificationStatus: "verified" | "pending";
+  dkimStatus: "verified" | "pending";
   createdAt: string;
   updatedAt: string;
 }

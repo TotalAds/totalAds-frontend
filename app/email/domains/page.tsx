@@ -179,12 +179,14 @@ export default function DomainsPage() {
                         <td className="px-6 py-4">
                           <span
                             className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                              domain.verificationStatus
+                              domain.verificationStatus === "verified" &&
+                              domain.dkimStatus === "verified"
                                 ? "bg-green-100 text-green-500"
                                 : "bg-yellow-500/20 text-yellow-300"
                             }`}
                           >
-                            {domain.verificationStatus
+                            {domain.verificationStatus === "verified" &&
+                            domain.dkimStatus === "verified"
                               ? "✓ Verified"
                               : "⏳ Pending"}
                           </span>
