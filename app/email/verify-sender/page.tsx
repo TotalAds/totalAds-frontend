@@ -28,7 +28,7 @@ export default function VerifySenderPage() {
       try {
         // Use public endpoint (no auth required) for email verification from link
         const response = await emailClient.post(
-          "/public/email-senders/verify-token",
+          "/api/public/email-senders/verify-token",
           {
             token,
           }
