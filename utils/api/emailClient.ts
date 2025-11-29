@@ -3,9 +3,9 @@
  * Handles all email service API calls (domains, campaigns, analytics, credits)
  */
 
-import axios, { AxiosError } from 'axios';
+import axios, { AxiosError } from "axios";
 
-import { tokenStorage } from '../auth/tokenStorage';
+import { tokenStorage } from "../auth/tokenStorage";
 
 // API base URL for token refresh
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -322,14 +322,21 @@ export const deleteDomain = async (domainId: string): Promise<void> => {
 
 // ============ CAMPAIGNS API ============
 
+export interface CampaignSequenceStep {
+  subject: string;
+  body: string;
+  delayMinutes?: number;
+}
+
 export interface Campaign {
   id: string;
   name: string;
-  subject: string;
+  subject?: string;
   status: string;
   domainId: string;
   createdAt: string;
   updatedAt: string;
+  sequence?: CampaignSequenceStep[];
   queuedForTodayCount?: number;
   scheduledForTomorrowCount?: number;
 }

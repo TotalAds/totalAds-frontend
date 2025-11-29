@@ -1,17 +1,18 @@
 "use client";
 
+import { ColDef, ICellRendererParams } from "ag-grid-community";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import MultiSelect from "@/components/common/MultiSelect";
+import AGGridWrapper from "@/components/common/AGGridWrapper";
+import LeadFilterModal from "@/components/leads/LeadFilterModal";
 import { LeadVerificationModal } from "@/components/leads/LeadVerificationModal";
 import emailClient, {
   Campaign,
   getUserCampaigns,
 } from "@/utils/api/emailClient";
 import {
-  IconFilter,
   IconMail,
   IconPlus,
   IconSearch,
@@ -213,24 +214,7 @@ export default function LeadsPage() {
     const hasSafeFlag = typeof lead.isSafeToSend === "boolean";
 
     if (!hasStatus && !hasSafeFlag) {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium bg-slate-700/40 text-slate-200 border border-slate-600/50 hover:bg-slate-700/60 transition-colors cursor-default">
-          <svg
-            className="w-3.5 h-3.5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          Unverified
-        </span>
-      );
+      return <span className="text-xs text-gray-400">Unverified</span>;
     }
 
     const status = (lead.verificationStatus || "").toLowerCase();
@@ -246,48 +230,146 @@ export default function LeadsPage() {
       lead.isSafeToSend === false || riskyStatuses.includes(status || "");
 
     if (isSafe) {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/50 hover:bg-emerald-500/25 transition-colors cursor-default">
-          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-            <path
-              fillRule="evenodd"
-              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-              clipRule="evenodd"
-            />
-          </svg>
-          Safe to send
-        </span>
-      );
+      return <span className="text-xs text-emerald-400">Safe to send</span>;
     }
 
     if (isRisky) {
       return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-medium bg-red-500/15 text-red-300 border border-red-500/50 hover:bg-red-500/25 transition-colors cursor-default">
-          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-            <path
-              fillRule="evenodd"
-              d="M13.477 14.89A6 6 0 015.11 2.526a6 6 0 008.367 8.368zM17.5 11a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"
-              clipRule="evenodd"
-            />
-          </svg>
+        <span className="text-xs text-red-400">
           Risky{status ? ` (${status})` : ""}
         </span>
       );
     }
 
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-medium bg-amber-500/15 text-amber-200 border border-amber-500/50 hover:bg-amber-500/25 transition-colors cursor-default">
-        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-          <path
-            fillRule="evenodd"
-            d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-            clipRule="evenodd"
-          />
-        </svg>
-        {status ? `Status: ${status}` : "Verification info available"}
-      </span>
+      <span className="text-xs text-amber-400">{status || "Pending"}</span>
     );
   };
+
+  // AG Grid Cell Renderers
+  const EmailCellRenderer = useCallback((params: ICellRendererParams<Lead>) => {
+    const lead = params.data;
+    if (!lead) return null;
+    return (
+      <span className="text-brand-main font-medium text-sm">{lead.email}</span>
+    );
+  }, []);
+
+  const VerificationCellRenderer = useCallback(
+    (params: ICellRendererParams<Lead>) => {
+      const lead = params.data;
+      if (!lead) return null;
+      return renderVerificationBadge(lead);
+    },
+    []
+  );
+
+  const CampaignCellRenderer = useCallback(
+    (params: ICellRendererParams<Lead>) => {
+      const lead = params.data;
+      if (!lead) return null;
+      if (lead.campaigns && lead.campaigns.length > 0) {
+        return (
+          <button
+            onClick={() => setSelectedLeadForCampaigns(lead)}
+            className="text-sm text-gray-300 hover:text-brand-main transition-colors truncate"
+          >
+            {lead.campaigns.length === 1
+              ? lead.campaigns[0].name
+              : `${lead.campaigns.length} campaigns`}
+          </button>
+        );
+      }
+      return <span className="text-gray-500 text-sm">-</span>;
+    },
+    []
+  );
+
+  const ActionsCellRenderer = useCallback(
+    (params: ICellRendererParams<Lead>) => {
+      const lead = params.data;
+      if (!lead) return null;
+      return (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => handleVerifyLead(lead)}
+            className="text-gray-400 hover:text-brand-main transition-colors"
+            title="Verify with Reoon"
+          >
+            <IconMail size={18} />
+          </button>
+          <button
+            onClick={() => handleDelete(lead.id)}
+            className="text-gray-400 hover:text-red-400 transition-colors"
+            title="Delete lead"
+          >
+            <IconTrash size={18} />
+          </button>
+        </div>
+      );
+    },
+    []
+  );
+
+  // AG Grid Column Definitions
+  const columnDefs = useMemo<ColDef<Lead>[]>(
+    () => [
+      {
+        headerName: "Email",
+        field: "email",
+        flex: 2,
+        minWidth: 200,
+        cellRenderer: EmailCellRenderer,
+        sortable: true,
+      },
+      {
+        headerName: "Status",
+        field: "verificationStatus",
+        flex: 1,
+        minWidth: 120,
+        maxWidth: 140,
+        cellRenderer: VerificationCellRenderer,
+        sortable: true,
+      },
+      {
+        headerName: "Name",
+        field: "name",
+        flex: 1,
+        minWidth: 120,
+        valueFormatter: (params) => params.value || "-",
+        sortable: true,
+      },
+      {
+        headerName: "Campaign",
+        flex: 1,
+        minWidth: 150,
+        cellRenderer: CampaignCellRenderer,
+        sortable: false,
+      },
+      {
+        headerName: "Actions",
+        flex: 1,
+        minWidth: 100,
+        maxWidth: 120,
+        cellRenderer: ActionsCellRenderer,
+        sortable: false,
+      },
+    ],
+    [
+      EmailCellRenderer,
+      VerificationCellRenderer,
+      CampaignCellRenderer,
+      ActionsCellRenderer,
+    ]
+  );
+
+  // Handle row selection
+  const onSelectionChanged = useCallback((event: any) => {
+    const selectedRows = event.api.getSelectedRows();
+    setSelectedLeadsForCampaign(
+      new Set(selectedRows.map((row: Lead) => row.id))
+    );
+  }, []);
 
   return (
     <div className="min-h-screen bg-bg-100 p-6">
@@ -311,115 +393,71 @@ export default function LeadsPage() {
           </button>
         </div>
 
-        {/* Filters */}
-        <div className="bg-brand-main/10 backdrop-blur-md border border-brand-main/20 rounded-xl p-6 mb-6 relative z-50">
-          <div className="flex items-center justify-between mb-4">
+        {/* Search and Filters Bar */}
+        <div className="flex items-center gap-4 mb-6">
+          {/* Search */}
+          <div className="relative flex-1 max-w-md">
+            <IconSearch
+              className="absolute left-3 top-3 text-text-200"
+              size={20}
+            />
+            <input
+              type="text"
+              placeholder="Search by email or name..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
+              className="w-full pl-10 pr-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-xl text-text-100 placeholder-text-200 focus:outline-none focus:ring-2 focus:ring-brand-main"
+            />
+          </div>
+
+          {/* Filter Modal Button */}
+          <LeadFilterModal
+            filterOptions={filterOptions}
+            statusFilter={statusFilter}
+            categoryFilter={categoryFilter}
+            tagFilter={tagFilter}
+            campaignFilter={campaignFilter}
+            verificationFilter={verificationFilter}
+            onStatusFilterChange={(selected) => {
+              setStatusFilter(selected);
+              setPage(1);
+            }}
+            onCategoryFilterChange={(selected) => {
+              setCategoryFilter(selected);
+              setPage(1);
+            }}
+            onTagFilterChange={(selected) => {
+              setTagFilter(selected);
+              setPage(1);
+            }}
+            onCampaignFilterChange={(selected) => {
+              setCampaignFilter(selected);
+              setPage(1);
+            }}
+            onVerificationFilterChange={(selected) => {
+              setVerificationFilter(selected);
+              setPage(1);
+            }}
+            onApply={() => {}}
+            onClearAll={clearAllFilters}
+          />
+
+          {/* Results count */}
+          {hasActiveFilters && (
             <div className="flex items-center gap-2">
-              <IconFilter size={20} className="text-text-200" />
-              <h3 className="text-text-100 font-semibold">Filters</h3>
-              {hasActiveFilters && (
-                <span className="text-xs bg-brand-main/20 text-brand-main px-2 py-1 rounded-full">
-                  {total} results
-                </span>
-              )}
-            </div>
-            {hasActiveFilters && (
+              <span className="text-sm text-text-200">{total} results</span>
               <button
                 onClick={clearAllFilters}
                 className="flex items-center gap-1 text-sm text-text-200 hover:text-text-100 transition-colors"
               >
                 <IconX size={16} />
-                Clear all
+                Clear
               </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-            {/* Search */}
-            <div className="relative lg:col-span-2">
-              <IconSearch
-                className="absolute left-3 top-3 text-text-200"
-                size={20}
-              />
-              <input
-                type="text"
-                placeholder="Search by email or name..."
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setPage(1);
-                }}
-                className="w-full pl-10 pr-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:ring-2 focus:ring-brand-main"
-              />
             </div>
-
-            {/* Category Filter */}
-            <MultiSelect
-              options={filterOptions.categories}
-              selectedIds={categoryFilter}
-              onChange={(selected) => {
-                setCategoryFilter(selected);
-                setPage(1);
-              }}
-              placeholder="Categories"
-              searchable
-            />
-
-            {/* Tag Filter */}
-            <MultiSelect
-              options={filterOptions.tags}
-              selectedIds={tagFilter}
-              onChange={(selected) => {
-                setTagFilter(selected);
-                setPage(1);
-              }}
-              placeholder="Tags"
-              searchable
-            />
-
-            {/* Campaign Filter */}
-            <MultiSelect
-              options={filterOptions.campaigns}
-              selectedIds={campaignFilter}
-              onChange={(selected) => {
-                setCampaignFilter(selected);
-                setPage(1);
-              }}
-              placeholder="Campaigns"
-              searchable
-            />
-
-            {/* Status Filter */}
-            <MultiSelect
-              options={filterOptions.statuses.map((s) => ({
-                id: s.value,
-                name: s.label,
-                count: s.count,
-              }))}
-              selectedIds={statusFilter}
-              onChange={(selected) => {
-                setStatusFilter(selected);
-                setPage(1);
-              }}
-              placeholder="Status"
-              searchable
-            />
-
-            {/* Verification Filter */}
-            <MultiSelect
-              options={[
-                { id: "safe", name: "Safe to send" },
-                { id: "risky", name: "Risky" },
-                { id: "unverified", name: "Unverified" },
-              ]}
-              selectedIds={verificationFilter}
-              onChange={(selected) => {
-                setVerificationFilter(selected);
-                setPage(1);
-              }}
-              placeholder="Verification"
-            />
-          </div>
+          )}
         </div>
 
         {/* Bulk Actions Bar */}
@@ -449,171 +487,32 @@ export default function LeadsPage() {
           </div>
         )}
 
-        {/* Leads Table */}
-        <div className="bg-brand-main/10 backdrop-blur-md border border-brand-main/20 rounded-xl overflow-hidden">
-          {isLoading ? (
-            <div className="p-8 text-center text-text-200">
-              Loading leads...
-            </div>
-          ) : leads.length === 0 ? (
-            <div className="p-8 text-center text-text-200">
-              No leads found.{" "}
-              <a
-                href="/email/leads/create"
-                className="text-brand-main hover:text-brand-secondary"
-              >
-                Create one
-              </a>
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-brand-main/5 border-b border-brand-main/10">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200 w-12">
-                        <input
-                          type="checkbox"
-                          checked={
-                            selectedLeadsForCampaign.size === leads.length &&
-                            leads.length > 0
-                          }
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedLeadsForCampaign(
-                                new Set(leads.map((l) => l.id))
-                              );
-                            } else {
-                              setSelectedLeadsForCampaign(new Set());
-                            }
-                          }}
-                          className="w-4 h-4 rounded border-gray-300 text-brand-main focus:ring-brand-main"
-                        />
-                      </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
-                        Email
-                      </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
-                        Name
-                      </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
-                        Company
-                      </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
-                        Role
-                      </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
-                        Campaign
-                      </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leads.map((lead) => (
-                      <tr
-                        key={lead.id}
-                        className="border-b border-brand-main/10 hover:bg-brand-main/5 transition-colors"
-                      >
-                        <td className="px-6 py-4 text-sm w-12">
-                          <input
-                            type="checkbox"
-                            checked={selectedLeadsForCampaign.has(lead.id)}
-                            onChange={(e) => {
-                              const newSet = new Set(selectedLeadsForCampaign);
-                              if (e.target.checked) {
-                                newSet.add(lead.id);
-                              } else {
-                                newSet.delete(lead.id);
-                              }
-                              setSelectedLeadsForCampaign(newSet);
-                            }}
-                            className="w-4 h-4 rounded border-text-200 text-brand-main focus:ring-brand-main"
-                          />
-                        </td>
-                        <td className="px-6 py-4 text-sm text-text-100">
-                          <div className="flex items-center gap-2">
-                            <span>{lead.email}</span>
-                            {renderVerificationBadge(lead)}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-text-200">
-                          {lead.name || "-"}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-text-200">
-                          {lead.customFields?.company || "-"}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-text-200">
-                          {lead.customFields?.role || "-"}
-                        </td>
-                        <td className="px-6 py-4 text-sm">
-                          {lead.campaigns && lead.campaigns.length > 0 ? (
-                            <button
-                              onClick={() => setSelectedLeadForCampaigns(lead)}
-                              className="px-3 py-1 bg-brand-main/20 text-brand-main text-xs rounded-full hover:bg-brand-main/30 transition-colors font-medium"
-                            >
-                              {lead.campaigns.length === 1
-                                ? lead.campaigns[0].name
-                                : `${lead.campaigns.length} campaigns`}
-                            </button>
-                          ) : (
-                            <span className="text-text-200 text-xs">
-                              Unassociated
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-sm flex gap-2">
-                          <button
-                            onClick={() => handleVerifyLead(lead)}
-                            className="p-2 hover:bg-brand-main/10 rounded-lg transition-colors"
-                            title="Verify with Reoon"
-                          >
-                            <IconMail size={18} className="text-brand-main" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(lead.id)}
-                            className="p-2 hover:bg-brand-main/10 rounded-lg transition-colors"
-                            title="Delete lead"
-                          >
-                            <IconTrash size={18} className="text-red-400" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination */}
-              <div className="px-6 py-4 border-t border-brand-main/10 flex justify-between items-center">
-                <div className="text-sm text-text-200">
-                  Showing {(page - 1) * limit + 1} to{" "}
-                  {Math.min(page * limit, total)} of {total} leads
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setPage(Math.max(1, page - 1))}
-                    disabled={page === 1}
-                    className="px-4 py-2 bg-brand-main/10 hover:bg-brand-main/20 disabled:opacity-50 disabled:cursor-not-allowed text-text-100 rounded-lg transition-colors"
-                  >
-                    Previous
-                  </button>
-                  <span className="px-4 py-2 text-text-100">
-                    Page {page} of {totalPages}
-                  </span>
-                  <button
-                    onClick={() => setPage(Math.min(totalPages, page + 1))}
-                    disabled={page === totalPages}
-                    className="px-4 py-2 bg-brand-main/10 hover:bg-brand-main/20 disabled:opacity-50 disabled:cursor-not-allowed text-text-100 rounded-lg transition-colors"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+        {/* Leads AG Grid Table */}
+        <AGGridWrapper<Lead>
+          rowData={leads}
+          columnDefs={columnDefs}
+          loading={isLoading}
+          height={500}
+          emptyMessage={
+            hasActiveFilters
+              ? "No leads match your filters"
+              : "No leads found. Create one to get started."
+          }
+          rowSelection="multiple"
+          onSelectionChanged={onSelectionChanged}
+          getRowId={(params) => params.data.id}
+          showPagination={true}
+          serverSidePagination={true}
+          totalRows={total}
+          currentPage={page}
+          pageSize={limit}
+          pageSizeOptions={[10, 25, 50, 100]}
+          onPageChange={(newPage) => setPage(newPage)}
+          onPageSizeChange={(newSize) => {
+            setLimit(newSize);
+            setPage(1);
+          }}
+        />
 
         {/* Campaigns Modal */}
         {selectedLeadForCampaigns &&

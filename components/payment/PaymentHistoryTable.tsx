@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import { ColDef, ICellRendererParams } from "ag-grid-community";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
-import apiClient from '@/utils/api/apiClient';
+import AGGridWrapper from "@/components/common/AGGridWrapper";
+import apiClient from "@/utils/api/apiClient";
 
 type PaymentItem = {
   id: string | number;
@@ -70,23 +72,123 @@ export default function PaymentHistoryTable() {
   const canPrev = useMemo(() => page > 1, [page]);
   const canNext = useMemo(() => page < totalPages, [page, totalPages]);
 
+  // AG Grid Cell Renderers
+  const StatusCellRenderer = useCallback(
+    (params: ICellRendererParams<PaymentItem>) => {
+      const item = params.data;
+      if (!item) return null;
+      const statusColors: Record<string, string> = {
+        completed: "bg-green-500/20 text-green-400",
+        pending: "bg-yellow-500/20 text-yellow-400",
+        failed: "bg-red-500/20 text-red-400",
+      };
+      const colorClass =
+        statusColors[item.status.toLowerCase()] ||
+        "bg-gray-500/20 text-gray-400";
+      return (
+        <span
+          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${colorClass}`}
+        >
+          {item.status}
+        </span>
+      );
+    },
+    []
+  );
+
+  // AG Grid Column Definitions
+  const columnDefs = useMemo<ColDef<PaymentItem>[]>(
+    () => [
+      {
+        headerName: "Date",
+        flex: 1,
+        minWidth: 120,
+        valueGetter: (params) =>
+          params.data?.paidAt || params.data?.createdAt || "-",
+        cellClass: "text-text-200 text-sm",
+        sortable: true,
+      },
+      {
+        headerName: "Type",
+        field: "paymentType",
+        flex: 1,
+        minWidth: 100,
+        cellClass: "text-text-200 text-sm capitalize",
+        sortable: true,
+      },
+      {
+        headerName: "Status",
+        field: "status",
+        flex: 1,
+        minWidth: 100,
+        cellRenderer: StatusCellRenderer,
+        sortable: true,
+      },
+      {
+        headerName: "Amount (USD)",
+        field: "amount",
+        flex: 1,
+        minWidth: 120,
+        valueFormatter: (params) => formatCents(params.value),
+        cellClass: "text-text-200 text-sm text-right",
+        headerClass: "ag-right-aligned-header",
+        sortable: true,
+      },
+      {
+        headerName: "Credits",
+        field: "creditsGranted",
+        flex: 1,
+        minWidth: 100,
+        valueFormatter: (params) => formatCents(params.value),
+        cellClass: "text-text-200 text-sm text-right",
+        headerClass: "ag-right-aligned-header",
+        sortable: true,
+      },
+      {
+        headerName: "Description",
+        field: "description",
+        flex: 1.5,
+        minWidth: 150,
+        valueFormatter: (params) => params.value || "-",
+        cellClass: "text-text-200 text-sm",
+        sortable: false,
+      },
+      {
+        headerName: "Txn ID",
+        flex: 1.5,
+        minWidth: 150,
+        valueGetter: (params) => {
+          const item = params.data;
+          if (!item) return "-";
+          if (item.paddleTransactionId) return item.paddleTransactionId;
+          if (item.metadata && (item.metadata as any).transactionId)
+            return (item.metadata as any).transactionId;
+          return "-";
+        },
+        cellClass: "text-text-200 text-sm",
+        sortable: false,
+      },
+    ],
+    [StatusCellRenderer]
+  );
+
   return (
     <div className="w-full">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold">Payment History</h2>
+        <h2 className="text-lg font-semibold text-text-100">Payment History</h2>
         <div className="flex gap-2">
           <button
-            className="px-3 py-1 rounded bg-gray-200 disabled:opacity-50"
+            className="px-3 py-1 rounded bg-brand-main/10 hover:bg-brand-main/20 text-text-100 disabled:opacity-50 transition"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={!canPrev || loading}
           >
             Prev
           </button>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-text-200">
             Page {page} / {totalPages}
           </span>
           <button
-            className="px-3 py-1 rounded bg-gray-200 disabled:opacity-50"
+            className="px-3 py-1 rounded bg-brand-main/10 hover:bg-brand-main/20 text-text-100 disabled:opacity-50 transition"
             onClick={() => setPage((p) => p + 1)}
             disabled={!canNext || loading}
           >
@@ -96,65 +198,23 @@ export default function PaymentHistoryTable() {
       </div>
 
       {error && (
-        <div className="p-3 mb-3 rounded bg-red-50 text-red-600 text-sm">
+        <div className="p-3 mb-3 rounded bg-red-500/10 text-red-400 text-sm border border-red-500/20">
           {error}
         </div>
       )}
 
-      <div className="overflow-auto rounded border border-gray-200">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-3 py-2 text-left">Date</th>
-              <th className="px-3 py-2 text-left">Type</th>
-              <th className="px-3 py-2 text-left">Status</th>
-              <th className="px-3 py-2 text-right">Amount (USD)</th>
-              <th className="px-3 py-2 text-right">Credits</th>
-              <th className="px-3 py-2 text-left">Description</th>
-              <th className="px-3 py-2 text-left">Txn ID</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td className="px-3 py-4 text-center text-gray-500" colSpan={7}>
-                  Loading...
-                </td>
-              </tr>
-            ) : items.length === 0 ? (
-              <tr>
-                <td className="px-3 py-4 text-center text-gray-500" colSpan={7}>
-                  No payments yet
-                </td>
-              </tr>
-            ) : (
-              items.map((it, idx) => (
-                <tr key={(it.id as any) ?? idx} className="border-t">
-                  <td className="px-3 py-2">
-                    {it.paidAt || it.createdAt || "-"}
-                  </td>
-                  <td className="px-3 py-2 capitalize">{it.paymentType}</td>
-                  <td className="px-3 py-2 capitalize">{it.status}</td>
-                  <td className="px-3 py-2 text-right">
-                    {formatCents(it.amount)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {formatCents(it.creditsGranted)}
-                  </td>
-                  <td className="px-3 py-2">{it.description || "-"}</td>
-                  <td className="px-3 py-2">
-                    {it?.paddleTransactionId
-                      ? it.paddleTransactionId
-                      : it?.metadata && (it.metadata as any).transactionId
-                      ? (it.metadata as any).transactionId
-                      : "-"}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <AGGridWrapper<PaymentItem>
+        rowData={items}
+        columnDefs={columnDefs}
+        loading={loading}
+        height={400}
+        emptyMessage="No payments yet"
+        getRowId={(params) => String(params.data.id)}
+        showPagination={true}
+        serverSidePagination={false}
+        pageSize={10}
+        pageSizeOptions={[10, 25, 50]}
+      />
     </div>
   );
 }

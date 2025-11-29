@@ -1,19 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { ColDef, RowSelectionOptions } from "ag-grid-community";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
-import MultiSelect from "@/components/common/MultiSelect";
+import AGGridWrapper from "@/components/common/AGGridWrapper";
+import LeadFilterModal from "@/components/leads/LeadFilterModal";
 import { Button } from "@/components/ui/button";
 import emailClient from "@/utils/api/emailClient";
-import { IconFilter, IconSearch, IconX } from "@tabler/icons-react";
+import { IconSearch, IconX } from "@tabler/icons-react";
 
 interface Lead {
   id: string;
   email: string;
   name?: string;
-  company?: string;
-  role?: string;
+  verificationStatus?: string;
   category?: string;
   tags?: string;
   campaigns?: Array<{ id: string; name: string }>;
@@ -54,13 +55,14 @@ export default function LeadSelection({
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [campaignFilter, setCampaignFilter] = useState<string[]>([]);
+  const [verificationFilter, setVerificationFilter] = useState<string[]>([]);
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     categories: [],
     tags: [],
     campaigns: [],
     statuses: [],
   });
-  const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
+  const [selectedLeads, setSelectedLeads] = useState<Lead[]>([]);
 
   useEffect(() => {
     loadLeads();
@@ -72,6 +74,7 @@ export default function LeadSelection({
     categoryFilter,
     tagFilter,
     campaignFilter,
+    verificationFilter,
   ]);
 
   useEffect(() => {
@@ -135,13 +138,11 @@ export default function LeadSelection({
   };
 
   const handleSelectLeads = () => {
-    if (selectedLeads.size === 0) {
+    if (selectedLeads.length === 0) {
       toast.error("Please select at least one lead");
       return;
     }
-
-    const selected = leads.filter((lead) => selectedLeads.has(lead.id));
-    onLeadsSelected(selected);
+    onLeadsSelected(selectedLeads);
   };
 
   const clearAllFilters = () => {
@@ -150,6 +151,7 @@ export default function LeadSelection({
     setCategoryFilter([]);
     setTagFilter([]);
     setCampaignFilter([]);
+    setVerificationFilter([]);
     setPage(1);
   };
 
@@ -158,244 +160,204 @@ export default function LeadSelection({
     statusFilter.length > 0 ||
     categoryFilter.length > 0 ||
     tagFilter.length > 0 ||
-    campaignFilter.length > 0;
+    campaignFilter.length > 0 ||
+    verificationFilter.length > 0;
+
+  // Handle AG Grid selection change
+  const onSelectionChanged = useCallback((event: any) => {
+    const selectedNodes = event.api.getSelectedNodes();
+    const selectedData = selectedNodes.map((node: any) => node.data);
+    setSelectedLeads(selectedData);
+  }, []);
+
+  // Row selection configuration
+  const rowSelection = useMemo<RowSelectionOptions>(() => {
+    return {
+      mode: "multiRow",
+      checkboxes: true,
+      headerCheckbox: true,
+      enableClickSelection: true,
+    };
+  }, []);
+
+  // Verification status cell renderer
+  const VerificationCellRenderer = useCallback((params: any) => {
+    const status = params.data?.verificationStatus;
+    if (!status) {
+      return (
+        <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400">
+          Unverified
+        </span>
+      );
+    }
+
+    const statusColors: Record<string, { bg: string; text: string }> = {
+      safe: { bg: "bg-green-500/20", text: "text-green-400" },
+      risky: { bg: "bg-yellow-500/20", text: "text-yellow-400" },
+      invalid: { bg: "bg-red-500/20", text: "text-red-400" },
+      unknown: { bg: "bg-gray-500/20", text: "text-gray-400" },
+    };
+
+    const colors = statusColors[status.toLowerCase()] || statusColors.unknown;
+    const label =
+      status === "safe"
+        ? "Safe to send"
+        : status.charAt(0).toUpperCase() + status.slice(1);
+
+    return (
+      <span
+        className={`px-2 py-1 text-xs rounded-full ${colors.bg} ${colors.text}`}
+      >
+        {label}
+      </span>
+    );
+  }, []);
+
+  // AG Grid Column Definitions
+  const columnDefs = useMemo<ColDef<Lead>[]>(
+    () => [
+      {
+        headerName: "Email",
+        field: "email",
+        flex: 2,
+        minWidth: 200,
+        cellClass: "text-white font-medium",
+        sortable: true,
+      },
+      {
+        headerName: "Status",
+        field: "verificationStatus",
+        flex: 1,
+        minWidth: 120,
+        maxWidth: 140,
+        cellRenderer: VerificationCellRenderer,
+        sortable: true,
+      },
+      {
+        headerName: "Name",
+        field: "name",
+        flex: 1,
+        minWidth: 120,
+        valueFormatter: (params) => params.value || "-",
+        cellClass: "text-gray-300",
+        sortable: true,
+      },
+    ],
+    [VerificationCellRenderer]
+  );
 
   return (
     <div className="space-y-6">
-      {/* Filters */}
-      <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6 relative z-50">
-        <div className="flex items-center justify-between mb-4">
+      {/* Search and Filters Bar */}
+      <div className="flex items-center gap-4">
+        {/* Search */}
+        <div className="relative flex-1 max-w-md">
+          <IconSearch
+            className="absolute left-3 top-3 text-text-200"
+            size={20}
+          />
+          <input
+            type="text"
+            placeholder="Search by email or name..."
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setPage(1);
+            }}
+            className="w-full pl-10 pr-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-xl text-text-100 placeholder-text-200 focus:outline-none focus:ring-2 focus:ring-brand-main"
+          />
+        </div>
+
+        {/* Filter Modal Button */}
+        <LeadFilterModal
+          filterOptions={filterOptions}
+          statusFilter={statusFilter}
+          categoryFilter={categoryFilter}
+          tagFilter={tagFilter}
+          campaignFilter={campaignFilter}
+          verificationFilter={verificationFilter}
+          onStatusFilterChange={(selected) => {
+            setStatusFilter(selected);
+            setPage(1);
+          }}
+          onCategoryFilterChange={(selected) => {
+            setCategoryFilter(selected);
+            setPage(1);
+          }}
+          onTagFilterChange={(selected) => {
+            setTagFilter(selected);
+            setPage(1);
+          }}
+          onCampaignFilterChange={(selected) => {
+            setCampaignFilter(selected);
+            setPage(1);
+          }}
+          onVerificationFilterChange={(selected) => {
+            setVerificationFilter(selected);
+            setPage(1);
+          }}
+          onApply={() => {}}
+          onClearAll={clearAllFilters}
+        />
+
+        {/* Results count */}
+        {hasActiveFilters && (
           <div className="flex items-center gap-2">
-            <IconFilter size={20} className="text-gray-400" />
-            <h3 className="text-white font-semibold">Filters</h3>
-            {hasActiveFilters && (
-              <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full">
-                {total} results
-              </span>
-            )}
-          </div>
-          {hasActiveFilters && (
+            <span className="text-sm text-text-200">{total} results</span>
             <button
               onClick={clearAllFilters}
-              className="flex items-center gap-1 text-sm text-gray-400 hover:text-white transition-colors"
+              className="flex items-center gap-1 text-sm text-text-200 hover:text-text-100 transition-colors"
             >
               <IconX size={16} />
-              Clear all
+              Clear
             </button>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          {/* Search */}
-          <div className="relative lg:col-span-2">
-            <IconSearch
-              className="absolute left-3 top-3 text-gray-400"
-              size={20}
-            />
-            <input
-              type="text"
-              placeholder="Search by email or name..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setPage(1);
-              }}
-              className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
-            />
           </div>
-
-          {/* Category Filter */}
-          <MultiSelect
-            options={filterOptions.categories}
-            selectedIds={categoryFilter}
-            onChange={(selected) => {
-              setCategoryFilter(selected);
-              setPage(1);
-            }}
-            placeholder="Categories"
-            searchable
-            theme="light"
-          />
-
-          {/* Tag Filter */}
-          <MultiSelect
-            options={filterOptions.tags}
-            selectedIds={tagFilter}
-            onChange={(selected) => {
-              setTagFilter(selected);
-              setPage(1);
-            }}
-            placeholder="Tags"
-            searchable
-            theme="light"
-          />
-
-          {/* Campaign Filter */}
-          <MultiSelect
-            options={filterOptions.campaigns}
-            selectedIds={campaignFilter}
-            onChange={(selected) => {
-              setCampaignFilter(selected);
-              setPage(1);
-            }}
-            placeholder="Campaigns"
-            searchable
-            theme="light"
-          />
-
-          {/* Status Filter */}
-          <MultiSelect
-            options={filterOptions.statuses.map((s) => ({
-              id: s.value,
-              name: s.label,
-              count: s.count,
-            }))}
-            selectedIds={statusFilter}
-            onChange={(selected) => {
-              setStatusFilter(selected);
-              setPage(1);
-            }}
-            placeholder="Status"
-            searchable
-            theme="light"
-          />
-        </div>
+        )}
       </div>
 
       {/* Leads Table */}
-      <div
-        className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl"
-        style={{ overflow: "visible" }}
-      >
-        {isLoading ? (
-          <div className="p-8 text-center text-gray-400">Loading leads...</div>
-        ) : leads.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">No leads found.</div>
-        ) : (
-          <>
-            <div
-              className="overflow-x-auto"
-              style={{ borderRadius: "0.75rem" }}
-            >
-              <table className="w-full">
-                <thead className="bg-white/5 border-b border-white/10">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300 w-12">
-                      <input
-                        type="checkbox"
-                        checked={
-                          selectedLeads.size === leads.length &&
-                          leads.length > 0
-                        }
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedLeads(new Set(leads.map((l) => l.id)));
-                          } else {
-                            setSelectedLeads(new Set());
-                          }
-                        }}
-                        className="w-4 h-4 rounded border-gray-300 text-purple-500 focus:ring-purple-500"
-                      />
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
-                      Email
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
-                      Name
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
-                      Company
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
-                      Role
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leads.map((lead) => (
-                    <tr
-                      key={lead.id}
-                      className="border-b border-white/10 hover:bg-white/5 transition-colors"
-                    >
-                      <td className="px-6 py-4 text-sm w-12">
-                        <input
-                          type="checkbox"
-                          checked={selectedLeads.has(lead.id)}
-                          onChange={(e) => {
-                            const newSet = new Set(selectedLeads);
-                            if (e.target.checked) {
-                              newSet.add(lead.id);
-                            } else {
-                              newSet.delete(lead.id);
-                            }
-                            setSelectedLeads(newSet);
-                          }}
-                          className="w-4 h-4 rounded border-gray-300 text-purple-500 focus:ring-purple-500"
-                        />
-                      </td>
-                      <td className="px-6 py-4 text-sm text-white">
-                        {lead.email}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-300">
-                        {lead.name || "-"}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-300">
-                        {lead.company || "-"}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-300">
-                        {lead.role || "-"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+      <div className="bg-brand-main/5 backdrop-blur-md border border-brand-main/20 rounded-xl overflow-hidden">
+        <AGGridWrapper<Lead>
+          rowData={leads}
+          columnDefs={columnDefs}
+          loading={isLoading}
+          emptyMessage="No leads found"
+          height={400}
+          rowSelection={rowSelection}
+          onSelectionChanged={onSelectionChanged}
+          showPagination={true}
+          serverSidePagination={true}
+          totalRows={total}
+          currentPage={page}
+          pageSize={limit}
+          onPageChange={setPage}
+          onPageSizeChange={setLimit}
+          getRowId={(params) => params.data.id}
+        />
 
-            {/* Pagination */}
-            <div className="px-6 py-4 border-t border-white/10 flex justify-between items-center">
-              <div className="text-sm text-gray-400">
-                {selectedLeads.size} of {total} leads selected
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => setPage(Math.max(1, page - 1))}
-                  disabled={page === 1}
-                  className="px-3 py-1 text-sm bg-white/10 hover:bg-white/20 text-white rounded disabled:opacity-50"
-                >
-                  Previous
-                </Button>
-                <span className="px-3 py-1 text-sm text-gray-400">
-                  Page {page} of {Math.ceil(total / limit)}
-                </span>
-                <Button
-                  onClick={() =>
-                    setPage(Math.min(Math.ceil(total / limit), page + 1))
-                  }
-                  disabled={page >= Math.ceil(total / limit)}
-                  className="px-3 py-1 text-sm bg-white/10 hover:bg-white/20 text-white rounded disabled:opacity-50"
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
+        {/* Selection Info */}
+        <div className="px-4 py-3 border-t border-brand-main/10 bg-brand-main/5">
+          <span className="text-sm text-text-200">
+            {selectedLeads.length} of {total} leads selected
+          </span>
+        </div>
       </div>
 
       {/* Action Buttons */}
       <div className="flex gap-3 justify-end">
         <Button
           onClick={onCancel}
-          className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition"
+          className="px-6 py-2 bg-brand-main/10 hover:bg-brand-main/20 text-brand-main rounded-lg transition"
         >
           Cancel
         </Button>
         <Button
           onClick={handleSelectLeads}
-          disabled={selectedLeads.size === 0}
+          disabled={selectedLeads.length === 0}
           className="px-6 py-2 bg-brand-main hover:bg-brand-main/80 text-white rounded-lg transition disabled:opacity-50"
         >
-          Select {selectedLeads.size} Lead{selectedLeads.size !== 1 ? "s" : ""}
+          Select {selectedLeads.length} Lead
+          {selectedLeads.length !== 1 ? "s" : ""}
         </Button>
       </div>
     </div>

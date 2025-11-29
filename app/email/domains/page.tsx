@@ -1,10 +1,12 @@
 "use client";
 
+import { ColDef, ICellRendererParams } from "ag-grid-community";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
 
+import AGGridWrapper from "@/components/common/AGGridWrapper";
 import { Button } from "@/components/ui/button";
 import { deleteDomain, Domain, getDomains } from "@/utils/api/emailClient";
 import { tokenStorage } from "@/utils/auth/tokenStorage";
@@ -63,6 +65,125 @@ export default function DomainsPage() {
   };
 
   const totalPages = Math.ceil(total / limit);
+
+  // AG Grid Cell Renderers
+  const DomainCellRenderer = useCallback(
+    (params: ICellRendererParams<Domain>) => {
+      const domain = params.data;
+      if (!domain) return null;
+      return (
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-brand-tertiary rounded-lg flex items-center justify-center">
+            <svg
+              className="w-5 h-5 text-text-100"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
+              />
+            </svg>
+          </div>
+          <div>
+            <p className="text-text-100 font-medium">{domain.domain}</p>
+            <p className="text-text-200 text-xs">
+              ID: {domain.id.slice(0, 8)}...
+            </p>
+          </div>
+        </div>
+      );
+    },
+    []
+  );
+
+  const StatusCellRenderer = useCallback(
+    (params: ICellRendererParams<Domain>) => {
+      const domain = params.data;
+      if (!domain) return null;
+      const isVerified =
+        domain.verificationStatus === "verified" &&
+        domain.dkimStatus === "verified";
+      return (
+        <span
+          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+            isVerified
+              ? "bg-green-100 text-green-500"
+              : "bg-yellow-500/20 text-yellow-300"
+          }`}
+        >
+          {isVerified ? "✓ Verified" : "⏳ Pending"}
+        </span>
+      );
+    },
+    []
+  );
+
+  const ActionsCellRenderer = useCallback(
+    (params: ICellRendererParams<Domain>) => {
+      const domain = params.data;
+      if (!domain) return null;
+      return (
+        <div className="flex justify-end gap-2">
+          <Link href={`/email/domains/${domain.id}`}>
+            <Button className="bg-blue-200 hover:bg-blue-300 text-blue-500 text-xs px-3 py-1 rounded transition">
+              View
+            </Button>
+          </Link>
+          <Button
+            onClick={() => handleDelete(domain.id)}
+            disabled={deleting === domain.id}
+            className="bg-red-200 hover:bg-red-300 text-red-500 text-xs px-3 py-1 rounded transition disabled:opacity-50"
+          >
+            {deleting === domain.id ? "Deleting..." : "Delete"}
+          </Button>
+        </div>
+      );
+    },
+    [deleting]
+  );
+
+  // AG Grid Column Definitions
+  const columnDefs = useMemo<ColDef<Domain>[]>(
+    () => [
+      {
+        headerName: "Domain",
+        field: "domain",
+        flex: 2,
+        minWidth: 250,
+        cellRenderer: DomainCellRenderer,
+        sortable: true,
+      },
+      {
+        headerName: "Status",
+        flex: 1,
+        minWidth: 120,
+        cellRenderer: StatusCellRenderer,
+        sortable: false,
+      },
+      {
+        headerName: "Created",
+        field: "createdAt",
+        flex: 1,
+        minWidth: 120,
+        valueFormatter: (params) =>
+          params.value ? new Date(params.value).toLocaleDateString() : "-",
+        cellClass: "text-text-200 text-sm",
+        sortable: true,
+      },
+      {
+        headerName: "Actions",
+        flex: 1.5,
+        minWidth: 180,
+        cellRenderer: ActionsCellRenderer,
+        sortable: false,
+      },
+    ],
+    [DomainCellRenderer, StatusCellRenderer, ActionsCellRenderer]
+  );
 
   return (
     <div className="min-h-screen bg-bg-100">
@@ -123,124 +244,22 @@ export default function DomainsPage() {
           </div>
         ) : (
           <>
-            {/* Domains Table */}
-            <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-brand-main/10 bg-brand-main/5">
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
-                        Domain
-                      </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
-                        Status
-                      </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
-                        Created
-                      </th>
-                      <th className="px-6 py-4 text-right text-sm font-semibold text-text-200">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {domains?.map((domain) => (
-                      <tr
-                        key={domain.id}
-                        className="border-b border-brand-main/10 hover:bg-brand-main/5 transition"
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-brand-tertiary rounded-lg flex items-center justify-center">
-                              <svg
-                                className="w-5 h-5 text-text-100"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
-                                />
-                              </svg>
-                            </div>
-                            <div>
-                              <p className="text-text-100 font-medium">
-                                {domain.domain}
-                              </p>
-                              <p className="text-text-200 text-xs">
-                                ID: {domain.id.slice(0, 8)}...
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                              domain.verificationStatus === "verified" &&
-                              domain.dkimStatus === "verified"
-                                ? "bg-green-100 text-green-500"
-                                : "bg-yellow-500/20 text-yellow-300"
-                            }`}
-                          >
-                            {domain.verificationStatus === "verified" &&
-                            domain.dkimStatus === "verified"
-                              ? "✓ Verified"
-                              : "⏳ Pending"}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-text-200 text-sm">
-                          {new Date(domain.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <Link href={`/email/domains/${domain.id}`}>
-                              <Button className="bg-blue-200 hover:bg-blue-300 text-blue-500 text-xs px-3 py-1 rounded transition">
-                                View
-                              </Button>
-                            </Link>
-                            <Button
-                              onClick={() => handleDelete(domain.id)}
-                              disabled={deleting === domain.id}
-                              className="bg-red-200 hover:bg-red-300 text-red-500 text-xs px-3 py-1 rounded transition disabled:opacity-50"
-                            >
-                              {deleting === domain.id
-                                ? "Deleting..."
-                                : "Delete"}
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex justify-center items-center gap-2 mt-6">
-                <Button
-                  onClick={() => setPage(Math.max(1, page - 1))}
-                  disabled={page === 1}
-                  className="bg-brand-main/10 hover:bg-brand-main/20 text-text-100 disabled:opacity-50 px-4 py-2 rounded-lg transition"
-                >
-                  Previous
-                </Button>
-                <span className="text-text-200 text-sm">
-                  Page {page} of {totalPages}
-                </span>
-                <Button
-                  onClick={() => setPage(Math.min(totalPages, page + 1))}
-                  disabled={page === totalPages}
-                  className="bg-brand-main/10 hover:bg-brand-main/20 text-text-100 disabled:opacity-50 px-4 py-2 rounded-lg transition"
-                >
-                  Next
-                </Button>
-              </div>
-            )}
+            {/* Domains AG Grid Table */}
+            <AGGridWrapper<Domain>
+              rowData={domains}
+              columnDefs={columnDefs}
+              loading={loading}
+              height={500}
+              emptyMessage="No domains found"
+              getRowId={(params) => params.data.id}
+              showPagination={true}
+              serverSidePagination={true}
+              totalRows={total}
+              currentPage={page}
+              pageSize={limit}
+              pageSizeOptions={[10, 25, 50, 100]}
+              onPageChange={(newPage) => setPage(newPage)}
+            />
           </>
         )}
       </main>

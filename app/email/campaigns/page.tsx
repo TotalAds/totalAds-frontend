@@ -1,10 +1,12 @@
 "use client";
 
+import { ColDef, ICellRendererParams } from "ag-grid-community";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
 
+import AGGridWrapper from "@/components/common/AGGridWrapper";
 import { Button } from "@/components/ui/button";
 import {
   Campaign,
@@ -125,6 +127,172 @@ export default function CampaignsPage() {
     const reoonUsed = !!(campaign as any).reoonVerificationSummary?.used;
     return reoonFilter === "on" ? reoonUsed : !reoonUsed;
   });
+
+  // AG Grid Cell Renderers
+  const StatusCellRenderer = useCallback(
+    (params: ICellRendererParams<Campaign>) => {
+      const campaign = params.data;
+      if (!campaign) return null;
+
+      const reoonSummary = (campaign as any).reoonVerificationSummary;
+      const used = !!reoonSummary?.used;
+      const excludedAsRisky =
+        typeof reoonSummary?.excludedAsRisky === "number"
+          ? reoonSummary.excludedAsRisky
+          : null;
+
+      return (
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            {getStatusBadge(campaign.status)}
+            {typeof (campaign as any).scheduledForTomorrowCount === "number" &&
+              (campaign as any).scheduledForTomorrowCount > 0 && (
+                <span className="inline-flex items-center">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-500/20 text-purple-300">
+                    Scheduled
+                  </span>
+                </span>
+              )}
+          </div>
+          <div>
+            {!used && excludedAsRisky == null ? (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-700/60 text-text-200 border border-slate-500/40">
+                Reoon: Off
+              </span>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/40">
+                  Reoon: On
+                </span>
+                {excludedAsRisky !== null && excludedAsRisky > 0 && (
+                  <span className="text-[10px] text-emerald-200/80">
+                    {excludedAsRisky} risky removed
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    },
+    []
+  );
+
+  const ActionsCellRenderer = useCallback(
+    (params: ICellRendererParams<Campaign>) => {
+      const campaign = params.data;
+      if (!campaign) return null;
+
+      return (
+        <div className="flex justify-end gap-2">
+          <Link href={`/email/campaigns/${campaign.id}`}>
+            <Button className="bg-blue-200 hover:bg-blue-300 text-blue-500 text-xs px-3 py-1 rounded transition">
+              View
+            </Button>
+          </Link>
+          {campaign.status === "draft" ? (
+            <Link href={`/email/campaigns/builder?id=${campaign.id}`}>
+              <Button className="bg-purple-200 hover:bg-purple-300 text-purple-500 text-xs px-3 py-1 rounded transition">
+                Edit
+              </Button>
+            </Link>
+          ) : (
+            <Button
+              disabled
+              title={`Cannot edit ${campaign.status} campaigns`}
+              className="bg-gray-100 text-text-200 text-xs px-3 py-1 rounded opacity-100 cursor-not-allowed"
+            >
+              Edit
+            </Button>
+          )}
+          <Button
+            onClick={() => handleDelete(campaign.id)}
+            disabled={deleting === campaign.id}
+            className="bg-red-200 hover:bg-red-300 text-red-500 text-xs px-3 py-1 rounded transition disabled:opacity-50"
+          >
+            {deleting === campaign.id ? "..." : "Delete"}
+          </Button>
+        </div>
+      );
+    },
+    [deleting]
+  );
+
+  // Helper function to get subject from campaign
+  const getSubjectFromCampaign = (campaign: Campaign): string => {
+    // Try to get subject from sequence (first email step)
+    if (campaign.sequence && campaign.sequence.length > 0) {
+      return campaign.sequence[0].subject || "-";
+    }
+    // Fallback to direct subject field if available
+    if (campaign.subject) {
+      return campaign.subject;
+    }
+    return "-";
+  };
+
+  // Helper function to format date
+  const formatDate = (dateValue: string | null | undefined): string => {
+    if (!dateValue) return "-";
+    try {
+      const date = new Date(dateValue);
+      if (isNaN(date.getTime())) return "-";
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return "-";
+    }
+  };
+
+  // AG Grid Column Definitions
+  const columnDefs = useMemo<ColDef<Campaign>[]>(
+    () => [
+      {
+        headerName: "Name",
+        field: "name",
+        flex: 1.5,
+        minWidth: 150,
+        cellClass: "text-text-100 font-medium",
+        sortable: true,
+      },
+      {
+        headerName: "Subject",
+        flex: 2,
+        minWidth: 200,
+        valueGetter: (params) => getSubjectFromCampaign(params.data!),
+        cellClass: "text-text-200 text-sm truncate",
+        sortable: true,
+      },
+      {
+        headerName: "Status",
+        field: "status",
+        flex: 1.5,
+        minWidth: 180,
+        cellRenderer: StatusCellRenderer,
+        sortable: true,
+      },
+      {
+        headerName: "Created",
+        field: "createdAt",
+        flex: 1,
+        minWidth: 120,
+        valueFormatter: (params) => formatDate(params.value),
+        cellClass: "text-text-200 text-sm",
+        sortable: true,
+      },
+      {
+        headerName: "Actions",
+        flex: 1.5,
+        minWidth: 200,
+        cellRenderer: ActionsCellRenderer,
+        sortable: false,
+      },
+    ],
+    [StatusCellRenderer, ActionsCellRenderer]
+  );
 
   return (
     <div className="min-h-screen bg-bg-100">
@@ -401,165 +569,22 @@ export default function CampaignsPage() {
           </div>
         ) : (
           <>
-            {/* Campaigns Table */}
-            <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-brand-main/10 bg-brand-main/5">
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
-                        Name
-                      </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
-                        Subject
-                      </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
-                        Status
-                      </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-text-200">
-                        Created
-                      </th>
-                      <th className="px-6 py-4 text-right text-sm font-semibold text-text-200">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredCampaigns?.map((campaign) => (
-                      <tr
-                        key={campaign.id}
-                        className="border-b border-brand-main/10 hover:bg-brand-main/5 transition"
-                      >
-                        <td className="px-6 py-4">
-                          <p className="text-text-100 font-medium">
-                            {campaign.name}
-                          </p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="text-text-200 text-sm truncate">
-                            {campaign.subject}
-                          </p>
-                        </td>
-                        <td className="px-6 py-4">
-                          {getStatusBadge(campaign.status)}
-                          {typeof (campaign as any)
-                            .scheduledForTomorrowCount === "number" &&
-                            (campaign as any).scheduledForTomorrowCount > 0 && (
-                              <span className="ml-2 inline-flex items-center">
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-500/20 text-purple-300">
-                                  Scheduled for tomorrow
-                                </span>
-                                <span
-                                  className="ml-1 w-4 h-4 inline-flex items-center justify-center rounded-full border border-purple-400/40 text-purple-300 text-[10px] cursor-default"
-                                  title={`${
-                                    (campaign as any).scheduledForTomorrowCount
-                                  } scheduled for tomorrow`}
-                                >
-                                  i
-                                </span>
-                              </span>
-                            )}
-                          {(() => {
-                            const reoonSummary = (campaign as any)
-                              .reoonVerificationSummary;
-                            const used = !!reoonSummary?.used;
-                            const excludedAsRisky =
-                              typeof reoonSummary?.excludedAsRisky === "number"
-                                ? reoonSummary.excludedAsRisky
-                                : null;
-
-                            if (!used && excludedAsRisky == null) {
-                              return (
-                                <div className="mt-1">
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-700/60 text-text-200 border border-slate-500/40">
-                                    Reoon: Off
-                                  </span>
-                                </div>
-                              );
-                            }
-
-                            return (
-                              <div className="mt-1 flex items-center gap-2">
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/40">
-                                  Reoon: On
-                                </span>
-                                {excludedAsRisky !== null &&
-                                  excludedAsRisky > 0 && (
-                                    <span className="text-[10px] text-emerald-200/80">
-                                      {excludedAsRisky} risky removed
-                                    </span>
-                                  )}
-                              </div>
-                            );
-                          })()}
-                        </td>
-                        <td className="px-6 py-4 text-text-200 text-sm">
-                          {new Date(campaign.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <Link href={`/email/campaigns/${campaign.id}`}>
-                              <Button className="bg-blue-200 hover:bg-blue-300 text-blue-500 text-xs px-3 py-1 rounded transition">
-                                View
-                              </Button>
-                            </Link>
-                            {campaign.status === "draft" ? (
-                              <Link
-                                href={`/email/campaigns/builder?id=${campaign.id}`}
-                              >
-                                <Button className="bg-purple-200 hover:bg-purple-300 text-purple-500 text-xs px-3 py-1 rounded transition">
-                                  Edit
-                                </Button>
-                              </Link>
-                            ) : (
-                              <Button
-                                disabled
-                                title={`Cannot edit ${campaign.status} campaigns`}
-                                className="bg-gray-100 text-text-200 text-xs px-3 py-1 rounded opacity-100 cursor-not-allowed"
-                              >
-                                Edit
-                              </Button>
-                            )}
-                            <Button
-                              onClick={() => handleDelete(campaign.id)}
-                              disabled={deleting === campaign.id}
-                              className="bg-red-200 hover:bg-red-300 text-red-500 text-xs px-3 py-1 rounded transition disabled:opacity-50"
-                            >
-                              {deleting === campaign.id
-                                ? "Deleting..."
-                                : "Delete"}
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex justify-center items-center gap-2 mt-6">
-                <Button
-                  onClick={() => setPage(Math.max(1, page - 1))}
-                  disabled={page === 1}
-                  className="bg-brand-main/10 hover:bg-brand-main/20 text-text-100 disabled:opacity-50 px-4 py-2 rounded-lg transition"
-                >
-                  Previous
-                </Button>
-                <span className="text-text-200 text-sm">
-                  Page {page} of {totalPages}
-                </span>
-                <Button
-                  onClick={() => setPage(Math.min(totalPages, page + 1))}
-                  disabled={page === totalPages}
-                  className="bg-brand-main/10 hover:bg-brand-main/20 text-text-100 disabled:opacity-50 px-4 py-2 rounded-lg transition"
-                >
-                  Next
-                </Button>
-              </div>
-            )}
+            {/* Campaigns AG Grid Table */}
+            <AGGridWrapper<Campaign>
+              rowData={filteredCampaigns}
+              columnDefs={columnDefs}
+              loading={loading}
+              height={500}
+              emptyMessage="No campaigns found"
+              getRowId={(params) => params.data.id}
+              showPagination={true}
+              serverSidePagination={true}
+              totalRows={total}
+              currentPage={page}
+              pageSize={limit}
+              pageSizeOptions={[10, 25, 50, 100]}
+              onPageChange={(newPage) => setPage(newPage)}
+            />
           </>
         )}
       </main>

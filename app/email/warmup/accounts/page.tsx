@@ -1,11 +1,13 @@
 "use client";
 
+import { ColDef, ICellRendererParams } from "ag-grid-community";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
 
+import AGGridWrapper from "@/components/common/AGGridWrapper";
 import { Button } from "@/components/ui/button";
 import WarmupStatusPanel from "@/components/warmup/WarmupStatusPanel";
 import { useAuthContext } from "@/context/AuthContext";
@@ -229,6 +231,227 @@ export default function WarmupAccountsPage() {
   const pairPages = Math.ceil(pairTotal / pairLimit);
   const pairCurrentPage = Math.floor(pairOffset / pairLimit) + 1;
 
+  // AG Grid Cell Renderers for Accounts
+  const ReputationCellRenderer = useCallback(
+    (params: ICellRendererParams<WarmupAccount>) => {
+      const account = params.data;
+      if (!account) return null;
+      return (
+        <div className="flex items-center gap-2">
+          <div className="w-16 h-2 bg-bg-300 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-brand-main"
+              style={{ width: `${account.reputationScore}%` }}
+            />
+          </div>
+          <span className="text-text-200 text-sm">
+            {account.reputationScore}
+          </span>
+        </div>
+      );
+    },
+    []
+  );
+
+  const AccountStatusCellRenderer = useCallback(
+    (params: ICellRendererParams<WarmupAccount>) => {
+      const account = params.data;
+      if (!account) return null;
+      return (
+        <button
+          onClick={() => handleToggleWarmup(account.id, account.warmupEnabled)}
+          disabled={toggling === account.id}
+          className={`px-3 py-1 rounded-lg text-sm font-medium transition ${
+            account.warmupEnabled
+              ? "bg-green-500/20 text-green-400"
+              : "bg-gray-500/20 text-gray-400"
+          } ${toggling === account.id ? "opacity-50" : ""}`}
+        >
+          {account.warmupEnabled ? (
+            <span className="flex items-center gap-1">
+              <IconCheck className="w-4 h-4" />
+              Enabled
+            </span>
+          ) : (
+            <span className="flex items-center gap-1">
+              <IconX className="w-4 h-4" />
+              Disabled
+            </span>
+          )}
+        </button>
+      );
+    },
+    [toggling]
+  );
+
+  const AccountActionsCellRenderer = useCallback(
+    (params: ICellRendererParams<WarmupAccount>) => {
+      const account = params.data;
+      if (!account) return null;
+      return (
+        <div className="flex justify-end gap-2">
+          <Button
+            onClick={() => handleAccountChange(account.id)}
+            className="bg-blue-200 hover:bg-blue-300 text-blue-500 text-xs px-3 py-1 rounded transition"
+          >
+            View Details
+          </Button>
+          <Button
+            onClick={() => handleDeleteAccount(account.id)}
+            disabled={deleting === account.id}
+            className="bg-red-200 hover:bg-red-300 text-red-500 text-xs px-3 py-1 rounded transition disabled:opacity-50"
+          >
+            <IconTrash className="w-4 h-4" />
+          </Button>
+        </div>
+      );
+    },
+    [deleting]
+  );
+
+  // AG Grid Column Definitions for Accounts
+  const accountColumnDefs = useMemo<ColDef<WarmupAccount>[]>(
+    () => [
+      {
+        headerName: "Email",
+        field: "email",
+        flex: 2,
+        minWidth: 200,
+        cellClass: "text-text-100",
+        sortable: true,
+      },
+      {
+        headerName: "Provider",
+        field: "provider",
+        flex: 1,
+        minWidth: 100,
+        cellClass: "text-text-200 capitalize",
+        sortable: true,
+      },
+      {
+        headerName: "Daily Limit",
+        field: "dailyLimit",
+        flex: 1,
+        minWidth: 100,
+        cellClass: "text-text-200",
+        sortable: true,
+      },
+      {
+        headerName: "Reputation",
+        flex: 1,
+        minWidth: 150,
+        cellRenderer: ReputationCellRenderer,
+        sortable: false,
+      },
+      {
+        headerName: "Inbox Rate",
+        field: "inboxRate",
+        flex: 1,
+        minWidth: 100,
+        valueFormatter: (params) =>
+          params.value ? `${params.value.toFixed(1)}%` : "-",
+        cellClass: "text-text-200",
+        sortable: true,
+      },
+      {
+        headerName: "Status",
+        flex: 1,
+        minWidth: 120,
+        cellRenderer: AccountStatusCellRenderer,
+        sortable: false,
+      },
+      {
+        headerName: "Actions",
+        flex: 1.5,
+        minWidth: 180,
+        cellRenderer: AccountActionsCellRenderer,
+        sortable: false,
+      },
+    ],
+    [
+      ReputationCellRenderer,
+      AccountStatusCellRenderer,
+      AccountActionsCellRenderer,
+    ]
+  );
+
+  // AG Grid Cell Renderers for Pairs
+  const PairStatusCellRenderer = useCallback(
+    (params: ICellRendererParams<WarmupPair>) => {
+      const pair = params.data;
+      if (!pair) return null;
+      return (
+        <span
+          className={`px-3 py-1 rounded-lg text-xs font-medium capitalize ${getStatusColor(
+            pair.status as PairStatus
+          )}`}
+        >
+          {pair.status}
+        </span>
+      );
+    },
+    []
+  );
+
+  // AG Grid Column Definitions for Pairs
+  const pairColumnDefs = useMemo<ColDef<WarmupPair>[]>(
+    () => [
+      {
+        headerName: "From",
+        field: "senderEmail",
+        flex: 2,
+        minWidth: 180,
+        cellClass: "text-text-100 text-sm",
+        sortable: true,
+      },
+      {
+        headerName: "To",
+        field: "receiverEmail",
+        flex: 2,
+        minWidth: 180,
+        cellClass: "text-text-100 text-sm",
+        sortable: true,
+      },
+      {
+        headerName: "Status",
+        field: "status",
+        flex: 1,
+        minWidth: 120,
+        cellRenderer: PairStatusCellRenderer,
+        sortable: true,
+      },
+      {
+        headerName: "Scheduled",
+        field: "sendAt",
+        flex: 1,
+        minWidth: 120,
+        valueFormatter: (params) =>
+          params.value ? new Date(params.value).toLocaleDateString() : "-",
+        cellClass: "text-text-200 text-sm",
+        sortable: true,
+      },
+      {
+        headerName: "Sent",
+        field: "sentAt",
+        flex: 1,
+        minWidth: 120,
+        valueFormatter: (params) =>
+          params.value ? new Date(params.value).toLocaleDateString() : "-",
+        cellClass: "text-text-200 text-sm",
+        sortable: true,
+      },
+      {
+        headerName: "Retries",
+        field: "retryCount",
+        flex: 0.5,
+        minWidth: 80,
+        cellClass: "text-text-200 text-sm",
+        sortable: true,
+      },
+    ],
+    [PairStatusCellRenderer]
+  );
+
   // --------------------
 
   return process.env.NEXT_PUBLIC_SHOW_WARMUP === "true" ? (
@@ -334,118 +557,18 @@ export default function WarmupAccountsPage() {
 
             {/* Accounts Tab */}
             {activeTab === "accounts" && (
-              <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-brand-main/10 bg-brand-main/5">
-                        <th className="px-6 py-4 text-left text-text-100 font-semibold">
-                          Email
-                        </th>
-                        <th className="px-6 py-4 text-left text-text-100 font-semibold">
-                          Provider
-                        </th>
-                        <th className="px-6 py-4 text-left text-text-100 font-semibold">
-                          Daily Limit
-                        </th>
-                        <th className="px-6 py-4 text-left text-text-100 font-semibold">
-                          Reputation
-                        </th>
-                        <th className="px-6 py-4 text-left text-text-100 font-semibold">
-                          Inbox Rate
-                        </th>
-                        <th className="px-6 py-4 text-left text-text-100 font-semibold">
-                          Status
-                        </th>
-                        <th className="px-6 py-4 text-right text-text-100 font-semibold">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {accounts.map((account) => (
-                        <tr
-                          key={account.id}
-                          className="border-b border-brand-main/10 hover:bg-brand-main/5 transition"
-                        >
-                          <td className="px-6 py-4 text-text-100">
-                            {account.email}
-                          </td>
-                          <td className="px-6 py-4 text-text-200 capitalize">
-                            {account.provider}
-                          </td>
-                          <td className="px-6 py-4 text-text-200">
-                            {account.dailyLimit}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              <div className="w-16 h-2 bg-bg-300 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-brand-main"
-                                  style={{
-                                    width: `${account.reputationScore}%`,
-                                  }}
-                                />
-                              </div>
-                              <span className="text-text-200 text-sm">
-                                {account.reputationScore}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-text-200">
-                            {account.inboxRate.toFixed(1)}%
-                          </td>
-                          <td className="px-6 py-4">
-                            <button
-                              onClick={() =>
-                                handleToggleWarmup(
-                                  account.id,
-                                  account.warmupEnabled
-                                )
-                              }
-                              disabled={toggling === account.id}
-                              className={`px-3 py-1 rounded-lg text-sm font-medium transition ${
-                                account.warmupEnabled
-                                  ? "bg-green-500/20 text-green-400"
-                                  : "bg-gray-500/20 text-gray-400"
-                              } ${toggling === account.id ? "opacity-50" : ""}`}
-                            >
-                              {account.warmupEnabled ? (
-                                <span className="flex items-center gap-1">
-                                  <IconCheck className="w-4 h-4" />
-                                  Enabled
-                                </span>
-                              ) : (
-                                <span className="flex items-center gap-1">
-                                  <IconX className="w-4 h-4" />
-                                  Disabled
-                                </span>
-                              )}
-                            </button>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                onClick={() => handleAccountChange(account.id)}
-                                className="bg-blue-200 hover:bg-blue-300 text-blue-500 text-xs px-3 py-1 rounded transition"
-                              >
-                                View Details
-                              </Button>
-                              <Button
-                                onClick={() => handleDeleteAccount(account.id)}
-                                disabled={deleting === account.id}
-                                className="bg-red-200 hover:bg-red-300 text-red-500 text-xs px-3 py-1 rounded transition disabled:opacity-50"
-                              >
-                                <IconTrash className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <AGGridWrapper<WarmupAccount>
+                rowData={accounts}
+                columnDefs={accountColumnDefs}
+                loading={loading}
+                height={500}
+                emptyMessage="No warmup accounts found"
+                getRowId={(params) => params.data.id}
+                showPagination={true}
+                serverSidePagination={false}
+                pageSize={10}
+                pageSizeOptions={[10, 25, 50, 100]}
+              />
             )}
 
             {/* Status Tab */}
@@ -576,125 +699,32 @@ export default function WarmupAccountsPage() {
                   </div>
                 </div>
 
-                {/* Pairs Table */}
-                <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-brand-main/10 bg-brand-main/5">
-                          <th className="px-6 py-4 text-left text-text-100 font-semibold">
-                            From
-                          </th>
-                          <th className="px-6 py-4 text-left text-text-100 font-semibold">
-                            To
-                          </th>
-                          <th className="px-6 py-4 text-left text-text-100 font-semibold">
-                            Status
-                          </th>
-                          <th className="px-6 py-4 text-left text-text-100 font-semibold">
-                            Scheduled
-                          </th>
-                          <th className="px-6 py-4 text-left text-text-100 font-semibold">
-                            Sent
-                          </th>
-                          <th className="px-6 py-4 text-left text-text-100 font-semibold">
-                            Retries
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pairs.map((pair) => (
-                          <tr
-                            key={pair.id}
-                            className="border-b border-brand-main/10 hover:bg-brand-main/5 transition"
-                          >
-                            <td className="px-6 py-4 text-text-100 text-sm">
-                              {pair.senderEmail}
-                            </td>
-                            <td className="px-6 py-4 text-text-100 text-sm">
-                              {pair.receiverEmail}
-                            </td>
-                            <td className="px-6 py-4">
-                              <span
-                                className={`px-3 py-1 rounded-lg text-xs font-medium capitalize ${getStatusColor(
-                                  pair.status
-                                )}`}
-                              >
-                                {pair.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-text-200 text-sm">
-                              {new Date(pair.sendAt).toLocaleDateString()}
-                            </td>
-                            <td className="px-6 py-4 text-text-200 text-sm">
-                              {pair.sentAt
-                                ? new Date(pair.sentAt).toLocaleDateString()
-                                : "-"}
-                            </td>
-                            <td className="px-6 py-4 text-text-200 text-sm">
-                              {pair.retryCount}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Pagination */}
-                {pairPages > 1 && (
-                  <div className="flex justify-center gap-2">
-                    <button
-                      onClick={() =>
-                        fetchPairs(
-                          selectedAccountId!,
-                          selectedStatus,
-                          Math.max(0, pairOffset - pairLimit)
-                        )
-                      }
-                      disabled={pairOffset === 0}
-                      className="px-4 py-2 bg-bg-300 text-text-100 rounded-lg disabled:opacity-50"
-                    >
-                      Previous
-                    </button>
-                    <div className="flex items-center gap-2">
-                      {Array.from({ length: pairPages }, (_, i) => i + 1).map(
-                        (page) => (
-                          <button
-                            key={page}
-                            onClick={() =>
-                              fetchPairs(
-                                selectedAccountId!,
-                                selectedStatus,
-                                (page - 1) * pairLimit
-                              )
-                            }
-                            className={`px-3 py-2 rounded-lg ${
-                              pairCurrentPage === page
-                                ? "bg-brand-main text-text-100"
-                                : "bg-bg-300 text-text-200 hover:bg-bg-300/80"
-                            }`}
-                          >
-                            {page}
-                          </button>
-                        )
-                      )}
-                    </div>
-                    <button
-                      onClick={() =>
-                        fetchPairs(
-                          selectedAccountId!,
-                          selectedStatus,
-                          pairOffset + pairLimit
-                        )
-                      }
-                      disabled={pairOffset + pairLimit >= pairTotal}
-                      className="px-4 py-2 bg-bg-300 text-text-100 rounded-lg disabled:opacity-50"
-                    >
-                      Next
-                    </button>
-                  </div>
-                )}
+                {/* Pairs AG Grid Table */}
+                <AGGridWrapper<WarmupPair>
+                  rowData={pairs}
+                  columnDefs={pairColumnDefs}
+                  loading={false}
+                  height={400}
+                  emptyMessage="No pairs found for this account"
+                  getRowId={(params) => params.data.id}
+                  showPagination={true}
+                  serverSidePagination={true}
+                  totalRows={pairTotal}
+                  currentPage={pairCurrentPage}
+                  pageSize={pairLimit}
+                  pageSizeOptions={[10, 25, 50, 100]}
+                  onPageChange={(newPage) => {
+                    const newOffset = (newPage - 1) * pairLimit;
+                    fetchPairs(selectedAccountId!, selectedStatus, newOffset);
+                  }}
+                  onPageSizeChange={(newSize) => {
+                    setPairLimit(newSize);
+                    setPairOffset(0);
+                    if (selectedAccountId) {
+                      fetchPairs(selectedAccountId, selectedStatus, 0);
+                    }
+                  }}
+                />
               </div>
             )}
 
