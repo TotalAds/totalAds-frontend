@@ -1,6 +1,6 @@
 "use client";
 
-import { ColDef, RowSelectionOptions } from "ag-grid-community";
+import { ColDef } from "ag-grid-community";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
@@ -165,18 +165,17 @@ export default function LeadSelection({
 
   // Handle AG Grid selection change
   const onSelectionChanged = useCallback((event: any) => {
-    const selectedNodes = event.api.getSelectedNodes();
-    const selectedData = selectedNodes.map((node: any) => node.data);
-    setSelectedLeads(selectedData);
+    const selectedRows = event.api.getSelectedRows();
+    setSelectedLeads(selectedRows);
   }, []);
 
-  // Row selection configuration
-  const rowSelection = useMemo<RowSelectionOptions>(() => {
+  // Row selection configuration for AG Grid v34+
+  const rowSelection = useMemo(() => {
     return {
-      mode: "multiRow",
+      mode: "multiRow" as const,
       checkboxes: true,
       headerCheckbox: true,
-      enableClickSelection: true,
+      enableClickSelection: false,
     };
   }, []);
 
@@ -221,7 +220,7 @@ export default function LeadSelection({
         field: "email",
         flex: 2,
         minWidth: 200,
-        cellClass: "text-white font-medium",
+        cellClass: "text-text-100 font-medium",
         sortable: true,
       },
       {
@@ -239,7 +238,7 @@ export default function LeadSelection({
         flex: 1,
         minWidth: 120,
         valueFormatter: (params) => params.value || "-",
-        cellClass: "text-gray-300",
+        cellClass: "text-text-200",
         sortable: true,
       },
     ],

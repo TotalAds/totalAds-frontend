@@ -933,4 +933,50 @@ export const getEnhancedCampaignAnalytics = async (
   }
 };
 
+// Reoon Verification Analytics
+export interface ReoonVerificationAnalytics {
+  used: boolean;
+  totalVerified: number;
+  breakdown: {
+    valid: number;
+    invalid: number;
+    risky: number;
+    catchAll: number;
+    unknown: number;
+  };
+  percentages: {
+    valid: number;
+    invalid: number;
+    risky: number;
+    catchAll: number;
+    unknown: number;
+  };
+  flags: {
+    disposable: number;
+    spamtrap: number;
+    roleAccount: number;
+    inboxFull: number;
+    disabled: number;
+    smtpConnectable: number;
+    mxValid: number;
+  };
+  lastVerifiedAt: string | null;
+  mode: string | null;
+  creditsUsed: number;
+}
+
+export const getReoonVerificationAnalytics = async (
+  campaignId: string
+): Promise<ReoonVerificationAnalytics> => {
+  try {
+    const resp = await emailClient.get(
+      `/api/analytics/campaigns/${campaignId}/analytics/reoon`
+    );
+    return resp.data?.data || resp.data;
+  } catch (error: any) {
+    console.error("Failed to fetch Reoon verification analytics:", error);
+    throw error;
+  }
+};
+
 export default emailClient;

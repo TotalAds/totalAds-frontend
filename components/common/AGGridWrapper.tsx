@@ -5,6 +5,7 @@ import {
   ModuleRegistry,
   NumberFilterModule,
   PaginationModule,
+  RowSelectionModule,
   TextFilterModule,
 } from "ag-grid-community";
 import { AgGridReact, AgGridReactProps } from "ag-grid-react";
@@ -16,6 +17,7 @@ ModuleRegistry.registerModules([
   TextFilterModule,
   NumberFilterModule,
   PaginationModule,
+  RowSelectionModule,
 ]);
 
 export interface AGGridWrapperProps<TData = any>

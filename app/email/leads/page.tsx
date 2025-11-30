@@ -371,6 +371,16 @@ export default function LeadsPage() {
     );
   }, []);
 
+  // Row selection configuration for AG Grid v34+
+  const rowSelection = useMemo(() => {
+    return {
+      mode: "multiRow" as const,
+      checkboxes: true,
+      headerCheckbox: true,
+      enableClickSelection: false,
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-bg-100 p-6">
       <div className="max-w-7xl mx-auto">
@@ -498,7 +508,7 @@ export default function LeadsPage() {
               ? "No leads match your filters"
               : "No leads found. Create one to get started."
           }
-          rowSelection="multiple"
+          rowSelection={rowSelection}
           onSelectionChanged={onSelectionChanged}
           getRowId={(params) => params.data.id}
           showPagination={true}

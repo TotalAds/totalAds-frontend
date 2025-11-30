@@ -75,6 +75,41 @@ export interface BulkVerifyLeadsResponse {
   summary: BulkVerifyLeadsSummary;
 }
 
+export interface QueueVerificationResponse {
+  jobId: string;
+  leadCount: number;
+  mode: string;
+  status: "queued";
+}
+
+/**
+ * Queue verification job (async - returns immediately)
+ * User will receive email notification when verification completes
+ */
+export const queueCampaignLeadsVerification = async (params: {
+  domainId: string;
+  campaignId: string;
+  leadIds: string[];
+  mode?: "quick" | "power";
+}): Promise<QueueVerificationResponse> => {
+  const { domainId, campaignId, leadIds, mode = "power" } = params;
+
+  const response = await emailClient.post(
+    `/api/domains/${domainId}/campaigns/${campaignId}/verify-leads-with-reoon`,
+    {
+      leadIds,
+      mode,
+    }
+  );
+
+  const raw = response.data?.data ?? response.data ?? {};
+  return raw as QueueVerificationResponse;
+};
+
+/**
+ * Synchronous verification (for small batches or cached results)
+ * Waits for verification to complete before returning
+ */
 export const verifyCampaignLeadsWithReoon = async (params: {
   domainId: string;
   campaignId: string;
@@ -83,8 +118,9 @@ export const verifyCampaignLeadsWithReoon = async (params: {
 }): Promise<BulkVerifyLeadsResponse> => {
   const { domainId, campaignId, leadIds, mode = "power" } = params;
 
+  // Use the sync endpoint for immediate results (cached emails)
   const response = await emailClient.post(
-    `/api/domains/${domainId}/campaigns/${campaignId}/verify-leads-with-reoon`,
+    `/api/domains/${domainId}/campaigns/${campaignId}/verify-leads-with-reoon-sync`,
     {
       leadIds,
       mode,
@@ -109,4 +145,41 @@ export const verifyLeadWithReoon = async (params: {
 
   const raw = response.data?.data ?? response.data ?? {};
   return raw as BulkVerifyLeadsResponse;
+};
+
+// Types for verification status check
+export interface EmailVerificationStatusResult {
+  email: string;
+  isVerified: boolean;
+  status?: string;
+  isSafeToSend?: boolean | null;
+  verifiedAt?: string;
+}
+
+export interface CheckEmailsVerificationStatusResponse {
+  total: number;
+  verified: number;
+  unverified: number;
+  verifiedEmails: string[];
+  unverifiedEmails: string[];
+  details: EmailVerificationStatusResult[];
+}
+
+/**
+ * Check verification status for a list of emails
+ * Returns which emails are already verified and which need verification
+ * Used to optimize bulk verification - only send unverified emails to Reoon API
+ */
+export const checkEmailsVerificationStatus = async (
+  emails: string[]
+): Promise<CheckEmailsVerificationStatusResponse> => {
+  const response = await emailClient.post(
+    "/api/reoon/check-verification-status",
+    {
+      emails,
+    }
+  );
+
+  const raw = response.data?.data ?? response.data ?? {};
+  return raw as CheckEmailsVerificationStatusResponse;
 };

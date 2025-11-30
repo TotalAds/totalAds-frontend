@@ -94,6 +94,7 @@ export default function CampaignStep4Send({
     domainId: string;
     campaignId: string;
     leadIds: string[];
+    leadEmails?: string[];
   } | null>(null);
 
   const handleReoonDecision = async (decision: {
@@ -377,11 +378,18 @@ export default function CampaignStep4Send({
 
       // Step 2.5: Optional Reoon verification before adding leads
 
+      // Extract emails from csvData in the same order as leadIds
+      const leadEmails = state.csvData.map((row: any) => {
+        const emailColumn = state.emailColumn || "email";
+        return (row[emailColumn] || row.email || "").toLowerCase().trim();
+      });
+
       // Ask user whether they want to run Reoon verification via rich modal
       setReoonModalPayload({
         domainId: state.domainId,
         campaignId,
         leadIds,
+        leadEmails,
       });
       setShowReoonModal(true);
     } catch (error: any) {
@@ -506,6 +514,7 @@ export default function CampaignStep4Send({
           domainId={reoonModalPayload.domainId}
           campaignId={reoonModalPayload.campaignId}
           leadIds={reoonModalPayload.leadIds}
+          leadEmails={reoonModalPayload.leadEmails}
           onDecision={async (decision) => {
             await handleReoonDecision(decision);
           }}

@@ -17,13 +17,15 @@
   --ag-header-background-color: #1a1a1d;
   --ag-header-foreground-color: rgba(255, 255, 255, 0.6);
   --ag-odd-row-background-color: #1a1a1d;
-  --ag-row-hover-color: rgba(255, 255, 255, 0.03);
+  --ag-row-hover-color: rgba(235, 133, 122, 0.1);
   --ag-selected-row-background-color: rgba(235, 133, 122, 0.1);
   --ag-border-color: rgba(255, 255, 255, 0.08);
   --ag-row-border-color: rgba(255, 255, 255, 0.06);
   --ag-header-column-separator-color: rgba(255, 255, 255, 0.1);
   --ag-range-selection-border-color: #eb857a;
   --ag-checkbox-checked-color: #eb857a;
+  --ag-checkbox-unchecked-color: #eb857a;
+  --ag-checkbox-background-color: transparent;
   --ag-alpine-active-color: #eb857a;
   --ag-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --ag-font-size: 14px;
@@ -118,15 +120,29 @@
 }
 
 .ag-theme-leadsnipper .ag-row:hover {
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: rgba(235, 133, 122, 0.1);
 }
 
-.ag-theme-leadsnipper .ag-row-selected {
-  background-color: rgba(235, 133, 122, 0.08);
+/* Selected row - primary color with 10% opacity */
+.ag-theme-leadsnipper .ag-row-selected,
+.ag-theme-leadsnipper .ag-row.ag-row-selected,
+.ag-theme-leadsnipper .ag-row-selected.ag-row-even,
+.ag-theme-leadsnipper .ag-row-selected.ag-row-odd {
+  background-color: rgba(235, 133, 122, 0.15) !important;
+}
+.ag-theme-leadsnipper .ag-row-selected::before, .ag-theme-leadsnipper .ag-row.ag-row-selected{
+  background-color: rgba(235, 133, 122, 0.15) !important;
 }
 
-.ag-theme-leadsnipper .ag-row-selected:hover {
-  background-color: rgba(235, 133, 122, 0.12);
+.ag-theme-leadsnipper .ag-row-selected:hover,
+.ag-theme-leadsnipper .ag-row.ag-row-selected:hover {
+  background-color: rgba(235, 133, 122, 0.15) !important;
+}
+
+/* Override any grey selection backgrounds */
+.ag-theme-leadsnipper .ag-row-focus,
+.ag-theme-leadsnipper .ag-row-selected .ag-cell {
+  background-color: transparent !important;
 }
 
 /* ========== CELL STYLING ========== */
@@ -158,27 +174,67 @@
   outline: none !important;
 }
 
-/* ========== CHECKBOX STYLING ========== */
+/* ========== CHECKBOX STYLING - DARK THEME ========== */
 .ag-theme-leadsnipper .ag-selection-checkbox {
   margin-right: 12px;
 }
 
+/* Reset all checkbox wrapper styles first */
+.ag-theme-leadsnipper .ag-checkbox-input-wrapper,
+.ag-theme-leadsnipper .ag-checkbox-input-wrapper input,
+.ag-theme-leadsnipper .ag-header-select-all .ag-checkbox-input-wrapper {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Unchecked checkbox - visible with primary border */
 .ag-theme-leadsnipper .ag-checkbox-input-wrapper {
-  width: 18px;
-  height: 18px;
-  background-color: transparent;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 4px;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: 2px solid #eb857a !important;
+  border-radius: 4px !important;
   transition: all 0.15s ease;
+  position: relative !important;
 }
 
+/* Hide the default unchecked icon */
+.ag-theme-leadsnipper .ag-checkbox-input-wrapper .ag-icon-checkbox-unchecked {
+  display: none !important;
+}
+
+/* Hover state */
 .ag-theme-leadsnipper .ag-checkbox-input-wrapper:hover {
-  border-color: rgba(255, 255, 255, 0.5);
+  background-color: rgba(235, 133, 122, 0.15) !important;
+  border-color: #eb857a !important;
 }
 
+/* Checked checkbox - primary background */
 .ag-theme-leadsnipper .ag-checkbox-input-wrapper.ag-checked {
-  background-color: #eb857a;
-  border-color: #eb857a;
+  background: #eb857a !important;
+  background-color: #eb857a !important;
+  border-color: #eb857a !important;
+}
+
+/* Checkmark icon color */
+.ag-theme-leadsnipper .ag-checkbox-input-wrapper.ag-checked .ag-icon-checkbox-checked,
+.ag-theme-leadsnipper .ag-checkbox-input-wrapper.ag-checked .ag-icon {
+  color: #ffffff !important;
+  font-size: 14px !important;
+}
+
+/* Indeterminate state */
+.ag-theme-leadsnipper .ag-checkbox-input-wrapper.ag-indeterminate {
+  background: rgba(235, 133, 122, 0.4) !important;
+  background-color: rgba(235, 133, 122, 0.4) !important;
+  border-color: #eb857a !important;
+}
+
+.ag-theme-leadsnipper .ag-checkbox-input-wrapper.ag-indeterminate .ag-icon {
+  color: #ffffff !important;
 }
 
 /* ========== OVERLAY STYLING ========== */
@@ -533,7 +589,7 @@
 }
 
 .ag-theme-leadsnipper .ag-list-item:hover {
-  background-color: rgba(235, 133, 122, 0.1) !important;
+  background-color: rgba(235, 133, 122, 0.15) !important;
 }
 
 .ag-theme-leadsnipper .ag-list-item.ag-active-item {
@@ -759,7 +815,7 @@
   --ag-header-background-color: #f8f9fa;
   --ag-header-foreground-color: #4a5568;
   --ag-odd-row-background-color: #ffffff;
-  --ag-row-hover-color: rgba(0, 0, 0, 0.03);
+  --ag-row-hover-color: rgba(235, 133, 122, 0.1);
   --ag-selected-row-background-color: rgba(235, 133, 122, 0.1);
   --ag-border-color: rgba(0, 0, 0, 0.1);
   --ag-row-border-color: rgba(0, 0, 0, 0.06);
@@ -805,12 +861,21 @@
   background-color: rgba(0, 0, 0, 0.02);
 }
 
-:root.light .ag-theme-leadsnipper .ag-row-selected {
-  background-color: rgba(235, 133, 122, 0.1);
+/* Light theme - selected row with primary 10% opacity */
+:root.light .ag-theme-leadsnipper .ag-row-selected,
+:root.light .ag-theme-leadsnipper .ag-row.ag-row-selected,
+:root.light .ag-theme-leadsnipper .ag-row-selected.ag-row-even,
+:root.light .ag-theme-leadsnipper .ag-row-selected.ag-row-odd {
+  background-color: rgba(235, 133, 122, 0.15) !important;
 }
 
-:root.light .ag-theme-leadsnipper .ag-row-selected:hover {
-  background-color: rgba(235, 133, 122, 0.15);
+:root.light .ag-theme-leadsnipper .ag-row-selected:hover,
+:root.light .ag-theme-leadsnipper .ag-row.ag-row-selected:hover {
+  background-color: rgba(235, 133, 122, 0.15) !important;
+}
+
+:root.light .ag-theme-leadsnipper .ag-row-selected .ag-cell {
+  background-color: transparent !important;
 }
 
 :root.light .ag-theme-leadsnipper .ag-cell {
@@ -822,12 +887,52 @@
   color: #131313;
 }
 
+/* ========== LIGHT THEME CHECKBOX - Fix double border ========== */
+/* Reset all checkbox styles first */
+:root.light .ag-theme-leadsnipper .ag-checkbox-input-wrapper,
+:root.light .ag-theme-leadsnipper .ag-checkbox-input-wrapper input,
+:root.light .ag-theme-leadsnipper .ag-header-select-all .ag-checkbox-input-wrapper {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Unchecked checkbox - single primary border only */
 :root.light .ag-theme-leadsnipper .ag-checkbox-input-wrapper {
-  border: 2px solid rgba(0, 0, 0, 0.3);
+  background: transparent !important;
+  background-color: transparent !important;
+  border: 2px solid #eb857a !important;
+  border-radius: 4px !important;
+}
+
+/* Hide default unchecked icon */
+:root.light .ag-theme-leadsnipper .ag-checkbox-input-wrapper .ag-icon-checkbox-unchecked {
+  display: none !important;
 }
 
 :root.light .ag-theme-leadsnipper .ag-checkbox-input-wrapper:hover {
-  border-color: rgba(0, 0, 0, 0.5);
+  border-color: #eb857a !important;
+  background-color: rgba(235, 133, 122, 0.15) !important;
+}
+
+:root.light .ag-theme-leadsnipper .ag-checkbox-input-wrapper.ag-checked {
+  background: #eb857a !important;
+  background-color: #eb857a !important;
+  border-color: #eb857a !important;
+}
+
+:root.light .ag-theme-leadsnipper .ag-checkbox-input-wrapper.ag-checked .ag-icon-checkbox-checked,
+:root.light .ag-theme-leadsnipper .ag-checkbox-input-wrapper.ag-checked .ag-icon {
+  color: #ffffff !important;
+}
+
+:root.light .ag-theme-leadsnipper .ag-checkbox-input-wrapper.ag-indeterminate {
+  background: rgba(235, 133, 122, 0.4) !important;
+  background-color: rgba(235, 133, 122, 0.4) !important;
+  border-color: #eb857a !important;
+}
+
+:root.light .ag-theme-leadsnipper .ag-checkbox-input-wrapper.ag-indeterminate .ag-icon {
+  color: #ffffff !important;
 }
 
 :root.light .ag-theme-leadsnipper .ag-overlay,
@@ -989,7 +1094,7 @@
 }
 
 :root.light .ag-theme-leadsnipper .ag-list-item.ag-active-item {
-  background-color: rgba(235, 133, 122, 0.1) !important;
+  background-color: rgba(235, 133, 122, 0.15) !important;
   color: #eb857a !important;
 }
 
@@ -1053,4 +1158,51 @@
 
 :root.light .ag-overlay-message {
   color: rgba(0, 0, 0, 0.5);
+}
+
+/* ========== HIGH PRIORITY CHECKBOX OVERRIDES ========== */
+/* These override any default AG Grid checkbox styles */
+
+/* DARK THEME - Ensure checkbox border visible */
+.ag-theme-leadsnipper .ag-checkbox-input-wrapper:not(.ag-checked) {
+  background: transparent !important;
+  border: 2px solid #eb857a !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+}
+
+/* DARK THEME - Remove inner checkbox styling that may cause double border */
+.ag-theme-leadsnipper .ag-checkbox-input-wrapper::before,
+.ag-theme-leadsnipper .ag-checkbox-input-wrapper::after {
+  display: none !important;
+}
+
+/* DARK THEME - Override row selection grey background */
+.ag-theme-leadsnipper .ag-row[class*="selected"],
+.ag-theme-leadsnipper .ag-row.ag-row-selected,
+.ag-theme-leadsnipper [class*="ag-row-selected"] {
+  background: rgba(235, 133, 122, 0.15) !important;
+  background-color: rgba(235, 133, 122, 0.15) !important;
+}
+
+/* LIGHT THEME - Ensure checkbox border visible, fix double border */
+:root.light .ag-theme-leadsnipper .ag-checkbox-input-wrapper:not(.ag-checked) {
+  background: transparent !important;
+  border: 2px solid #eb857a !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+}
+
+/* LIGHT THEME - Remove inner checkbox styling that may cause double border */
+:root.light .ag-theme-leadsnipper .ag-checkbox-input-wrapper::before,
+:root.light .ag-theme-leadsnipper .ag-checkbox-input-wrapper::after {
+  display: none !important;
+}
+
+/* LIGHT THEME - Override row selection grey background */
+:root.light .ag-theme-leadsnipper .ag-row[class*="selected"],
+:root.light .ag-theme-leadsnipper .ag-row.ag-row-selected,
+:root.light .ag-theme-leadsnipper [class*="ag-row-selected"] {
+  background: rgba(235, 133, 122, 0.15) !important;
+  background-color: rgba(235, 133, 122, 0.15) !important;
 }

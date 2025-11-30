@@ -1,19 +1,26 @@
 "use client";
 
-import { Download, RefreshCw } from 'lucide-react';
-import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import toast from 'react-hot-toast';
+import { Download, RefreshCw } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 
-import { FilterPanel } from '@/components/campaign-analytics/FilterPanel';
-import KPICard from '@/components/campaign-analytics/KPICard';
-import { MetricsSummary } from '@/components/campaign-analytics/MetricsSummary';
-import { TrendChart } from '@/components/campaign-analytics/TrendChart';
-import { Button } from '@/components/ui/button';
+import { FilterPanel } from "@/components/campaign-analytics/FilterPanel";
+import KPICard from "@/components/campaign-analytics/KPICard";
+import { MetricsSummary } from "@/components/campaign-analytics/MetricsSummary";
+import {
+  ReoonVerificationAnalytics,
+  ReoonVerificationAnalyticsData,
+} from "@/components/campaign-analytics/ReoonVerificationAnalytics";
+import { TrendChart } from "@/components/campaign-analytics/TrendChart";
+import { Button } from "@/components/ui/button";
 import emailClient, {
-    EnhancedAnalyticsFilters, EnhancedCampaignAnalytics, getEnhancedCampaignAnalytics
-} from '@/utils/api/emailClient';
-import { exportCampaignAnalyticsToPDF } from '@/utils/pdfExport';
+  EnhancedAnalyticsFilters,
+  EnhancedCampaignAnalytics,
+  getEnhancedCampaignAnalytics,
+  getReoonVerificationAnalytics,
+} from "@/utils/api/emailClient";
+import { exportCampaignAnalyticsToPDF } from "@/utils/pdfExport";
 
 interface CampaignAnalytics {
   campaign: {
@@ -75,8 +82,11 @@ export default function CampaignDetailsPage() {
   const [analytics, setAnalytics] = useState<CampaignAnalytics | null>(null);
   const [enhancedAnalytics, setEnhancedAnalytics] =
     useState<EnhancedCampaignAnalytics | null>(null);
+  const [reoonAnalytics, setReoonAnalytics] =
+    useState<ReoonVerificationAnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [enhancedLoading, setEnhancedLoading] = useState(false);
+  const [reoonLoading, setReoonLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "trends" | "leads">(
     "overview"
   );
@@ -115,9 +125,23 @@ export default function CampaignDetailsPage() {
     }
   }, [campaignId, filters]);
 
+  const fetchReoonAnalytics = useCallback(async () => {
+    try {
+      setReoonLoading(true);
+      const data = await getReoonVerificationAnalytics(campaignId);
+      setReoonAnalytics(data);
+    } catch (error: any) {
+      console.error("Failed to fetch Reoon analytics:", error);
+      // Don't show toast for Reoon analytics failure - it's optional
+    } finally {
+      setReoonLoading(false);
+    }
+  }, [campaignId]);
+
   useEffect(() => {
     fetchCampaignAnalytics();
     fetchEnhancedAnalytics();
+    fetchReoonAnalytics();
     // Auto-refresh every 5s while sending
     const interval = setInterval(() => {
       if (analytics?.campaign.status === "sending") {
@@ -131,6 +155,7 @@ export default function CampaignDetailsPage() {
     analytics?.campaign.status,
     fetchCampaignAnalytics,
     fetchEnhancedAnalytics,
+    fetchReoonAnalytics,
   ]);
 
   const handleExportPDF = async () => {
@@ -354,56 +379,11 @@ export default function CampaignDetailsPage() {
               </div>
             </div>
 
-            {/* Reoon Verification Summary */}
-            <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-6">
-              <h2 className="text-2xl font-bold text-text-100 mb-2">
-                🛡️ Reoon Verification Summary
-              </h2>
-              {reoon && reoon.used ? (
-                <div className="space-y-3 text-sm text-text-100">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
-                    <div>
-                      <p className="text-text-100/60 text-xs">
-                        Leads before filtering
-                      </p>
-                      <p className="text-text-100 mt-1 font-semibold text-lg">
-                        {reoon.totalLeadsBeforeVerification ??
-                          metrics.totalLeads}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-text-100/60 text-xs">
-                        Excluded as risky
-                      </p>
-                      <p className="text-red-300 mt-1 font-semibold text-lg">
-                        {reoon.excludedAsRisky ?? 0}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-text-100/60 text-xs">
-                        Final leads sent
-                      </p>
-                      <p className="text-emerald-300 mt-1 font-semibold text-lg">
-                        {reoon.totalLeadsAfterVerification ??
-                          metrics.totalLeads}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-text-100/70 text-xs">
-                    Verification mode: {reoon.mode || "power"}. Reoon
-                    verification helped protect your sender reputation by
-                    filtering out risky addresses before sending.
-                  </p>
-                </div>
-              ) : (
-                <p className="text-sm text-text-100/70 mt-2">
-                  Reoon verification was not used for this campaign. All leads
-                  were sent without pre-verification. Configure Reoon in
-                  Settings → Integrations to reduce bounces and protect
-                  deliverability.
-                </p>
-              )}
-            </div>
+            {/* Reoon Verification Analytics */}
+            <ReoonVerificationAnalytics
+              data={reoonAnalytics}
+              loading={reoonLoading}
+            />
 
             {/* Engagement Metrics */}
             <div>

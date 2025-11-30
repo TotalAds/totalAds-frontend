@@ -3,15 +3,17 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
+import ReoonSetupGuideModal from "@/components/settings/ReoonSetupGuideModal";
 import { Button } from "@/components/ui/button";
 import {
-  ReoonStatus,
   getReoonStatus,
+  ReoonStatus,
   saveReoonApiKey,
 } from "@/utils/api/reoonClient";
 import {
   IconAlertCircle,
   IconCheck,
+  IconHelpCircle,
   IconRefresh,
 } from "@tabler/icons-react";
 
@@ -21,6 +23,7 @@ const IntegrationsSection = () => {
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [apiKey, setApiKey] = useState("");
+  const [showGuideModal, setShowGuideModal] = useState(false);
 
   const loadStatus = async (opts?: { refresh?: boolean }) => {
     try {
@@ -85,9 +88,7 @@ const IntegrationsSection = () => {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold text-text-100 mb-2">
-          Integrations
-        </h2>
+        <h2 className="text-2xl font-bold text-text-100 mb-2">Integrations</h2>
         <p className="text-text-200 text-sm max-w-2xl">
           Connect third-party services to enhance deliverability and analytics.
           Reoon Email Verifier helps you validate email lists before sending
@@ -122,6 +123,16 @@ const IntegrationsSection = () => {
               type="button"
               size="sm"
               variant="outline"
+              onClick={() => setShowGuideModal(true)}
+              className="border-brand-main/40 text-text-100 hover:bg-brand-main/10"
+            >
+              <IconHelpCircle className="w-4 h-4 mr-1" />
+              Setup Guide
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
               disabled={refreshing || isLoading}
               onClick={handleRefresh}
               className="border-brand-main/40 text-text-100 hover:bg-brand-main/10"
@@ -135,7 +146,9 @@ const IntegrationsSection = () => {
         {/* Balance & Status */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
           <div className="rounded-xl border border-brand-main/15 bg-bg-300/40 p-4">
-            <p className="text-text-200 text-xs mb-1">Daily credits remaining</p>
+            <p className="text-text-200 text-xs mb-1">
+              Daily credits remaining
+            </p>
             <p className="text-lg font-semibold text-text-100">
               {isLoading
                 ? "-"
@@ -182,9 +195,15 @@ const IntegrationsSection = () => {
               className="w-full px-4 py-2 bg-bg-300 border border-brand-main/30 rounded-lg text-text-100 placeholder-text-200/60 focus:outline-none focus:ring-2 focus:ring-brand-main"
             />
             <p className="text-xs text-text-200/70 mt-2 max-w-xl">
-              We never store your key in plain text. It is encrypted with our KMS
-              and used only from the backend to call Reoon. You can generate a
-              key from your Reoon dashboard.
+              We never store your key in plain text. It is encrypted with our
+              KMS and used only from the backend to call Reoon.{" "}
+              <button
+                type="button"
+                onClick={() => setShowGuideModal(true)}
+                className="text-brand-main hover:underline"
+              >
+                Need help getting your API key?
+              </button>
             </p>
           </div>
           <div className="flex justify-end">
@@ -193,14 +212,23 @@ const IntegrationsSection = () => {
               disabled={saving || !apiKey.trim()}
               className="bg-brand-main hover:bg-brand-main/90 disabled:bg-brand-main/40 text-brand-white px-6 py-2 rounded-lg"
             >
-              {saving ? "Saving..." : isConfigured ? "Update API key" : "Connect Reoon"}
+              {saving
+                ? "Saving..."
+                : isConfigured
+                ? "Update API key"
+                : "Connect Reoon"}
             </Button>
           </div>
         </form>
       </div>
+
+      {/* Reoon Setup Guide Modal */}
+      <ReoonSetupGuideModal
+        open={showGuideModal}
+        onOpenChange={setShowGuideModal}
+      />
     </div>
   );
 };
 
 export default IntegrationsSection;
-
