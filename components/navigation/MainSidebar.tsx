@@ -1,25 +1,17 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import React, { useState } from "react";
+import { AnimatePresence, motion } from 'framer-motion';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import React, { useState } from 'react';
 
-import { cn } from "@/utils/cn";
+import { cn } from '@/utils/cn';
 import {
-  IconBook,
-  IconChevronDown,
-  IconChevronLeft,
-  IconDashboard,
-  IconKey,
-  IconSparkles,
-  IconTarget,
-  IconWorld,
-  IconWorldWww,
-  IconX,
-} from "@tabler/icons-react";
+    IconBook, IconChevronDown, IconChevronLeft, IconDashboard, IconKey, IconSparkles, IconTarget,
+    IconWorld, IconWorldWww, IconX
+} from '@tabler/icons-react';
 
-import GetLogo from "../common/getLogo";
+import GetLogo from '../common/getLogo';
 
 interface NavItem {
   name: string;
@@ -85,6 +77,11 @@ const MainSidebar: React.FC<MainSidebarProps> = ({
           name: "Warmup",
           href: "/email/warmup/accounts",
           badge: "BETA",
+        },
+        {
+          name: "Affiliate",
+          href: "/email/affiliate",
+          isNew: true,
         },
         {
           name: "Pricing & Plans",

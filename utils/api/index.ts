@@ -23,6 +23,9 @@ export * from "./feedbackClient";
 // Email Service API
 export * from "./emailClient";
 
+// Affiliate API
+export * from "./affiliateClient";
+
 // Re-export common types
 export type {
   // Auth types
