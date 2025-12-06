@@ -1,6 +1,6 @@
 "use client";
-import { useRouter } from "next/navigation";
-import React, { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import React, { useState, useEffect } from "react";
 
 import GetLogo from "@/components/common/getLogo";
 import { useAuthContext } from "@/context/AuthContext";
@@ -9,6 +9,7 @@ import { IconLogin } from "@tabler/icons-react";
 
 export function SignupComponent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { state, registerUser, clearError } = useAuthContext();
   const { isLoading, error } = state;
 
@@ -17,6 +18,15 @@ export function SignupComponent() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+
+  // Extract referral code from URL query parameter
+  useEffect(() => {
+    const ref = searchParams.get("ref");
+    if (ref) {
+      setReferralCode(ref);
+    }
+  }, [searchParams]);
 
   const validateForm = () => {
     const errors: { [key: string]: string } = {};
@@ -53,7 +63,7 @@ export function SignupComponent() {
     clearError();
 
     try {
-      const user = await registerUser(name, email, password, confirmPassword);
+      const user = await registerUser(name, email, password, confirmPassword, referralCode || undefined);
 
       // Check if email verification is required
       if (!user.emailVerified) {

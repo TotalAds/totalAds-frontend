@@ -21,7 +21,8 @@ export default function CampaignsPage() {
   const router = useRouter();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [domains, setDomains] = useState<Domain[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [domainsLoading, setDomainsLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [selectedDomain, setSelectedDomain] = useState<string>("");
   const [page, setPage] = useState(1);
@@ -42,6 +43,7 @@ export default function CampaignsPage() {
 
   const fetchDomains = async () => {
     try {
+      setDomainsLoading(true);
       const result = await getDomains(1, 100);
       setDomains(result.data.domains);
       if (result.data.domains.length > 0) {
@@ -59,6 +61,8 @@ export default function CampaignsPage() {
       }
 
       toast.error("Failed to fetch domains");
+    } finally {
+      setDomainsLoading(false);
     }
   };
 
@@ -483,14 +487,16 @@ export default function CampaignsPage() {
           </div>
         )}
 
-        {loading ? (
+        {domainsLoading || loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <div className="w-12 h-12 border-4 border-brand-main border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-text-200">Loading campaigns...</p>
+              <p className="text-text-200">
+                {domainsLoading ? "Loading domains..." : "Loading campaigns..."}
+              </p>
             </div>
           </div>
-        ) : !selectedDomain ? (
+        ) : domains.length === 0 ? (
           <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-12 text-center">
             <div className="w-16 h-16 bg-brand-main rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
@@ -503,16 +509,21 @@ export default function CampaignsPage() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                  d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
                 />
               </svg>
             </div>
             <h3 className="text-xl font-semibold text-text-100 mb-2">
-              No Domain Selected
+              No Domains Yet
             </h3>
             <p className="text-text-200 mb-6">
-              Please select a domain to view campaigns
+              Add a domain first to create campaigns
             </p>
+            <Link href="/email/domains/create">
+              <Button className="bg-brand-main hover:bg-brand-main/80 text-text-100 px-6 py-2 rounded-lg transition">
+                Add Your First Domain
+              </Button>
+            </Link>
           </div>
         ) : filteredCampaigns?.length === 0 && campaigns?.length === 0 ? (
           <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-12 text-center">

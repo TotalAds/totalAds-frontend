@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 import toast from "react-hot-toast";
 
+import { useAuthContext } from "@/context/AuthContext";
 import apiClient from "@/utils/api/apiClient";
 
 import { OnboardingData } from "../onboarding";
@@ -22,6 +23,7 @@ export function OnboardingStep4({
   formData,
 }: Step4Props) {
   const router = useRouter();
+  const { refreshUser } = useAuthContext();
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
@@ -107,6 +109,8 @@ export function OnboardingStep4({
       // Mark onboarding as completed
       try {
         await apiClient.post("/onboarding/mark-complete");
+        // Refresh user state to update onboardingCompleted flag in AuthContext
+        await refreshUser();
       } catch (error) {
         console.error("Error marking onboarding complete:", error);
         // Continue anyway, user can still access dashboard
@@ -115,7 +119,7 @@ export function OnboardingStep4({
       // Redirect to dashboard after a short delay
       setTimeout(() => {
         router.push("/email/dashboard");
-      }, 3000);
+      }, 1500);
     } catch (error: any) {
       console.error("Verify OTP error:", error);
       toast.error(error.response?.data?.message || "Failed to verify OTP");

@@ -19,6 +19,7 @@ export interface RegisterCredentials {
   email: string;
   password: string;
   confirmPassword: string;
+  referralCode?: string;
 }
 
 export interface UserProfile {
@@ -30,8 +31,11 @@ export interface UserProfile {
   onboardingCompleted: boolean;
   onboardingStep: number | null;
   onboardingSkipped: boolean;
-  foundingMember?: boolean;
-  foundingTierLockedPrice?: number;
+  // Early signup bonus (formerly founding member)
+  foundingMember?: boolean; // Kept for backward compatibility
+  foundingTierLockedPrice?: number; // Kept for backward compatibility
+  earlySignupBonus?: boolean;
+  discountedPrice?: number;
 }
 
 export interface AuthResponse {
@@ -85,7 +89,13 @@ export const register = async (
   credentials: RegisterCredentials
 ): Promise<AuthResponse> => {
   try {
-    const response = await apiClient.post("/auth/signup", credentials);
+    // Extract referralCode and send it separately (backend expects it at root level)
+    const { referralCode, ...signupData } = credentials;
+    const requestBody = referralCode 
+      ? { ...signupData, referralCode }
+      : signupData;
+    
+    const response = await apiClient.post("/auth/signup", requestBody);
 
     const { accessToken, expiresIn, user } = response.data.payload;
 

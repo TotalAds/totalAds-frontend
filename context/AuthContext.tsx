@@ -60,7 +60,8 @@ interface AuthContextType {
     name: string,
     email: string,
     password: string,
-    confirmPassword: string
+    confirmPassword: string,
+    referralCode?: string
   ) => Promise<UserProfile>;
   logoutUser: () => void;
   clearError: () => void;
@@ -167,16 +168,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     name: string,
     email: string,
     password: string,
-    confirmPassword: string
+    confirmPassword: string,
+    referralCode?: string
   ) => {
     try {
       dispatch({ type: "REGISTER_START" });
-      trackEvent("register_attempt");
+      trackEvent("register_attempt", { hasReferralCode: !!referralCode });
       const { user } = await register({
         name,
         email,
         password,
         confirmPassword,
+        referralCode,
       });
       dispatch({ type: "REGISTER_SUCCESS", payload: user });
       trackEvent("register_success", { email: user.email });

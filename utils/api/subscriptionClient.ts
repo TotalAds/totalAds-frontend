@@ -24,8 +24,11 @@ export interface SubscriptionStatus {
   cancelAtCycleEnd: boolean;
   failedPaymentCount: number;
   gracePeriodEndsAt: string | null;
-  foundingMember: boolean;
-  lockedPrice: number | null;
+  // Early signup bonus (formerly founding member)
+  foundingMember: boolean; // Kept for backward compatibility
+  earlySignupBonus?: boolean;
+  lockedPrice: number | null; // Deprecated, use discountedPrice
+  discountedPrice?: number | null;
 }
 
 export interface PaymentHistoryRecord {
@@ -53,7 +56,10 @@ export interface PaymentHistoryRecord {
  */
 
 // Helper function to handle errors
-const handleSubscriptionError = (error: unknown, defaultMessage: string): never => {
+const handleSubscriptionError = (
+  error: unknown,
+  defaultMessage: string
+): never => {
   console.error(defaultMessage, error);
 
   if (axios.isAxiosError(error)) {
@@ -178,4 +184,3 @@ export const getPaymentHistory = async (
     return handleSubscriptionError(error, "Failed to get payment history");
   }
 };
-
