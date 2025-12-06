@@ -105,15 +105,16 @@ export default function CampaignsPage() {
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { bg: string; text: string }> = {
-      draft: { bg: "bg-gray-500/40", text: "text-text-300" },
-      running: { bg: "bg-green-500/40", text: "text-green-400" },
-      paused: { bg: "bg-yellow-500/40", text: "text-yellow-400" },
-      completed: { bg: "bg-blue-500/40", text: "text-blue-400" },
+      draft: { bg: "bg-slate-100", text: "text-slate-600" },
+      running: { bg: "bg-green-100", text: "text-green-700" },
+      sending: { bg: "bg-blue-100", text: "text-blue-700" },
+      paused: { bg: "bg-amber-100", text: "text-amber-700" },
+      completed: { bg: "bg-emerald-100", text: "text-emerald-700" },
     };
     const style = statusMap[status] || statusMap.draft;
     return (
       <span
-        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${style.bg} ${style.text}`}
+        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${style.bg} ${style.text}`}
       >
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
@@ -142,30 +143,28 @@ export default function CampaignsPage() {
           : null;
 
       return (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5 py-1">
           <div className="flex items-center gap-2">
             {getStatusBadge(campaign.status)}
             {typeof (campaign as any).scheduledForTomorrowCount === "number" &&
               (campaign as any).scheduledForTomorrowCount > 0 && (
-                <span className="inline-flex items-center">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-500/20 text-purple-300">
-                    Scheduled
-                  </span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700">
+                  Scheduled
                 </span>
               )}
           </div>
           <div>
             {!used && excludedAsRisky == null ? (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-700/60 text-text-200 border border-slate-500/40">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
                 Reoon: Off
               </span>
             ) : (
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/40">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 border border-green-200">
                   Reoon: On
                 </span>
                 {excludedAsRisky !== null && excludedAsRisky > 0 && (
-                  <span className="text-[10px] text-emerald-200/80">
+                  <span className="text-[10px] text-green-600 font-medium">
                     {excludedAsRisky} risky removed
                   </span>
                 )}
@@ -184,15 +183,15 @@ export default function CampaignsPage() {
       if (!campaign) return null;
 
       return (
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 py-1">
           <Link href={`/email/campaigns/${campaign.id}`}>
-            <Button className="bg-blue-200 hover:bg-blue-300 text-blue-500 text-xs px-3 py-1 rounded transition">
+            <Button className="bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs px-3 py-1.5 rounded-md font-medium transition border border-blue-200">
               View
             </Button>
           </Link>
           {campaign.status === "draft" ? (
             <Link href={`/email/campaigns/builder?id=${campaign.id}`}>
-              <Button className="bg-purple-200 hover:bg-purple-300 text-purple-500 text-xs px-3 py-1 rounded transition">
+              <Button className="bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-md font-medium transition border border-slate-200">
                 Edit
               </Button>
             </Link>
@@ -200,7 +199,7 @@ export default function CampaignsPage() {
             <Button
               disabled
               title={`Cannot edit ${campaign.status} campaigns`}
-              className="bg-gray-100 text-text-200 text-xs px-3 py-1 rounded opacity-100 cursor-not-allowed"
+              className="bg-slate-50 text-slate-400 text-xs px-3 py-1.5 rounded-md font-medium border border-slate-200 cursor-not-allowed"
             >
               Edit
             </Button>
@@ -208,7 +207,7 @@ export default function CampaignsPage() {
           <Button
             onClick={() => handleDelete(campaign.id)}
             disabled={deleting === campaign.id}
-            className="bg-red-200 hover:bg-red-300 text-red-500 text-xs px-3 py-1 rounded transition disabled:opacity-50"
+            className="bg-red-50 hover:bg-red-100 text-red-600 text-xs px-3 py-1.5 rounded-md font-medium transition border border-red-200 disabled:opacity-50"
           >
             {deleting === campaign.id ? "..." : "Delete"}
           </Button>
@@ -255,15 +254,22 @@ export default function CampaignsPage() {
         field: "name",
         flex: 1.5,
         minWidth: 150,
-        cellClass: "text-text-100 font-medium",
+        cellClass: "text-slate-800 font-medium",
         sortable: true,
       },
       {
         headerName: "Subject",
         flex: 2,
         minWidth: 200,
+        maxWidth: 350,
         valueGetter: (params) => getSubjectFromCampaign(params.data!),
-        cellClass: "text-text-200 text-sm truncate",
+        cellClass: "text-slate-600 text-sm",
+        cellStyle: {
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        },
+        tooltipValueGetter: (params) => params.value,
         sortable: true,
       },
       {
@@ -280,7 +286,7 @@ export default function CampaignsPage() {
         flex: 1,
         minWidth: 120,
         valueFormatter: (params) => formatDate(params.value),
-        cellClass: "text-text-200 text-sm",
+        cellClass: "text-slate-500 text-sm",
         sortable: true,
       },
       {
@@ -357,7 +363,7 @@ export default function CampaignsPage() {
                 onClick={() => setReoonFilter("on")}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
                   reoonFilter === "on"
-                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                    ? "bg-brand-main text-white"
                     : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
                 }`}
               >
@@ -378,7 +384,7 @@ export default function CampaignsPage() {
                 onClick={() => setReoonFilter("off")}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
                   reoonFilter === "off"
-                    ? "bg-slate-700/40 text-slate-200 border border-slate-600/50"
+                    ? "bg-brand-main text-white"
                     : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
                 }`}
               >

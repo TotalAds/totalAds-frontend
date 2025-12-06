@@ -249,7 +249,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
           {/* Navigation Sections */}
           <nav
             className={cn(
-              "flex-1 py-4 overflow-y-auto sidebar-scrollbar",
+              "flex-1 py-4 overflow-y-auto sidebar-scrollbar no-scrollbar",
               isCollapsed ? "px-2" : "px-3"
             )}
           >
