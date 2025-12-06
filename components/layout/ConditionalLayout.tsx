@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import React, { useEffect, useState } from "react";
 
 import EmailVerificationBanner from "@/components/common/EmailVerificationBanner";
-import TopNav from "@/components/navigation/TopNav";
 import { useAuthContext } from "@/context/AuthContext";
+import { IconMenu2 } from "@tabler/icons-react";
 
 // Dynamically import components that pull in framer-motion to avoid SSR vendor-chunk issues
 const MainSidebar = dynamic(
@@ -62,47 +62,48 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
   const closeSidebar = () => setIsSidebarOpen(false);
 
   if (isAuthPage) {
-    // Return children without navbar and footer for auth pages
+    // Return children without sidebar for auth pages
     return <>{children}</>;
   }
 
-  // Return children with navbar and footer for other pages
+  // Return children with sidebar for other pages (no top header)
   return (
-    <div className="h-screen flex flex-col">
-      <TopNav onSidebarToggle={toggleSidebar} isSidebarOpen={isSidebarOpen} />
+    <div className="h-screen flex bg-bg-100">
+      {/* Sidebar */}
+      {isAuthenticated && (
+        <MainSidebar
+          isOpen={isSidebarOpen}
+          onClose={closeSidebar}
+          onToggle={toggleSidebar}
+        />
+      )}
 
-      {/* Main Layout Container */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        {isAuthenticated && (
-          <MainSidebar
-            isOpen={isSidebarOpen}
-            onClose={closeSidebar}
-            onToggle={toggleSidebar}
-          />
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Mobile Header - Only visible on mobile when sidebar is closed */}
+        {isAuthenticated && !isSidebarOpen && (
+          <div className="md:hidden flex items-center px-4 py-3 bg-bg-200 border-b border-gray-200">
+            <button
+              onClick={toggleSidebar}
+              className="p-2 rounded-lg text-text-200 hover:bg-gray-100 transition-colors"
+            >
+              <IconMenu2 className="h-6 w-6" />
+            </button>
+            <span className="ml-3 font-semibold text-text-100">
+              Leadsnipper
+            </span>
+          </div>
         )}
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <main className="flex-1 overflow-auto thin-scrollbar">
-            {/* Email Verification Banner - only show for authenticated users with unverified email */}
-            {isAuthenticated && state.user && !state.user.emailVerified && (
-              <div className="p-4">
-                <EmailVerificationBanner variant="banner" />
-              </div>
-            )}
-            {children}
-          </main>
-
-          {/* Footer */}
-          {/* <footer className="backdrop-blur-xl bg-slate-900/80 border-t border-white/10 text-white py-3 text-center">
-            <div className="container mx-auto px-4">
-              <p className="text-gray-300 text-sm">
-                © {new Date().getFullYear()} Leadsnipper. All rights reserved.
-              </p>
+        <main className="flex-1 overflow-auto thin-scrollbar">
+          {/* Email Verification Banner - only show for authenticated users with unverified email */}
+          {isAuthenticated && state.user && !state.user.emailVerified && (
+            <div className="p-4">
+              <EmailVerificationBanner variant="banner" />
             </div>
-          </footer> */}
-        </div>
+          )}
+          {children}
+        </main>
       </div>
     </div>
   );

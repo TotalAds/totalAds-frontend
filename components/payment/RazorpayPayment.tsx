@@ -1,9 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { toast } from 'react-hot-toast';
+import React, { useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
 
-import emailClient, { getSubscriptionInfo, SubscriptionInfo } from '@/utils/api/emailClient';
+import emailClient, {
+  getSubscriptionInfo,
+  SubscriptionInfo,
+} from "@/utils/api/emailClient";
 
 declare global {
   interface Window {
@@ -104,7 +107,7 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
         key: orderData.key,
         amount: orderData.amount,
         currency: orderData.currency,
-        name: "TotalAds Email Service",
+        name: "Leadsnipper Email Service",
         description: `Subscribe to ${orderData.name || "plan"}`,
         order_id: orderData.orderId,
         prefill: {

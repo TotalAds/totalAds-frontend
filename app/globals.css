@@ -7,32 +7,44 @@
 @import "ag-grid-community/styles/ag-theme-alpine.css";
 @import "../styles/ag-grid-theme.css";
 
-
-
 @layer base {
   :root {
-    /* Dark theme (default) */
-    --primary-100: #eb857a;
-    --primary-200: #f4cdc1;
-    --primary-300: #9DD0c7;
-    --accent-100: #9DD0c7;
-    --accent-200: #f4cdc1;
-    --text-100: #fafafa;
-    --text-200: #f4cdc1;
-    --bg-100: #131313;
-    --bg-200: #1a1a1d;
-    --bg-300: #2a2a2d;
+    /* Professional Light Theme - Single Theme */
+    /* Brand colors */
+    --primary-100: #3b82f6; /* Blue - primary brand */
+    --primary-200: #60a5fa; /* Light blue */
+    --primary-300: #22c55e; /* Green accent */
+    --accent-100: #22c55e; /* Green */
+    --accent-200: #fbbf24; /* Yellow/amber */
 
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Light theme text colors */
+    --text-100: #1e293b; /* Dark slate for main text */
+    --text-200: #64748b; /* Medium slate for secondary text */
+    --text-300: #94a3b8; /* Light slate for muted text */
+
+    /* Light theme backgrounds */
+    --bg-100: #f8fafc; /* Main page background */
+    --bg-200: #ffffff; /* Card/content background */
+    --bg-300: #f1f5f9; /* Subtle background */
+
+    /* Sidebar colors (dark navy) */
+    --sidebar-bg: #0f172a; /* Dark navy */
+    --sidebar-bg-hover: #1e293b; /* Slightly lighter navy */
+    --sidebar-text: #e2e8f0; /* Light text for sidebar */
+    --sidebar-text-muted: #94a3b8; /* Muted text for sidebar */
+    --sidebar-active: #3b82f6; /* Active item highlight */
+    --sidebar-border: #1e293b; /* Subtle border */
+
+    --background: 0 0% 98%;
+    --foreground: 222.2 47.4% 11.2%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 222.2 47.4% 11.2%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 222.2 47.4% 11.2%;
 
-    --primary: 222.2 47.4% 11.2%;
+    --primary: 217 91% 60%;
     --primary-foreground: 210 40% 98%;
 
     --secondary: 210 40% 96.1%;
@@ -41,7 +53,7 @@
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 210 40% 96.1%;
+    --accent: 142 71% 45%;
     --accent-foreground: 222.2 47.4% 11.2%;
 
     --destructive: 0 84.2% 60.2%;
@@ -49,51 +61,7 @@
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
-  }
-
-  /* Light theme */
-  :root.light {
-    --primary-100: #eb857a;
-    --primary-200: #f4cdc1;
-    --primary-300: #9DD0c7;
-    --accent-100: #9DD0c7;
-    --accent-200: #f4cdc1;
-    --text-100: #131313;
-    --text-200: #4a4a4a;
-    --bg-100: #fafafa;
-    --bg-200: #f0f0f0;
-    --bg-300: #ffffff;
-
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --ring: 217 91% 60%;
 
     --radius: 0.5rem;
   }
@@ -108,7 +76,7 @@
   }
 }
 
-/* Custom Scrollbar Styles - Matching Design Language */
+/* Custom Scrollbar Styles - Professional Light Theme */
 /* Webkit browsers (Chrome, Safari, Edge) */
 ::-webkit-scrollbar {
   width: 8px;
@@ -116,87 +84,32 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(241, 245, 249, 0.5);
+  background: #f1f5f9;
   border-radius: 4px;
-  backdrop-filter: blur(10px);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #eb857a;
+  background: #cbd5e1;
   border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #f4cdc1;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  background: #94a3b8;
 }
 
 ::-webkit-scrollbar-thumb:active {
-  background: #9DD0c7;
+  background: #64748b;
 }
 
 ::-webkit-scrollbar-corner {
-  background: rgba(241, 245, 249, 0.5);
+  background: #f1f5f9;
 }
 
 /* Firefox scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #eb857a rgba(241, 245, 249, 0.5);
-}
-
-/* Light theme scrollbar adjustments */
-:root.light ::-webkit-scrollbar-track {
-  background: rgba(250, 250, 250, 0.8);
-}
-
-:root.light * {
-  scrollbar-color: #eb857a rgba(250, 250, 250, 0.8);
-}
-
-:root.light ::-webkit-scrollbar-thumb {
-  background: #eb857a;
-  border: 1px solid rgba(6, 7, 9, 0.2);
-}
-
-:root.light ::-webkit-scrollbar-thumb:hover {
-  background: #f4cdc1;
-}
-
-/* Dark mode scrollbar adjustments */
-@media (prefers-color-scheme: dark) {
-  ::-webkit-scrollbar-track {
-    background: rgba(30, 41, 59, 0.8);
-  }
-
-  * {
-    scrollbar-color: #eb857a rgba(30, 41, 59, 0.8);
-  }
-}
-
-/* Custom scrollbar for specific containers with glass effect */
-.glass-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.glass-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-radius: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.glass-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(235, 133, 122, 0.6);
-  backdrop-filter: blur(10px);
-  border-radius: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.glass-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(235, 133, 122, 0.8);
+  scrollbar-color: #cbd5e1 #f1f5f9;
 }
 
 /* Thin scrollbar variant */
@@ -210,10 +123,28 @@
 }
 
 .thin-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(235, 133, 122, 0.4);
+  background: rgba(148, 163, 184, 0.5);
   border-radius: 2px;
 }
 
 .thin-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(235, 133, 122, 0.6);
+  background: rgba(100, 116, 139, 0.6);
+}
+
+/* Sidebar scrollbar (for dark background) */
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 2px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
 }

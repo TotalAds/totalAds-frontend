@@ -308,7 +308,7 @@ export default function CampaignsPage() {
             </p>
           </div>
           <Link href="/email/campaigns/builder">
-            <Button className="bg-brand-main hover:bg-brand-main/80 text-text-100 px-6 py-2 rounded-lg transition">
+            <Button className="bg-brand-main hover:bg-brand-main/80 text-white px-6 py-2 rounded-lg transition">
               + Create Campaign
             </Button>
           </Link>
@@ -347,7 +347,7 @@ export default function CampaignsPage() {
                 onClick={() => setReoonFilter("all")}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   reoonFilter === "all"
-                    ? "bg-brand-main text-text-100"
+                    ? "bg-brand-main text-white"
                     : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
                 }`}
               >

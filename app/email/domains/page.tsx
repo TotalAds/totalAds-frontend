@@ -197,7 +197,7 @@ export default function DomainsPage() {
             </p>
           </div>
           <Link href="/email/domains/create">
-            <Button className="bg-brand-main hover:bg-brand-main/80 text-text-100 px-6 py-2 rounded-lg transition">
+            <Button className="bg-brand-main hover:bg-brand-main/80 text-white px-6 py-2 rounded-lg transition">
               + Add Domain
             </Button>
           </Link>

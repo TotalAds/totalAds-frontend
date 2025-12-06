@@ -83,25 +83,26 @@ const ProfileSection = () => {
   };
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-bold text-text-100 ">My Profile</h2>
-
-      <div className="">
-        <p className="text-xs text-text-200">
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900">My Profile</h2>
+        <p className="text-sm text-slate-500 mt-1">
           Your email is read-only. To change it, contact support.
         </p>
       </div>
 
+      {/* Tabs */}
       <Tabs defaultValue="personal" className="w-full">
-        <TabsList className="">
+        <TabsList>
           <TabsTrigger value="personal">Personal Info</TabsTrigger>
           <TabsTrigger value="address">Address</TabsTrigger>
         </TabsList>
 
         <TabsContent value="personal" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-text-100 uppercase tracking-wide">
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 First Name
               </label>
               <Input
@@ -110,11 +111,10 @@ const ProfileSection = () => {
                 value={profileData.firstName || ""}
                 onChange={handleProfileChange}
                 placeholder="First name"
-                className="w-full"
               />
             </div>
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-text-100 uppercase tracking-wide">
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 Last Name
               </label>
               <Input
@@ -123,11 +123,10 @@ const ProfileSection = () => {
                 value={profileData.lastName || ""}
                 onChange={handleProfileChange}
                 placeholder="Last name"
-                className="w-full"
               />
             </div>
             <div className="md:col-span-2 space-y-2">
-              <label className="block text-xs font-semibold text-text-100 uppercase tracking-wide">
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 Email Address
               </label>
               <Input
@@ -135,16 +134,16 @@ const ProfileSection = () => {
                 name="email"
                 value={profileData.email}
                 disabled
-                className="w-full opacity-60"
+                placeholder="email@example.com"
               />
             </div>
           </div>
         </TabsContent>
 
         <TabsContent value="address" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2 space-y-2">
-              <label className="block text-xs font-semibold text-text-100 uppercase tracking-wide">
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 Address
               </label>
               <Input
@@ -153,11 +152,10 @@ const ProfileSection = () => {
                 value={(profileData as any).companyAddress || ""}
                 onChange={handleProfileChange}
                 placeholder="Street, Area"
-                className="w-full"
               />
             </div>
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-text-100 uppercase tracking-wide">
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 City
               </label>
               <Input
@@ -166,11 +164,10 @@ const ProfileSection = () => {
                 value={(profileData as any).companyCity || ""}
                 onChange={handleProfileChange}
                 placeholder="City"
-                className="w-full"
               />
             </div>
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-text-100 uppercase tracking-wide">
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 Zip / Postal Code
               </label>
               <Input
@@ -179,11 +176,10 @@ const ProfileSection = () => {
                 value={(profileData as any).companyZipcode || ""}
                 onChange={handleProfileChange}
                 placeholder="Zip / Postal"
-                className="w-full"
               />
             </div>
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-text-100 uppercase tracking-wide">
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 Country
               </label>
               <Input
@@ -192,18 +188,18 @@ const ProfileSection = () => {
                 value={(profileData as any).companyCountry || ""}
                 onChange={handleProfileChange}
                 placeholder="Country"
-                className="w-full"
               />
             </div>
           </div>
         </TabsContent>
       </Tabs>
 
-      <div className="pt-4">
+      {/* Save Button */}
+      <div className="pt-2">
         <Button
           onClick={handleUpdateProfile}
           disabled={isLoadingProfile}
-          className="w-full bg-brand-main hover:bg-brand-main/90 text-white py-3 px-4 text-sm"
+          className="w-full h-11 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors"
         >
           {isLoadingProfile ? (
             <>

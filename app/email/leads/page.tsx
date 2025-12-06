@@ -272,7 +272,7 @@ export default function LeadsPage() {
         return (
           <button
             onClick={() => setSelectedLeadForCampaigns(lead)}
-            className="text-sm text-gray-300 hover:text-brand-main transition-colors truncate"
+            className="text-sm text-brand-secondary hover:text-brand-main transition-colors truncate"
           >
             {lead.campaigns.length === 1
               ? lead.campaigns[0].name
@@ -396,7 +396,7 @@ export default function LeadsPage() {
           </div>
           <button
             onClick={() => router.push("/email/leads/create")}
-            className="flex items-center gap-2 px-6 py-3 bg-brand-main hover:bg-brand-main/80 text-text-100 font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02]"
+            className="flex items-center gap-2 px-6 py-3 bg-brand-main hover:bg-brand-main/80 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02]"
           >
             <IconPlus size={20} />
             Add Lead

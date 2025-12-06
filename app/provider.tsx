@@ -87,14 +87,15 @@ const Provider = ({ children }: { children: React.ReactNode }) => {
             toastOptions={{
               duration: 4000,
               style: {
-                background: "rgba(15, 23, 42, 0.95)",
-                color: "#fff",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
-                backdropFilter: "blur(10px)",
+                background: "#ffffff",
+                color: "#1e293b",
+                border: "1px solid #e2e8f0",
+                boxShadow:
+                  "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
               },
               success: {
                 iconTheme: {
-                  primary: "#10b981",
+                  primary: "#22c55e",
                   secondary: "#fff",
                 },
               },

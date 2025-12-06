@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
-import { Nunito_Sans } from "next/font/google";
+import { Inter } from "next/font/google";
 import { Suspense } from "react";
 
 import ConditionalLayout from "@/components/layout/ConditionalLayout";
@@ -10,12 +10,12 @@ import { cn } from "@/utils/cn";
 
 import Provider from "./provider";
 
-const inter = Nunito_Sans({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Leadsnipper - Website Scraper & Data Extraction",
+  title: "Leadsnipper - Email Marketing & Cold Outreach Platform",
   description:
-    "Extract valuable information from any website with our powerful scraper",
+    "Convert cold email into predictable revenue with deliverability-first email marketing",
 };
 
 export default function RootLayout({
@@ -24,11 +24,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="light" suppressHydrationWarning>
       <body
-        className={cn(inter.className, [
-          "bg-bg-100 text-text-100 transition-colors duration-300",
-        ])}
+        className={cn(inter.className, ["bg-bg-100 text-text-100 antialiased"])}
       >
         <Suspense fallback={null}>
           <Provider>
@@ -36,9 +34,6 @@ export default function RootLayout({
           </Provider>
         </Suspense>
         {/* subtle footer link */}
-        <div className="fixed bottom-2 right-3 text-[10px] text-slate-400/60 hover:text-slate-300/80">
-          <a href="/legal/data-use">Data use</a>
-        </div>
       </body>
     </html>
   );

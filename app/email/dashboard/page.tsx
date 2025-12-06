@@ -95,7 +95,7 @@ export default function DashboardPage() {
             Welcome to Your Dashboard
           </h2>
           <p className="text-text-200">
-            Get started with TotalAds Email Service. Manage your email
+            Get started with Leadsnipper Email Service. Manage your email
             campaigns, domains, and leads.
           </p>
         </div>
@@ -216,7 +216,7 @@ export default function DashboardPage() {
           <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-6 hover:bg-brand-main/15 transition">
             <div className="w-12 h-12 bg-brand-secondary rounded-lg flex items-center justify-center mb-4">
               <svg
-                className="w-6 h-6 text-text-100"
+                className="w-6 h-6 text-white"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -247,7 +247,7 @@ export default function DashboardPage() {
           <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-6 hover:bg-brand-main/15 transition">
             <div className="w-12 h-12 bg-brand-secondary rounded-lg flex items-center justify-center mb-4">
               <svg
-                className="w-6 h-6 text-text-100"
+                className="w-6 h-6 text-white"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -276,7 +276,7 @@ export default function DashboardPage() {
           <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-6 hover:bg-brand-main/15 transition">
             <div className="w-12 h-12 bg-brand-secondary rounded-lg flex items-center justify-center mb-4">
               <svg
-                className="w-6 h-6 text-text-100"
+                className="w-6 h-6 text-white"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -307,7 +307,7 @@ export default function DashboardPage() {
           <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-6 hover:bg-brand-main/15 transition">
             <div className="w-12 h-12 bg-brand-secondary rounded-lg flex items-center justify-center mb-4">
               <svg
-                className="w-6 h-6 text-text-100"
+                className="w-6 h-6 text-white"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -338,7 +338,7 @@ export default function DashboardPage() {
           <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-6 hover:bg-brand-main/15 transition">
             <div className="w-12 h-12 bg-brand-secondary rounded-lg flex items-center justify-center mb-4">
               <svg
-                className="w-6 h-6 text-text-100"
+                className="w-6 h-6 text-white"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
