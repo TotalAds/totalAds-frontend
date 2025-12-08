@@ -1,7 +1,7 @@
 /* Tiptap Editor Styles */
 .ProseMirror {
   outline: none;
-  color: white;
+  color: var(--text-200);
   font-size: 13px;
   line-height: 1.6;
   min-height: 320px;
