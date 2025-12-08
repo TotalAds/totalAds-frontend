@@ -30,6 +30,7 @@ export interface AffiliateDashboardResponse {
     withdrawnAmount: string;
     totalReferrals: number;
     successfulReferrals: number;
+    points: number; // Points earned from referrals
   };
   paymentDetails: {
     hasPaymentDetails: boolean;
@@ -40,6 +41,34 @@ export interface AffiliateDashboardResponse {
     accountHolderName: string | null;
   };
   referredUsers: ReferredUser[];
+}
+
+export interface AvailableReward {
+  id: number;
+  rewardType: "free_plan";
+  planTierName: string;
+  planDisplayName: string;
+  pointsRequired: number;
+  currentPoints: number;
+  pointsNeeded: number;
+  status: "available" | "redeemed" | "expired" | "cancelled";
+  canRedeem: boolean;
+  redeemedAt?: Date;
+  validUntil?: Date;
+}
+
+export interface CheckReferralRewardsResponse {
+  totalPoints: number;
+  totalReferrals: number;
+  availableRewards: AvailableReward[];
+  redeemedRewards: AvailableReward[];
+}
+
+export interface RedeemReferralRewardResponse {
+  success: boolean;
+  rewardId: number;
+  subscriptionId: number;
+  message: string;
 }
 
 export interface Transaction {
@@ -166,4 +195,26 @@ export async function trackReferralClick(
     referrer,
   });
   return extractData<{ success: boolean }>(response);
+}
+
+/**
+ * Check available referral rewards
+ */
+export async function checkReferralRewards(): Promise<CheckReferralRewardsResponse> {
+  const response = await apiClient.get("/affiliate/rewards/check");
+  return extractData<CheckReferralRewardsResponse>(response);
+}
+
+/**
+ * Redeem a referral reward
+ */
+export async function redeemReferralReward(
+  planTierName: "starter" | "business",
+  rewardId?: number
+): Promise<RedeemReferralRewardResponse> {
+  const response = await apiClient.post("/affiliate/rewards/redeem", {
+    planTierName,
+    rewardId,
+  });
+  return extractData<RedeemReferralRewardResponse>(response);
 }

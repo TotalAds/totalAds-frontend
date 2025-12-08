@@ -23,6 +23,7 @@ import {
   IconWorld,
   IconX,
 } from "@tabler/icons-react";
+import { getSubscriptionInfo, SubscriptionInfo } from "@/utils/api/emailClient";
 
 import GetLogo from "../common/getLogo";
 
@@ -54,6 +55,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
   const { user } = state;
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionInfo | null>(null);
 
   // Load collapsed state from localStorage on mount
   useEffect(() => {
@@ -62,6 +64,22 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
       setIsCollapsed(savedState === "true");
     }
   }, []);
+
+  // Fetch subscription info for plan display
+  useEffect(() => {
+    const fetchSubscription = async () => {
+      try {
+        const info = await getSubscriptionInfo();
+        setSubscriptionInfo(info);
+      } catch (error) {
+        // Silently fail - subscription info is optional
+        console.error("Failed to fetch subscription info:", error);
+      }
+    };
+    if (state.isAuthenticated) {
+      fetchSubscription();
+    }
+  }, [state.isAuthenticated]);
 
   // Toggle collapsed state and persist to localStorage
   const toggleCollapse = () => {
@@ -283,10 +301,10 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
                         }}
                         title={isCollapsed ? item.name : undefined}
                         className={cn(
-                          "flex items-center py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group relative",
-                          isCollapsed ? "px-0 justify-center" : "px-3",
+                          "flex items-center py-2.5 text-sm font-medium transition-all duration-200 group relative",
+                          isCollapsed ? "px-0 justify-center rounded-lg" : "px-3 rounded-lg",
                           isActive
-                            ? "bg-brand-main text-white"
+                            ? "bg-brand-main text-white shadow-md"
                             : "text-sidebar-text hover:bg-sidebar-hover"
                         )}
                       >
@@ -367,6 +385,11 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
                       <p className="text-xs text-sidebar-muted truncate">
                         {user?.email || "user@example.com"}
                       </p>
+                      {subscriptionInfo?.tierDisplayName && (
+                        <p className="text-[10px] text-sidebar-muted/80 truncate mt-0.5">
+                          {subscriptionInfo.tierDisplayName}
+                        </p>
+                      )}
                     </div>
                     <IconChevronDown
                       className={cn(
@@ -389,10 +412,18 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
                     className={cn(
                       "absolute bottom-full mb-2 bg-sidebar-hover rounded-lg shadow-lg border border-sidebar-border overflow-hidden",
                       isCollapsed
-                        ? "left-full ml-2 bottom-0 mb-0 min-w-[160px]"
+                        ? "left-full ml-2 bottom-0 mb-0 min-w-[180px]"
                         : "left-0 right-0"
                     )}
                   >
+                    <Link
+                      href="/email/settings"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="w-full flex items-center px-4 py-3 text-sm text-sidebar-text hover:bg-sidebar-border transition-colors whitespace-nowrap border-b border-sidebar-border/50"
+                    >
+                      <IconSettings className="w-4 h-4 mr-3" />
+                      Settings
+                    </Link>
                     <button
                       onClick={handleLogout}
                       className="w-full flex items-center px-4 py-3 text-sm text-sidebar-text hover:bg-red-500/10 hover:text-red-400 transition-colors whitespace-nowrap"

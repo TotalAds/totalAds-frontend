@@ -59,7 +59,7 @@ export default function CustomPlanRequestModal({
 
     setIsSubmitting(true);
     try {
-      const response = await emailClient.post("/custom-plan/request", {
+      const response = await emailClient.post("/api/custom-plan/request", {
         companyName: formData.companyName,
         expectedMonthlyEmails: parseInt(formData.expectedMonthlyEmails, 10),
         expectedContacts: parseInt(formData.expectedContacts, 10) || 0,
