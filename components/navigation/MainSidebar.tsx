@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 
 import { useAuthContext } from "@/context/AuthContext";
+import { getSubscriptionInfo, SubscriptionInfo } from "@/utils/api/emailClient";
 import { cn } from "@/utils/cn";
 import {
   IconChartBar,
@@ -23,7 +24,6 @@ import {
   IconWorld,
   IconX,
 } from "@tabler/icons-react";
-import { getSubscriptionInfo, SubscriptionInfo } from "@/utils/api/emailClient";
 
 import GetLogo from "../common/getLogo";
 
@@ -55,7 +55,8 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
   const { user } = state;
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionInfo | null>(null);
+  const [subscriptionInfo, setSubscriptionInfo] =
+    useState<SubscriptionInfo | null>(null);
 
   // Load collapsed state from localStorage on mount
   useEffect(() => {
@@ -302,7 +303,9 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
                         title={isCollapsed ? item.name : undefined}
                         className={cn(
                           "flex items-center py-2.5 text-sm font-medium transition-all duration-200 group relative",
-                          isCollapsed ? "px-0 justify-center rounded-lg" : "px-3 rounded-lg",
+                          isCollapsed
+                            ? "px-0 justify-center rounded-lg"
+                            : "px-3 rounded-lg",
                           isActive
                             ? "bg-brand-main text-white shadow-md"
                             : "text-sidebar-text hover:bg-sidebar-hover"
@@ -379,17 +382,21 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
                 {!isCollapsed && (
                   <>
                     <div className="ml-3 flex-1 text-left overflow-hidden">
-                      <p className="text-sm font-medium text-sidebar-text truncate">
-                        {user?.name || "User"}
+                      <p className="text-sm flex gap-1 items-center font-medium text-sidebar-text truncate">
+                        {(user?.name.length && user?.name.length <= 10
+                          ? user?.name
+                          : user?.name.slice(0, 8) + "...") || "User"}{" "}
+                        <div>
+                          {subscriptionInfo?.tierDisplayName && (
+                            <p className="text-[10px] text-sidebar-muted/80 bg-amber-200/80 px-1 flex w-max rounded-full truncate mt-0.5 text-black">
+                              {subscriptionInfo.tierDisplayName}
+                            </p>
+                          )}
+                        </div>
                       </p>
                       <p className="text-xs text-sidebar-muted truncate">
                         {user?.email || "user@example.com"}
                       </p>
-                      {subscriptionInfo?.tierDisplayName && (
-                        <p className="text-[10px] text-sidebar-muted/80 truncate mt-0.5">
-                          {subscriptionInfo.tierDisplayName}
-                        </p>
-                      )}
                     </div>
                     <IconChevronDown
                       className={cn(
