@@ -963,7 +963,7 @@ export default function WarmupAccountsPage() {
     </div>
   ) : (
     <>
-      <main className="flex h-screen w-full items-center justify-center  text-white">
+      <main className="flex h-screen w-full items-center justify-center  text-text-200">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
