@@ -8,14 +8,14 @@ import { toast } from "react-hot-toast";
 import { useAuthContext } from "@/context/AuthContext";
 import {
   Analytics,
+  ContactMetrics,
   DailyCounterRow,
   getAnalytics,
   getContactMetrics,
   getDailyCounters,
-  getQuotaCardData,
   getLeads,
+  getQuotaCardData,
   QuotaCardData,
-  ContactMetrics,
 } from "@/utils/api/emailClient";
 import { tokenStorage } from "@/utils/auth/tokenStorage";
 import {
@@ -37,7 +37,9 @@ export default function DashboardPage() {
   const [quota, setQuota] = useState<QuotaCardData | null>(null);
   const [counters, setCounters] = useState<DailyCounterRow[]>([]);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
-  const [contactMetrics, setContactMetrics] = useState<ContactMetrics | null>(null);
+  const [contactMetrics, setContactMetrics] = useState<ContactMetrics | null>(
+    null
+  );
   const [totalLeadsCount, setTotalLeadsCount] = useState<number>(0);
   const [range, setRange] = useState<7 | 30>(7);
 
@@ -54,16 +56,14 @@ export default function DashboardPage() {
     const openRate = totalSent > 0 ? (totalOpened / totalSent) * 100 : 0;
     const clickRate = totalSent > 0 ? (totalClicked / totalSent) * 100 : 0;
     const bounceRate = totalSent > 0 ? (totalBounced / totalSent) * 100 : 0;
-    
+
     // Reply rate - would need backend data for this
     const replyRate = 0; // TODO: Add reply tracking to backend
 
     // Engagement score (0-100) based on opens, clicks, and low bounces
     const engagementScore = Math.min(
       100,
-      Math.round(
-        (openRate * 0.5) + (clickRate * 0.3) + ((100 - bounceRate) * 0.2)
-      )
+      Math.round(openRate * 0.5 + clickRate * 0.3 + (100 - bounceRate) * 0.2)
     );
 
     return {
@@ -94,24 +94,18 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchDashboardData(range);
-    
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(() => {
-      fetchDashboardData(range);
-    }, 30000);
-
-    return () => clearInterval(interval);
   }, [range]);
 
   const fetchDashboardData = async (days: 7 | 30) => {
     try {
       setLoading(true);
-      const [quotaData, dailyCounters, analyticsData, contactMetricsData] = await Promise.all([
-        getQuotaCardData(),
-        getDailyCounters(days),
-        getAnalytics().catch(() => null), // Gracefully handle if analytics not available
-        getContactMetrics().catch(() => null), // Gracefully handle if not available
-      ]);
+      const [quotaData, dailyCounters, analyticsData, contactMetricsData] =
+        await Promise.all([
+          getQuotaCardData(),
+          getDailyCounters(days),
+          getAnalytics().catch(() => null), // Gracefully handle if analytics not available
+          getContactMetrics().catch(() => null), // Gracefully handle if not available
+        ]);
 
       setQuota(quotaData);
       setCounters(dailyCounters || []);
@@ -155,7 +149,8 @@ export default function DashboardPage() {
   }
 
   const hasAnyData = (counters || []).some(
-    (c) => (c.sentCount || 0) + (c.bounceCount || 0) + (c.complaintCount || 0) > 0
+    (c) =>
+      (c.sentCount || 0) + (c.bounceCount || 0) + (c.complaintCount || 0) > 0
   );
 
   return (
@@ -202,9 +197,10 @@ export default function DashboardPage() {
             },
             {
               label: "Reply Rate",
-              value: dashboardMetrics.replyRate > 0 
-                ? `${dashboardMetrics.replyRate.toFixed(1)}%`
-                : "—",
+              value:
+                dashboardMetrics.replyRate > 0
+                  ? `${dashboardMetrics.replyRate.toFixed(1)}%`
+                  : "—",
               icon: <IconTrendingUp className="w-5 h-5" />,
               color: "text-orange-600",
               bgColor: "bg-orange-50",
@@ -213,8 +209,12 @@ export default function DashboardPage() {
               label: "Bounce Rate",
               value: `${dashboardMetrics.bounceRate.toFixed(1)}%`,
               icon: <IconShieldCheck className="w-5 h-5" />,
-              color: dashboardMetrics.bounceRate < 2 ? "text-green-600" : "text-red-600",
-              bgColor: dashboardMetrics.bounceRate < 2 ? "bg-green-50" : "bg-red-50",
+              color:
+                dashboardMetrics.bounceRate < 2
+                  ? "text-green-600"
+                  : "text-red-600",
+              bgColor:
+                dashboardMetrics.bounceRate < 2 ? "bg-green-50" : "bg-red-50",
             },
           ].map((card) => (
             <div
@@ -222,7 +222,9 @@ export default function DashboardPage() {
               className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow"
             >
               <div className="flex items-start justify-between mb-3">
-                <div className={`w-10 h-10 ${card.bgColor} ${card.color} rounded-lg flex items-center justify-center`}>
+                <div
+                  className={`w-10 h-10 ${card.bgColor} ${card.color} rounded-lg flex items-center justify-center`}
+                >
                   {card.icon}
                 </div>
               </div>
@@ -237,7 +239,9 @@ export default function DashboardPage() {
           {/* Campaign Summary */}
           <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Campaign Performance</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Campaign Performance
+              </h3>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {[
@@ -246,7 +250,10 @@ export default function DashboardPage() {
                 { label: "Opened", value: dashboardMetrics.totalOpened },
                 { label: "Clicked", value: dashboardMetrics.totalClicked },
                 { label: "Bounced", value: dashboardMetrics.totalBounced },
-                { label: "Complained", value: dashboardMetrics.totalComplained },
+                {
+                  label: "Complained",
+                  value: dashboardMetrics.totalComplained,
+                },
               ].map((item) => (
                 <div
                   key={item.label}
@@ -263,7 +270,9 @@ export default function DashboardPage() {
 
           {/* Engagement Score */}
           <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Engagement Score</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Engagement Score
+            </h3>
             <div className="flex items-center justify-center mb-4">
               <div className="relative w-32 h-32">
                 <svg className="w-32 h-32 transform -rotate-90">
@@ -279,7 +288,9 @@ export default function DashboardPage() {
                   <circle
                     className="text-brand-main"
                     strokeWidth="8"
-                    strokeDasharray={`${(dashboardMetrics.engagementScore / 100) * 326.73}, 999`}
+                    strokeDasharray={`${
+                      (dashboardMetrics.engagementScore / 100) * 326.73
+                    }, 999`}
                     strokeLinecap="round"
                     stroke="currentColor"
                     fill="transparent"
@@ -306,13 +317,19 @@ export default function DashboardPage() {
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-base font-semibold text-gray-900">Reputation Status</h4>
+              <h4 className="text-base font-semibold text-gray-900">
+                Reputation Status
+              </h4>
               <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
                 <IconShieldCheck className="w-4 h-4 text-green-600" />
               </div>
             </div>
             <p className="text-sm text-gray-600 mb-2">
-              {dashboardMetrics.bounceRate < 2 ? "Stable" : dashboardMetrics.bounceRate < 5 ? "Good" : "Needs Attention"}
+              {dashboardMetrics.bounceRate < 2
+                ? "Stable"
+                : dashboardMetrics.bounceRate < 5
+                ? "Good"
+                : "Needs Attention"}
             </p>
             <p className="text-xs text-gray-500">
               Bounce rate: {dashboardMetrics.bounceRate.toFixed(2)}%
@@ -321,28 +338,33 @@ export default function DashboardPage() {
 
           <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-base font-semibold text-gray-900">Domain Health</h4>
+              <h4 className="text-base font-semibold text-gray-900">
+                Domain Health
+              </h4>
               <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                 <IconShieldCheck className="w-4 h-4 text-blue-600" />
               </div>
             </div>
             <p className="text-sm text-gray-600 mb-2">
-              {dashboardMetrics.bounceRate < 2 && dashboardMetrics.totalComplained === 0 
-                ? "Good" 
-                : dashboardMetrics.bounceRate < 5 
-                ? "Fair" 
+              {dashboardMetrics.bounceRate < 2 &&
+              dashboardMetrics.totalComplained === 0
+                ? "Good"
+                : dashboardMetrics.bounceRate < 5
+                ? "Fair"
                 : "Review Needed"}
             </p>
             <p className="text-xs text-gray-500">
-              {dashboardMetrics.totalComplained === 0 
-                ? "No complaints recorded" 
+              {dashboardMetrics.totalComplained === 0
+                ? "No complaints recorded"
                 : `${dashboardMetrics.totalComplained} complaint(s)`}
             </p>
           </div>
 
           <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-base font-semibold text-gray-900">Daily Sending Capacity</h4>
+              <h4 className="text-base font-semibold text-gray-900">
+                Daily Sending Capacity
+              </h4>
               <div className="w-8 h-8 bg-brand-main/10 rounded-lg flex items-center justify-center">
                 <IconMail className="w-4 h-4 text-brand-main" />
               </div>
@@ -365,7 +387,10 @@ export default function DashboardPage() {
                   className="h-full bg-brand-main transition-all duration-500"
                   style={{
                     width: quota?.cap
-                      ? `${Math.min(((quota.used || 0) / quota.cap) * 100, 100)}%`
+                      ? `${Math.min(
+                          ((quota.used || 0) / quota.cap) * 100,
+                          100
+                        )}%`
                       : "0%",
                   }}
                 />
@@ -378,8 +403,12 @@ export default function DashboardPage() {
         <section className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Email Sending Trends</h3>
-              <p className="text-sm text-gray-600">Track your sending volume over time</p>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Email Sending Trends
+              </h3>
+              <p className="text-sm text-gray-600">
+                Track your sending volume over time
+              </p>
             </div>
             <div className="flex gap-2">
               <button
@@ -415,13 +444,22 @@ export default function DashboardPage() {
             {hasAnyData ? (
               <svg viewBox="0 0 400 200" className="w-full h-full">
                 <defs>
-                  <linearGradient id="areaGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <linearGradient
+                    id="areaGrad"
+                    x1="0%"
+                    y1="0%"
+                    x2="0%"
+                    y2="100%"
+                  >
                     <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
                     <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
                   </linearGradient>
                 </defs>
                 {(() => {
-                  const maxValue = Math.max(1, ...counters.map((c) => c.sentCount || 0));
+                  const maxValue = Math.max(
+                    1,
+                    ...counters.map((c) => c.sentCount || 0)
+                  );
                   const points = counters.map((c, idx) => ({
                     x: (idx / Math.max(counters.length - 1, 1)) * 380 + 10,
                     y: 180 - ((c.sentCount || 0) / maxValue) * 160,
@@ -429,14 +467,12 @@ export default function DashboardPage() {
                   const path = points
                     .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x},${p.y}`)
                     .join(" ");
-                  const areaPath = `${path} L ${points[points.length - 1]?.x || 390} 180 L 10 180 Z`;
+                  const areaPath = `${path} L ${
+                    points[points.length - 1]?.x || 390
+                  } 180 L 10 180 Z`;
                   return (
                     <>
-                      <path
-                        d={areaPath}
-                        fill="url(#areaGrad)"
-                        stroke="none"
-                      />
+                      <path d={areaPath} fill="url(#areaGrad)" stroke="none" />
                       <path
                         d={path}
                         fill="none"
