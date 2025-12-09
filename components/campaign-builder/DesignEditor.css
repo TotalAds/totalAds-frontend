@@ -149,7 +149,7 @@
 
 /* Prose styles */
 .prose {
-  color: white;
+  color: var(--text-200);
 }
 
 .prose-invert {

@@ -1,7 +1,16 @@
 "use client";
 
-import { Code2, Eye, FileText, Monitor, Smartphone, X, Search, Plus } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import {
+  Code2,
+  Eye,
+  FileText,
+  Monitor,
+  Plus,
+  Search,
+  Smartphone,
+  X,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
@@ -37,7 +46,9 @@ export default function EmailTemplateEditor({
   onHtmlContentChange,
 }: EmailTemplateEditorProps) {
   const [editMode, setEditMode] = useState<"design" | "code">("design");
-  const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
+  const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">(
+    "desktop"
+  );
   const [showVariablePanel, setShowVariablePanel] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [variableSearch, setVariableSearch] = useState("");
@@ -59,7 +70,9 @@ export default function EmailTemplateEditor({
     }
 
     // Code editor insertion
-    const textarea = document.getElementById("codeEditor") as HTMLTextAreaElement | null;
+    const textarea = document.getElementById(
+      "codeEditor"
+    ) as HTMLTextAreaElement | null;
     if (textarea) {
       const start = textarea.selectionStart || 0;
       const end = textarea.selectionEnd || 0;
@@ -140,7 +153,9 @@ export default function EmailTemplateEditor({
             <input
               type="text"
               value={previewText || ""}
-              onChange={(e) => onPreviewTextChange && onPreviewTextChange(e.target.value)}
+              onChange={(e) =>
+                onPreviewTextChange && onPreviewTextChange(e.target.value)
+              }
               placeholder="Keep it under 100 characters for inbox preview"
               maxLength={100}
               className="w-full px-4 py-3 bg-bg-200/50 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200/40 focus:outline-none focus:ring-2 focus:ring-brand-main/50 focus:border-brand-main transition-all text-sm"
@@ -271,7 +286,8 @@ export default function EmailTemplateEditor({
                   {/* Footer */}
                   <div className="p-3 border-t border-brand-main/10 bg-bg-300/50">
                     <p className="text-xs text-text-200/60">
-                      {filteredVariables.length} variable{filteredVariables.length !== 1 ? "s" : ""} available
+                      {filteredVariables.length} variable
+                      {filteredVariables.length !== 1 ? "s" : ""} available
                     </p>
                   </div>
                 </div>
@@ -328,7 +344,9 @@ export default function EmailTemplateEditor({
             <div className="flex items-center justify-between px-6 py-4 border-b border-brand-main/10 bg-bg-200/50">
               <div className="flex items-center gap-3">
                 <Eye size={20} className="text-brand-main" />
-                <h3 className="text-lg font-semibold text-text-100">Email Preview</h3>
+                <h3 className="text-lg font-semibold text-text-100">
+                  Email Preview
+                </h3>
               </div>
               <div className="flex items-center gap-3">
                 {/* Preview Mode Toggle */}
@@ -378,26 +396,36 @@ export default function EmailTemplateEditor({
                   <div className="space-y-2 text-sm">
                     <div>
                       <span className="text-text-200/60 font-medium">To:</span>{" "}
-                      <span className="text-text-100">recipient@example.com</span>
+                      <span className="text-text-100">
+                        recipient@example.com
+                      </span>
                     </div>
                     <div>
-                      <span className="text-text-200/60 font-medium">Subject:</span>{" "}
-                      <span className="text-text-100">{subject || "Your email subject"}</span>
+                      <span className="text-text-200/60 font-medium">
+                        Subject:
+                      </span>{" "}
+                      <span className="text-text-100">
+                        {subject || "Your email subject"}
+                      </span>
                     </div>
                     {previewText && (
                       <div className="pt-2 border-t border-brand-main/10">
-                        <span className="text-text-200/60 font-medium">Preview:</span>{" "}
-                        <span className="text-text-200 italic">{previewText}</span>
+                        <span className="text-text-200/60 font-medium">
+                          Preview:
+                        </span>{" "}
+                        <span className="text-text-200 italic">
+                          {previewText}
+                        </span>
                       </div>
                     )}
                   </div>
                 </div>
 
                 {/* Email Body Preview */}
-                <div className="p-6 min-h-[400px]">
+                <div className="p-6 min-h-[400px] text-text-200">
                   {htmlContent ? (
                     <div
-                      className="prose prose-sm max-w-none text-text-100"
+                      className="prose prose-sm max-w-none text-text-200"
                       dangerouslySetInnerHTML={{
                         __html: highlightVariables(htmlContent),
                       }}
@@ -405,7 +433,10 @@ export default function EmailTemplateEditor({
                   ) : (
                     <div className="flex items-center justify-center h-96">
                       <div className="text-center">
-                        <Eye size={48} className="mx-auto text-text-200/40 mb-4" />
+                        <Eye
+                          size={48}
+                          className="mx-auto text-text-200/40 mb-4"
+                        />
                         <p className="text-base text-text-200/60 mb-2">
                           No content to preview
                         </p>

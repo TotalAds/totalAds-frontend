@@ -258,7 +258,7 @@ export default function CampaignBuilderPage() {
                 <div
                   className={`flex items-center justify-center w-6 h-6 rounded-full font-semibold text-xs transition flex-shrink-0 ${
                     state.step >= step.number
-                      ? "bg-brand-main text-text-100"
+                      ? "bg-brand-main text-white"
                       : "bg-brand-main/10 text-text-200"
                   }`}
                 >

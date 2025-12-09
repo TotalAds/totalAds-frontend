@@ -500,7 +500,7 @@ export default function CampaignsPage() {
           <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-12 text-center">
             <div className="w-16 h-16 bg-brand-main rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
-                className="w-8 h-8 text-text-100"
+                className="w-8 h-8 text-white"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -520,7 +520,7 @@ export default function CampaignsPage() {
               Add a domain first to create campaigns
             </p>
             <Link href="/email/domains/create">
-              <Button className="bg-brand-main hover:bg-brand-main/80 text-text-100 px-6 py-2 rounded-lg transition">
+              <Button className="bg-brand-main hover:bg-brand-main/80 text-white px-6 py-2 rounded-lg transition">
                 Add Your First Domain
               </Button>
             </Link>
@@ -529,7 +529,7 @@ export default function CampaignsPage() {
           <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-12 text-center">
             <div className="w-16 h-16 bg-brand-main rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
-                className="w-8 h-8 text-text-100"
+                className="w-8 h-8 text-white"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -549,7 +549,7 @@ export default function CampaignsPage() {
               Create your first campaign to get started
             </p>
             <Link href="/email/campaigns/builder">
-              <Button className="bg-brand-main hover:bg-brand-main/80 text-text-100 px-6 py-2 rounded-lg transition">
+              <Button className="bg-brand-main hover:bg-brand-main/80 text-white px-6 py-2 rounded-lg transition">
                 Create Your First Campaign
               </Button>
             </Link>
@@ -558,7 +558,7 @@ export default function CampaignsPage() {
           <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-12 text-center">
             <div className="w-16 h-16 bg-brand-main rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
-                className="w-8 h-8 text-text-100"
+                className="w-8 h-8 text-white"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -579,7 +579,7 @@ export default function CampaignsPage() {
             </p>
             <button
               onClick={() => setReoonFilter("all")}
-              className="bg-brand-main hover:bg-brand-main/80 text-text-100 px-6 py-2 rounded-lg transition"
+              className="bg-brand-main hover:bg-brand-main/80 text-white px-6 py-2 rounded-lg transition"
             >
               Clear Filter
             </button>
