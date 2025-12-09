@@ -29,15 +29,6 @@ export default function CampaignStep2EmailTemplate({
 }: Step2Props) {
   const MAX_ATTACHMENTS = 1;
   const MAX_FILE_SIZE = 7 * 1024 * 1024; // 7MB
-  const [showPreview, setShowPreview] = useState(false);
-
-  const replacePlaceholders = (input: string, values: Record<string, any>) =>
-    input.replace(/\{\{\s*([^}]+)\s*\}\}/g, (_m, key) => {
-      const k = String(key || "").trim();
-      const v = values?.[k];
-      if (v == null || String(v).trim().length === 0) return `{{${k}}}`;
-      return String(v);
-    });
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -196,47 +187,46 @@ export default function CampaignStep2EmailTemplate({
           })
         }
       />
-      {/* Attachments */}
-      <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-6">
-        <label className="block text-sm font-medium text-text-200 mb-4">
-          📎 Attachment (Max 1 file, 7MB)
-        </label>
+      {/* Attachments Section */}
+      <div className="bg-bg-200/30 border border-brand-main/20 rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <label className="text-sm font-medium text-text-100 flex items-center gap-2">
+            <span>📎</span>
+            Attachments
+            <span className="text-xs text-text-200/60 font-normal">
+              (Optional, Max 1 file, 7MB)
+            </span>
+          </label>
+          {(state.emailTemplate.attachments || []).length > 0 && (
+            <span className="text-xs text-green-500 font-medium">
+              ✓ {(state.emailTemplate.attachments || []).length} file attached
+            </span>
+          )}
+        </div>
 
         {/* File Upload Area */}
-        <div className="mb-4">
-          <label className="flex items-center justify-center w-full px-4 py-6 border-2 border-dashed border-brand-main/20 rounded-lg cursor-pointer hover:border-brand-main hover:bg-brand-main/5 transition">
+        {(state.emailTemplate.attachments || []).length === 0 ? (
+          <label className="flex flex-col items-center justify-center w-full px-6 py-8 border-2 border-dashed border-brand-main/20 rounded-lg cursor-pointer hover:border-brand-main/40 hover:bg-brand-main/5 transition-all group">
             <div className="text-center">
-              <p className="text-sm text-text-200">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-brand-main/10 group-hover:bg-brand-main/20 flex items-center justify-center transition-colors">
+                <span className="text-2xl">📎</span>
+              </div>
+              <p className="text-sm font-medium text-text-100 mb-1">
                 Click to upload or drag and drop
               </p>
-              <p className="text-xs text-text-200/60 mt-1">
+              <p className="text-xs text-text-200/60">
                 PDF, DOC, DOCX, XLS, XLSX, PNG, JPG (Max 7MB)
               </p>
             </div>
             <input
               type="file"
-              multiple
               onChange={handleFileUpload}
-              disabled={
-                (state.emailTemplate.attachments || []).length >=
-                MAX_ATTACHMENTS
-              }
               className="hidden"
               accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
             />
           </label>
-        </div>
-
-        {/* Attached Files List */}
-        {(state.emailTemplate.attachments || []).length > 0 && (
+        ) : (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/30 rounded-lg">
-              <span className="text-lg">✅</span>
-              <p className="text-sm text-success">
-                {(state.emailTemplate.attachments || []).length} file attached -
-                Ready to send
-              </p>
-            </div>
             {(state.emailTemplate.attachments || []).map(
               (attachment, index) => {
                 const sizeInMB = (attachment.size / 1024 / 1024).toFixed(2);
@@ -254,30 +244,25 @@ export default function CampaignStep2EmailTemplate({
                 return (
                   <div
                     key={index}
-                    className="p-4 bg-brand-main/10 border border-brand-main/30 rounded-lg hover:border-brand-main/50 transition"
+                    className="flex items-center justify-between p-4 bg-bg-300/50 border border-brand-main/20 rounded-lg hover:border-brand-main/40 transition-all"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <span className="text-2xl mt-1">
-                          {getFileIcon(fileType)}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-text-100 truncate">
-                            {attachment.name}
-                          </p>
-                          <div className="flex gap-3 mt-2 text-xs text-text-200/60">
-                            <span>📦 {sizeInMB} MB</span>
-                            <span>📋 {fileType}</span>
-                          </div>
-                        </div>
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <span className="text-2xl">{getFileIcon(fileType)}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-text-100 truncate">
+                          {attachment.name}
+                        </p>
+                        <p className="text-xs text-text-200/60 mt-0.5">
+                          {sizeInMB} MB • {fileType.split("/")[1]?.toUpperCase() || "FILE"}
+                        </p>
                       </div>
-                      <button
-                        onClick={() => handleRemoveAttachment(index)}
-                        className="px-3 py-2 bg-error/20 hover:bg-error/40 text-error text-xs rounded-lg transition whitespace-nowrap"
-                      >
-                        ✕ Remove
-                      </button>
                     </div>
+                    <button
+                      onClick={() => handleRemoveAttachment(index)}
+                      className="px-3 py-1.5 text-xs font-medium text-error hover:bg-error/10 rounded-lg transition-colors"
+                    >
+                      Remove
+                    </button>
                   </div>
                 );
               }
@@ -287,77 +272,20 @@ export default function CampaignStep2EmailTemplate({
       </div>
 
       {/* Navigation */}
-      <div className="flex justify-between gap-4">
+      <div className="flex justify-between items-center gap-4 pt-4 border-t border-brand-main/10">
         <Button
           onClick={onPrev}
-          className="bg-brand-main/10 hover:bg-brand-main/20 text-brand-main px-6 py-2 rounded-lg transition"
+          className="bg-bg-200/50 hover:bg-bg-200/70 text-text-100 border border-brand-main/20 px-6 py-2.5 text-sm font-medium"
         >
           ← Back
         </Button>
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={() => setShowPreview(true)}
-            className="bg-brand-main/10 hover:bg-brand-main/20 text-text-100 px-3 py-2 rounded-lg text-xs transition"
-          >
-            Preview
-          </Button>
-          <Button
-            onClick={handleNext}
-            className="bg-brand-main hover:bg-brand-main/90 text-brand-white px-6 py-2 rounded-lg transition"
-          >
-            Next: Send →
-          </Button>
-        </div>
+        <Button
+          onClick={handleNext}
+          className="bg-brand-main hover:bg-brand-main/90 text-white px-8 py-2.5 text-sm font-medium shadow-lg shadow-brand-main/20"
+        >
+          Continue to Send →
+        </Button>
       </div>
-
-      {/* Preview Modal */}
-      {showPreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-3xl bg-brand-main/5 border border-brand-main/20 rounded-xl p-6 shadow-xl backdrop-blur-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-text-100">Preview</h3>
-              <button
-                onClick={() => setShowPreview(false)}
-                className="text-text-200/60 hover:text-text-100 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-            {(() => {
-              const sample = state.csvData?.[0] || {};
-              const email = sample?.[state.emailColumn] || sample?.email || "";
-              const replacedSubject = replacePlaceholders(
-                state.emailTemplate.subject || "",
-                sample
-              );
-              const replacedBody = replacePlaceholders(
-                state.emailTemplate.htmlContent || "",
-                sample
-              );
-              return (
-                <div className="space-y-4">
-                  <div className="text-sm text-text-200">
-                    <div>
-                      <span className="text-text-200/60">To:</span>{" "}
-                      {email || "(no email)"}
-                    </div>
-                    <div>
-                      <span className="text-text-200/60">Subject:</span>{" "}
-                      {replacedSubject}
-                    </div>
-                  </div>
-                  <div className="border border-brand-main/20 rounded-lg p-4 bg-brand-main/5">
-                    <div
-                      className="prose prose-invert max-w-none text-text-100"
-                      dangerouslySetInnerHTML={{ __html: replacedBody }}
-                    />
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
