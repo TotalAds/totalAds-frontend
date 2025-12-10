@@ -968,7 +968,7 @@ export default function WarmupAccountsPage() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="text-center max-w-lg px-6"
+          className="text-center px-6"
         >
           <h1 className="text-5xl md:text-6xl font-bold mb-4">
             Coming Soon 🚀
