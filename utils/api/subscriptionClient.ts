@@ -3,6 +3,7 @@
 import axios from "axios";
 
 import apiClient from "./apiClient";
+import emailClient from "./emailClient";
 
 /**
  * Type definitions for subscription
@@ -88,7 +89,7 @@ const handleSubscriptionError = (
  */
 export const getSubscriptionStatus = async (): Promise<SubscriptionStatus> => {
   try {
-    const response = await apiClient.get("/subscription/status", {
+    const response = await emailClient.get("/api/subscription/status", {
       withCredentials: true,
     });
     return response.data?.data ?? response.data;
@@ -105,8 +106,8 @@ export const cancelSubscription = async (
   reason?: string
 ): Promise<{ success: boolean; message: string; data: any }> => {
   try {
-    const response = await apiClient.post(
-      "/subscription/cancel",
+    const response = await emailClient.post(
+      "/api/subscription/cancel",
       {
         cancelAtCycleEnd,
         reason,
@@ -130,8 +131,8 @@ export const pauseSubscription = async (): Promise<{
   data: any;
 }> => {
   try {
-    const response = await apiClient.post(
-      "/subscription/pause",
+    const response = await emailClient.post(
+      "/api/subscription/pause",
       {},
       {
         withCredentials: true,
@@ -173,8 +174,8 @@ export const getPaymentHistory = async (
   offset: number = 0
 ): Promise<PaymentHistoryRecord[]> => {
   try {
-    const response = await apiClient.get(
-      `/subscription/payment-history?limit=${limit}&offset=${offset}`,
+    const response = await emailClient.get(
+      `/api/subscription/payment-history?limit=${limit}&offset=${offset}`,
       {
         withCredentials: true,
       }

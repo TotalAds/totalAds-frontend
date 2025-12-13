@@ -271,7 +271,7 @@ const BillingSection = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-2">
+              {/* <div className="flex gap-2">
                 {subscriptionData.status === "active" && (
                   <>
                     <Button
@@ -305,7 +305,7 @@ const BillingSection = () => {
                     Resume
                   </Button>
                 )}
-              </div>
+              </div> */}
             </div>
 
             {/* Subscription Details Grid */}
@@ -402,18 +402,18 @@ const BillingSection = () => {
               </p>
             </div>
 
-            <div className="rounded-xl border border-brand-main/10 bg-bg-300/40 p-5 shadow-sm hover:shadow-md transition">
+            {/* <div className="rounded-xl border border-brand-main/10 bg-bg-300/40 p-5 shadow-sm hover:shadow-md transition">
               <p className="text-text-200 text-sm mb-1">Total Spent</p>
               <p className="text-2xl font-bold text-text-100">
                 {formatCurrency(billingData.totalSpent)}
               </p>
-            </div>
+            </div> */}
           </div>
 
           <div className="mt-4 p-4 bg-bg-300/40 border border-brand-main/10 rounded-xl">
             <p className="text-text-100 text-sm">
               <span className="font-medium">Next Billing Date:</span>{" "}
-              {formatMaybeDate(billingData.nextBillingDate)}
+              {formatMaybeDate(subscriptionData.nextBillingDate)}
             </p>
           </div>
         </div>

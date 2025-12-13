@@ -68,12 +68,6 @@ const SettingsPage = () => {
       icon: <IconPlug className="w-5 h-5" />,
       description: "Manage third-party integrations like Reoon",
     },
-    {
-      id: "roadmap",
-      label: "Roadmap",
-      icon: <IconRoadSign className="w-5 h-5" />,
-      description: "Product roadmap and features",
-    },
   ];
 
   if (!isAuthenticated) {

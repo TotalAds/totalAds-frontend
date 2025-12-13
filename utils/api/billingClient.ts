@@ -3,6 +3,7 @@
 import axios from "axios";
 
 import apiClient from "./apiClient";
+import emailClient from "./emailClient";
 
 /**
  * Type definitions for billing
@@ -83,7 +84,7 @@ const handleBillingError = (error: unknown, defaultMessage: string): never => {
 export const getBillingInfo = async (): Promise<any> => {
   try {
     // Use settings-specific endpoint which includes subscription tier mapping
-    const response = await apiClient.get("/settings/billing", {
+    const response = await apiClient.get("/billing/info", {
       withCredentials: true,
     });
     // Handle multiple server envelopes
