@@ -413,7 +413,7 @@ const BillingSection = () => {
           <div className="mt-4 p-4 bg-bg-300/40 border border-brand-main/10 rounded-xl">
             <p className="text-text-100 text-sm">
               <span className="font-medium">Next Billing Date:</span>{" "}
-              {formatMaybeDate(subscriptionData.nextBillingDate)}
+              {formatMaybeDate(subscriptionData?.nextBillingDate ?? "")}
             </p>
           </div>
         </div>
