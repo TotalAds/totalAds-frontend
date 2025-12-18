@@ -22,13 +22,14 @@ interface TrendChartProps {
   metrics?: Array<"sent" | "opened" | "clicked" | "bounced" | "complained">;
 }
 
+// Professional colors with good contrast for light theme
 const METRIC_COLORS = {
-  sent: "#9DD0c7",
-  opened: "#eb857a",
-  clicked: "#f4cdc1",
-  bounced: "#ef4444",
-  complained: "#f59e0b",
-  unsubscribed: "#8b5cf6",
+  sent: "#3b82f6", // blue-500
+  opened: "#22c55e", // green-500
+  clicked: "#8b5cf6", // violet-500
+  bounced: "#ef4444", // red-500
+  complained: "#f97316", // orange-500
+  unsubscribed: "#6366f1", // indigo-500
 };
 
 const METRIC_LABELS = {
@@ -56,16 +57,18 @@ export function TrendChart({
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="rounded-lg border border-[#2a2a2d] bg-[#1a1a1d] p-3 shadow-lg">
-          <p className="mb-2 text-sm font-medium text-[#fafafa]">{label}</p>
+        <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+          <p className="mb-2 text-sm font-semibold text-slate-800">{label}</p>
           {payload.map((entry: any, index: number) => (
             <div key={index} className="flex items-center gap-2 text-sm">
               <div
                 className="h-2 w-2 rounded-full"
                 style={{ backgroundColor: entry.color }}
               />
-              <span className="text-gray-400">{entry.name}:</span>
-              <span className="font-medium text-[#fafafa]">{entry.value}</span>
+              <span className="text-slate-500">{entry.name}:</span>
+              <span className="font-semibold text-slate-700">
+                {entry.value}
+              </span>
             </div>
           ))}
         </div>
@@ -75,9 +78,9 @@ export function TrendChart({
   };
 
   return (
-    <div className="rounded-xl border border-[#2a2a2d] bg-[#1a1a1d] p-6">
+    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       {title && (
-        <h3 className="mb-4 text-lg font-semibold text-[#fafafa]">{title}</h3>
+        <h3 className="mb-4 text-lg font-semibold text-slate-800">{title}</h3>
       )}
       <ResponsiveContainer width="100%" height={height}>
         <AreaChart
@@ -97,34 +100,36 @@ export function TrendChart({
                 <stop
                   offset="5%"
                   stopColor={METRIC_COLORS[metric]}
-                  stopOpacity={0.3}
+                  stopOpacity={0.2}
                 />
                 <stop
                   offset="95%"
                   stopColor={METRIC_COLORS[metric]}
-                  stopOpacity={0}
+                  stopOpacity={0.05}
                 />
               </linearGradient>
             ))}
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2d" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis
             dataKey="formattedDate"
-            stroke="#6b7280"
-            tick={{ fill: "#9ca3af", fontSize: 12 }}
-            tickLine={{ stroke: "#2a2a2d" }}
+            stroke="#94a3b8"
+            tick={{ fill: "#64748b", fontSize: 12 }}
+            tickLine={{ stroke: "#e2e8f0" }}
           />
           <YAxis
-            stroke="#6b7280"
-            tick={{ fill: "#9ca3af", fontSize: 12 }}
-            tickLine={{ stroke: "#2a2a2d" }}
+            stroke="#94a3b8"
+            tick={{ fill: "#64748b", fontSize: 12 }}
+            tickLine={{ stroke: "#e2e8f0" }}
           />
           <Tooltip content={<CustomTooltip />} />
           {showLegend && (
             <Legend
               wrapperStyle={{ paddingTop: "20px" }}
               formatter={(value) => (
-                <span className="text-sm text-gray-400">{value}</span>
+                <span className="text-sm text-slate-600 font-medium">
+                  {value}
+                </span>
               )}
             />
           )}
@@ -144,4 +149,3 @@ export function TrendChart({
     </div>
   );
 }
-

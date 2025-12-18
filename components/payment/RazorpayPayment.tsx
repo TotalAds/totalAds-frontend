@@ -207,14 +207,14 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
     if (isPopular) {
       return "border-primary-100/50 ring-2 ring-primary-100/30 bg-gradient-to-b from-primary-100/10 to-transparent scale-[1.02] shadow-2xl shadow-primary-100/20";
     }
-    return "border-white/10 hover:border-white/30 bg-bg-200/80";
+    return "border hover:border-white/30 bg-bg-200/80";
   };
 
   const isPopularTier = (tierName: string) => tierName === "starter";
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {tiers.map((tier) => {
           const isTierMatch =
             !!currentSubscription && currentSubscription.tierName === tier.name;
@@ -226,7 +226,9 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
           const isTrialPlan = tier.name === "trial";
           const isPopular = isPopularTier(tier.name);
 
-          return (
+          return isTrialPlan ? (
+            ""
+          ) : (
             <div
               key={tier.id}
               className={`relative backdrop-blur-xl border rounded-2xl p-6 transition-all duration-300 hover:shadow-xl ${getCardStyles(
@@ -656,7 +658,7 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
               {isCustomPlan ? (
                 <button
                   onClick={() => setShowCustomPlanModal(true)}
-                  className="w-full font-semibold py-3 px-4 rounded-xl transition-all duration-200 bg-white/10 hover:bg-white/20 text-text-100 border border-white/20 hover:border-white/40"
+                  className="w-full font-semibold py-3 px-4 rounded-xl transition-all duration-200 bg-white/10 hover:bg-white/20 text-text-100 border hover:border-grey"
                 >
                   Contact Us
                 </button>
@@ -670,7 +672,7 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
                       : isPopular
                       ? "bg-gradient-to-r from-primary-100 to-primary-200 hover:from-primary-100/90 hover:to-primary-200/90 text-white shadow-lg shadow-primary-100/25 hover:shadow-xl hover:shadow-primary-100/30"
                       : isTrialPlan
-                      ? "bg-white/10 hover:bg-white/20 text-text-100 border border-white/20 hover:border-white/40"
+                      ? "bg-gradient-to-r from-primary-100 to-primary-200 hover:from-primary-100/90 hover:to-primary-200/90 text-white shadow-lg shadow-primary-100/25 hover:shadow-xl hover:shadow-primary-100/30"
                       : "bg-primary-100 hover:bg-primary-100/90 text-white"
                   } disabled:opacity-50`}
                 >

@@ -1,14 +1,22 @@
 "use client";
 
-import { Calendar, Filter, X } from 'lucide-react';
-import { useState } from 'react';
+import { Calendar, Filter, X } from "lucide-react";
+import { useState } from "react";
 
-import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Button } from "@/components/ui/button";
 import {
-    Select, SelectContent, SelectItem, SelectTrigger, SelectValue
-} from '@/components/ui/select';
-import { EnhancedAnalyticsFilters } from '@/utils/api/emailClient';
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { EnhancedAnalyticsFilters } from "@/utils/api/emailClient";
 
 interface FilterPanelProps {
   filters: EnhancedAnalyticsFilters;

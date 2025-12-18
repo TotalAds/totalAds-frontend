@@ -122,9 +122,9 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
         },
         {
           name: "Warmup",
-          href: "/email/warmup/accounts",
+          href: "#",
           icon: <IconFlame className="w-5 h-5" />,
-          badge: "BETA",
+          badge: "Coming Soon",
           badgeColor: "yellow",
         },
       ],

@@ -186,8 +186,10 @@ export default function CampaignDetailsPage() {
     return (
       <div className="min-h-screen bg-bg-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
-          <p className="text-text-100 text-lg">Loading campaign analytics...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-slate-700 text-lg font-medium">
+            Loading campaign analytics...
+          </p>
         </div>
       </div>
     );
@@ -197,10 +199,12 @@ export default function CampaignDetailsPage() {
     return (
       <div className="min-h-screen bg-bg-100 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-text-100 text-xl mb-4">Campaign not found</p>
+          <p className="text-slate-700 text-xl font-semibold mb-4">
+            Campaign not found
+          </p>
           <button
             onClick={() => router.back()}
-            className="text-blue-400 hover:text-blue-300"
+            className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
           >
             ← Go back
           </button>
@@ -218,17 +222,17 @@ export default function CampaignDetailsPage() {
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
       case "sending":
-        return "bg-blue-500/20 border-blue-500/50 text-blue-300";
+        return "bg-blue-100 border-blue-300 text-blue-700";
       case "completed":
-        return "bg-green-500/20 border-green-500/50 text-green-300";
+        return "bg-emerald-100 border-emerald-300 text-emerald-700";
       case "failed":
-        return "bg-red-500/20 border-red-500/50 text-red-300";
+        return "bg-red-100 border-red-300 text-red-700";
       case "paused":
-        return "bg-yellow-500/20 border-yellow-500/50 text-yellow-300";
+        return "bg-amber-100 border-amber-300 text-amber-700";
       case "draft":
-        return "bg-brand-main/20 border-brand-main/50 text-brand-main";
+        return "bg-slate-100 border-slate-300 text-slate-700";
       default:
-        return "bg-slate-500/20 border-slate-500/50 text-slate-300";
+        return "bg-slate-100 border-slate-300 text-slate-600";
     }
   };
 
@@ -239,15 +243,15 @@ export default function CampaignDetailsPage() {
         <div className="mb-8">
           <div className="flex justify-between items-start mb-6">
             <div>
-              <h1 className="text-4xl font-bold text-text-100 mb-3">
+              <h1 className="text-3xl font-bold text-slate-800 mb-2">
                 {campaign.name}
               </h1>
-              <p className="text-text-100/60 text-sm mb-4">
+              <p className="text-slate-500 text-sm mb-4">
                 Subject: {campaign.subject}
               </p>
               <div className="flex items-center gap-3">
                 <span
-                  className={`inline-block px-3 py-1 rounded-full border text-sm font-medium ${getStatusBadgeColor(
+                  className={`inline-flex items-center px-3 py-1.5 rounded-full border text-sm font-semibold ${getStatusBadgeColor(
                     campaign.status
                   )}`}
                 >
@@ -255,7 +259,7 @@ export default function CampaignDetailsPage() {
                     campaign.status.slice(1)}
                 </span>
                 {metrics.totalFailed > 0 && (
-                  <span className="inline-block px-3 py-1 rounded-full border border-red-500/50 bg-red-500/20 text-red-300 text-sm font-medium">
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full border border-red-200 bg-red-50 text-red-700 text-sm font-semibold">
                     ⚠️ {metrics.totalFailed} Failed
                   </span>
                 )}
@@ -271,7 +275,7 @@ export default function CampaignDetailsPage() {
               <Button
                 onClick={handleExportPDF}
                 disabled={isExporting || !enhancedAnalytics}
-                className="bg-[#eb857a] text-white hover:bg-[#d9746a]"
+                className="bg-brand-main text-white hover:bg-emerald-700 font-medium shadow-sm"
               >
                 {isExporting ? (
                   <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
@@ -282,7 +286,7 @@ export default function CampaignDetailsPage() {
               </Button>
               <button
                 onClick={() => router.back()}
-                className="bg-brand-main/10 hover:bg-brand-main/20 text-text-100 px-6 py-2 rounded-lg transition"
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-5 py-2 rounded-lg border border-slate-200 transition-colors"
               >
                 ← Back
               </button>
@@ -292,45 +296,45 @@ export default function CampaignDetailsPage() {
 
         {/* Progress Bar */}
         {campaign.status === "sending" && (
-          <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-6 mb-8">
+          <div className="bg-blue-50 rounded-xl border border-blue-200 p-6 mb-8 shadow-sm">
             <div className="flex justify-between items-center mb-3">
-              <h3 className="text-lg font-semibold text-text-100">
+              <h3 className="text-lg font-semibold text-slate-800">
                 Sending Progress
               </h3>
-              <span className="text-2xl font-bold text-blue-400">
+              <span className="text-2xl font-bold text-blue-600">
                 {progress.percentage}%
               </span>
             </div>
-            <div className="w-full bg-slate-700 rounded-full h-3">
+            <div className="w-full bg-blue-100 rounded-full h-3">
               <div
-                className="bg-brand-tertiary h-3 rounded-full transition-all duration-500"
+                className="bg-blue-600 h-3 rounded-full transition-all duration-500"
                 style={{ width: `${progress.percentage}%` }}
               ></div>
             </div>
-            <p className="text-text-100/60 text-sm mt-3">
+            <p className="text-slate-600 text-sm mt-3">
               {progress.completed} of {progress.total} emails processed
             </p>
           </div>
         )}
 
         {/* Tabs */}
-        <div className="flex gap-4 mb-8 border-b border-brand-main/10">
+        <div className="flex gap-1 mb-8 border-b border-slate-200">
           <button
             onClick={() => setActiveTab("overview")}
-            className={`px-4 py-3 font-medium transition ${
+            className={`px-5 py-3 font-medium transition-colors rounded-t-lg ${
               activeTab === "overview"
-                ? "text-blue-400 border-b-2 border-blue-400"
-                : "text-text-100/60 hover:text-text-100"
+                ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
+                : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
             }`}
           >
             📊 Overview
           </button>
           <button
             onClick={() => setActiveTab("trends")}
-            className={`px-4 py-3 font-medium transition ${
+            className={`px-5 py-3 font-medium transition-colors rounded-t-lg ${
               activeTab === "trends"
-                ? "text-blue-400 border-b-2 border-blue-400"
-                : "text-text-100/60 hover:text-text-100"
+                ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
+                : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
             }`}
           >
             📈 Trends
@@ -339,13 +343,13 @@ export default function CampaignDetailsPage() {
 
         {/* Overview Tab */}
         {activeTab === "overview" && (
-          <div className="space-y-8">
+          <div className="space-y-10">
             {/* Primary KPIs */}
-            <div>
-              <h2 className="text-2xl font-bold text-text-100 mb-4">
-                📈 Key Performance Indicators
+            <section>
+              <h2 className="text-xl font-bold text-slate-800 mb-5 flex items-center gap-2">
+                <span className="text-2xl">📈</span> Key Performance Indicators
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                 <KPICard
                   label="Total Emails"
                   value={metrics.totalLeads}
@@ -377,7 +381,7 @@ export default function CampaignDetailsPage() {
                   description={`${rates.clickRate.toFixed(1)}% click rate`}
                 />
               </div>
-            </div>
+            </section>
 
             {/* Reoon Verification Analytics */}
             <ReoonVerificationAnalytics
@@ -386,11 +390,11 @@ export default function CampaignDetailsPage() {
             />
 
             {/* Engagement Metrics */}
-            <div>
-              <h2 className="text-2xl font-bold text-text-100 mb-4">
-                💬 Engagement Metrics
+            <section>
+              <h2 className="text-xl font-bold text-slate-800 mb-5 flex items-center gap-2">
+                <span className="text-2xl">💬</span> Engagement Metrics
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                 <KPICard
                   label="Bounced"
                   value={metrics.totalBounced ?? 0}
@@ -426,14 +430,14 @@ export default function CampaignDetailsPage() {
                   description="Clicked / Opened ratio"
                 />
               </div>
-            </div>
+            </section>
 
             {/* Error & Issue Metrics */}
-            <div>
-              <h2 className="text-2xl font-bold text-text-100 mb-4">
-                ⚠️ Issues & Errors
+            <section>
+              <h2 className="text-xl font-bold text-slate-800 mb-5 flex items-center gap-2">
+                <span className="text-2xl">⚠️</span> Issues & Errors
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                 <KPICard
                   label="Failed"
                   value={metrics.totalFailed ?? 0}
@@ -465,14 +469,14 @@ export default function CampaignDetailsPage() {
                   description="Temporary delivery delays"
                 />
               </div>
-            </div>
+            </section>
 
             {/* Queue Status */}
-            <div>
-              <h2 className="text-2xl font-bold text-text-100 mb-4">
-                ⚙️ Queue Status
+            <section>
+              <h2 className="text-xl font-bold text-slate-800 mb-5 flex items-center gap-2">
+                <span className="text-2xl">⚙️</span> Queue Status
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <KPICard
                   label="Pending"
                   value={metrics.pending}
@@ -495,60 +499,62 @@ export default function CampaignDetailsPage() {
                   description="Successfully sent"
                 />
               </div>
-            </div>
+            </section>
 
             {/* Campaign Info */}
-            <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-6">
-              <h3 className="text-lg font-bold text-text-100 mb-4">
-                ℹ️ Campaign Information
+            <section className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+              <h3 className="text-lg font-bold text-slate-800 mb-5 flex items-center gap-2">
+                <span className="text-xl">ℹ️</span> Campaign Information
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div>
-                  <p className="text-text-100/60 text-sm">From</p>
-                  <p className="text-text-100 mt-1 font-medium">
+                  <p className="text-slate-500 text-sm font-medium">From</p>
+                  <p className="text-slate-800 mt-1 font-semibold">
                     {campaign.fromName || campaign.fromEmail}
                   </p>
                 </div>
                 <div>
-                  <p className="text-text-100/60 text-sm">Email</p>
-                  <p className="text-text-100 mt-1 font-medium text-sm">
+                  <p className="text-slate-500 text-sm font-medium">Email</p>
+                  <p className="text-slate-800 mt-1 font-medium text-sm">
                     {campaign.fromEmail}
                   </p>
                 </div>
                 <div>
-                  <p className="text-text-100/60 text-sm">Created</p>
-                  <p className="text-text-100 mt-1 font-medium">
+                  <p className="text-slate-500 text-sm font-medium">Created</p>
+                  <p className="text-slate-800 mt-1 font-semibold">
                     {new Date(campaign.createdAt).toLocaleDateString()}
                   </p>
                 </div>
                 {campaign.startedAt && (
                   <div>
-                    <p className="text-text-100/60 text-sm">Started</p>
-                    <p className="text-text-100 mt-1 font-medium">
+                    <p className="text-slate-500 text-sm font-medium">
+                      Started
+                    </p>
+                    <p className="text-slate-800 mt-1 font-semibold">
                       {new Date(campaign.startedAt).toLocaleDateString()}
                     </p>
                   </div>
                 )}
               </div>
-            </div>
+            </section>
           </div>
         )}
 
         {/* Trends Tab */}
         {activeTab === "trends" && (
-          <div className="space-y-8">
+          <div className="space-y-10">
             {/* Enhanced Metrics Summary */}
             {enhancedAnalytics && (
               <>
-                <div>
-                  <h2 className="text-2xl font-bold text-text-100 mb-4">
-                    📊 Performance Summary
+                <section>
+                  <h2 className="text-xl font-bold text-slate-800 mb-5 flex items-center gap-2">
+                    <span className="text-2xl">📊</span> Performance Summary
                   </h2>
                   <MetricsSummary
                     summary={enhancedAnalytics.summary}
                     rates={enhancedAnalytics.rates}
                   />
-                </div>
+                </section>
 
                 {/* Trend Charts */}
                 <div ref={chartRef} className="space-y-6">
@@ -579,10 +585,10 @@ export default function CampaignDetailsPage() {
 
                 {/* Applied Filters Info */}
                 {enhancedAnalytics.appliedFilters && (
-                  <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-4">
-                    <p className="text-text-100/60 text-sm">
+                  <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 shadow-sm">
+                    <p className="text-slate-600 text-sm">
                       Showing data for:{" "}
-                      <span className="text-text-100 font-medium">
+                      <span className="text-slate-800 font-semibold">
                         {enhancedAnalytics.appliedFilters.dateRange === "7d"
                           ? "Last 7 days"
                           : enhancedAnalytics.appliedFilters.dateRange === "30d"
@@ -606,15 +612,17 @@ export default function CampaignDetailsPage() {
             {enhancedLoading && (
               <div className="flex items-center justify-center py-12">
                 <div className="text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto mb-4"></div>
-                  <p className="text-text-100/60">Loading trend data...</p>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-slate-500 font-medium">
+                    Loading trend data...
+                  </p>
                 </div>
               </div>
             )}
 
             {!enhancedLoading && !enhancedAnalytics && (
-              <div className="text-center py-12">
-                <p className="text-text-100/60">
+              <div className="text-center py-12 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="text-slate-500 font-medium">
                   No trend data available for this campaign.
                 </p>
               </div>

@@ -75,43 +75,47 @@ export function ReoonVerificationAnalytics({
 }: ReoonVerificationAnalyticsProps) {
   if (loading) {
     return (
-      <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Shield className="w-6 h-6 text-brand-main" />
-          <h2 className="text-xl font-bold text-text-100">
+      <section className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="p-2 bg-blue-50 rounded-lg">
+            <Shield className="w-5 h-5 text-blue-600" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-800">
             Email Verification Analytics
           </h2>
         </div>
         <div className="animate-pulse space-y-4">
-          <div className="h-48 bg-brand-main/10 rounded-lg" />
+          <div className="h-48 bg-slate-100 rounded-lg" />
           <div className="grid grid-cols-5 gap-4">
             {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-20 bg-brand-main/10 rounded-lg" />
+              <div key={i} className="h-20 bg-slate-100 rounded-lg" />
             ))}
           </div>
         </div>
-      </div>
+      </section>
     );
   }
 
   if (!data || !data.used) {
     return (
-      <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Shield className="w-6 h-6 text-brand-main" />
-          <h2 className="text-xl font-bold text-text-100">
+      <section className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="p-2 bg-blue-50 rounded-lg">
+            <Shield className="w-5 h-5 text-blue-600" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-800">
             Email Verification Analytics
           </h2>
         </div>
-        <p className="text-sm text-text-200/70">
+        <p className="text-sm text-slate-600">
           No Reoon verification data available for this campaign. Leads were
           sent without pre-verification.
         </p>
-        <p className="text-xs text-text-200/50 mt-2">
+        <p className="text-xs text-slate-400 mt-2">
           Configure Reoon in Settings → Integrations to verify emails before
           sending and protect your sender reputation.
         </p>
-      </div>
+      </section>
     );
   }
 
@@ -124,20 +128,22 @@ export function ReoonVerificationAnalytics({
     }));
 
   return (
-    <div className="bg-brand-main/10 backdrop-blur-xl rounded-lg border border-brand-main/20 p-6">
+    <section className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <Shield className="w-6 h-6 text-brand-main" />
-          <h2 className="text-xl font-bold text-text-100">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-50 rounded-lg">
+            <Shield className="w-5 h-5 text-blue-600" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-800">
             Email Verification Analytics
           </h2>
         </div>
         <div className="text-right">
-          <p className="text-xs text-text-200/60">
+          <p className="text-xs text-slate-500 font-medium">
             Verified with Reoon ({data.mode || "power"} mode)
           </p>
           {data.lastVerifiedAt && (
-            <p className="text-xs text-text-200/50">
+            <p className="text-xs text-slate-400">
               {new Date(data.lastVerifiedAt).toLocaleDateString()}
             </p>
           )}
@@ -168,11 +174,12 @@ export function ReoonVerificationAnalytics({
               </Pie>
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "#1a1a1d",
-                  border: "1px solid rgba(235, 133, 122, 0.2)",
+                  backgroundColor: "#ffffff",
+                  border: "1px solid #e2e8f0",
                   borderRadius: "8px",
+                  boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
                 }}
-                itemStyle={{ color: "#fafafa" }}
+                itemStyle={{ color: "#1e293b" }}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -191,33 +198,35 @@ export function ReoonVerificationAnalytics({
             return (
               <div
                 key={status}
-                className="bg-bg-200/50 rounded-lg p-3 border border-brand-main/10"
+                className="bg-slate-50 rounded-lg p-3 border border-slate-100"
               >
                 <div className="flex items-center gap-2 mb-1">
                   <Icon className="w-4 h-4" style={{ color }} />
-                  <span className="text-xs text-text-200/80">
+                  <span className="text-xs text-slate-600 font-medium">
                     {STATUS_LABELS[status]}
                   </span>
                 </div>
-                <p className="text-lg font-semibold text-text-100">
+                <p className="text-lg font-bold text-slate-800">
                   {count.toLocaleString()}
                 </p>
-                <p className="text-xs" style={{ color }}>
+                <p className="text-xs font-semibold" style={{ color }}>
                   {percentage}%
                 </p>
               </div>
             );
           })}
           {/* Total Verified */}
-          <div className="bg-bg-200/50 rounded-lg p-3 border border-brand-main/10">
+          <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
             <div className="flex items-center gap-2 mb-1">
-              <Shield className="w-4 h-4 text-brand-main" />
-              <span className="text-xs text-text-200/80">Total Verified</span>
+              <Shield className="w-4 h-4 text-blue-600" />
+              <span className="text-xs text-blue-700 font-medium">
+                Total Verified
+              </span>
             </div>
-            <p className="text-lg font-semibold text-text-100">
+            <p className="text-lg font-bold text-slate-800">
               {data.totalVerified.toLocaleString()}
             </p>
-            <p className="text-xs text-brand-main">
+            <p className="text-xs text-blue-600 font-semibold">
               {data.creditsUsed} credits used
             </p>
           </div>
@@ -228,8 +237,8 @@ export function ReoonVerificationAnalytics({
       {(data.flags.disposable > 0 ||
         data.flags.spamtrap > 0 ||
         data.flags.roleAccount > 0) && (
-        <div className="mt-6 pt-6 border-t border-brand-main/10">
-          <h3 className="text-sm font-semibold text-text-100 mb-3">
+        <div className="mt-6 pt-6 border-t border-slate-200">
+          <h3 className="text-sm font-semibold text-slate-700 mb-3">
             Risk Flags Detected
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -237,35 +246,35 @@ export function ReoonVerificationAnalytics({
               <FlagBadge
                 label="Disposable"
                 count={data.flags.disposable}
-                color="text-red-400"
+                color="text-red-600"
               />
             )}
             {data.flags.spamtrap > 0 && (
               <FlagBadge
                 label="Spamtrap"
                 count={data.flags.spamtrap}
-                color="text-red-500"
+                color="text-red-700"
               />
             )}
             {data.flags.roleAccount > 0 && (
               <FlagBadge
                 label="Role Account"
                 count={data.flags.roleAccount}
-                color="text-amber-400"
+                color="text-amber-600"
               />
             )}
             {data.flags.inboxFull > 0 && (
               <FlagBadge
                 label="Inbox Full"
                 count={data.flags.inboxFull}
-                color="text-amber-500"
+                color="text-amber-600"
               />
             )}
             {data.flags.disabled > 0 && (
               <FlagBadge
                 label="Disabled"
                 count={data.flags.disabled}
-                color="text-red-400"
+                color="text-red-600"
               />
             )}
           </div>
@@ -273,22 +282,24 @@ export function ReoonVerificationAnalytics({
       )}
 
       {/* Quality Indicators */}
-      <div className="mt-4 pt-4 border-t border-brand-main/10">
-        <div className="flex flex-wrap gap-4 text-xs text-text-200/60">
+      <div className="mt-4 pt-4 border-t border-slate-200">
+        <div className="flex flex-wrap gap-4 text-xs text-slate-500">
           <span>
             ✓ SMTP Connectable:{" "}
-            <span className="text-emerald-400">
+            <span className="text-emerald-600 font-semibold">
               {data.flags.smtpConnectable}
             </span>
           </span>
           <span>
             ✓ Valid MX:{" "}
-            <span className="text-emerald-400">{data.flags.mxValid}</span>
+            <span className="text-emerald-600 font-semibold">
+              {data.flags.mxValid}
+            </span>
           </span>
-          <span className="text-text-200/40">|</span>
+          <span className="text-slate-300">|</span>
           <span>
             Safe to send rate:{" "}
-            <span className="text-brand-main font-medium">
+            <span className="text-blue-600 font-semibold">
               {data.totalVerified > 0
                 ? ((data.breakdown.valid / data.totalVerified) * 100).toFixed(1)
                 : 0}
@@ -297,7 +308,7 @@ export function ReoonVerificationAnalytics({
           </span>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -311,10 +322,10 @@ function FlagBadge({
   color: string;
 }) {
   return (
-    <div className="flex items-center gap-2 bg-bg-300/50 rounded px-2 py-1.5">
+    <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
       <AlertTriangle className={`w-3.5 h-3.5 ${color}`} />
-      <span className="text-xs text-text-200/80">{label}</span>
-      <span className={`text-xs font-medium ${color}`}>{count}</span>
+      <span className="text-xs text-slate-600 font-medium">{label}</span>
+      <span className={`text-xs font-semibold ${color}`}>{count}</span>
     </div>
   );
 }
