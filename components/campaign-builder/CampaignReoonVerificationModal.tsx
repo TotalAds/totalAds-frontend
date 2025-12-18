@@ -354,7 +354,7 @@ export default function CampaignReoonVerificationModal({
 
   return (
     <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent className="bg-brand-main/5 border border-brand-main/20 max-w-2xl backdrop-blur-xl">
+      <DialogContent className="bg-bg-200 border border-brand-main/20 max-w-2xl backdrop-blur-xl">
         <DialogHeader>
           <DialogTitle className="text-text-100 text-xl">
             Verify emails with Reoon
@@ -381,7 +381,7 @@ export default function CampaignReoonVerificationModal({
                 Skip verification
               </Button>
               <Button
-                className="bg-brand-main hover:bg-brand-main/80"
+                className="bg-brand-main hover:bg-brand-main/80 text-white"
                 onClick={handleStartVerification}
                 disabled={isLoading}
               >
@@ -419,27 +419,25 @@ export default function CampaignReoonVerificationModal({
         {phase === "ready" && preCheckResult && (
           <div className="py-4 space-y-4">
             <div className="grid grid-cols-3 gap-4 text-sm">
-              <div className="bg-brand-main/10 border border-brand-main/20 rounded-lg p-3">
-                <p className="text-text-200 text-xs">Total leads</p>
+              <div className="bg-brand-main/5 border border-brand-main/20 rounded-lg p-3">
+                <p className="text-text-100 text-xs">Total leads</p>
                 <p className="text-text-100 text-lg font-semibold">
                   {preCheckResult.total.toLocaleString()}
                 </p>
               </div>
-              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3">
-                <p className="text-text-200 text-xs">Already verified</p>
+              <div className="bg-emerald-500/5 border border-emerald-500/30 rounded-lg p-3">
+                <p className="text-text-100 text-xs">Already verified</p>
                 <p className="text-emerald-300 text-lg font-semibold">
                   {preCheckResult.alreadyVerified.toLocaleString()}
                 </p>
-                <p className="text-xs text-emerald-400/70 mt-1">
-                  No credits used
-                </p>
+                <p className="text-xs text-emerald-400 mt-1">No credits used</p>
               </div>
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
-                <p className="text-text-200 text-xs">Need verification</p>
+              <div className="bg-amber-500/5 border border-amber-500/30 rounded-lg p-3">
+                <p className="text-text-100 text-xs">Need verification</p>
                 <p className="text-amber-300 text-lg font-semibold">
                   {preCheckResult.needsVerification.toLocaleString()}
                 </p>
-                <p className="text-xs text-amber-400/70 mt-1">
+                <p className="text-xs text-amber-400 mt-1">
                   {preCheckResult.needsVerification > 0
                     ? "Will use credits"
                     : "None needed"}
@@ -449,7 +447,7 @@ export default function CampaignReoonVerificationModal({
 
             {preCheckResult.alreadyVerified > 0 && (
               <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-3">
-                <p className="text-xs text-emerald-300">
+                <p className="text-xs text-emerald-500">
                   <span className="font-semibold">
                     {preCheckResult.alreadyVerified.toLocaleString()}
                   </span>{" "}
@@ -470,7 +468,7 @@ export default function CampaignReoonVerificationModal({
                 Skip verification
               </Button>
               <Button
-                className="bg-brand-main hover:bg-brand-main/80"
+                className="bg-brand-main hover:bg-brand-main/80 text-white"
                 onClick={handleProceedWithVerification}
                 disabled={isLoading}
               >
@@ -548,7 +546,7 @@ export default function CampaignReoonVerificationModal({
             </div>
             <div className="flex justify-end pt-2">
               <Button
-                className="bg-brand-main hover:bg-brand-main/80"
+                className="bg-brand-main hover:bg-brand-main/80 text-white"
                 onClick={handleContinueAfterQueue}
               >
                 Continue with campaign
@@ -627,7 +625,7 @@ export default function CampaignReoonVerificationModal({
                 Use all leads
               </Button>
               <Button
-                className="bg-brand-main hover:bg-brand-main/80"
+                className="bg-brand-main hover:bg-brand-main/80 text-white"
                 onClick={handleApplyFilters}
                 disabled={isLoading}
               >

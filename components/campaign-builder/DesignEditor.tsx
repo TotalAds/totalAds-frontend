@@ -26,6 +26,7 @@ import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
 import { TextStyle } from "@tiptap/extension-text-style";
 import Underline from "@tiptap/extension-underline";
+import { Placeholder } from "@tiptap/extensions";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 
@@ -41,6 +42,9 @@ export default function DesignEditor({
   const editor = useEditor({
     extensions: [
       StarterKit,
+      Placeholder.configure({
+        placeholder: "Start typing...",
+      }),
       Link.configure({
         openOnClick: false,
       }),
@@ -54,7 +58,7 @@ export default function DesignEditor({
         multicolor: true,
       }),
     ],
-    content: htmlContent || "<p>Start typing...</p>",
+    content: htmlContent,
     immediatelyRender: false,
     onUpdate: ({ editor }) => {
       onHtmlContentChange(editor.getHTML());

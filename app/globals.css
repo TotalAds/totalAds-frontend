@@ -157,3 +157,11 @@
     -ms-overflow-style: none; /* IE and Edge */
     scrollbar-width: none; /* Firefox */
   }
+
+.tiptap p.is-editor-empty:first-child::before {
+  color: #64748b;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
