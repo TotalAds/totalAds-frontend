@@ -2,6 +2,7 @@
 
 import {
   ClientSideRowModelModule,
+  DateFilterModule,
   ModuleRegistry,
   NumberFilterModule,
   PaginationModule,
@@ -11,11 +12,12 @@ import {
 import { AgGridReact, AgGridReactProps } from "ag-grid-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 
-// Register AG Grid modules
+// Register AG Grid modules (SetFilterModule is Enterprise-only, using Community filters)
 ModuleRegistry.registerModules([
   ClientSideRowModelModule,
   TextFilterModule,
   NumberFilterModule,
+  DateFilterModule,
   PaginationModule,
   RowSelectionModule,
 ]);
@@ -64,6 +66,11 @@ export default function AGGridWrapper<TData = any>({
       sortable: true,
       resizable: true,
       filter: true,
+      filterParams: {
+        buttons: ["reset", "apply"],
+        closeOnApply: true,
+      },
+      floatingFilter: false, // Disable floating filters, use header filters only
       cellStyle: { display: "flex", alignItems: "center" },
       ...userDefaultColDef,
     }),

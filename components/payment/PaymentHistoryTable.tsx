@@ -107,6 +107,11 @@ export default function PaymentHistoryTable() {
           params.data?.paidAt || params.data?.createdAt || "-",
         cellClass: "text-text-200 text-sm",
         sortable: true,
+        filter: "agDateColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "Type",
@@ -115,6 +120,13 @@ export default function PaymentHistoryTable() {
         minWidth: 100,
         cellClass: "text-text-200 text-sm capitalize",
         sortable: true,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+          filterOptions: ["equals", "notEqual", "contains"],
+          defaultOption: "equals",
+        },
       },
       {
         headerName: "Status",
@@ -123,6 +135,13 @@ export default function PaymentHistoryTable() {
         minWidth: 100,
         cellRenderer: StatusCellRenderer,
         sortable: true,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+          filterOptions: ["equals", "notEqual", "contains"],
+          defaultOption: "equals",
+        },
       },
       {
         headerName: "Amount (USD)",
@@ -133,6 +152,11 @@ export default function PaymentHistoryTable() {
         cellClass: "text-text-200 text-sm text-right",
         headerClass: "ag-right-aligned-header",
         sortable: true,
+        filter: "agNumberColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "Credits",
@@ -143,6 +167,11 @@ export default function PaymentHistoryTable() {
         cellClass: "text-text-200 text-sm text-right",
         headerClass: "ag-right-aligned-header",
         sortable: true,
+        filter: "agNumberColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "Description",
@@ -152,6 +181,11 @@ export default function PaymentHistoryTable() {
         valueFormatter: (params) => params.value || "-",
         cellClass: "text-text-200 text-sm",
         sortable: false,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "Txn ID",
@@ -167,9 +201,14 @@ export default function PaymentHistoryTable() {
         },
         cellClass: "text-text-200 text-sm",
         sortable: false,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
     ],
-    [StatusCellRenderer]
+    [StatusCellRenderer, payments]
   );
 
   return (

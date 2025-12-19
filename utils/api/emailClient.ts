@@ -741,6 +741,16 @@ export const getLeadCategories = async (): Promise<LeadCategory[]> => {
   }
 };
 
+export const createLeadCategory = async (name: string): Promise<LeadCategory> => {
+  try {
+    const resp = await emailClient.post(`/api/lead-categories`, { name });
+    return resp.data?.data || { id: "", name };
+  } catch (error: any) {
+    console.error("Failed to create lead category:", error);
+    throw error;
+  }
+};
+
 // Lead Tags
 export interface LeadTag {
   id: string;
@@ -755,6 +765,16 @@ export const getLeadTags = async (): Promise<LeadTag[]> => {
     return resp.data?.data || [];
   } catch (error: any) {
     console.error("Failed to fetch lead tags:", error);
+    throw error;
+  }
+};
+
+export const createLeadTag = async (name: string): Promise<LeadTag> => {
+  try {
+    const resp = await emailClient.post(`/api/lead-tags`, { name });
+    return resp.data?.data || { id: "", name };
+  } catch (error: any) {
+    console.error("Failed to create lead tag:", error);
     throw error;
   }
 };

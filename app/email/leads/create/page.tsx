@@ -8,6 +8,8 @@ import CreatableSelect from "@/components/common/CreatableSelect";
 import emailClient, {
   getLeadCategories,
   getLeadTags,
+  createLeadTag,
+  createLeadCategory,
   LeadCategory,
   LeadTag,
 } from "@/utils/api/emailClient";
@@ -171,6 +173,11 @@ export default function CreateLeadPage() {
               options={categories}
               value={selectedCategories}
               onChange={setSelectedCategories}
+              onCreateNew={async (name: string) => {
+                const newCategory = await createLeadCategory(name);
+                setCategories((prev) => [...prev, newCategory]);
+                return newCategory;
+              }}
               placeholder="Select or create categories..."
               label="Categories"
               isMulti={true}
@@ -183,6 +190,11 @@ export default function CreateLeadPage() {
               options={tags}
               value={selectedTags}
               onChange={setSelectedTags}
+              onCreateNew={async (name: string) => {
+                const newTag = await createLeadTag(name);
+                setTags((prev) => [...prev, newTag]);
+                return newTag;
+              }}
               placeholder="Select or create tags..."
               label="Tags"
               isMulti={true}

@@ -150,74 +150,114 @@ export default function LeadFilterModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-          {/* Category Filter */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-text-100">
-              Categories
-            </label>
-            <MultiSelect
-              options={filterOptions.categories}
-              selectedIds={tempCategoryFilter}
-              onChange={setTempCategoryFilter}
-              placeholder="Select categories..."
-              searchable
-            />
+        <div className="space-y-6 py-4">
+          {/* Primary Filters - Tags and Categories */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Tag Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-text-100 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                Tags
+                {tempTagFilter.length > 0 && (
+                  <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full">
+                    {tempTagFilter.length}
+                  </span>
+                )}
+              </label>
+              <MultiSelect
+                options={filterOptions.tags}
+                selectedIds={tempTagFilter}
+                onChange={setTempTagFilter}
+                placeholder="Select tags..."
+                searchable
+              />
+            </div>
+
+            {/* Category Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-text-100 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                Categories
+                {tempCategoryFilter.length > 0 && (
+                  <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full">
+                    {tempCategoryFilter.length}
+                  </span>
+                )}
+              </label>
+              <MultiSelect
+                options={filterOptions.categories}
+                selectedIds={tempCategoryFilter}
+                onChange={setTempCategoryFilter}
+                placeholder="Select categories..."
+                searchable
+              />
+            </div>
           </div>
 
-          {/* Tag Filter */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-text-100">Tags</label>
-            <MultiSelect
-              options={filterOptions.tags}
-              selectedIds={tempTagFilter}
-              onChange={setTempTagFilter}
-              placeholder="Select tags..."
-              searchable
-            />
-          </div>
+          {/* Secondary Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-brand-main/10">
+            {/* Campaign Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-text-100 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                Campaigns
+                {tempCampaignFilter.length > 0 && (
+                  <span className="text-xs bg-green-500/20 text-green-300 px-2 py-0.5 rounded-full">
+                    {tempCampaignFilter.length}
+                  </span>
+                )}
+              </label>
+              <MultiSelect
+                options={filterOptions.campaigns}
+                selectedIds={tempCampaignFilter}
+                onChange={setTempCampaignFilter}
+                placeholder="Select campaigns..."
+                searchable
+              />
+            </div>
 
-          {/* Campaign Filter */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-text-100">
-              Campaigns
-            </label>
-            <MultiSelect
-              options={filterOptions.campaigns}
-              selectedIds={tempCampaignFilter}
-              onChange={setTempCampaignFilter}
-              placeholder="Select campaigns..."
-              searchable
-            />
-          </div>
+            {/* Status Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-text-100 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                Status
+                {tempStatusFilter.length > 0 && (
+                  <span className="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full">
+                    {tempStatusFilter.length}
+                  </span>
+                )}
+              </label>
+              <MultiSelect
+                options={filterOptions.statuses.map((s) => ({
+                  id: s.value,
+                  name: s.label,
+                  count: s.count,
+                }))}
+                selectedIds={tempStatusFilter}
+                onChange={setTempStatusFilter}
+                placeholder="Select status..."
+                searchable
+              />
+            </div>
 
-          {/* Status Filter */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-text-100">Status</label>
-            <MultiSelect
-              options={filterOptions.statuses.map((s) => ({
-                id: s.value,
-                name: s.label,
-                count: s.count,
-              }))}
-              selectedIds={tempStatusFilter}
-              onChange={setTempStatusFilter}
-              placeholder="Select status..."
-              searchable
-            />
-          </div>
-
-          {/* Verification Filter */}
-          <div className="space-y-2 md:col-span-2">
-            <label className="text-sm font-medium text-text-100">
-              Verification Status
-            </label>
-            <MultiSelect
-              options={verificationOptions}
-              selectedIds={tempVerificationFilter}
-              onChange={setTempVerificationFilter}
-              placeholder="Select verification status..."
-            />
+            {/* Verification Filter */}
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-semibold text-text-100 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                Verification Status
+                {tempVerificationFilter.length > 0 && (
+                  <span className="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full">
+                    {tempVerificationFilter.length}
+                  </span>
+                )}
+              </label>
+              <MultiSelect
+                options={verificationOptions}
+                selectedIds={tempVerificationFilter}
+                onChange={setTempVerificationFilter}
+                placeholder="Select verification status..."
+              />
+            </div>
           </div>
         </div>
 

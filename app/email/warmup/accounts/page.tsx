@@ -319,6 +319,11 @@ export default function WarmupAccountsPage() {
         minWidth: 200,
         cellClass: "text-text-100",
         sortable: true,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "Provider",
@@ -327,6 +332,13 @@ export default function WarmupAccountsPage() {
         minWidth: 100,
         cellClass: "text-text-200 capitalize",
         sortable: true,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+          filterOptions: ["equals", "notEqual", "contains"],
+          defaultOption: "equals",
+        },
       },
       {
         headerName: "Daily Limit",
@@ -335,6 +347,11 @@ export default function WarmupAccountsPage() {
         minWidth: 100,
         cellClass: "text-text-200",
         sortable: true,
+        filter: "agNumberColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "Reputation",
@@ -342,6 +359,7 @@ export default function WarmupAccountsPage() {
         minWidth: 150,
         cellRenderer: ReputationCellRenderer,
         sortable: false,
+        filter: false,
       },
       {
         headerName: "Inbox Rate",
@@ -352,6 +370,11 @@ export default function WarmupAccountsPage() {
           params.value ? `${params.value.toFixed(1)}%` : "-",
         cellClass: "text-text-200",
         sortable: true,
+        filter: "agNumberColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "Status",
@@ -359,6 +382,16 @@ export default function WarmupAccountsPage() {
         minWidth: 120,
         cellRenderer: AccountStatusCellRenderer,
         sortable: false,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+          filterOptions: ["equals", "notEqual"],
+          defaultOption: "equals",
+        },
+        valueGetter: (params) => {
+          return params.data?.warmupEnabled ? "Enabled" : "Disabled";
+        },
       },
       {
         headerName: "Actions",
@@ -366,12 +399,14 @@ export default function WarmupAccountsPage() {
         minWidth: 180,
         cellRenderer: AccountActionsCellRenderer,
         sortable: false,
+        filter: false,
       },
     ],
     [
       ReputationCellRenderer,
       AccountStatusCellRenderer,
       AccountActionsCellRenderer,
+      accounts,
     ]
   );
 
@@ -403,6 +438,11 @@ export default function WarmupAccountsPage() {
         minWidth: 180,
         cellClass: "text-text-100 text-sm",
         sortable: true,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "To",
@@ -411,6 +451,11 @@ export default function WarmupAccountsPage() {
         minWidth: 180,
         cellClass: "text-text-100 text-sm",
         sortable: true,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "Status",
@@ -419,6 +464,13 @@ export default function WarmupAccountsPage() {
         minWidth: 120,
         cellRenderer: PairStatusCellRenderer,
         sortable: true,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+          filterOptions: ["equals", "notEqual", "contains"],
+          defaultOption: "equals",
+        },
       },
       {
         headerName: "Scheduled",
@@ -429,6 +481,11 @@ export default function WarmupAccountsPage() {
           params.value ? new Date(params.value).toLocaleDateString() : "-",
         cellClass: "text-text-200 text-sm",
         sortable: true,
+        filter: "agDateColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "Sent",
@@ -439,6 +496,11 @@ export default function WarmupAccountsPage() {
           params.value ? new Date(params.value).toLocaleDateString() : "-",
         cellClass: "text-text-200 text-sm",
         sortable: true,
+        filter: "agDateColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "Retries",
@@ -447,9 +509,14 @@ export default function WarmupAccountsPage() {
         minWidth: 80,
         cellClass: "text-text-200 text-sm",
         sortable: true,
+        filter: "agNumberColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
     ],
-    [PairStatusCellRenderer]
+    [PairStatusCellRenderer, pairs]
   );
 
   // --------------------

@@ -156,6 +156,11 @@ export default function DomainsPage() {
         minWidth: 250,
         cellRenderer: DomainCellRenderer,
         sortable: true,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "Status",
@@ -163,6 +168,21 @@ export default function DomainsPage() {
         minWidth: 120,
         cellRenderer: StatusCellRenderer,
         sortable: false,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+          filterOptions: ["equals", "notEqual"],
+          defaultOption: "equals",
+        },
+        valueGetter: (params) => {
+          const domain = params.data;
+          if (!domain) return "";
+          const isVerified =
+            domain.verificationStatus === "verified" &&
+            domain.dkimStatus === "verified";
+          return isVerified ? "Verified" : "Pending";
+        },
       },
       {
         headerName: "Created",
@@ -173,6 +193,11 @@ export default function DomainsPage() {
           params.value ? new Date(params.value).toLocaleDateString() : "-",
         cellClass: "text-text-200 text-sm",
         sortable: true,
+        filter: "agDateColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "Actions",
@@ -180,6 +205,7 @@ export default function DomainsPage() {
         minWidth: 180,
         cellRenderer: ActionsCellRenderer,
         sortable: false,
+        filter: false,
       },
     ],
     [DomainCellRenderer, StatusCellRenderer, ActionsCellRenderer]

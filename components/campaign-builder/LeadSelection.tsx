@@ -222,6 +222,11 @@ export default function LeadSelection({
         minWidth: 200,
         cellClass: "text-text-100 font-medium",
         sortable: true,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "Status",
@@ -231,12 +236,24 @@ export default function LeadSelection({
         maxWidth: 140,
         cellRenderer: VerificationCellRenderer,
         sortable: true,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+          filterOptions: ["equals", "notEqual", "contains"],
+          defaultOption: "equals",
+        },
       },
       {
         headerName: "Name",
         field: "name",
         flex: 1,
         minWidth: 120,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
         valueFormatter: (params) => params.value || "-",
         cellClass: "text-text-200",
         sortable: true,

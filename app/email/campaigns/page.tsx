@@ -260,6 +260,11 @@ export default function CampaignsPage() {
         minWidth: 150,
         cellClass: "text-slate-800 font-medium",
         sortable: true,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "Subject",
@@ -275,6 +280,11 @@ export default function CampaignsPage() {
         },
         tooltipValueGetter: (params) => params.value,
         sortable: true,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "Status",
@@ -283,6 +293,13 @@ export default function CampaignsPage() {
         minWidth: 180,
         cellRenderer: StatusCellRenderer,
         sortable: true,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+          filterOptions: ["equals", "notEqual"],
+          defaultOption: "equals",
+        },
       },
       {
         headerName: "Created",
@@ -292,6 +309,11 @@ export default function CampaignsPage() {
         valueFormatter: (params) => formatDate(params.value),
         cellClass: "text-slate-500 text-sm",
         sortable: true,
+        filter: "agDateColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "Actions",
@@ -299,9 +321,10 @@ export default function CampaignsPage() {
         minWidth: 200,
         cellRenderer: ActionsCellRenderer,
         sortable: false,
+        filter: false,
       },
     ],
-    [StatusCellRenderer, ActionsCellRenderer]
+    [StatusCellRenderer, ActionsCellRenderer, filteredCampaigns]
   );
 
   return (

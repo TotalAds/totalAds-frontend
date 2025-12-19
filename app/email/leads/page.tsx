@@ -6,7 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import AGGridWrapper from "@/components/common/AGGridWrapper";
-import LeadFilterModal from "@/components/leads/LeadFilterModal";
+import BulkUploadModal from "@/components/leads/BulkUploadModal";
+// import LeadFilterModal from "@/components/leads/LeadFilterModal"; // Removed - using AG Grid built-in filters
 import { LeadVerificationModal } from "@/components/leads/LeadVerificationModal";
 import emailClient, {
   Campaign,
@@ -28,6 +29,8 @@ interface Lead {
   status: string;
   campaignId?: string;
   campaigns?: Array<{ id: string; name: string; status?: string }>;
+  tags?: Array<{ id: string; name: string; color?: string }>;
+  categories?: Array<{ id: string; name: string; color?: string }>;
   createdAt: Date;
   verificationStatus?: string | null;
   isSafeToSend?: boolean | null;
@@ -86,6 +89,7 @@ export default function LeadsPage() {
   >(new Set());
   const [selectedLeadForVerification, setSelectedLeadForVerification] =
     useState<Lead | null>(null);
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
 
   useEffect(() => {
     loadLeads();
@@ -251,7 +255,12 @@ export default function LeadsPage() {
     const lead = params.data;
     if (!lead) return null;
     return (
-      <span className="text-brand-main font-medium text-sm">{lead.email}</span>
+      <span
+        className="text-brand-main font-medium text-sm truncate block w-full"
+        title={lead.email}
+      >
+        {lead.email}
+      </span>
     );
   }, []);
 
@@ -281,6 +290,85 @@ export default function LeadsPage() {
         );
       }
       return <span className="text-gray-500 text-sm">-</span>;
+    },
+    []
+  );
+
+  const TagsCellRenderer = useCallback((params: ICellRendererParams<Lead>) => {
+    const lead = params.data;
+    if (!lead || !lead.tags || lead.tags.length === 0) {
+      return <span className="text-gray-500 text-sm">-</span>;
+    }
+    return (
+      <div
+        className="flex flex-wrap gap-1.5"
+        style={{
+          width: "100%",
+          maxWidth: "100%",
+          overflow: "hidden",
+          boxSizing: "border-box",
+        }}
+      >
+        {lead.tags.map((tag) => (
+          <span
+            key={tag.id}
+            className="px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap"
+            style={{
+              backgroundColor: tag.color ? `${tag.color}20` : "#3b82f620",
+              color: tag.color || "#3b82f6",
+              border: `1px solid ${tag.color ? `${tag.color}40` : "#3b82f640"}`,
+              flexShrink: 0,
+              maxWidth: "100%",
+              boxSizing: "border-box",
+            }}
+            title={tag.name}
+          >
+            {tag.name}
+          </span>
+        ))}
+      </div>
+    );
+  }, []);
+
+  const CategoriesCellRenderer = useCallback(
+    (params: ICellRendererParams<Lead>) => {
+      const lead = params.data;
+      if (!lead || !lead.categories || lead.categories.length === 0) {
+        return <span className="text-gray-500 text-sm">-</span>;
+      }
+      return (
+        <div
+          className="flex flex-wrap gap-1.5"
+          style={{
+            width: "100%",
+            maxWidth: "100%",
+            overflow: "hidden",
+            boxSizing: "border-box",
+          }}
+        >
+          {lead.categories.map((category) => (
+            <span
+              key={category.id}
+              className="px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap"
+              style={{
+                backgroundColor: category.color
+                  ? `${category.color}20`
+                  : "#9333ea20",
+                color: category.color || "#9333ea",
+                border: `1px solid ${
+                  category.color ? `${category.color}40` : "#9333ea40"
+                }`,
+                flexShrink: 0,
+                maxWidth: "100%",
+                boxSizing: "border-box",
+              }}
+              title={category.name}
+            >
+              {category.name}
+            </span>
+          ))}
+        </div>
+      );
     },
     []
   );
@@ -321,6 +409,11 @@ export default function LeadsPage() {
         minWidth: 200,
         cellRenderer: EmailCellRenderer,
         sortable: true,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
       },
       {
         headerName: "Status",
@@ -330,6 +423,13 @@ export default function LeadsPage() {
         maxWidth: 140,
         cellRenderer: VerificationCellRenderer,
         sortable: true,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+          filterOptions: ["equals", "notEqual", "contains"],
+          defaultOption: "equals",
+        },
       },
       {
         headerName: "Name",
@@ -338,6 +438,75 @@ export default function LeadsPage() {
         minWidth: 120,
         valueFormatter: (params) => params.value || "-",
         sortable: true,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+        },
+      },
+      {
+        headerName: "Tags",
+        flex: 2,
+        minWidth: 180,
+        resizable: true,
+        cellRenderer: TagsCellRenderer,
+        sortable: false,
+        autoHeight: true,
+        wrapText: true,
+        cellStyle: {
+          overflowX: "hidden",
+          overflowY: "visible",
+          display: "flex",
+          alignItems: "flex-start",
+          wordWrap: "break-word",
+        },
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+          filterOptions: ["contains"],
+          defaultOption: "contains",
+        },
+        valueGetter: (params: any) => {
+          // Return comma-separated tag names for filtering
+          if (params.data?.tags && params.data.tags.length > 0) {
+            return params.data.tags.map((tag: any) => tag.name).join(", ");
+          }
+          return "";
+        },
+      },
+      {
+        headerName: "Categories",
+        flex: 2,
+        minWidth: 180,
+        resizable: true,
+        cellRenderer: CategoriesCellRenderer,
+        sortable: false,
+        autoHeight: true,
+        wrapText: true,
+        cellStyle: {
+          overflowX: "hidden",
+          overflowY: "visible",
+          display: "flex",
+          alignItems: "flex-start",
+          wordWrap: "break-word",
+        },
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+          filterOptions: ["contains"],
+          defaultOption: "contains",
+        },
+        valueGetter: (params: any) => {
+          // Return comma-separated category names for filtering
+          if (params.data?.categories && params.data.categories.length > 0) {
+            return params.data.categories
+              .map((category: any) => category.name)
+              .join(", ");
+          }
+          return "";
+        },
       },
       {
         headerName: "Campaign",
@@ -345,6 +514,22 @@ export default function LeadsPage() {
         minWidth: 150,
         cellRenderer: CampaignCellRenderer,
         sortable: false,
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+          filterOptions: ["contains"],
+          defaultOption: "contains",
+        },
+        valueGetter: (params: any) => {
+          // Return comma-separated campaign names for filtering
+          if (params.data?.campaigns && params.data.campaigns.length > 0) {
+            return params.data.campaigns
+              .map((campaign: any) => campaign.name)
+              .join(", ");
+          }
+          return "";
+        },
       },
       {
         headerName: "Actions",
@@ -353,13 +538,17 @@ export default function LeadsPage() {
         maxWidth: 120,
         cellRenderer: ActionsCellRenderer,
         sortable: false,
+        filter: false,
       },
     ],
     [
       EmailCellRenderer,
       VerificationCellRenderer,
+      TagsCellRenderer,
+      CategoriesCellRenderer,
       CampaignCellRenderer,
       ActionsCellRenderer,
+      leads,
     ]
   );
 
@@ -394,80 +583,64 @@ export default function LeadsPage() {
               Manage and organize your email leads
             </p>
           </div>
-          <button
-            onClick={() => router.push("/email/leads/create")}
-            className="flex items-center gap-2 px-6 py-3 bg-brand-main hover:bg-brand-main/80 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02]"
-          >
-            <IconPlus size={20} />
-            Add Lead
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowBulkUploadModal(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-sidebar hover:bg-sidebar/80 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02]"
+            >
+              <IconPlus size={20} />
+              Bulk Upload
+            </button>
+            <button
+              onClick={() => router.push("/email/leads/create")}
+              className="flex items-center gap-2 px-6 py-3 bg-brand-main hover:bg-brand-main/80 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02]"
+            >
+              <IconPlus size={20} />
+              Add Lead
+            </button>
+          </div>
         </div>
 
         {/* Search and Filters Bar */}
-        <div className="flex items-center gap-4 mb-6">
-          {/* Search */}
-          <div className="relative flex-1 max-w-md">
-            <IconSearch
-              className="absolute left-3 top-3 text-text-200"
-              size={20}
-            />
-            <input
-              type="text"
-              placeholder="Search by email or name..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setPage(1);
-              }}
-              className="w-full pl-10 pr-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-xl text-text-100 placeholder-text-200 focus:outline-none focus:ring-2 focus:ring-brand-main"
-            />
+        <div className="space-y-4 mb-6">
+          <div className="flex items-center gap-4">
+            {/* Search */}
+            <div className="relative flex-1 max-w-md">
+              <IconSearch
+                className="absolute left-3 top-3 text-text-200"
+                size={20}
+              />
+              <input
+                type="text"
+                placeholder="Search by email or name..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full pl-10 pr-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-xl text-text-100 placeholder-text-200 focus:outline-none focus:ring-2 focus:ring-brand-main"
+              />
+            </div>
+
+            {/* Filter Modal Button - Removed, using AG Grid built-in column filters instead */}
+
+            {/* Results count */}
+            {hasActiveFilters && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-text-200">{total} results</span>
+                <button
+                  onClick={clearAllFilters}
+                  className="flex items-center gap-1 text-sm text-text-200 hover:text-text-100 transition-colors"
+                >
+                  <IconX size={16} />
+                  Clear
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Filter Modal Button */}
-          <LeadFilterModal
-            filterOptions={filterOptions}
-            statusFilter={statusFilter}
-            categoryFilter={categoryFilter}
-            tagFilter={tagFilter}
-            campaignFilter={campaignFilter}
-            verificationFilter={verificationFilter}
-            onStatusFilterChange={(selected) => {
-              setStatusFilter(selected);
-              setPage(1);
-            }}
-            onCategoryFilterChange={(selected) => {
-              setCategoryFilter(selected);
-              setPage(1);
-            }}
-            onTagFilterChange={(selected) => {
-              setTagFilter(selected);
-              setPage(1);
-            }}
-            onCampaignFilterChange={(selected) => {
-              setCampaignFilter(selected);
-              setPage(1);
-            }}
-            onVerificationFilterChange={(selected) => {
-              setVerificationFilter(selected);
-              setPage(1);
-            }}
-            onApply={() => {}}
-            onClearAll={clearAllFilters}
-          />
-
-          {/* Results count */}
-          {hasActiveFilters && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-text-200">{total} results</span>
-              <button
-                onClick={clearAllFilters}
-                className="flex items-center gap-1 text-sm text-text-200 hover:text-text-100 transition-colors"
-              >
-                <IconX size={16} />
-                Clear
-              </button>
-            </div>
-          )}
+          {/* Active Filter Chips - Hidden, using AG Grid built-in filters instead */}
+          {/* Filter chips removed - use AG Grid column filters */}
         </div>
 
         {/* Bulk Actions Bar */}
@@ -657,6 +830,14 @@ export default function LeadsPage() {
           isOpen={!!selectedLeadForVerification}
           lead={selectedLeadForVerification}
           onClose={() => setSelectedLeadForVerification(null)}
+        />
+        <BulkUploadModal
+          isOpen={showBulkUploadModal}
+          onClose={() => setShowBulkUploadModal(false)}
+          onSuccess={() => {
+            loadLeads();
+            setShowBulkUploadModal(false);
+          }}
         />
       </div>
     </div>
