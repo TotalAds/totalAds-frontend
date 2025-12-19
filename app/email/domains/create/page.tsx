@@ -132,11 +132,11 @@ export default function CreateDomainPage() {
             </div>
 
             {/* Info Box */}
-            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
-              <h3 className="text-blue-400 font-semibold mb-2">
+            <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-4">
+              <h3 className="text-blue-600 font-semibold mb-2">
                 What happens next?
               </h3>
-              <ul className="text-blue-300 text-sm space-y-1">
+              <ul className="text-blue-500 text-sm space-y-1">
                 <li>✓ We&apos;ll generate a verification token</li>
                 <li>✓ You&apos;ll add DNS records to your domain</li>
                 <li>✓ We&apos;ll verify your domain ownership</li>

@@ -52,9 +52,9 @@ export default function DomainDetailsPage() {
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { bg: string; text: string }> = {
-      verified: { bg: "bg-green-500/20", text: "text-green-400" },
-      pending: { bg: "bg-yellow-500/20", text: "text-yellow-400" },
-      failed: { bg: "bg-red-500/20", text: "text-red-400" },
+      verified: { bg: "bg-green-100", text: "text-green-500" },
+      pending: { bg: "bg-yellow-100", text: "text-yellow-500" },
+      failed: { bg: "bg-red-100", text: "text-red-500" },
     };
 
     const statusStyle = statusMap[status] || statusMap.pending;
@@ -113,7 +113,7 @@ export default function DomainDetailsPage() {
           </div>
           <div className="flex gap-3">
             <Link href={`/email/domains/${domain.id}/verify`}>
-              <Button className="bg-brand-tertiary hover:bg-brand-tertiary/80 text-text-100 px-6 py-2 rounded-lg transition">
+              <Button className="bg-brand-tertiary hover:bg-brand-tertiary/80 text-white px-6 py-2 rounded-lg transition">
                 {domain.verificationStatus === "verified" ||
                 domain.dkimStatus === "verified"
                   ? "View DNS Records"
@@ -121,7 +121,7 @@ export default function DomainDetailsPage() {
               </Button>
             </Link>
             <Link href={`/email/domains/${domain.id}/senders`}>
-              <Button className="bg-brand-main hover:bg-brand-main/80 text-text-100 px-6 py-2 rounded-lg transition">
+              <Button className="bg-brand-main hover:bg-brand-main/80 text-white px-6 py-2 rounded-lg transition">
                 Email Senders
               </Button>
             </Link>

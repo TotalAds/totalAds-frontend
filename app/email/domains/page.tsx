@@ -112,10 +112,10 @@ export default function DomainsPage() {
           className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
             isVerified
               ? "bg-green-100 text-green-500"
-              : "bg-yellow-500/20 text-yellow-300"
+              : "bg-yellow-100 text-yellow-500"
           }`}
         >
-          {isVerified ? "✓ Verified" : "⏳ Pending"}
+          {isVerified ? "✓ Verified" : "Pending"}
         </span>
       );
     },
