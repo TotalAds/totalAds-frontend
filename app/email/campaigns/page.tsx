@@ -208,13 +208,13 @@ export default function CampaignsPage() {
               Edit
             </Button>
           )}
-          <Button
+          {/* <Button
             onClick={() => handleDelete(campaign.id)}
             disabled={deleting === campaign.id}
             className="bg-red-50 hover:bg-red-100 text-red-600 text-xs px-3 py-1.5 rounded-md font-medium transition border border-red-200 disabled:opacity-50"
           >
             {deleting === campaign.id ? "..." : "Delete"}
-          </Button>
+          </Button> */}
         </div>
       );
     },
