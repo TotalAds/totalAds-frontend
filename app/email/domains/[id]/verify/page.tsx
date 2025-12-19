@@ -156,11 +156,32 @@ export default function VerifyDomainPage() {
   const [spfTab, setSpfTab] = useState<"merge" | "new">("merge"); // Tab for SPF record options
   const [showVerificationScreen, setShowVerificationScreen] = useState(false);
   const [showDnsModal, setShowDnsModal] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<{
+    status: "pending" | "verified" | null;
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     fetchDomainInfo();
     fetchDnsRecords();
   }, [domainId]);
+
+  // Check if we should show verification screen on mount (if domain is verified)
+  useEffect(() => {
+    if (domainInfo) {
+      const isVerified = 
+        domainInfo.verificationStatus === "verified" && 
+        domainInfo.dkimStatus === "verified";
+      // Auto-show verification screen if verified
+      if (isVerified && !showVerificationScreen && !verificationResult) {
+        setVerificationResult({
+          status: "verified",
+          message: "Domain is verified and ready to use",
+        });
+        setShowVerificationScreen(true);
+      }
+    }
+  }, [domainInfo]);
 
   const fetchDomainInfo = async () => {
     try {
@@ -199,14 +220,38 @@ export default function VerifyDomainPage() {
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      toast.success("Verification check initiated!");
+      
+      // Get updated domain info
       await fetchDomainInfo();
-      // Show verification screen after verification attempt
+      
+      // Determine verification status from response
+      const verificationStatus = response.data.data?.verificationStatus || domainInfo?.verificationStatus;
+      const dkimStatus = response.data.data?.dkimStatus || domainInfo?.dkimStatus;
+      const isVerified = verificationStatus === "verified" && dkimStatus === "verified";
+      
+      // Set verification result
+      setVerificationResult({
+        status: isVerified ? "verified" : "pending",
+        message: response.data.data?.message || response.data.message || "Verification check completed",
+      });
+      
+      // Show verification screen
       setShowVerificationScreen(true);
+      
+      if (isVerified) {
+        toast.success("Domain verified successfully!");
+      } else {
+        toast.success("Verification check completed. Domain is pending verification.");
+      }
     } catch (error: any) {
       const errorMessage =
         error.response?.data?.message || "Failed to verify domain";
       toast.error(errorMessage);
+      setVerificationResult({
+        status: "pending",
+        message: errorMessage,
+      });
+      setShowVerificationScreen(true);
     } finally {
       setLoading(false);
     }
@@ -309,93 +354,130 @@ export default function VerifyDomainPage() {
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Verification Screen - Show after clicking verify */}
-        {showVerificationScreen && !isFullyVerified && (
-          <div className="mb-8 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20 rounded-2xl p-8">
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/20 border-2 border-blue-500/30 mb-4">
-                {isPending ? (
-                  <IconLoader2 className="w-8 h-8 text-blue-400 animate-spin" />
-                ) : (
-                  <IconCircleCheck className="w-8 h-8 text-blue-400" />
-                )}
+        {/* Verification Screen - Show after clicking verify or if verified */}
+        {showVerificationScreen || isFullyVerified ? (
+          <div className="mb-8">
+            {/* Success State */}
+            {isFullyVerified || verificationResult?.status === "verified" ? (
+              <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-2xl p-8 mb-8">
+                <div className="text-center">
+                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-500/20 border-2 border-green-500/30 mb-6">
+                    <IconCircleCheck className="w-12 h-12 text-green-400" />
+                  </div>
+                  <h1 className="text-3xl font-bold text-text-100 mb-3">
+                    🎉 Domain Verified Successfully!
+                  </h1>
+                  <p className="text-text-200/90 text-base mb-2 max-w-lg mx-auto">
+                    {verificationResult?.message || "Your domain is fully configured and ready to send emails."}
+                  </p>
+                  <p className="text-text-300/80 text-sm mb-6">
+                    All DNS records have been verified and your domain is ready to use.
+                  </p>
+                  <div className="flex items-center justify-center gap-4">
+                    <Button
+                      onClick={() => setShowDnsModal(true)}
+                      variant="outline"
+                      className="border-green-500/30 text-green-400 hover:bg-green-500/10"
+                    >
+                      <IconEye className="w-4 h-4 mr-2" />
+                      View DNS Records
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        window.location.href = "/email/domains";
+                      }}
+                      className="bg-green-500 hover:bg-green-600 text-white"
+                    >
+                      Go to Domains
+                    </Button>
+                  </div>
+                </div>
               </div>
-              <h1 className="text-2xl font-bold text-text-100 mb-2">
-                {isPending
-                  ? "Verification in Progress"
-                  : "Verification Check Complete"}
-              </h1>
-              <p className="text-text-200/90 text-sm mb-6 max-w-md mx-auto">
-                {isPending
-                  ? "We're checking your DNS records. This may take a few minutes. Please wait while we verify your domain configuration."
-                  : "Your domain verification check has been completed. If verification is still pending, make sure all DNS records are properly configured and wait for DNS propagation."}
-              </p>
-              <div className="flex items-center justify-center gap-4">
+            ) : (
+              /* Pending State */
+              <div className="bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20 rounded-2xl p-8 mb-8">
+                <div className="text-center">
+                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-blue-500/20 border-2 border-blue-500/30 mb-6">
+                    <IconLoader2 className="w-12 h-12 text-blue-400 animate-spin" />
+                  </div>
+                  <h1 className="text-3xl font-bold text-text-100 mb-3">
+                    Verification Pending
+                  </h1>
+                  <p className="text-text-200/90 text-base mb-4 max-w-lg mx-auto">
+                    {verificationResult?.message || "We're checking your DNS records. This may take a few minutes while DNS propagates."}
+                  </p>
+                  <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-4 mb-6 max-w-2xl mx-auto">
+                    <p className="text-text-200/90 text-sm mb-2">
+                      <strong className="text-text-100">What's happening?</strong>
+                    </p>
+                    <p className="text-text-300/90 text-sm">
+                      DNS propagation typically takes 5-30 minutes, but can take up to 72 hours in some cases. 
+                      Make sure all DNS records are correctly added to your domain provider.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-center gap-4">
+                    <Button
+                      onClick={() => setShowDnsModal(true)}
+                      variant="outline"
+                      className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+                    >
+                      <IconEye className="w-4 h-4 mr-2" />
+                      View DNS Records
+                    </Button>
+                    <Button
+                      onClick={handleVerifyDomain}
+                      disabled={loading}
+                      className="bg-blue-500 hover:bg-blue-600 text-white"
+                    >
+                      {loading ? (
+                        <>
+                          <IconLoader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Checking...
+                        </>
+                      ) : (
+                        "Check Again"
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setShowVerificationScreen(false);
+                        setVerificationResult(null);
+                      }}
+                      variant="outline"
+                      className="border-bg-300/50 text-text-300 hover:bg-bg-200/50"
+                    >
+                      Back to Setup
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Show DNS Records Section when verified */}
+            {isFullyVerified && (
+              <div className="bg-bg-200/30 border border-bg-300/50 rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-text-100 mb-4">
+                  DNS Records Reference
+                </h3>
+                <p className="text-text-300/80 text-sm mb-4">
+                  Your DNS records are configured correctly. Below are the records for your reference.
+                </p>
                 <Button
                   onClick={() => setShowDnsModal(true)}
                   variant="outline"
-                  className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+                  className="border-bg-300/50 text-text-200 hover:bg-bg-200/50"
                 >
                   <IconEye className="w-4 h-4 mr-2" />
-                  View DNS Records
-                </Button>
-                <Button
-                  onClick={() => {
-                    setShowVerificationScreen(false);
-                    fetchDomainInfo();
-                  }}
-                  className="bg-blue-500 hover:bg-blue-600 text-white"
-                >
-                  Continue Setup
+                  View All DNS Records
                 </Button>
               </div>
-            </div>
+            )}
           </div>
-        )}
-
-        {/* Success State - Show at top when verified */}
-        {isFullyVerified && !showVerificationScreen && (
-          <div className="text-center py-8 mb-8 bg-green-500/10 border border-green-500/20 rounded-2xl">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/20 border-2 border-green-500/30 mb-4">
-              <IconCircleCheck className="w-10 h-10 text-green-400" />
-            </div>
-            <h1 className="text-2xl font-bold text-text-100 mb-2">
-              🎉 Domain Verified!
-            </h1>
-            <p className="text-text-200/90 text-sm mb-4">
-              Your domain is fully configured and ready to send emails.
-            </p>
-            <p className="text-text-300/80 text-xs">
-              Below are your DNS records for reference
-            </p>
-          </div>
-        )}
-
-        {/* Pending State Message */}
-        {isPending && !showVerificationScreen && !isFullyVerified && (
-          <div className="mb-6 bg-amber-500/10 border border-amber-500/20 rounded-xl p-6">
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0">
-                <IconLoader2 className="w-6 h-6 text-amber-400 animate-spin" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-text-100 font-semibold mb-1">
-                  Domain Verification Pending
-                </h3>
-                <p className="text-text-200/90 text-sm">
-                  Your domain is currently being verified. DNS propagation can
-                  take 5-30 minutes (up to 72 hours in some cases). Make sure
-                  all DNS records are correctly added to your domain provider.
-                  Click "Verify & Complete" to check your verification status.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* DNS Records Section - Always show (wizard for unverified, read-only for verified) */}
-        {
+        ) : (
+          /* Setup Screen - Only show when not verified and not showing verification screen */
           <>
+            {/* DNS Records Section - Always show (wizard for unverified, read-only for verified) */}
+            <>
             {/* Page Header - Only show for unverified domains */}
             {!isFullyVerified && (
               <>
@@ -855,8 +937,9 @@ export default function VerifyDomainPage() {
                 </ul>
               </div>
             )}
+            </>
           </>
-        }
+        )}
       </main>
 
       {/* View DNS Modal */}
