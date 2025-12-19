@@ -20,8 +20,11 @@ const STRICT_EMAIL_REGEX = /^[a-zA-Z0-9._%-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
  * @param strict - Use strict validation (default: true)
  * @returns true if email is valid, false otherwise
  */
-export const isValidEmail = (email: string, strict: boolean = true): boolean => {
-  if (!email || typeof email !== 'string') {
+export const isValidEmail = (
+  email: string,
+  strict: boolean = true
+): boolean => {
+  if (!email || typeof email !== "string") {
     return false;
   }
 
@@ -33,7 +36,7 @@ export const isValidEmail = (email: string, strict: boolean = true): boolean => 
   }
 
   // Check for spaces
-  if (trimmedEmail.includes(' ')) {
+  if (trimmedEmail.includes(" ")) {
     return false;
   }
 
@@ -79,37 +82,37 @@ export const normalizeEmail = (email: string): string | null => {
  */
 export const getEmailValidationError = (email: string): string | null => {
   if (!email) {
-    return 'Email is required';
+    return "Email is required";
   }
 
-  if (email.includes(' ')) {
-    return 'Email cannot contain spaces';
+  if (email.includes(" ")) {
+    return "Email cannot contain spaces";
   }
 
   if (email.length > 254) {
-    return 'Email is too long (max 254 characters)';
+    return "Email is too long (max 254 characters)";
   }
 
-  if (!email.includes('@')) {
-    return 'Email must contain @ symbol';
+  if (!email.includes("@")) {
+    return "Email must contain @ symbol";
   }
 
-  const [localPart, domain] = email.split('@');
+  const [localPart, domain] = email.split("@");
 
   if (!localPart || localPart.length === 0) {
-    return 'Email local part is empty';
+    return "Email local part is empty";
   }
 
   if (!domain || domain.length === 0) {
-    return 'Email domain is empty';
+    return "Email domain is empty";
   }
 
-  if (!domain.includes('.')) {
-    return 'Email domain must contain a dot';
+  if (!domain.includes(".")) {
+    return "Email domain must contain a dot";
   }
 
   if (!isValidEmail(email)) {
-    return 'Email format is invalid';
+    return "Email format is invalid";
   }
 
   return null;
@@ -140,7 +143,7 @@ export const validateEmails = (
 
     const normalized = normalizeEmail(email);
     if (!normalized) {
-      errors.push({ email, error: 'Failed to normalize email', index });
+      errors.push({ email, error: "Failed to normalize email", index });
       return;
     }
 
@@ -148,7 +151,7 @@ export const validateEmails = (
     if (seenEmails.has(normalized)) {
       errors.push({
         email,
-        error: 'Duplicate email in this batch',
+        error: "Duplicate email in this batch",
         index,
       });
       return;
@@ -168,8 +171,8 @@ export const validateEmails = (
  * @returns Object with duplicates and unique emails
  */
 export const findDuplicateEmails = (
-  csvData: Array<Record<string, any>>,
-  emailField: string = 'email'
+  csvData: Array<Record<string, any>> | any,
+  emailField: string = "email"
 ): {
   unique: string[];
   duplicates: Array<{ email: string; count: number; indices: number[] }>;
@@ -177,7 +180,7 @@ export const findDuplicateEmails = (
   const emailMap = new Map<string, number[]>();
   const unique: string[] = [];
 
-  csvData.forEach((row, index) => {
+  csvData.forEach((row: Record<string, any>, index: number) => {
     const email = row[emailField];
     if (!email) return;
 
@@ -201,4 +204,3 @@ export const findDuplicateEmails = (
 
   return { unique, duplicates };
 };
-

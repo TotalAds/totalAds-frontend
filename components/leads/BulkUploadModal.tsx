@@ -129,7 +129,7 @@ export default function BulkUploadModal({
         .filter((e) => e && isValidEmail(e));
 
       const duplicates = findDuplicateEmails(emails);
-      setDuplicateEmails(new Set(duplicates));
+      setDuplicateEmails(new Set(duplicates.duplicates.map((d) => d.email)));
 
       setUploading(false);
       toast.success(`Loaded ${cleanedRows.length} rows from file`);
@@ -203,7 +203,7 @@ export default function BulkUploadModal({
       )
       .filter((e) => e && isValidEmail(e));
     const duplicates = findDuplicateEmails(emails);
-    setDuplicateEmails(new Set(duplicates));
+    setDuplicateEmails(new Set(duplicates.duplicates.map((d) => d.email)));
   };
 
   const handleUpload = async () => {

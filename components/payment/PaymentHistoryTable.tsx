@@ -208,7 +208,7 @@ export default function PaymentHistoryTable() {
         },
       },
     ],
-    [StatusCellRenderer, payments]
+    [StatusCellRenderer]
   );
 
   return (
