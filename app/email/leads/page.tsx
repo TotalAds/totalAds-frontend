@@ -655,7 +655,7 @@ export default function LeadsPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowStartCampaignModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-brand-main hover:bg-brand-main/80 text-text-100 font-semibold rounded-lg transition-all duration-200"
+                className="flex items-center gap-2 px-4 py-2 bg-brand-main hover:bg-brand-main/80 text-white font-semibold rounded-lg transition-all duration-200"
               >
                 <IconMail size={18} />
                 Start Campaign

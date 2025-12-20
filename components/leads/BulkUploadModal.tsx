@@ -217,29 +217,92 @@ export default function BulkUploadModal({
       return;
     }
 
-    // Validate emails
-    const emails = rawRows
-      .map((r) =>
-        String(r[emailColumn] || "")
-          .toLowerCase()
-          .trim()
-      )
-      .filter((e) => e);
+    // Filter and validate rows - separate valid from invalid
+    const validRows: Array<Record<string, any>> = [];
+    const invalidRows: Array<{ row: number; email: string }> = [];
 
-    const invalidEmails = emails.filter((e) => !isValidEmail(e));
-    if (invalidEmails.length > 0) {
+    rawRows.forEach((row, index) => {
+      const email = String(row[emailColumn] || "")
+        .toLowerCase()
+        .trim();
+
+      if (!email) {
+        invalidRows.push({ row: index + 1, email: "EMPTY" });
+        return;
+      }
+
+      if (!isValidEmail(email)) {
+        invalidRows.push({ row: index + 1, email });
+        return;
+      }
+
+      validRows.push(row);
+    });
+
+    // Check if we have any valid rows to upload
+    if (validRows.length === 0) {
       toast.error(
-        `Found ${invalidEmails.length} invalid email addresses. Please fix them before uploading.`
+        `No valid emails found. Found ${invalidRows.length} invalid email(s). Please fix them before uploading.`
       );
       return;
+    }
+
+    // Calculate duplicates in the file
+    const emailMap = new Map<string, number[]>();
+    validRows.forEach((row, index) => {
+      const email = String(row[emailColumn] || "")
+        .toLowerCase()
+        .trim();
+      if (!emailMap.has(email)) {
+        emailMap.set(email, []);
+      }
+      emailMap.get(email)!.push(index + 1);
+    });
+
+    const duplicateEmailsInFile: Array<{ email: string; rows: number[] }> = [];
+    const uniqueEmails: string[] = [];
+
+    emailMap.forEach((rows, email) => {
+      if (rows.length > 1) {
+        duplicateEmailsInFile.push({ email, rows });
+      } else {
+        uniqueEmails.push(email);
+      }
+    });
+
+    const duplicateCount = duplicateEmailsInFile.reduce(
+      (sum, dup) => sum + dup.rows.length - 1,
+      0
+    );
+    const uniqueCount = uniqueEmails.length;
+
+    // Show clear message about duplicates and unique emails
+    if (duplicateCount > 0) {
+      const sampleDuplicates = duplicateEmailsInFile
+        .slice(0, 3)
+        .map((d) => d.email)
+        .join(", ");
+      toast.info(
+        `Found ${duplicateCount} duplicate email(s) in file (${duplicateEmailsInFile.length} unique emails have duplicates). Sample: ${sampleDuplicates}${
+          duplicateEmailsInFile.length > 3
+            ? ` (and ${duplicateEmailsInFile.length - 3} more)`
+            : ""
+        }. ${uniqueCount} unique email(s) will be inserted.`,
+        { duration: 8000 }
+      );
+    } else if (invalidRows.length > 0) {
+      toast.warning(
+        `Skipping ${invalidRows.length} invalid email(s). ${uniqueCount} unique email(s) will be inserted.`,
+        { duration: 6000 }
+      );
     }
 
     setUploading(true);
     const toastId = toast.loading("Uploading leads...");
 
     try {
-      // Normalize data for API
-      const csvData = rawRows.map((row) => {
+      // Normalize data for API - only use valid rows
+      const csvData = validRows.map((row) => {
         const normalized: Record<string, any> = {};
         // Map email column
         normalized.email = String(row[emailColumn] || "")
@@ -262,9 +325,83 @@ export default function BulkUploadModal({
       });
 
       toast.dismiss(toastId);
-      toast.success(
-        `Successfully uploaded ${response.data?.data?.count || 0} leads`
-      );
+
+      const stats = response.data?.data?.statistics;
+      if (stats) {
+        // Build detailed success message
+        const parts: string[] = [];
+        if (stats.created > 0) {
+          parts.push(`${stats.created} created`);
+        }
+        if (stats.updated > 0) {
+          parts.push(`${stats.updated} updated`);
+        }
+        if (stats.skipped > 0) {
+          parts.push(`${stats.skipped} skipped`);
+        }
+        if (stats.invalid > 0) {
+          parts.push(`${stats.invalid} invalid`);
+        }
+
+        const mainMessage =
+          parts.length > 0
+            ? `Upload complete: ${parts.join(", ")}`
+            : `Successfully processed ${stats.total} leads`;
+
+        toast.success(mainMessage, {
+          duration: 8000,
+        });
+
+        // Show detailed breakdown if there are issues
+        if (stats.skipped > 0 || stats.invalid > 0) {
+          const details: string[] = [];
+
+          if (stats.duplicatesInBatch > 0) {
+            details.push(`${stats.duplicatesInBatch} duplicate(s) in file`);
+          }
+          if (stats.duplicatesInDatabase > 0) {
+            details.push(
+              `${stats.duplicatesInDatabase} already exist in database`
+            );
+          }
+          if (stats.invalid > 0) {
+            details.push(`${stats.invalid} invalid email(s)`);
+          }
+
+          if (details.length > 0) {
+            setTimeout(() => {
+              toast.info(
+                `Details: ${details.join("; ")}${
+                  stats.duplicateEmails.length > 0
+                    ? `. Sample duplicates: ${stats.duplicateEmails
+                        .slice(0, 3)
+                        .join(", ")}${
+                        stats.duplicateEmails.length > 3
+                          ? ` (and ${stats.duplicateEmails.length - 3} more)`
+                          : ""
+                      }`
+                    : ""
+                }${
+                  stats.invalidEmails.length > 0
+                    ? `. Sample invalid: ${stats.invalidEmails
+                        .slice(0, 3)
+                        .join(", ")}${
+                        stats.invalidEmails.length > 3
+                          ? ` (and ${stats.invalidEmails.length - 3} more)`
+                          : ""
+                      }`
+                    : ""
+                }`,
+                { duration: 10000 }
+              );
+            }, 1000);
+          }
+        }
+      } else {
+        toast.success(
+          `Successfully uploaded ${response.data?.data?.count || 0} leads`
+        );
+      }
 
       // Reset form
       setRawRows([]);
@@ -297,6 +434,37 @@ export default function BulkUploadModal({
       .trim();
     return email && isValidEmail(email);
   });
+
+  // Calculate duplicates and unique emails for display
+  const emailMap = new Map<string, number[]>();
+  validRows.forEach((row, index) => {
+    const email = String(row[emailColumn] || "")
+      .toLowerCase()
+      .trim();
+    if (email) {
+      if (!emailMap.has(email)) {
+        emailMap.set(email, []);
+      }
+      emailMap.get(email)!.push(index + 1);
+    }
+  });
+
+  const duplicateEmailsInFile: Array<{ email: string; rows: number[]; count: number }> = [];
+  const uniqueEmails: string[] = [];
+
+  emailMap.forEach((rows, email) => {
+    if (rows.length > 1) {
+      duplicateEmailsInFile.push({ email, rows, count: rows.length });
+    } else {
+      uniqueEmails.push(email);
+    }
+  });
+
+  const duplicateCount = duplicateEmailsInFile.reduce(
+    (sum, dup) => sum + dup.count - 1,
+    0
+  );
+  const uniqueCount = uniqueEmails.length;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -346,7 +514,7 @@ export default function BulkUploadModal({
             <Button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="bg-brand-main hover:bg-brand-main/80"
+              className="bg-brand-main hover:bg-brand-main/80 text-white"
             >
               Select File
             </Button>
@@ -382,6 +550,61 @@ export default function BulkUploadModal({
                 </button>
               </div>
             </div>
+
+            {/* Upload Summary */}
+            {emailColumn && validRows.length > 0 && (
+              <div className="bg-bg-200 border border-brand-main/20 rounded-lg p-4 space-y-3">
+                <h3 className="text-text-100 font-semibold text-lg">
+                  Upload Summary
+                </h3>
+                
+                <div className="space-y-2">
+                  {duplicateCount > 0 && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-amber-400 mt-0.5">⚠️</span>
+                      <div className="flex-1">
+                        <p className="text-text-100 font-medium">
+                          Found {duplicateCount} duplicate email(s) in file
+                        </p>
+                        <p className="text-text-200 text-sm mt-1">
+                          {duplicateEmailsInFile.length} unique email(s) have duplicates. 
+                          Only the first occurrence of each will be inserted.
+                        </p>
+                        {duplicateEmailsInFile.length > 0 && (
+                          <div className="mt-2 text-xs text-text-200 bg-bg-300 rounded p-2 max-h-32 overflow-y-auto">
+                            <p className="font-semibold mb-1">Duplicate emails:</p>
+                            {duplicateEmailsInFile.slice(0, 5).map((dup, idx) => (
+                              <p key={idx} className="truncate">
+                                • {dup.email} (appears {dup.count} times in rows: {dup.rows.join(", ")})
+                              </p>
+                            ))}
+                            {duplicateEmailsInFile.length > 5 && (
+                              <p className="text-text-200/70 mt-1">
+                                ... and {duplicateEmailsInFile.length - 5} more duplicate email(s)
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="flex items-start gap-2">
+                    <span className="text-green-400 mt-0.5">✅</span>
+                    <div className="flex-1">
+                      <p className="text-text-100 font-medium">
+                        {uniqueCount} unique email(s) will be inserted
+                      </p>
+                      {duplicateCount > 0 && (
+                        <p className="text-text-200 text-sm mt-1">
+                          ({validRows.length} total valid rows - {duplicateCount} duplicates removed = {uniqueCount} unique)
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Email Column Selection */}
             <div>
