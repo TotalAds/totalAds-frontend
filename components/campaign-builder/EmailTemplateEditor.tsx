@@ -123,137 +123,108 @@ export default function EmailTemplateEditor({
   }, [showVariablePanel]);
 
   return (
-    <div className="space-y-4">
-      {/* Header Section - Subject & Preview Text */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Subject */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-text-100 flex items-center gap-2">
-            Email Subject
-            <span className="text-error">*</span>
-          </label>
-          <input
-            type="text"
-            value={subject}
-            onChange={(e) => onSubjectChange(e.target.value)}
-            placeholder="e.g., Hi {{firstName}}, check out our new product!"
-            className="w-full px-4 py-3 bg-bg-200/50 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200/40 focus:outline-none focus:ring-2 focus:ring-brand-main/50 focus:border-brand-main transition-all text-sm"
-          />
-        </div>
-
-        {/* Preview Text */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-text-100 flex items-center gap-2">
-            Preview Text
-            <span className="text-xs text-text-200/60 font-normal">
-              (optional)
-            </span>
-          </label>
-          <div className="relative">
+    <div className="space-y-2">
+      {/* Gmail-like Compact Header */}
+      <div className="bg-white border border-gray-300 rounded-lg shadow-sm">
+        {/* Subject Line - Gmail style */}
+        <div className="border-b border-gray-200">
+          <div className="flex items-center px-3 py-2">
+            <span className="text-sm text-gray-600 w-16 flex-shrink-0">Subject</span>
             <input
               type="text"
-              value={previewText || ""}
-              onChange={(e) =>
-                onPreviewTextChange && onPreviewTextChange(e.target.value)
-              }
-              placeholder="Keep it under 100 characters for inbox preview"
-              maxLength={100}
-              className="w-full px-4 py-3 bg-bg-200/50 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200/40 focus:outline-none focus:ring-2 focus:ring-brand-main/50 focus:border-brand-main transition-all text-sm"
+              value={subject}
+              onChange={(e) => onSubjectChange(e.target.value)}
+              placeholder="Add a subject"
+              className="flex-1 text-sm text-gray-900 placeholder-gray-400 focus:outline-none"
             />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              <span
-                className={`text-xs ${
-                  (previewText || "").length > 100
-                    ? "text-error"
-                    : (previewText || "").length > 80
-                    ? "text-yellow-500"
-                    : "text-text-200/60"
-                }`}
-              >
-                {(previewText || "").length}/100
-              </span>
+          </div>
+        </div>
+
+        {/* Preview Text - Compact */}
+        <div className="border-b border-gray-200">
+          <div className="flex items-center px-3 py-1.5">
+            <span className="text-xs text-gray-500 w-16 flex-shrink-0">Preview</span>
+            <div className="flex-1 flex items-center gap-2">
+              <input
+                type="text"
+                value={previewText || ""}
+                onChange={(e) =>
+                  onPreviewTextChange && onPreviewTextChange(e.target.value)
+                }
+                placeholder="Add preview text (optional)"
+                maxLength={100}
+                className="flex-1 text-xs text-gray-600 placeholder-gray-400 focus:outline-none"
+              />
+              {(previewText || "").length > 0 && (
+                <span className="text-xs text-gray-400">
+                  {(previewText || "").length}/100
+                </span>
+              )}
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Main Editor Section */}
-      <div className="bg-bg-200/30 border border-brand-main/20 rounded-xl overflow-hidden">
-        {/* Toolbar */}
-        <div className="bg-bg-200/50 border-b border-brand-main/10 px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {/* Edit Mode Tabs */}
-            <div className="flex items-center gap-1 bg-bg-300/50 p-1 rounded-lg">
-              <button
-                onClick={() => setEditMode("design")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all text-sm font-medium ${
-                  editMode === "design"
-                    ? "bg-brand-main text-white shadow-lg shadow-brand-main/20"
-                    : "text-text-200 hover:text-text-100 hover:bg-bg-200/50"
-                }`}
-              >
-                <FileText size={16} />
-                Design
-              </button>
-              <button
-                onClick={() => setEditMode("code")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all text-sm font-medium ${
-                  editMode === "code"
-                    ? "bg-brand-main text-white shadow-lg shadow-brand-main/20"
-                    : "text-text-200 hover:text-text-100 hover:bg-bg-200/50"
-                }`}
-              >
-                <Code2 size={16} />
-                Code
-              </button>
-            </div>
+        {/* Compact Toolbar */}
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center gap-1">
+            {/* Edit Mode Toggle - Compact */}
+            <button
+              onClick={() => setEditMode("design")}
+              className={`px-2 py-1 text-xs rounded transition-colors ${
+                editMode === "design"
+                  ? "bg-blue-100 text-blue-700 font-medium"
+                  : "text-gray-600 hover:bg-gray-200"
+              }`}
+              title="Visual Editor"
+            >
+              <FileText size={14} />
+            </button>
+            <button
+              onClick={() => setEditMode("code")}
+              className={`px-2 py-1 text-xs rounded transition-colors ${
+                editMode === "code"
+                  ? "bg-blue-100 text-blue-700 font-medium"
+                  : "text-gray-600 hover:bg-gray-200"
+              }`}
+              title="HTML Editor"
+            >
+              <Code2 size={14} />
+            </button>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Preview Button */}
-            <button
-              onClick={() => setShowPreviewModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-brand-main/10 hover:bg-brand-main/20 text-brand-main rounded-lg transition-all text-sm font-medium border border-brand-main/20"
-            >
-              <Eye size={16} />
-              Preview
-            </button>
-
-            {/* Variable Insert Button */}
+          <div className="flex items-center gap-1">
+            {/* Variable Insert - Compact */}
             <div className="relative" ref={variablePanelRef}>
               <button
                 onClick={() => setShowVariablePanel(!showVariablePanel)}
-                className="flex items-center gap-2 px-4 py-2 bg-brand-main/10 hover:bg-brand-main/20 text-brand-main rounded-lg transition-all text-sm font-medium border border-brand-main/20"
+                className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded transition-colors"
+                title="Insert Variable"
               >
-                <Plus size={16} />
-                Add Variable
+                <Plus size={14} />
               </button>
 
-              {/* Variable Dropdown Panel */}
+              {/* Variable Dropdown - Compact */}
               {showVariablePanel && (
-                <div className="absolute right-0 top-full mt-2 w-80 bg-bg-200 border border-brand-main/20 rounded-lg shadow-xl z-50 max-h-96 flex flex-col">
-                  {/* Search Bar */}
-                  <div className="p-3 border-b border-brand-main/10">
+                <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-gray-300 rounded-lg shadow-lg z-50 max-h-80 flex flex-col">
+                  <div className="p-2 border-b border-gray-200">
                     <div className="relative">
                       <Search
-                        size={16}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-text-200/60"
+                        size={14}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"
                       />
                       <input
                         type="text"
                         value={variableSearch}
                         onChange={(e) => setVariableSearch(e.target.value)}
-                        placeholder="Search variables..."
-                        className="w-full pl-10 pr-4 py-2 bg-bg-300 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200/40 focus:outline-none focus:ring-2 focus:ring-brand-main/50 text-sm"
+                        placeholder="Search..."
+                        className="w-full pl-8 pr-2 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                         autoFocus
                       />
                     </div>
                   </div>
-
-                  {/* Variables List */}
-                  <div className="flex-1 overflow-y-auto p-2">
+                  <div className="flex-1 overflow-y-auto p-1 max-h-64">
                     {filteredVariables.length > 0 ? (
-                      <div className="space-y-1">
+                      <div className="space-y-0.5">
                         {filteredVariables.map((variable) => (
                           <button
                             key={variable}
@@ -262,158 +233,127 @@ export default function EmailTemplateEditor({
                               setShowVariablePanel(false);
                               setVariableSearch("");
                             }}
-                            className="w-full text-left px-3 py-2 hover:bg-brand-main/10 rounded-lg transition-colors group"
+                            className="w-full text-left px-2 py-1.5 hover:bg-blue-50 rounded text-xs transition-colors"
                           >
-                            <div className="flex items-center justify-between">
-                              <code className="text-sm text-brand-main font-mono font-semibold">
-                                {variable}
-                              </code>
-                              <Plus
-                                size={14}
-                                className="text-text-200/60 group-hover:text-brand-main transition-colors"
-                              />
-                            </div>
+                            <code className="text-blue-600 font-mono">{variable}</code>
                           </button>
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-8 text-text-200/60 text-sm">
+                      <div className="text-center py-4 text-xs text-gray-400">
                         No variables found
                       </div>
                     )}
                   </div>
-
-                  {/* Footer */}
-                  <div className="p-3 border-t border-brand-main/10 bg-bg-300/50">
-                    <p className="text-xs text-text-200/60">
-                      {filteredVariables.length} variable
-                      {filteredVariables.length !== 1 ? "s" : ""} available
-                    </p>
-                  </div>
                 </div>
               )}
             </div>
+
+            {/* Preview Button - Compact */}
+            <button
+              onClick={() => setShowPreviewModal(true)}
+              className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded transition-colors"
+              title="Preview"
+            >
+              <Eye size={14} />
+            </button>
           </div>
         </div>
 
-        {/* Full Width Editor */}
-        <div className="bg-bg-100/50">
-          <div className="p-6 min-h-[700px] flex flex-col">
-            <div className="mb-3">
-              <h3 className="text-sm font-medium text-text-100 flex items-center gap-2">
-                {editMode === "design" ? (
-                  <>
-                    <FileText size={16} />
-                    Visual Editor
-                  </>
-                ) : (
-                  <>
-                    <Code2 size={16} />
-                    HTML Code Editor
-                  </>
-                )}
-              </h3>
-              <p className="text-xs text-text-200/60 mt-1">
-                {editMode === "design"
-                  ? "Use the toolbar above to format your email content"
-                  : "Edit your HTML code directly. Variables are highlighted in the preview."}
-              </p>
-            </div>
-            <div className="flex-1 overflow-hidden rounded-lg border border-brand-main/10 bg-white shadow-sm">
-              {editMode === "design" ? (
-                <DesignEditor
-                  htmlContent={htmlContent}
-                  onHtmlContentChange={onHtmlContentChange}
-                />
-              ) : (
-                <CodeEditor
-                  htmlContent={htmlContent}
-                  onHtmlContentChange={onHtmlContentChange}
-                />
-              )}
-            </div>
-          </div>
+        {/* Editor Area - Compact */}
+        <div className="bg-white min-h-[400px]">
+          {editMode === "design" ? (
+            <DesignEditor
+              htmlContent={htmlContent}
+              onHtmlContentChange={onHtmlContentChange}
+            />
+          ) : (
+            <CodeEditor
+              htmlContent={htmlContent}
+              onHtmlContentChange={onHtmlContentChange}
+            />
+          )}
         </div>
       </div>
 
-      {/* Preview Modal */}
+      {/* Preview Modal - Full Screen */}
       {showPreviewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-6xl bg-bg-200 border border-brand-main/20 rounded-xl shadow-2xl flex flex-col max-h-[90vh]">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-brand-main/10 bg-bg-200/50">
-              <div className="flex items-center gap-3">
-                <Eye size={20} className="text-brand-main" />
-                <h3 className="text-lg font-semibold text-text-100">
-                  Email Preview
-                </h3>
-              </div>
-              <div className="flex items-center gap-3">
-                {/* Preview Mode Toggle */}
-                <div className="flex items-center gap-1 bg-bg-300/50 p-1 rounded-lg">
-                  <button
-                    onClick={() => setPreviewMode("desktop")}
-                    className={`p-2 rounded transition-all ${
-                      previewMode === "desktop"
-                        ? "bg-brand-main text-white"
-                        : "text-text-200 hover:text-text-100 hover:bg-bg-200/50"
-                    }`}
-                    title="Desktop View"
-                  >
-                    <Monitor size={16} />
-                  </button>
-                  <button
-                    onClick={() => setPreviewMode("mobile")}
-                    className={`p-2 rounded transition-all ${
-                      previewMode === "mobile"
-                        ? "bg-brand-main text-white"
-                        : "text-text-200 hover:text-text-100 hover:bg-bg-200/50"
-                    }`}
-                    title="Mobile View"
-                  >
-                    <Smartphone size={16} />
-                  </button>
-                </div>
+        <div className="fixed inset-0 z-[9999] bg-white flex flex-col">
+          {/* Modal Header */}
+          <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 bg-white">
+            <div className="flex items-center gap-3">
+              <Eye size={20} className="text-gray-700" />
+              <h3 className="text-lg font-semibold text-gray-900">
+                Email Preview
+              </h3>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Preview Mode Toggle */}
+              <div className="flex items-center gap-1 bg-gray-100 p-1 rounded">
                 <button
-                  onClick={() => setShowPreviewModal(false)}
-                  className="p-2 hover:bg-bg-300/50 rounded-lg transition-colors text-text-200 hover:text-text-100"
-                  title="Close Preview"
+                  onClick={() => setPreviewMode("desktop")}
+                  className={`p-2 rounded transition-all ${
+                    previewMode === "desktop"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-600 hover:bg-gray-200"
+                  }`}
+                  title="Desktop View"
                 >
-                  <X size={20} />
+                  <Monitor size={16} />
+                </button>
+                <button
+                  onClick={() => setPreviewMode("mobile")}
+                  className={`p-2 rounded transition-all ${
+                    previewMode === "mobile"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-600 hover:bg-gray-200"
+                  }`}
+                  title="Mobile View"
+                >
+                  <Smartphone size={16} />
                 </button>
               </div>
+              <button
+                onClick={() => setShowPreviewModal(false)}
+                className="p-2 hover:bg-gray-100 rounded transition-colors text-gray-600 hover:text-gray-900"
+                title="Close Preview"
+              >
+                <X size={20} />
+              </button>
             </div>
+          </div>
 
-            {/* Preview Content */}
-            <div className="flex-1 overflow-y-auto p-6 bg-bg-100/30">
+          {/* Preview Content - Full Screen */}
+          <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
+            <div className="max-w-7xl mx-auto">
               <div
-                className={`bg-white rounded-lg shadow-lg border border-brand-main/10 mx-auto ${
+                className={`bg-white rounded-lg shadow-lg border border-gray-200 mx-auto ${
                   previewMode === "mobile" ? "max-w-sm" : "max-w-4xl"
                 }`}
               >
                 {/* Email Header Preview */}
-                <div className="border-b border-brand-main/10 p-4 bg-bg-200/30">
+                <div className="border-b border-gray-200 p-4 bg-gray-50">
                   <div className="space-y-2 text-sm">
                     <div>
-                      <span className="text-text-200/60 font-medium">To:</span>{" "}
-                      <span className="text-text-100">
+                      <span className="text-gray-600 font-medium">To:</span>{" "}
+                      <span className="text-gray-900">
                         recipient@example.com
                       </span>
                     </div>
                     <div>
-                      <span className="text-text-200/60 font-medium">
+                      <span className="text-gray-600 font-medium">
                         Subject:
                       </span>{" "}
-                      <span className="text-text-100">
+                      <span className="text-gray-900">
                         {subject || "Your email subject"}
                       </span>
                     </div>
                     {previewText && (
-                      <div className="pt-2 border-t border-brand-main/10">
-                        <span className="text-text-200/60 font-medium">
+                      <div className="pt-2 border-t border-gray-200">
+                        <span className="text-gray-600 font-medium">
                           Preview:
                         </span>{" "}
-                        <span className="text-text-200 italic">
+                        <span className="text-gray-500 italic">
                           {previewText}
                         </span>
                       </div>
@@ -422,10 +362,10 @@ export default function EmailTemplateEditor({
                 </div>
 
                 {/* Email Body Preview */}
-                <div className="p-6 min-h-[400px] text-text-200">
+                <div className="p-6 min-h-[400px]">
                   {htmlContent ? (
                     <div
-                      className="prose prose-sm max-w-none text-text-200"
+                      className="prose prose-sm max-w-none text-gray-900"
                       dangerouslySetInnerHTML={{
                         __html: highlightVariables(htmlContent),
                       }}
@@ -435,12 +375,12 @@ export default function EmailTemplateEditor({
                       <div className="text-center">
                         <Eye
                           size={48}
-                          className="mx-auto text-text-200/40 mb-4"
+                          className="mx-auto text-gray-400 mb-4"
                         />
-                        <p className="text-base text-text-200/60 mb-2">
+                        <p className="text-base text-gray-600 mb-2">
                           No content to preview
                         </p>
-                        <p className="text-sm text-text-200/40">
+                        <p className="text-sm text-gray-400">
                           Start typing in the editor to see your email preview
                         </p>
                       </div>
@@ -448,16 +388,6 @@ export default function EmailTemplateEditor({
                   )}
                 </div>
               </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-brand-main/10 bg-bg-200/50 flex justify-end">
-              <Button
-                onClick={() => setShowPreviewModal(false)}
-                className="px-6 py-2 bg-brand-main hover:bg-brand-main/90 text-white"
-              >
-                Close Preview
-              </Button>
             </div>
           </div>
         </div>

@@ -496,7 +496,8 @@ export const getLeads = async (
   status?: string,
   tags?: string,
   category?: string,
-  campaignId?: string
+  campaignId?: string,
+  search?: string
 ): Promise<{ data: { leads: Lead[]; pagination: any } }> => {
   try {
     const params = new URLSearchParams({
@@ -507,6 +508,7 @@ export const getLeads = async (
     if (tags) params.append("tags", tags);
     if (category) params.append("category", category);
     if (campaignId) params.append("campaignId", campaignId);
+    if (search) params.append("search", search);
 
     const response = await emailClient.get(`/api/leads?${params.toString()}`);
     return response.data || { data: { leads: [], pagination: {} } };
@@ -741,7 +743,9 @@ export const getLeadCategories = async (): Promise<LeadCategory[]> => {
   }
 };
 
-export const createLeadCategory = async (name: string): Promise<LeadCategory> => {
+export const createLeadCategory = async (
+  name: string
+): Promise<LeadCategory> => {
   try {
     const resp = await emailClient.post(`/api/lead-categories`, { name });
     return resp.data?.data || { id: "", name };
@@ -995,6 +999,326 @@ export const getReoonVerificationAnalytics = async (
     return resp.data?.data || resp.data;
   } catch (error: any) {
     console.error("Failed to fetch Reoon verification analytics:", error);
+    throw error;
+  }
+};
+
+// ============ LISTS API ============
+
+export interface EmailList {
+  id: string;
+  name: string;
+  description?: string;
+  contactCount: number;
+  createdAt: string;
+  updatedAt: string;
+  count?: number;
+}
+
+export const getLists = async (
+  page: number = 1,
+  limit: number = 50
+): Promise<{
+  data: {
+    lists: EmailList[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  };
+}> => {
+  try {
+    const response = await emailClient.get("/api/lists", {
+      params: { page, limit },
+    });
+    return response.data || { data: { lists: [], pagination: {} } };
+  } catch (error: any) {
+    console.error("Failed to fetch lists:", error);
+    throw error;
+  }
+};
+
+export const getListById = async (listId: string): Promise<EmailList> => {
+  try {
+    const response = await emailClient.get(`/api/lists/${listId}`);
+    return response.data?.data || response.data;
+  } catch (error: any) {
+    console.error("Failed to fetch list:", error);
+    throw error;
+  }
+};
+
+export const createList = async (listData: {
+  name: string;
+  description?: string;
+}): Promise<EmailList> => {
+  try {
+    const response = await emailClient.post("/api/lists", listData);
+    return response.data?.data || response.data;
+  } catch (error: any) {
+    console.error("Failed to create list:", error);
+    throw error;
+  }
+};
+
+export const updateList = async (
+  listId: string,
+  listData: { name?: string; description?: string }
+): Promise<EmailList> => {
+  try {
+    const response = await emailClient.put(`/api/lists/${listId}`, listData);
+    return response.data?.data || response.data;
+  } catch (error: any) {
+    console.error("Failed to update list:", error);
+    throw error;
+  }
+};
+
+export const deleteList = async (listId: string): Promise<void> => {
+  try {
+    await emailClient.delete(`/api/lists/${listId}`);
+  } catch (error: any) {
+    console.error("Failed to delete list:", error);
+    throw error;
+  }
+};
+
+export const addContactsToList = async (
+  listId: string,
+  leadIds: string[]
+): Promise<{ added: number; skipped: number; total: number }> => {
+  try {
+    const response = await emailClient.post(`/api/lists/${listId}/contacts`, {
+      leadIds,
+    });
+    return response.data?.data || response.data;
+  } catch (error: any) {
+    console.error("Failed to add contacts to list:", error);
+    throw error;
+  }
+};
+
+export const removeContactsFromList = async (
+  listId: string,
+  leadIds: string[]
+): Promise<{ removed: number }> => {
+  try {
+    const response = await emailClient.delete(`/api/lists/${listId}/contacts`, {
+      data: { leadIds },
+    });
+    return response.data?.data || response.data;
+  } catch (error: any) {
+    console.error("Failed to remove contacts from list:", error);
+    throw error;
+  }
+};
+
+export const getListContacts = async (
+  listId: string,
+  page: number = 1,
+  limit: number = 50
+): Promise<{
+  data: {
+    contacts: Array<{
+      id: string;
+      email: string;
+      name?: string;
+      status: string;
+      addedAt: string;
+    }>;
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  };
+}> => {
+  try {
+    const response = await emailClient.get(`/api/lists/${listId}/contacts`, {
+      params: { page, limit },
+    });
+    return response.data || { data: { contacts: [], pagination: {} } };
+  } catch (error: any) {
+    console.error("Failed to fetch list contacts:", error);
+    throw error;
+  }
+};
+
+export const filterLeadsByCriteria = async (filters: {
+  tagIds?: string[];
+  categoryIds?: string[];
+  campaignIds?: string[];
+  statuses?: string[];
+}): Promise<{ data: { leadIds: string[]; count: number; total: number } }> => {
+  try {
+    const response = await emailClient.post("/api/lists/filter-leads", filters);
+    return response.data || { data: { leadIds: [], count: 0, total: 0 } };
+  } catch (error: any) {
+    console.error("Failed to filter leads:", error);
+    throw error;
+  }
+};
+
+export interface FilterOptions {
+  categories: Array<{ id: string; name: string; color: string; count: number }>;
+  tags: Array<{ id: string; name: string; color: string; count: number }>;
+  campaigns: Array<{ id: string; name: string; count: number }>;
+  statuses: Array<{ value: string; label: string; count: number }>;
+}
+
+export const getFilterOptions = async (filters?: {
+  categoryIds?: string[];
+  tagIds?: string[];
+  campaignIds?: string[];
+  statuses?: string[];
+}): Promise<FilterOptions> => {
+  try {
+    const params = new URLSearchParams();
+    if (filters?.categoryIds && filters.categoryIds.length > 0) {
+      params.append("categoryIds", filters.categoryIds.join(","));
+    }
+    if (filters?.tagIds && filters.tagIds.length > 0) {
+      params.append("tagIds", filters.tagIds.join(","));
+    }
+    if (filters?.campaignIds && filters.campaignIds.length > 0) {
+      params.append("campaignIds", filters.campaignIds.join(","));
+    }
+    if (filters?.statuses && filters.statuses.length > 0) {
+      params.append("statuses", filters.statuses.join(","));
+    }
+    const response = await emailClient.get<{ data: FilterOptions }>(
+      `/api/leads/filter-options?${params.toString()}`
+    );
+    return response.data?.data || {
+      categories: [],
+      tags: [],
+      campaigns: [],
+      statuses: [],
+    };
+  } catch (error: any) {
+    console.error("Failed to fetch filter options:", error);
+    throw error;
+  }
+};
+
+/**
+ * Bulk Upload Job API
+ */
+
+export interface BulkUploadJobStatus {
+  jobId: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  totalRows: number;
+  processedRows: number;
+  progress: number;
+  result?: {
+    statistics?: {
+      total: number;
+      valid: number;
+      invalid: number;
+      duplicatesInBatch: number;
+      duplicatesInDatabase: number;
+      created: number;
+      updated: number;
+      skipped: number;
+      invalidEmails: string[];
+      duplicateEmails: string[];
+    };
+    leadIds?: string[];
+  };
+  error?: string;
+  errorDetails?: any;
+  startedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+}
+
+/**
+ * Create a bulk upload job
+ */
+export const createBulkUploadJob = async (
+  csvData: Record<string, any>[],
+  options?: {
+    tags?: string[];
+    categories?: string[];
+    listIds?: string[];
+  }
+): Promise<{ jobId: string; status: string; totalRows: number }> => {
+  try {
+    const response = await emailClient.post<{
+      success: boolean;
+      data: {
+        jobId: string;
+        status: string;
+        totalRows: number;
+        message: string;
+      };
+    }>("/api/leads/bulk-upload", {
+      csvData,
+      tags: options?.tags || [],
+      categories: options?.categories || [],
+      listIds: options?.listIds || [],
+    });
+    return response.data.data;
+  } catch (error: any) {
+    console.error("Failed to create bulk upload job:", error);
+    throw error;
+  }
+};
+
+/**
+ * Get bulk upload job status
+ */
+export const getBulkUploadJobStatus = async (
+  jobId: string
+): Promise<BulkUploadJobStatus> => {
+  try {
+    const response = await emailClient.get<{
+      success: boolean;
+      data: BulkUploadJobStatus;
+    }>(`/api/leads/bulk-upload/${jobId}`);
+    return response.data.data;
+  } catch (error: any) {
+    console.error("Failed to get bulk upload job status:", error);
+    throw error;
+  }
+};
+
+/**
+ * Check for active bulk upload jobs for current user
+ */
+export const checkActiveBulkUploadJobs = async (): Promise<{
+  hasActiveJobs: boolean;
+  activeJobs: Array<{
+    jobId: string;
+    status: string;
+    totalRows: number;
+    processedRows: number;
+    progress: number;
+    createdAt: string;
+  }>;
+}> => {
+  try {
+    const response = await emailClient.get<{
+      success: boolean;
+      data: {
+        hasActiveJobs: boolean;
+        activeJobs: Array<{
+          jobId: string;
+          status: string;
+          totalRows: number;
+          processedRows: number;
+          progress: number;
+          createdAt: string;
+        }>;
+      };
+    }>("/api/leads/bulk-upload/active");
+    return response.data.data;
+  } catch (error: any) {
+    console.error("Failed to check active bulk upload jobs:", error);
     throw error;
   }
 };

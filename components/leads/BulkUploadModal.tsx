@@ -8,10 +8,16 @@ import * as XLSX from "xlsx";
 import CreatableSelect from "@/components/common/CreatableSelect";
 import { Button } from "@/components/ui/button";
 import emailClient, {
+  checkActiveBulkUploadJobs,
+  createBulkUploadJob,
   createLeadCategory,
   createLeadTag,
+  createList,
+  EmailList,
+  getBulkUploadJobStatus,
   getLeadCategories,
   getLeadTags,
+  getLists,
   LeadCategory,
   LeadTag,
 } from "@/utils/api/emailClient";
@@ -24,7 +30,7 @@ import { IconUpload, IconX } from "@tabler/icons-react";
 interface BulkUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (jobId?: string, totalRows?: number) => void;
 }
 
 export default function BulkUploadModal({
@@ -42,28 +48,172 @@ export default function BulkUploadModal({
   const [selectedCategories, setSelectedCategories] = useState<LeadCategory[]>(
     []
   );
+  const [selectedLists, setSelectedLists] = useState<EmailList[]>([]);
   const [tagOptions, setTagOptions] = useState<LeadTag[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<LeadCategory[]>([]);
+  const [listOptions, setListOptions] = useState<EmailList[]>([]);
   const [duplicateEmails, setDuplicateEmails] = useState<Set<string>>(
     new Set()
   );
+  const [loadingOptions, setLoadingOptions] = useState(false);
+
+  // Function to refresh all options data
+  const refreshOptions = async () => {
+    setLoadingOptions(true);
+    try {
+      const [tags, categories, listsData] = await Promise.all([
+        getLeadTags(),
+        getLeadCategories(),
+        getLists(1, 100),
+      ]);
+      setTagOptions(tags || []);
+      setCategoryOptions(categories || []);
+      setListOptions(listsData.data.lists || []);
+    } catch (e) {
+      console.warn("Failed to refresh options:", e);
+      toast.error("Failed to refresh options");
+    } finally {
+      setLoadingOptions(false);
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
-      (async () => {
-        try {
-          const [tags, categories] = await Promise.all([
-            getLeadTags(),
-            getLeadCategories(),
-          ]);
-          setTagOptions(tags || []);
-          setCategoryOptions(categories || []);
-        } catch (e) {
-          console.warn("Failed to prefetch tags/categories", e);
-        }
-      })();
+      refreshOptions();
+
+      // Check for active jobs when modal opens (user-specific check from backend)
+      checkActiveBulkUploadJobs()
+        .then((result) => {
+          if (result.hasActiveJobs && result.activeJobs.length > 0) {
+            toast.warning(
+              `You have ${result.activeJobs.length} bulk upload job${
+                result.activeJobs.length > 1 ? "s" : ""
+              } in progress. Please wait for them to complete before starting a new upload.`,
+              { duration: 6000 }
+            );
+          }
+        })
+        .catch((error) => {
+          console.error("Failed to check active jobs:", error);
+          // Don't block the user if check fails
+        });
     }
   }, [isOpen]);
+
+  // Poll job progress
+  const pollJobProgress = async (jobId: string, toastId: string) => {
+    let pollCount = 0;
+    const maxPolls = 300; // Max 10 minutes (300 * 2 seconds)
+
+    const pollInterval = setInterval(async () => {
+      pollCount++;
+
+      try {
+        const status = await getBulkUploadJobStatus(jobId);
+        const progress = status.progress || 0;
+        const processedRows = status.processedRows || 0;
+        const totalRows = status.totalRows || 0;
+
+        console.log(
+          `[Bulk Upload] Job ${jobId} status: ${status.status}, progress: ${progress}%, processed: ${processedRows}/${totalRows}`
+        );
+
+        if (status.status === "completed") {
+          clearInterval(pollInterval);
+
+          // Remove from active jobs (localStorage is just for UI, backend is source of truth)
+          const activeJobs = JSON.parse(
+            localStorage.getItem("activeBulkUploadJobs") || "[]"
+          );
+          const updatedJobs = activeJobs.filter((id: string) => id !== jobId);
+          localStorage.setItem(
+            "activeBulkUploadJobs",
+            JSON.stringify(updatedJobs)
+          );
+
+          // Show success with summary
+          const stats = status.result?.statistics;
+          if (stats) {
+            const summary = [
+              `${stats.created} created`,
+              stats.updated > 0 ? `${stats.updated} updated` : null,
+              stats.skipped > 0 ? `${stats.skipped} skipped` : null,
+              stats.invalid > 0 ? `${stats.invalid} invalid` : null,
+            ]
+              .filter(Boolean)
+              .join(", ");
+
+            toast.success(`Upload complete! ${summary}`, {
+              id: toastId,
+              duration: 10000,
+            });
+          } else {
+            toast.success("Upload complete!", {
+              id: toastId,
+              duration: 5000,
+            });
+          }
+
+          // Refresh leads list
+          onSuccess();
+        } else if (status.status === "failed") {
+          clearInterval(pollInterval);
+
+          // Remove from active jobs (localStorage is just for UI, backend is source of truth)
+          const activeJobs = JSON.parse(
+            localStorage.getItem("activeBulkUploadJobs") || "[]"
+          );
+          const updatedJobs = activeJobs.filter((id: string) => id !== jobId);
+          localStorage.setItem(
+            "activeBulkUploadJobs",
+            JSON.stringify(updatedJobs)
+          );
+
+          toast.error(`Upload failed: ${status.error || "Unknown error"}`, {
+            id: toastId,
+            duration: 10000,
+          });
+        } else {
+          // Update progress - show more detailed info
+          const statusText =
+            status.status === "pending"
+              ? "Queued"
+              : status.status === "processing"
+              ? "Processing"
+              : status.status;
+
+          toast.loading(
+            `${statusText}: ${processedRows}/${totalRows} leads (${progress}%)`,
+            {
+              id: toastId,
+              duration: Infinity,
+            }
+          );
+        }
+      } catch (error: any) {
+        console.error("Failed to poll job status:", error);
+        if (error.response?.status === 404) {
+          clearInterval(pollInterval);
+          toast.error("Job not found", {
+            id: toastId,
+            duration: 5000,
+          });
+        } else if (pollCount >= maxPolls) {
+          clearInterval(pollInterval);
+          toast.error(
+            "Upload is taking longer than expected. Please check the job status manually.",
+            {
+              id: toastId,
+              duration: 10000,
+            }
+          );
+        }
+      }
+    }, 5000); // Poll every 2 seconds
+
+    // Cleanup on unmount
+    return () => clearInterval(pollInterval);
+  };
 
   const handleFileUpload = async (file: File) => {
     if (!file) return;
@@ -217,6 +367,26 @@ export default function BulkUploadModal({
       return;
     }
 
+    // Check for active jobs before starting upload (user-specific check from backend)
+    try {
+      const activeJobsResult = await checkActiveBulkUploadJobs();
+      if (
+        activeJobsResult.hasActiveJobs &&
+        activeJobsResult.activeJobs.length > 0
+      ) {
+        toast.error(
+          `You have ${activeJobsResult.activeJobs.length} bulk upload job${
+            activeJobsResult.activeJobs.length > 1 ? "s" : ""
+          } in progress. Please wait for them to complete before starting a new upload.`,
+          { duration: 6000 }
+        );
+        return;
+      }
+    } catch (error: any) {
+      console.error("Failed to check active jobs:", error);
+      // Continue with upload if check fails (backend will also check)
+    }
+
     // Filter and validate rows - separate valid from invalid
     const validRows: Array<Record<string, any>> = [];
     const invalidRows: Array<{ row: number; email: string }> = [];
@@ -283,7 +453,9 @@ export default function BulkUploadModal({
         .map((d) => d.email)
         .join(", ");
       toast.info(
-        `Found ${duplicateCount} duplicate email(s) in file (${duplicateEmailsInFile.length} unique emails have duplicates). Sample: ${sampleDuplicates}${
+        `Found ${duplicateCount} duplicate email(s) in file (${
+          duplicateEmailsInFile.length
+        } unique emails have duplicates). Sample: ${sampleDuplicates}${
           duplicateEmailsInFile.length > 3
             ? ` (and ${duplicateEmailsInFile.length - 3} more)`
             : ""
@@ -298,7 +470,6 @@ export default function BulkUploadModal({
     }
 
     setUploading(true);
-    const toastId = toast.loading("Uploading leads...");
 
     try {
       // Normalize data for API - only use valid rows
@@ -317,90 +488,44 @@ export default function BulkUploadModal({
         return normalized;
       });
 
-      // Call API to create leads
-      const response = await emailClient.post("/api/leads/bulk-upload", {
-        csvData,
-        tags: selectedTags.map((t) => t.name),
-        categories: selectedCategories.map((c) => c.name),
-      });
-
-      toast.dismiss(toastId);
-
-      const stats = response.data?.data?.statistics;
-      if (stats) {
-        // Build detailed success message
-        const parts: string[] = [];
-        if (stats.created > 0) {
-          parts.push(`${stats.created} created`);
-        }
-        if (stats.updated > 0) {
-          parts.push(`${stats.updated} updated`);
-        }
-        if (stats.skipped > 0) {
-          parts.push(`${stats.skipped} skipped`);
-        }
-        if (stats.invalid > 0) {
-          parts.push(`${stats.invalid} invalid`);
-        }
-
-        const mainMessage =
-          parts.length > 0
-            ? `Upload complete: ${parts.join(", ")}`
-            : `Successfully processed ${stats.total} leads`;
-
-        toast.success(mainMessage, {
-          duration: 8000,
+      // Create bulk upload job (async)
+      let job;
+      try {
+        job = await createBulkUploadJob(csvData, {
+          tags: selectedTags.map((t) => t.name),
+          categories: selectedCategories.map((c) => c.name),
+          listIds: selectedLists.map((l) => l.id),
         });
-
-        // Show detailed breakdown if there are issues
-        if (stats.skipped > 0 || stats.invalid > 0) {
-          const details: string[] = [];
-
-          if (stats.duplicatesInBatch > 0) {
-            details.push(`${stats.duplicatesInBatch} duplicate(s) in file`);
-          }
-          if (stats.duplicatesInDatabase > 0) {
-            details.push(
-              `${stats.duplicatesInDatabase} already exist in database`
+      } catch (error: any) {
+        // Handle conflict error (active job exists)
+        if (error.response?.status === 409) {
+          const errorData = error.response?.data?.data;
+          if (errorData?.activeJobId) {
+            toast.error(
+              `You already have a bulk upload in progress (${
+                errorData.progress || 0
+              }% complete). Please wait for it to finish before starting a new upload.`,
+              {
+                duration: 8000,
+              }
             );
-          }
-          if (stats.invalid > 0) {
-            details.push(`${stats.invalid} invalid email(s)`);
-          }
-
-          if (details.length > 0) {
-            setTimeout(() => {
-              toast.info(
-                `Details: ${details.join("; ")}${
-                  stats.duplicateEmails.length > 0
-                    ? `. Sample duplicates: ${stats.duplicateEmails
-                        .slice(0, 3)
-                        .join(", ")}${
-                        stats.duplicateEmails.length > 3
-                          ? ` (and ${stats.duplicateEmails.length - 3} more)`
-                          : ""
-                      }`
-                    : ""
-                }${
-                  stats.invalidEmails.length > 0
-                    ? `. Sample invalid: ${stats.invalidEmails
-                        .slice(0, 3)
-                        .join(", ")}${
-                        stats.invalidEmails.length > 3
-                          ? ` (and ${stats.invalidEmails.length - 3} more)`
-                          : ""
-                      }`
-                    : ""
-                }`,
-                { duration: 10000 }
+            // Optionally, add the existing job to active jobs list
+            const activeJobs = JSON.parse(
+              localStorage.getItem("activeBulkUploadJobs") || "[]"
+            );
+            if (!activeJobs.includes(errorData.activeJobId)) {
+              activeJobs.push(errorData.activeJobId);
+              localStorage.setItem(
+                "activeBulkUploadJobs",
+                JSON.stringify(activeJobs)
               );
-            }, 1000);
+            }
+            setUploading(false);
+            return;
           }
         }
-      } else {
-        toast.success(
-          `Successfully uploaded ${response.data?.data?.count || 0} leads`
-        );
+        // Re-throw other errors
+        throw error;
       }
 
       // Reset form
@@ -409,16 +534,36 @@ export default function BulkUploadModal({
       setEmailColumn("");
       setSelectedTags([]);
       setSelectedCategories([]);
+      setSelectedLists([]);
       setDuplicateEmails(new Set());
 
-      onSuccess();
+      // Close modal immediately
       onClose();
+
+      // Store job ID in localStorage for progress tracking
+      const activeJobs = JSON.parse(
+        localStorage.getItem("activeBulkUploadJobs") || "[]"
+      );
+      activeJobs.push(job.jobId);
+      localStorage.setItem("activeBulkUploadJobs", JSON.stringify(activeJobs));
+
+      // Show persistent toast with progress tracking
+      const toastId = `bulk-upload-${job.jobId}`;
+      toast.loading(`Processing ${job.totalRows} leads... 0%`, {
+        id: toastId,
+        duration: Infinity, // Keep toast until dismissed or completed
+      });
+
+      // Start polling for progress
+      pollJobProgress(job.jobId, toastId);
+
+      // Trigger success callback with job info
+      onSuccess(job.jobId, job.totalRows);
     } catch (error: any) {
-      toast.dismiss(toastId);
       const errorMsg =
         error.response?.data?.message ||
         error.message ||
-        "Failed to upload leads";
+        "Failed to create bulk upload job";
       toast.error(errorMsg);
       console.error("Bulk upload error:", error);
     } finally {
@@ -449,7 +594,11 @@ export default function BulkUploadModal({
     }
   });
 
-  const duplicateEmailsInFile: Array<{ email: string; rows: number[]; count: number }> = [];
+  const duplicateEmailsInFile: Array<{
+    email: string;
+    rows: number[];
+    count: number;
+  }> = [];
   const uniqueEmails: string[] = [];
 
   emailMap.forEach((rows, email) => {
@@ -557,7 +706,7 @@ export default function BulkUploadModal({
                 <h3 className="text-text-100 font-semibold text-lg">
                   Upload Summary
                 </h3>
-                
+
                 <div className="space-y-2">
                   {duplicateCount > 0 && (
                     <div className="flex items-start gap-2">
@@ -567,20 +716,27 @@ export default function BulkUploadModal({
                           Found {duplicateCount} duplicate email(s) in file
                         </p>
                         <p className="text-text-200 text-sm mt-1">
-                          {duplicateEmailsInFile.length} unique email(s) have duplicates. 
-                          Only the first occurrence of each will be inserted.
+                          {duplicateEmailsInFile.length} unique email(s) have
+                          duplicates. Only the first occurrence of each will be
+                          inserted.
                         </p>
                         {duplicateEmailsInFile.length > 0 && (
                           <div className="mt-2 text-xs text-text-200 bg-bg-300 rounded p-2 max-h-32 overflow-y-auto">
-                            <p className="font-semibold mb-1">Duplicate emails:</p>
-                            {duplicateEmailsInFile.slice(0, 5).map((dup, idx) => (
-                              <p key={idx} className="truncate">
-                                • {dup.email} (appears {dup.count} times in rows: {dup.rows.join(", ")})
-                              </p>
-                            ))}
+                            <p className="font-semibold mb-1">
+                              Duplicate emails:
+                            </p>
+                            {duplicateEmailsInFile
+                              .slice(0, 5)
+                              .map((dup, idx) => (
+                                <p key={idx} className="truncate">
+                                  • {dup.email} (appears {dup.count} times in
+                                  rows: {dup.rows.join(", ")})
+                                </p>
+                              ))}
                             {duplicateEmailsInFile.length > 5 && (
                               <p className="text-text-200/70 mt-1">
-                                ... and {duplicateEmailsInFile.length - 5} more duplicate email(s)
+                                ... and {duplicateEmailsInFile.length - 5} more
+                                duplicate email(s)
                               </p>
                             )}
                           </div>
@@ -588,7 +744,7 @@ export default function BulkUploadModal({
                       </div>
                     </div>
                   )}
-                  
+
                   <div className="flex items-start gap-2">
                     <span className="text-green-400 mt-0.5">✅</span>
                     <div className="flex-1">
@@ -597,7 +753,9 @@ export default function BulkUploadModal({
                       </p>
                       {duplicateCount > 0 && (
                         <p className="text-text-200 text-sm mt-1">
-                          ({validRows.length} total valid rows - {duplicateCount} duplicates removed = {uniqueCount} unique)
+                          ({validRows.length} total valid rows -{" "}
+                          {duplicateCount} duplicates removed = {uniqueCount}{" "}
+                          unique)
                         </p>
                       )}
                     </div>
@@ -624,45 +782,124 @@ export default function BulkUploadModal({
               </select>
             </div>
 
-            {/* Tags and Categories */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-text-100 font-semibold mb-2">
-                  Tags (optional)
-                </label>
-                <CreatableSelect
-                  options={tagOptions}
-                  value={selectedTags}
-                  onChange={(selected) => {
-                    setSelectedTags(selected);
-                  }}
-                  onCreateNew={async (name: string) => {
-                    const newTag = await createLeadTag(name);
-                    setTagOptions((prev) => [...prev, newTag]);
-                    return newTag;
-                  }}
-                  isMulti
-                  placeholder="Select or create tags"
-                />
+            {/* Tags, Categories, and Lists */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-text-100 font-semibold mb-2">
+                    Tags (optional)
+                  </label>
+                  <CreatableSelect
+                    options={tagOptions}
+                    value={selectedTags}
+                    onChange={(selected) => {
+                      setSelectedTags(selected);
+                    }}
+                    onCreateNew={async (name: string) => {
+                      try {
+                        const newTag = await createLeadTag(name);
+                        // Refresh all tags to get the latest data
+                        await refreshOptions();
+                        return newTag;
+                      } catch (error: any) {
+                        toast.error(
+                          error.response?.data?.message ||
+                            "Failed to create tag"
+                        );
+                        throw error;
+                      }
+                    }}
+                    isMulti
+                    placeholder="Select or create tags"
+                    isLoading={loadingOptions}
+                  />
+                  <p className="text-xs text-text-200/60 mt-1.5">
+                    Label leads for easy filtering
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-text-100 font-semibold mb-2">
+                    Categories (optional)
+                  </label>
+                  <CreatableSelect
+                    options={categoryOptions}
+                    value={selectedCategories}
+                    onChange={(selected) => {
+                      setSelectedCategories(selected);
+                    }}
+                    onCreateNew={async (name: string) => {
+                      try {
+                        const newCategory = await createLeadCategory(name);
+                        // Refresh all categories to get the latest data
+                        await refreshOptions();
+                        return newCategory;
+                      } catch (error: any) {
+                        toast.error(
+                          error.response?.data?.message ||
+                            "Failed to create category"
+                        );
+                        throw error;
+                      }
+                    }}
+                    isMulti
+                    placeholder="Select or create categories"
+                    isLoading={loadingOptions}
+                  />
+                  <p className="text-xs text-text-200/60 mt-1.5">
+                    Group leads by type or source
+                  </p>
+                </div>
               </div>
-              <div>
-                <label className="block text-text-100 font-semibold mb-2">
-                  Categories (optional)
-                </label>
-                <CreatableSelect
-                  options={categoryOptions}
-                  value={selectedCategories}
-                  onChange={(selected) => {
-                    setSelectedCategories(selected);
-                  }}
-                  onCreateNew={async (name: string) => {
-                    const newCategory = await createLeadCategory(name);
-                    setCategoryOptions((prev) => [...prev, newCategory]);
-                    return newCategory;
-                  }}
-                  isMulti
-                  placeholder="Select or create categories"
-                />
+
+              {/* Lists Section with Enhanced UI */}
+              <div className="bg-brand-main/5 border border-brand-main/10 rounded-lg p-4">
+                <div className="mb-3">
+                  <label className="block text-text-100 font-semibold mb-2">
+                    Lists (optional)
+                  </label>
+                  <CreatableSelect
+                    options={listOptions}
+                    value={selectedLists}
+                    onChange={(selected) => {
+                      setSelectedLists(selected as EmailList[]);
+                    }}
+                    onCreateNew={async (name: string) => {
+                      try {
+                        const newList = await createList({ name });
+                        // Refresh all lists to get the latest data
+                        await refreshOptions();
+                        toast.success(`List "${name}" created successfully`);
+                        return newList;
+                      } catch (error: any) {
+                        toast.error(
+                          error.response?.data?.message ||
+                            "Failed to create list"
+                        );
+                        throw error;
+                      }
+                    }}
+                    isMulti
+                    placeholder="Select or create lists"
+                    isLoading={loadingOptions}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-text-100">
+                    Why use lists?
+                  </p>
+                  <ul className="text-xs text-text-200/70 space-y-1 list-disc list-inside">
+                    <li>
+                      Organize contacts into groups (e.g., "VIP Customers",
+                      "Newsletter Subscribers")
+                    </li>
+                    <li>Quickly select entire lists when creating campaigns</li>
+                    <li>Better segmentation for targeted email marketing</li>
+                    <li>
+                      All uploaded leads will be automatically added to selected
+                      lists
+                    </li>
+                  </ul>
+                </div>
               </div>
             </div>
 
@@ -673,12 +910,10 @@ export default function BulkUploadModal({
               </Button>
               <Button
                 onClick={handleUpload}
-                disabled={uploading || validRows.length === 0}
+                disabled={uploading || uniqueCount === 0}
                 className="bg-brand-main hover:bg-brand-main/80 text-white"
               >
-                {uploading
-                  ? "Uploading..."
-                  : `Upload ${validRows.length} Leads`}
+                {uploading ? "Uploading..." : `Upload ${uniqueCount} Leads`}
               </Button>
             </div>
           </div>

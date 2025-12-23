@@ -94,187 +94,184 @@ export default function DesignEditor({
   };
 
   return (
-    <div className="space-y-2">
-      {/* Toolbar */}
-      <div className="bg-brand-main/5 border border-brand-main/10 rounded-lg p-3 space-y-2">
-        {/* Row 1: Text Formatting */}
-        <div className="flex gap-1 flex-wrap">
+    <div className="p-3">
+      {/* Compact Gmail-style Toolbar */}
+      <div className="flex items-center gap-1 pb-2 border-b border-gray-200 mb-2 flex-wrap">
           <button
             onClick={() => editor.chain().focus().toggleBold().run()}
-            className={`p-2 rounded transition ${
+            className={`p-1.5 rounded transition ${
               editor.isActive("bold")
-                ? "bg-brand-main text-brand-white"
-                : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
+                ? "bg-blue-100 text-blue-700"
+                : "text-gray-600 hover:bg-gray-100"
             }`}
             title="Bold"
           >
-            <Bold size={16} />
+            <Bold size={14} />
           </button>
           <button
             onClick={() => editor.chain().focus().toggleItalic().run()}
-            className={`p-2 rounded transition ${
+            className={`p-1.5 rounded transition ${
               editor.isActive("italic")
-                ? "bg-brand-main text-brand-white"
-                : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
+                ? "bg-blue-100 text-blue-700"
+                : "text-gray-600 hover:bg-gray-100"
             }`}
             title="Italic"
           >
-            <Italic size={16} />
+            <Italic size={14} />
           </button>
           <button
             onClick={() => editor.chain().focus().toggleUnderline().run()}
-            className={`p-2 rounded transition ${
+            className={`p-1.5 rounded transition ${
               editor.isActive("underline")
-                ? "bg-brand-main text-brand-white"
-                : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
+                ? "bg-blue-100 text-blue-700"
+                : "text-gray-600 hover:bg-gray-100"
             }`}
             title="Underline"
           >
-            <UnderlineIcon size={16} />
+            <UnderlineIcon size={14} />
           </button>
 
-          <div className="w-px bg-brand-main/10" />
+          <div className="w-px h-5 bg-gray-300 mx-0.5" />
 
           {/* Headings */}
           <button
             onClick={() =>
               editor.chain().focus().toggleHeading({ level: 1 }).run()
             }
-            className={`p-2 rounded transition ${
+            className={`p-1.5 rounded transition ${
               editor.isActive("heading", { level: 1 })
-                ? "bg-brand-main text-brand-white"
-                : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
+                ? "bg-blue-100 text-blue-700"
+                : "text-gray-600 hover:bg-gray-100"
             }`}
             title="Heading 1"
           >
-            <Heading1 size={16} />
+            <Heading1 size={14} />
           </button>
           <button
             onClick={() =>
               editor.chain().focus().toggleHeading({ level: 2 }).run()
             }
-            className={`p-2 rounded transition ${
+            className={`p-1.5 rounded transition ${
               editor.isActive("heading", { level: 2 })
-                ? "bg-brand-main text-brand-white"
-                : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
+                ? "bg-blue-100 text-blue-700"
+                : "text-gray-600 hover:bg-gray-100"
             }`}
             title="Heading 2"
           >
-            <Heading2 size={16} />
+            <Heading2 size={14} />
           </button>
           <button
             onClick={() =>
               editor.chain().focus().toggleHeading({ level: 3 }).run()
             }
-            className={`p-2 rounded transition ${
-              editor.isActive("heading", { level: 2 })
-                ? "bg-brand-main text-brand-white"
-                : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
+            className={`p-1.5 rounded transition ${
+              editor.isActive("heading", { level: 3 })
+                ? "bg-blue-100 text-blue-700"
+                : "text-gray-600 hover:bg-gray-100"
             }`}
             title="Heading 3"
           >
-            <Heading3 size={16} />
+            <Heading3 size={14} />
           </button>
 
-          <div className="w-px bg-brand-main/10" />
+          <div className="w-px h-5 bg-gray-300 mx-0.5" />
 
           {/* Alignment */}
           <button
             onClick={() => editor.chain().focus().setTextAlign("left").run()}
-            className={`p-2 rounded transition ${
+            className={`p-1.5 rounded transition ${
               editor.isActive({ textAlign: "left" })
-                ? "bg-brand-main text-brand-white"
-                : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
+                ? "bg-blue-100 text-blue-700"
+                : "text-gray-600 hover:bg-gray-100"
             }`}
             title="Align Left"
           >
-            <AlignLeft size={16} />
+            <AlignLeft size={14} />
           </button>
           <button
             onClick={() => editor.chain().focus().setTextAlign("center").run()}
-            className={`p-2 rounded transition ${
+            className={`p-1.5 rounded transition ${
               editor.isActive({ textAlign: "center" })
-                ? "bg-brand-main text-brand-white"
-                : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
+                ? "bg-blue-100 text-blue-700"
+                : "text-gray-600 hover:bg-gray-100"
             }`}
             title="Align Center"
           >
-            <AlignCenter size={16} />
+            <AlignCenter size={14} />
           </button>
           <button
             onClick={() => editor.chain().focus().setTextAlign("right").run()}
-            className={`p-2 rounded transition ${
+            className={`p-1.5 rounded transition ${
               editor.isActive({ textAlign: "right" })
-                ? "bg-brand-main text-brand-white"
-                : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
+                ? "bg-blue-100 text-blue-700"
+                : "text-gray-600 hover:bg-gray-100"
             }`}
             title="Align Right"
           >
-            <AlignRight size={16} />
+            <AlignRight size={14} />
           </button>
 
-          <div className="w-px bg-brand-main/10" />
+          <div className="w-px h-5 bg-gray-300 mx-0.5" />
 
           {/* Lists */}
           <button
             onClick={() => editor.chain().focus().toggleBulletList().run()}
-            className={`p-2 rounded transition ${
+            className={`p-1.5 rounded transition ${
               editor.isActive("bulletList")
-                ? "bg-brand-main text-brand-white"
-                : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
+                ? "bg-blue-100 text-blue-700"
+                : "text-gray-600 hover:bg-gray-100"
             }`}
             title="Bullet List"
           >
-            <List size={16} />
+            <List size={14} />
           </button>
           <button
             onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            className={`p-2 rounded transition ${
+            className={`p-1.5 rounded transition ${
               editor.isActive("orderedList")
-                ? "bg-brand-main text-brand-white"
-                : "bg-brand-main/10 text-text-200 hover:bg-brand-main/20"
+                ? "bg-blue-100 text-blue-700"
+                : "text-gray-600 hover:bg-gray-100"
             }`}
             title="Ordered List"
           >
-            <ListOrdered size={16} />
+            <ListOrdered size={14} />
           </button>
 
-          <div className="w-px bg-brand-main/10" />
+          <div className="w-px h-5 bg-gray-300 mx-0.5" />
 
           {/* Media */}
           <button
             onClick={addLink}
-            className="p-2 rounded bg-brand-main/10 text-text-200 hover:bg-brand-main/20 transition"
+            className="p-1.5 rounded text-gray-600 hover:bg-gray-100 transition"
             title="Add Link"
           >
-            <LinkIcon size={16} />
+            <LinkIcon size={14} />
           </button>
 
-          <div className="w-px bg-brand-main/10" />
+          <div className="w-px h-5 bg-gray-300 mx-0.5" />
 
           {/* Undo/Redo */}
           <button
             onClick={() => editor.chain().focus().undo().run()}
-            className="p-2 rounded bg-brand-main/10 text-text-200 hover:bg-brand-main/20 transition"
+            className="p-1.5 rounded text-gray-600 hover:bg-gray-100 transition"
             title="Undo"
           >
-            <Undo2 size={16} />
+            <Undo2 size={14} />
           </button>
           <button
             onClick={() => editor.chain().focus().redo().run()}
-            className="p-2 rounded bg-brand-main/10 text-text-200 hover:bg-brand-main/20 transition"
+            className="p-1.5 rounded text-gray-600 hover:bg-gray-100 transition"
             title="Redo"
           >
-            <Redo2 size={16} />
+            <Redo2 size={14} />
           </button>
         </div>
-      </div>
 
-      {/* Editor */}
-      <div className="bg-brand-main/5 border border-brand-main/10 rounded-lg p-4 min-h-96 max-h-96 overflow-y-auto">
+      {/* Editor - Gmail style */}
+      <div className="min-h-[350px] p-3">
         <EditorContent
           editor={editor}
-          className="prose prose-invert max-w-none"
+          className="prose max-w-none text-gray-900"
         />
       </div>
     </div>

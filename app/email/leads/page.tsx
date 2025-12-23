@@ -7,10 +7,12 @@ import { toast } from "sonner";
 
 import AGGridWrapper from "@/components/common/AGGridWrapper";
 import BulkUploadModal from "@/components/leads/BulkUploadModal";
+import BulkUploadProgressBanner from "@/components/leads/BulkUploadProgressBanner";
 // import LeadFilterModal from "@/components/leads/LeadFilterModal"; // Removed - using AG Grid built-in filters
 import { LeadVerificationModal } from "@/components/leads/LeadVerificationModal";
 import emailClient, {
   Campaign,
+  checkActiveBulkUploadJobs,
   getUserCampaigns,
 } from "@/utils/api/emailClient";
 import {
@@ -90,10 +92,29 @@ export default function LeadsPage() {
   const [selectedLeadForVerification, setSelectedLeadForVerification] =
     useState<Lead | null>(null);
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+  const [activeUploadJobs, setActiveUploadJobs] = useState<
+    Array<{ jobId: string; totalRows: number }>
+  >([]);
 
   useEffect(() => {
     loadLeads();
     loadCampaigns();
+
+    // Check for active upload jobs on mount (user-specific check from backend)
+    checkActiveBulkUploadJobs()
+      .then((result) => {
+        if (result.hasActiveJobs && result.activeJobs.length > 0) {
+          setActiveUploadJobs(
+            result.activeJobs.map((job) => ({
+              jobId: job.jobId,
+              totalRows: job.totalRows,
+            }))
+          );
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to check active jobs:", error);
+      });
   }, [
     page,
     limit,
@@ -585,11 +606,43 @@ export default function LeadsPage() {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowBulkUploadModal(true)}
-              className="flex items-center gap-2 px-6 py-3 bg-sidebar hover:bg-sidebar/80 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02]"
+              onClick={async () => {
+                // Check for active jobs before opening modal (user-specific)
+                try {
+                  const activeJobsResult = await checkActiveBulkUploadJobs();
+                  if (activeJobsResult.hasActiveJobs && activeJobsResult.activeJobs.length > 0) {
+                    toast.warning(
+                      `You have ${activeJobsResult.activeJobs.length} bulk upload job${activeJobsResult.activeJobs.length > 1 ? "s" : ""} in progress. Please wait for them to complete.`,
+                      { duration: 5000 }
+                    );
+                    // Update active jobs state
+                    setActiveUploadJobs(
+                      activeJobsResult.activeJobs.map((job) => ({
+                        jobId: job.jobId,
+                        totalRows: job.totalRows,
+                      }))
+                    );
+                    return;
+                  }
+                } catch (error) {
+                  console.error("Failed to check active jobs:", error);
+                }
+                setShowBulkUploadModal(true);
+              }}
+              disabled={activeUploadJobs.length > 0}
+              className={`flex items-center gap-2 px-6 py-3 font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] ${
+                activeUploadJobs.length > 0
+                  ? "bg-gray-400 cursor-not-allowed opacity-60"
+                  : "bg-sidebar hover:bg-sidebar/80 text-white"
+              }`}
             >
               <IconPlus size={20} />
               Bulk Upload
+              {activeUploadJobs.length > 0 && (
+                <span className="ml-2 text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">
+                  {activeUploadJobs.length} active
+                </span>
+              )}
             </button>
             <button
               onClick={() => router.push("/email/leads/create")}
@@ -600,6 +653,57 @@ export default function LeadsPage() {
             </button>
           </div>
         </div>
+
+        {/* Bulk Upload Progress Banners */}
+        {activeUploadJobs.length > 0 && (
+          <div className="space-y-3 mb-6">
+            {activeUploadJobs.map((job) => (
+              <BulkUploadProgressBanner
+                key={job.jobId}
+                jobId={job.jobId}
+                onComplete={async () => {
+                  // Remove completed job from state
+                  const updated = activeUploadJobs.filter(
+                    (j) => j.jobId !== job.jobId
+                  );
+                  setActiveUploadJobs(updated);
+                  
+                  // Refresh active jobs from backend to ensure accuracy (user-specific)
+                  try {
+                    const activeJobsResult = await checkActiveBulkUploadJobs();
+                    if (activeJobsResult.hasActiveJobs && activeJobsResult.activeJobs.length > 0) {
+                      setActiveUploadJobs(
+                        activeJobsResult.activeJobs.map((j) => ({
+                          jobId: j.jobId,
+                          totalRows: j.totalRows,
+                        }))
+                      );
+                    } else {
+                      setActiveUploadJobs([]);
+                    }
+                  } catch (error) {
+                    console.error("Failed to refresh active jobs:", error);
+                  }
+                  
+                  // Refresh leads
+                  loadLeads();
+                }}
+                onDismiss={() => {
+                  // Remove dismissed job
+                  const updated = activeUploadJobs.filter(
+                    (j) => j.jobId !== job.jobId
+                  );
+                  setActiveUploadJobs(updated);
+                  const jobIds = updated.map((j) => j.jobId);
+                  localStorage.setItem(
+                    "activeBulkUploadJobs",
+                    JSON.stringify(jobIds)
+                  );
+                }}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Search and Filters Bar */}
         <div className="space-y-4 mb-6">
@@ -834,11 +938,39 @@ export default function LeadsPage() {
         <BulkUploadModal
           isOpen={showBulkUploadModal}
           onClose={() => setShowBulkUploadModal(false)}
-          onSuccess={() => {
+          onSuccess={(jobId?: string, totalRows?: number) => {
             loadLeads();
             setShowBulkUploadModal(false);
+            // Add new job to active jobs
+            if (jobId && totalRows) {
+              setActiveUploadJobs((prev) => [
+                ...prev,
+                { jobId, totalRows },
+              ]);
+            } else {
+              // Fallback: check localStorage
+              const jobIds = JSON.parse(
+                localStorage.getItem("activeBulkUploadJobs") || "[]"
+              );
+              if (jobIds.length > 0) {
+                Promise.all(
+                  jobIds.map(async (id: string) => {
+                    try {
+                      const { getBulkUploadJobStatus } = await import(
+                        "@/utils/api/emailClient"
+                      );
+                      const status = await getBulkUploadJobStatus(id);
+                      return { jobId: id, totalRows: status.totalRows };
+                    } catch {
+                      return { jobId: id, totalRows: 0 };
+                    }
+                  })
+                ).then(setActiveUploadJobs);
+              }
+            }
           }}
         />
+
       </div>
     </div>
   );

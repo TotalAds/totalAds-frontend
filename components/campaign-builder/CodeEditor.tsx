@@ -66,56 +66,43 @@ export default function CodeEditor({
   };
 
   return (
-    <div className="space-y-1.5">
-      {/* Toolbar - Compact */}
-      <div className="flex gap-1.5">
+    <div className="p-3">
+      {/* Compact Toolbar */}
+      <div className="flex gap-1 mb-2">
         <button
           onClick={handleFormat}
-          className="px-2 py-1 text-xs bg-brand-main/10 hover:bg-brand-main/20 text-text-200 rounded transition"
+          className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded transition"
           title="Format HTML"
         >
-          ✨ Format
+          Format
         </button>
         <button
           onClick={handleMinify}
-          className="px-2 py-1 text-xs bg-brand-main/10 hover:bg-brand-main/20 text-text-200 rounded transition"
+          className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded transition"
           title="Minify HTML"
         >
-          📦 Minify
+          Minify
         </button>
         <button
           onClick={handleCopy}
-          className="px-2 py-1 text-xs bg-brand-main/10 hover:bg-brand-main/20 text-text-200 rounded transition flex items-center gap-1"
+          className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded transition flex items-center gap-1"
           title="Copy HTML"
         >
-          {copied ? (
-            <>
-              <Check size={12} /> Copied
-            </>
-          ) : (
-            <>
-              <Copy size={12} /> Copy
-            </>
-          )}
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+          {copied ? "Copied" : "Copy"}
         </button>
       </div>
 
-      {/* Code Editor */}
+      {/* Code Editor - Gmail style */}
       <textarea
         id="codeEditor"
         value={htmlContent}
         onChange={(e) => onHtmlContentChange(e.target.value)}
         placeholder="Enter HTML content here..."
-        className="w-full px-3 py-2 bg-brand-main/5 border border-brand-main/10 rounded-lg text-text-100 placeholder-text-200/50 focus:outline-none focus:ring-2 focus:ring-brand-main font-mono text-xs min-h-80 max-h-80 overflow-y-auto"
+        className="w-full px-2 py-2 bg-white text-gray-900 placeholder-gray-400 focus:outline-none font-mono text-sm min-h-[350px] resize-none"
         spellCheck="false"
+        style={{ border: 'none' }}
       />
-
-      {/* Info */}
-      <p className="text-xs text-text-200">
-        💡 Use {"{"}
-        {"{"}variable{"}"}
-        {"}"} for personalization
-      </p>
     </div>
   );
 }

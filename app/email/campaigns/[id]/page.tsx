@@ -1,6 +1,24 @@
 "use client";
 
-import { Download, RefreshCw } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  Download,
+  Eye,
+  Mail,
+  MousePointerClick,
+  RefreshCw,
+  Send,
+  Shield,
+  TrendingUp,
+  XCircle,
+  AlertTriangle,
+  UserMinus,
+  FileX,
+  Loader2,
+} from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
@@ -87,9 +105,7 @@ export default function CampaignDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [enhancedLoading, setEnhancedLoading] = useState(false);
   const [reoonLoading, setReoonLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "trends" | "leads">(
-    "overview"
-  );
+  const [activeTab, setActiveTab] = useState<"trends">("trends");
   const [filters, setFilters] = useState<EnhancedAnalyticsFilters>({
     dateRange: "30d",
   });
@@ -159,16 +175,43 @@ export default function CampaignDetailsPage() {
   ]);
 
   const handleExportPDF = async () => {
-    if (!enhancedAnalytics) return;
+    if (!enhancedAnalytics || !analytics) {
+      toast.error("Analytics data not available");
+      return;
+    }
+    
     setIsExporting(true);
     try {
-      await exportCampaignAnalyticsToPDF(enhancedAnalytics, chartRef.current, {
-        filename: `campaign-${enhancedAnalytics.campaign.name}-analytics`,
-      });
+      // Ensure trends tab is active to show charts
+      if (activeTab !== "trends") {
+        setActiveTab("trends");
+        // Wait for charts to render
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      // Get all chart elements from the trends section
+      const chartContainer = chartRef.current;
+      if (!chartContainer) {
+        toast.error("No chart data available to export");
+        setIsExporting(false);
+        return;
+      }
+      
+      // Wait a bit more for any animations
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      await exportCampaignAnalyticsToPDF(
+        enhancedAnalytics,
+        chartContainer,
+        {
+          filename: `campaign-${enhancedAnalytics.campaign.name}-analytics`,
+          campaignData: analytics,
+        }
+      );
       toast.success("PDF exported successfully!");
     } catch (error) {
       console.error("PDF export failed:", error);
-      toast.error("Failed to export PDF");
+      toast.error("Failed to export PDF. Please try again.");
     } finally {
       setIsExporting(false);
     }
@@ -237,35 +280,36 @@ export default function CampaignDetailsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-bg-100 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex justify-between items-start mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-800 mb-2">
-                {campaign.name}
-              </h1>
-              <p className="text-slate-500 text-sm mb-4">
-                Subject: {campaign.subject}
-              </p>
-              <div className="flex items-center gap-3">
-                <span
-                  className={`inline-flex items-center px-3 py-1.5 rounded-full border text-sm font-semibold ${getStatusBadgeColor(
-                    campaign.status
-                  )}`}
-                >
-                  {campaign.status.charAt(0).toUpperCase() +
-                    campaign.status.slice(1)}
-                </span>
-                {metrics.totalFailed > 0 && (
-                  <span className="inline-flex items-center px-3 py-1.5 rounded-full border border-red-200 bg-red-50 text-red-700 text-sm font-semibold">
-                    ⚠️ {metrics.totalFailed} Failed
-                  </span>
-                )}
-              </div>
-            </div>
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-7xl mx-auto p-4">
+        {/* Ultra Compact Header */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.back()}
+                className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4 text-slate-600" />
+              </button>
+              <div>
+                <h1 className="text-xl font-bold text-slate-900">
+                  {campaign.name}
+                </h1>
+                <p className="text-xs text-slate-500">
+                  {campaign.subject}
+                </p>
+              </div>
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${getStatusBadgeColor(
+                  campaign.status
+                )}`}
+              >
+                {campaign.status.charAt(0).toUpperCase() +
+                  campaign.status.slice(1)}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
               <FilterPanel
                 filters={filters}
                 onFiltersChange={setFilters}
@@ -275,360 +319,447 @@ export default function CampaignDetailsPage() {
               <Button
                 onClick={handleExportPDF}
                 disabled={isExporting || !enhancedAnalytics}
-                className="bg-brand-main text-white hover:bg-emerald-700 font-medium shadow-sm"
+                variant="outline"
+                size="sm"
               >
                 {isExporting ? (
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  <RefreshCw className="h-4 w-4 animate-spin mr-2" />
                 ) : (
-                  <Download className="mr-2 h-4 w-4" />
+                  <Download className="h-4 w-4 mr-2" />
                 )}
                 Export PDF
               </Button>
-              <button
-                onClick={() => router.back()}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-5 py-2 rounded-lg border border-slate-200 transition-colors"
-              >
-                ← Back
-              </button>
             </div>
           </div>
+
+          {/* Progress Bar - Ultra Compact */}
+          {campaign.status === "sending" && (
+            <div className="bg-blue-50 rounded-lg border border-blue-200 p-3 mb-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-medium text-slate-700">
+                  Sending in progress
+                </span>
+                <span className="text-base font-bold text-blue-600">
+                  {progress.percentage}%
+                </span>
+              </div>
+              <div className="w-full bg-blue-100 rounded-full h-1.5">
+                <div
+                  className="bg-blue-600 h-1.5 rounded-full transition-all duration-500"
+                  style={{ width: `${progress.percentage}%` }}
+                ></div>
+              </div>
+              <p className="text-xs text-slate-600 mt-1.5">
+                {progress.completed.toLocaleString()} of {progress.total.toLocaleString()} emails sent
+              </p>
+            </div>
+          )}
         </div>
 
-        {/* Progress Bar */}
-        {campaign.status === "sending" && (
-          <div className="bg-blue-50 rounded-xl border border-blue-200 p-6 mb-8 shadow-sm">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-lg font-semibold text-slate-800">
-                Sending Progress
-              </h3>
-              <span className="text-2xl font-bold text-blue-600">
-                {progress.percentage}%
-              </span>
+        {/* Main Metrics - All in First View - Ultra Compact */}
+        <div className="space-y-4">
+          {/* Primary Performance Metrics - Single Row */}
+          <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="w-4 h-4 text-slate-600" />
+              <h2 className="text-base font-semibold text-slate-900">
+                Performance Metrics
+              </h2>
             </div>
-            <div className="w-full bg-blue-100 rounded-full h-3">
-              <div
-                className="bg-blue-600 h-3 rounded-full transition-all duration-500"
-                style={{ width: `${progress.percentage}%` }}
-              ></div>
+            
+            <div className="grid grid-cols-4 md:grid-cols-8 gap-3">
+              <KPICard
+                label="Recipients"
+                value={metrics.totalLeads}
+                icon={Mail}
+                color="blue"
+                description={`${rates.deliveryRate.toFixed(1)}% delivered`}
+                compact
+              />
+              <KPICard
+                label="Delivered"
+                value={metrics.totalDelivered}
+                icon={CheckCircle2}
+                color="green"
+                description={`${rates.deliveryRate.toFixed(1)}%`}
+                compact
+              />
+              <KPICard
+                label="Opened"
+                value={metrics.totalOpened}
+                icon={Eye}
+                color="purple"
+                description={`${rates.openRate.toFixed(1)}%`}
+                compact
+              />
+              <KPICard
+                label="Clicked"
+                value={metrics.totalClicked}
+                icon={MousePointerClick}
+                color="pink"
+                description={`${rates.clickRate.toFixed(1)}%`}
+                compact
+              />
+              <KPICard
+                label="Sent"
+                value={metrics.totalSent}
+                icon={Send}
+                color="blue"
+                compact
+              />
+              <KPICard
+                label="Bounced"
+                value={metrics.totalBounced ?? 0}
+                icon={FileX}
+                color="orange"
+                description={metrics.totalBounced > 0 ? `${rates.bounceRate.toFixed(1)}%` : undefined}
+                compact
+              />
+              <KPICard
+                label="Complaints"
+                value={metrics.totalComplained ?? 0}
+                icon={AlertTriangle}
+                color="red"
+                description={metrics.totalComplained > 0 ? `${rates.complaintRate.toFixed(1)}%` : undefined}
+                compact
+              />
+              <KPICard
+                label="Unsubscribed"
+                value={metrics.totalUnsubscribed ?? 0}
+                icon={UserMinus}
+                color="yellow"
+                description={metrics.totalUnsubscribed > 0 ? `${rates.unsubscribeRate?.toFixed(1) ?? 0}%` : undefined}
+                compact
+              />
             </div>
-            <p className="text-slate-600 text-sm mt-3">
-              {progress.completed} of {progress.total} emails processed
-            </p>
+
+            {/* Key Rates - Compact Row */}
+            <div className="grid grid-cols-4 gap-4 pt-3 mt-3 border-t border-slate-100">
+              <div className="text-center">
+                <p className="text-xs text-slate-500 mb-0.5">Open Rate</p>
+                <p className="text-lg font-bold text-slate-900">
+                  {rates.openRate.toFixed(1)}%
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-slate-500 mb-0.5">Click Rate</p>
+                <p className="text-lg font-bold text-slate-900">
+                  {rates.clickRate.toFixed(1)}%
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-slate-500 mb-0.5">CTR</p>
+                <p className="text-lg font-bold text-slate-900">
+                  {rates.ctrRate?.toFixed(1) ?? 0}%
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-slate-500 mb-0.5">Delivery Rate</p>
+                <p className="text-lg font-bold text-slate-900">
+                  {rates.deliveryRate.toFixed(1)}%
+                </p>
+              </div>
+            </div>
           </div>
-        )}
 
-        {/* Tabs */}
-        <div className="flex gap-1 mb-8 border-b border-slate-200">
-          <button
-            onClick={() => setActiveTab("overview")}
-            className={`px-5 py-3 font-medium transition-colors rounded-t-lg ${
-              activeTab === "overview"
-                ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
-                : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            📊 Overview
-          </button>
-          <button
-            onClick={() => setActiveTab("trends")}
-            className={`px-5 py-3 font-medium transition-colors rounded-t-lg ${
-              activeTab === "trends"
-                ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
-                : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            📈 Trends
-          </button>
-        </div>
-
-        {/* Overview Tab */}
-        {activeTab === "overview" && (
-          <div className="space-y-10">
-            {/* Primary KPIs */}
-            <section>
-              <h2 className="text-xl font-bold text-slate-800 mb-5 flex items-center gap-2">
-                <span className="text-2xl">📈</span> Key Performance Indicators
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                <KPICard
-                  label="Total Emails"
-                  value={metrics.totalLeads}
-                  icon="📧"
-                  color="blue"
-                  description="All recipients in campaign"
-                />
-                <KPICard
-                  label="Delivered"
-                  value={metrics.totalDelivered}
-                  icon="📬"
-                  color="green"
-                  description={`${rates.deliveryRate.toFixed(
-                    1
-                  )}% delivery rate`}
-                />
-                <KPICard
-                  label="Opened"
-                  value={metrics.totalOpened}
-                  icon="👁️"
-                  color="blue"
-                  description={`${rates.openRate.toFixed(1)}% open rate`}
-                />
-                <KPICard
-                  label="Clicked"
-                  value={metrics.totalClicked}
-                  icon="🔗"
-                  color="purple"
-                  description={`${rates.clickRate.toFixed(1)}% click rate`}
-                />
+          {/* Delivery Status & Issues - Single Row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3">
+                <Send className="w-4 h-4 text-slate-600" />
+                <h3 className="text-sm font-semibold text-slate-900">
+                  Delivery Status
+                </h3>
               </div>
-            </section>
-
-            {/* Reoon Verification Analytics */}
-            <ReoonVerificationAnalytics
-              data={reoonAnalytics}
-              loading={reoonLoading}
-            />
-
-            {/* Engagement Metrics */}
-            <section>
-              <h2 className="text-xl font-bold text-slate-800 mb-5 flex items-center gap-2">
-                <span className="text-2xl">💬</span> Engagement Metrics
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                <KPICard
-                  label="Bounced"
-                  value={metrics.totalBounced ?? 0}
-                  icon="⚠️"
-                  color="orange"
-                  description={`${
-                    rates.bounceRate.toFixed(1) ?? 0
-                  }% bounce rate`}
-                />
-                <KPICard
-                  label="Complaints"
-                  value={metrics.totalComplained ?? 0}
-                  icon="🚫"
-                  color="red"
-                  description={`${
-                    rates.complaintRate.toFixed(1) ?? 0
-                  }% complaint rate`}
-                />
-                <KPICard
-                  label="Unsubscribed"
-                  value={metrics.totalUnsubscribed ?? 0}
-                  icon="📵"
-                  color="yellow"
-                  description={`${
-                    rates.unsubscribeRate?.toFixed(1) ?? 0
-                  }% unsubscribe rate`}
-                />
-                <KPICard
-                  label="CTR (Click-to-Open)"
-                  value={`${rates.ctrRate?.toFixed(1) ?? 0}%`}
-                  icon="📊"
-                  color="purple"
-                  description="Clicked / Opened ratio"
-                />
-              </div>
-            </section>
-
-            {/* Error & Issue Metrics */}
-            <section>
-              <h2 className="text-xl font-bold text-slate-800 mb-5 flex items-center gap-2">
-                <span className="text-2xl">⚠️</span> Issues & Errors
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                <KPICard
-                  label="Failed"
-                  value={metrics.totalFailed ?? 0}
-                  icon="✕"
-                  color="red"
-                  description={`${
-                    rates.failureRate?.toFixed(1) ?? 0
-                  }% failure rate`}
-                />
-                <KPICard
-                  label="Rejected"
-                  value={metrics.totalRejected ?? 0}
-                  icon="🔒"
-                  color="red"
-                  description="Virus/malware detected"
-                />
-                <KPICard
-                  label="Rendering Failed"
-                  value={metrics.totalRenderingFailures ?? 0}
-                  icon="🎨"
-                  color="orange"
-                  description="Template rendering issues"
-                />
-                <KPICard
-                  label="Delivery Delayed"
-                  value={metrics.totalDeliveryDelays ?? 0}
-                  icon="⏱️"
-                  color="yellow"
-                  description="Temporary delivery delays"
-                />
-              </div>
-            </section>
-
-            {/* Queue Status */}
-            <section>
-              <h2 className="text-xl font-bold text-slate-800 mb-5 flex items-center gap-2">
-                <span className="text-2xl">⚙️</span> Queue Status
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="grid grid-cols-2 gap-2">
                 <KPICard
                   label="Pending"
                   value={metrics.pending}
-                  icon="⏳"
+                  icon={Clock}
                   color="yellow"
-                  description="Waiting to be processed"
+                  compact
                 />
                 <KPICard
                   label="Processing"
                   value={metrics.processing}
-                  icon="⚙️"
-                  color="blue"
-                  description="Currently being sent"
+                  icon={Loader2}
+                  color="slate"
+                  compact
                 />
                 <KPICard
-                  label="Sent"
-                  value={metrics.totalSent}
-                  icon="✓"
-                  color="green"
-                  description="Successfully sent"
+                  label="Failed"
+                  value={metrics.totalFailed}
+                  icon={XCircle}
+                  color="red"
+                  compact
+                />
+                <KPICard
+                  label="Rejected"
+                  value={metrics.totalRejected ?? 0}
+                  icon={XCircle}
+                  color="red"
+                  compact
                 />
               </div>
-            </section>
+            </div>
 
-            {/* Campaign Info */}
-            <section className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-              <h3 className="text-lg font-bold text-slate-800 mb-5 flex items-center gap-2">
-                <span className="text-xl">ℹ️</span> Campaign Information
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {/* Reoon Verification - Compact */}
+            {reoonAnalytics && reoonAnalytics.used ? (
+              <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <Shield className="w-4 h-4 text-blue-600" />
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    Email Verification
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-slate-600">Total Verified</span>
+                    <span className="text-sm font-bold text-slate-900">
+                      {reoonAnalytics.totalVerified.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-emerald-50 rounded p-2 border border-emerald-200">
+                      <p className="text-xs text-emerald-700 font-medium">Valid</p>
+                      <p className="text-sm font-bold text-emerald-900">
+                        {reoonAnalytics.breakdown.valid.toLocaleString()}
+                      </p>
+                      <p className="text-xs text-emerald-600">
+                        {reoonAnalytics.percentages.valid}%
+                      </p>
+                    </div>
+                    <div className="bg-red-50 rounded p-2 border border-red-200">
+                      <p className="text-xs text-red-700 font-medium">Invalid</p>
+                      <p className="text-sm font-bold text-red-900">
+                        {reoonAnalytics.breakdown.invalid.toLocaleString()}
+                      </p>
+                      <p className="text-xs text-red-600">
+                        {reoonAnalytics.percentages.invalid}%
+                      </p>
+                    </div>
+                    <div className="bg-amber-50 rounded p-2 border border-amber-200">
+                      <p className="text-xs text-amber-700 font-medium">Risky</p>
+                      <p className="text-sm font-bold text-amber-900">
+                        {reoonAnalytics.breakdown.risky.toLocaleString()}
+                      </p>
+                      <p className="text-xs text-amber-600">
+                        {reoonAnalytics.percentages.risky}%
+                      </p>
+                    </div>
+                    <div className="bg-slate-50 rounded p-2 border border-slate-200">
+                      <p className="text-xs text-slate-700 font-medium">Credits</p>
+                      <p className="text-sm font-bold text-slate-900">
+                        {reoonAnalytics.creditsUsed}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Campaign Info - Compact */}
+            <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3">
+                <Mail className="w-4 h-4 text-slate-600" />
+                <h3 className="text-sm font-semibold text-slate-900">
+                  Campaign Info
+                </h3>
+              </div>
+              <div className="space-y-2 text-xs">
                 <div>
-                  <p className="text-slate-500 text-sm font-medium">From</p>
-                  <p className="text-slate-800 mt-1 font-semibold">
+                  <p className="text-slate-500">From</p>
+                  <p className="text-slate-900 font-medium">
                     {campaign.fromName || campaign.fromEmail}
                   </p>
                 </div>
                 <div>
-                  <p className="text-slate-500 text-sm font-medium">Email</p>
-                  <p className="text-slate-800 mt-1 font-medium text-sm">
+                  <p className="text-slate-500">Email</p>
+                  <p className="text-slate-900 font-medium text-xs truncate">
                     {campaign.fromEmail}
                   </p>
                 </div>
-                <div>
-                  <p className="text-slate-500 text-sm font-medium">Created</p>
-                  <p className="text-slate-800 mt-1 font-semibold">
-                    {new Date(campaign.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-                {campaign.startedAt && (
+                <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <p className="text-slate-500 text-sm font-medium">
-                      Started
+                    <p className="text-slate-500">Created</p>
+                    <p className="text-slate-900 font-medium">
+                      {new Date(campaign.createdAt).toLocaleDateString()}
                     </p>
-                    <p className="text-slate-800 mt-1 font-semibold">
-                      {new Date(campaign.startedAt).toLocaleDateString()}
+                  </div>
+                  {campaign.startedAt && (
+                    <div>
+                      <p className="text-slate-500">Started</p>
+                      <p className="text-slate-900 font-medium">
+                        {new Date(campaign.startedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Trends Tab Only */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
+            <div className="flex gap-1 border-b border-slate-200 px-4 pt-3">
+              <button
+                onClick={() => setActiveTab("trends")}
+                className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
+                  activeTab === "trends"
+                    ? "text-blue-600 border-blue-600"
+                    : "text-slate-500 border-transparent hover:text-slate-700"
+                }`}
+              >
+                Trends & Detailed Charts
+              </button>
+            </div>
+
+            {/* Trends Tab - Enhanced with More Charts */}
+            {activeTab === "trends" && (
+              <div className="p-4 space-y-4">
+                {/* Filter Panel - Compact */}
+                <div className="flex justify-between items-center">
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    Performance Trends & Analytics
+                  </h3>
+                  <FilterPanel
+                    filters={filters}
+                    onFiltersChange={setFilters}
+                    onApply={handleApplyFilters}
+                    onReset={handleResetFilters}
+                  />
+                </div>
+
+                {/* Enhanced Metrics Summary */}
+                {enhancedAnalytics && (
+                  <>
+                    <MetricsSummary
+                      summary={enhancedAnalytics.summary}
+                      rates={enhancedAnalytics.rates}
+                    />
+
+                    {/* Main Performance Chart */}
+                    <div ref={chartRef} className="space-y-4">
+                      <TrendChart
+                        data={enhancedAnalytics.timeSeries}
+                        title="Overall Performance Trends"
+                        height={280}
+                        metrics={["sent", "opened", "clicked"]}
+                      />
+
+                      {/* Multiple Detailed Charts Grid */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <TrendChart
+                          data={enhancedAnalytics.timeSeries}
+                          title="Delivery Performance"
+                          height={220}
+                          metrics={["sent", "bounced"]}
+                          showLegend={true}
+                        />
+                        <TrendChart
+                          data={enhancedAnalytics.timeSeries}
+                          title="Engagement Trends"
+                          height={220}
+                          metrics={["opened", "clicked"]}
+                          showLegend={true}
+                        />
+                        <TrendChart
+                          data={enhancedAnalytics.timeSeries}
+                          title="Issue Tracking"
+                          height={220}
+                          metrics={["bounced", "complained", "unsubscribed"]}
+                          showLegend={true}
+                        />
+                        <TrendChart
+                          data={enhancedAnalytics.timeSeries}
+                          title="Conversion Funnel"
+                          height={220}
+                          metrics={["sent", "opened", "clicked"]}
+                          showLegend={true}
+                        />
+                      </div>
+
+                      {/* Rate Trends Chart */}
+                      <div className="bg-slate-50 rounded-lg border border-slate-200 p-4">
+                        <h4 className="text-sm font-semibold text-slate-900 mb-3">
+                          Rate Trends Over Time
+                        </h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="text-center">
+                            <p className="text-xs text-slate-500 mb-1">Open Rate Trend</p>
+                            <p className="text-lg font-bold text-purple-600">
+                              {enhancedAnalytics.rates.openRate.toFixed(1)}%
+                            </p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-slate-500 mb-1">Click Rate Trend</p>
+                            <p className="text-lg font-bold text-pink-600">
+                              {enhancedAnalytics.rates.clickRate.toFixed(1)}%
+                            </p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-slate-500 mb-1">CTR Trend</p>
+                            <p className="text-lg font-bold text-blue-600">
+                              {enhancedAnalytics.rates.ctrRate?.toFixed(1) ?? 0}%
+                            </p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-slate-500 mb-1">Delivery Rate Trend</p>
+                            <p className="text-lg font-bold text-emerald-600">
+                              {enhancedAnalytics.rates.deliveryRate.toFixed(1)}%
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Applied Filters Info */}
+                      {enhancedAnalytics.appliedFilters && (
+                        <div className="bg-blue-50 rounded-lg border border-blue-200 p-3">
+                          <p className="text-xs text-blue-800">
+                            <span className="font-semibold">Date Range:</span>{" "}
+                            {enhancedAnalytics.appliedFilters.dateRange === "7d"
+                              ? "Last 7 days"
+                              : enhancedAnalytics.appliedFilters.dateRange ===
+                                "30d"
+                              ? "Last 30 days"
+                              : `${
+                                  enhancedAnalytics.appliedFilters.startDate?.split(
+                                    "T"
+                                  )[0]
+                                } to ${
+                                  enhancedAnalytics.appliedFilters.endDate?.split(
+                                    "T"
+                                  )[0]
+                                }`}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {enhancedLoading && (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                      <p className="text-slate-500 text-xs font-medium">
+                        Loading trend data...
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {!enhancedLoading && !enhancedAnalytics && (
+                  <div className="text-center py-8 bg-slate-50 rounded-lg border border-slate-200">
+                    <p className="text-slate-500 text-xs font-medium">
+                      No trend data available for this campaign.
                     </p>
                   </div>
                 )}
               </div>
-            </section>
-          </div>
-        )}
-
-        {/* Trends Tab */}
-        {activeTab === "trends" && (
-          <div className="space-y-10">
-            {/* Enhanced Metrics Summary */}
-            {enhancedAnalytics && (
-              <>
-                <section>
-                  <h2 className="text-xl font-bold text-slate-800 mb-5 flex items-center gap-2">
-                    <span className="text-2xl">📊</span> Performance Summary
-                  </h2>
-                  <MetricsSummary
-                    summary={enhancedAnalytics.summary}
-                    rates={enhancedAnalytics.rates}
-                  />
-                </section>
-
-                {/* Trend Charts */}
-                <div ref={chartRef} className="space-y-6">
-                  <TrendChart
-                    data={enhancedAnalytics.timeSeries}
-                    title="Email Performance Over Time"
-                    height={350}
-                    metrics={["sent", "opened", "clicked"]}
-                  />
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <TrendChart
-                      data={enhancedAnalytics.timeSeries}
-                      title="Delivery Metrics"
-                      height={250}
-                      metrics={["sent", "bounced"]}
-                      showLegend={true}
-                    />
-                    <TrendChart
-                      data={enhancedAnalytics.timeSeries}
-                      title="Engagement Metrics"
-                      height={250}
-                      metrics={["opened", "clicked"]}
-                      showLegend={true}
-                    />
-                  </div>
-                </div>
-
-                {/* Applied Filters Info */}
-                {enhancedAnalytics.appliedFilters && (
-                  <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 shadow-sm">
-                    <p className="text-slate-600 text-sm">
-                      Showing data for:{" "}
-                      <span className="text-slate-800 font-semibold">
-                        {enhancedAnalytics.appliedFilters.dateRange === "7d"
-                          ? "Last 7 days"
-                          : enhancedAnalytics.appliedFilters.dateRange === "30d"
-                          ? "Last 30 days"
-                          : `${
-                              enhancedAnalytics.appliedFilters.startDate?.split(
-                                "T"
-                              )[0]
-                            } to ${
-                              enhancedAnalytics.appliedFilters.endDate?.split(
-                                "T"
-                              )[0]
-                            }`}
-                      </span>
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
-
-            {enhancedLoading && (
-              <div className="flex items-center justify-center py-12">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  <p className="text-slate-500 font-medium">
-                    Loading trend data...
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {!enhancedLoading && !enhancedAnalytics && (
-              <div className="text-center py-12 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-slate-500 font-medium">
-                  No trend data available for this campaign.
-                </p>
-              </div>
             )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

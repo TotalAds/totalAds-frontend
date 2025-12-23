@@ -228,8 +228,12 @@ export default function CreatableSelect({
         {/* Selected values display */}
         <div
           ref={triggerRef}
-          onClick={() => setIsOpen(!isOpen)}
-          className="min-h-10 px-3 py-2 bg-brand-main/5 border border-brand-main/20 rounded-lg cursor-pointer flex flex-wrap gap-2 items-center hover:bg-brand-main/10 transition-colors"
+          onClick={() => !isLoading && setIsOpen(!isOpen)}
+          className={`min-h-10 px-3 py-2 bg-brand-main/5 border border-brand-main/20 rounded-lg flex flex-wrap gap-2 items-center transition-colors ${
+            isLoading
+              ? "opacity-60 cursor-not-allowed"
+              : "cursor-pointer hover:bg-brand-main/10"
+          }`}
         >
           {value.length > 0 ? (
             value.map((item) => (
@@ -256,13 +260,15 @@ export default function CreatableSelect({
               </div>
             ))
           ) : (
-            <span className="text-text-200/60">{placeholder}</span>
+            <span className="text-text-200/60">
+              {isLoading ? "Loading..." : placeholder}
+            </span>
           )}
           <IconChevronDown
             size={18}
             className={`ml-auto text-text-200/60 transition-transform ${
               isOpen ? "rotate-180" : ""
-            }`}
+            } ${isLoading ? "opacity-50" : ""}`}
           />
         </div>
 

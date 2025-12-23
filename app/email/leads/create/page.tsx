@@ -6,10 +6,14 @@ import { toast } from "sonner";
 
 import CreatableSelect from "@/components/common/CreatableSelect";
 import emailClient, {
+  addContactsToList,
+  createLeadCategory,
+  createLeadTag,
+  createList,
+  EmailList,
   getLeadCategories,
   getLeadTags,
-  createLeadTag,
-  createLeadCategory,
+  getLists,
   LeadCategory,
   LeadTag,
 } from "@/utils/api/emailClient";
@@ -20,10 +24,13 @@ export default function CreateLeadPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [categories, setCategories] = useState<LeadCategory[]>([]);
   const [tags, setTags] = useState<LeadTag[]>([]);
+  const [lists, setLists] = useState<EmailList[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<LeadCategory[]>(
     []
   );
   const [selectedTags, setSelectedTags] = useState<LeadTag[]>([]);
+  const [selectedLists, setSelectedLists] = useState<EmailList[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     name: "",
@@ -32,19 +39,25 @@ export default function CreateLeadPage() {
   });
 
   useEffect(() => {
-    loadCategoriesAndTags();
+    loadCategoriesTagsAndLists();
   }, []);
 
-  const loadCategoriesAndTags = async () => {
+  const loadCategoriesTagsAndLists = async () => {
+    setLoadingOptions(true);
     try {
-      const [catsData, tagsData] = await Promise.all([
+      const [catsData, tagsData, listsData] = await Promise.all([
         getLeadCategories(),
         getLeadTags(),
+        getLists(1, 100),
       ]);
       setCategories(catsData);
       setTags(tagsData);
+      setLists(listsData.data.lists || []);
     } catch (error) {
-      console.error("Failed to load categories and tags:", error);
+      console.error("Failed to load categories, tags, and lists:", error);
+      toast.error("Failed to load options");
+    } finally {
+      setLoadingOptions(false);
     }
   };
 
@@ -73,7 +86,22 @@ export default function CreateLeadPage() {
         categories: selectedCategories.map((c) => c.id),
         tags: selectedTags.map((t) => t.id),
       };
-      await emailClient.post("/api/leads", payload);
+      const response = await emailClient.post("/api/leads", payload);
+      const leadId = response.data?.data?.id || response.data?.id;
+
+      // Add lead to selected lists
+      if (leadId && selectedLists.length > 0) {
+        try {
+          await Promise.all(
+            selectedLists.map((list) => addContactsToList(list.id, [leadId]))
+          );
+        } catch (listError: any) {
+          console.error("Failed to add lead to lists:", listError);
+          // Don't fail the whole operation if list addition fails
+          toast.error("Lead created but failed to add to some lists");
+        }
+      }
+
       toast.success("Lead created successfully");
       router.push("/email/leads");
     } catch (error: any) {
@@ -174,13 +202,23 @@ export default function CreateLeadPage() {
               value={selectedCategories}
               onChange={setSelectedCategories}
               onCreateNew={async (name: string) => {
-                const newCategory = await createLeadCategory(name);
-                setCategories((prev) => [...prev, newCategory]);
-                return newCategory;
+                try {
+                  const newCategory = await createLeadCategory(name);
+                  // Refresh all categories to get the latest data
+                  await loadCategoriesTagsAndLists();
+                  toast.success(`Category "${name}" created`);
+                  return newCategory;
+                } catch (error: any) {
+                  toast.error(
+                    error.response?.data?.message || "Failed to create category"
+                  );
+                  throw error;
+                }
               }}
               placeholder="Select or create categories..."
               label="Categories"
               isMulti={true}
+              isLoading={loadingOptions}
             />
           </div>
 
@@ -191,14 +229,68 @@ export default function CreateLeadPage() {
               value={selectedTags}
               onChange={setSelectedTags}
               onCreateNew={async (name: string) => {
-                const newTag = await createLeadTag(name);
-                setTags((prev) => [...prev, newTag]);
-                return newTag;
+                try {
+                  const newTag = await createLeadTag(name);
+                  // Refresh all tags to get the latest data
+                  await loadCategoriesTagsAndLists();
+                  toast.success(`Tag "${name}" created`);
+                  return newTag;
+                } catch (error: any) {
+                  toast.error(
+                    error.response?.data?.message || "Failed to create tag"
+                  );
+                  throw error;
+                }
               }}
               placeholder="Select or create tags..."
               label="Tags"
               isMulti={true}
+              isLoading={loadingOptions}
             />
+          </div>
+
+          {/* Lists */}
+          <div className="bg-brand-main/5 border border-brand-main/10 rounded-lg p-4">
+            <div className="mb-3">
+              <CreatableSelect
+                options={lists}
+                value={selectedLists}
+                onChange={(selected) =>
+                  setSelectedLists(selected as EmailList[])
+                }
+                onCreateNew={async (name: string) => {
+                  try {
+                    const newList = await createList({ name });
+                    // Refresh all lists to get the latest data
+                    await loadCategoriesTagsAndLists();
+                    toast.success(`List "${name}" created successfully`);
+                    return newList;
+                  } catch (error: any) {
+                    toast.error(
+                      error.response?.data?.message || "Failed to create list"
+                    );
+                    throw error;
+                  }
+                }}
+                placeholder="Select or create lists..."
+                label="Lists (Optional)"
+                isMulti={true}
+                isLoading={loadingOptions}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-text-100">
+                Why use lists?
+              </p>
+              <ul className="text-xs text-text-200/70 space-y-1 list-disc list-inside">
+                <li>
+                  Organize contacts into groups (e.g., "VIP Customers",
+                  "Newsletter Subscribers")
+                </li>
+                <li>Quickly select entire lists when creating campaigns</li>
+                <li>Better segmentation for targeted email marketing</li>
+              </ul>
+            </div>
           </div>
 
           {/* Buttons */}

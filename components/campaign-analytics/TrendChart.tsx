@@ -19,7 +19,7 @@ interface TrendChartProps {
   title?: string;
   height?: number;
   showLegend?: boolean;
-  metrics?: Array<"sent" | "opened" | "clicked" | "bounced" | "complained">;
+  metrics?: Array<"sent" | "opened" | "clicked" | "bounced" | "complained" | "delivered" | "unsubscribed">;
 }
 
 // Professional colors with good contrast for light theme
@@ -29,6 +29,7 @@ const METRIC_COLORS = {
   clicked: "#8b5cf6", // violet-500
   bounced: "#ef4444", // red-500
   complained: "#f97316", // orange-500
+  delivered: "#10b981", // emerald-500
   unsubscribed: "#6366f1", // indigo-500
 };
 
@@ -38,6 +39,7 @@ const METRIC_LABELS = {
   clicked: "Clicked",
   bounced: "Bounced",
   complained: "Complained",
+  delivered: "Delivered",
   unsubscribed: "Unsubscribed",
 };
 
@@ -78,9 +80,9 @@ export function TrendChart({
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       {title && (
-        <h3 className="mb-4 text-lg font-semibold text-slate-800">{title}</h3>
+        <h3 className="mb-3 text-sm font-semibold text-slate-800">{title}</h3>
       )}
       <ResponsiveContainer width="100%" height={height}>
         <AreaChart
@@ -133,17 +135,23 @@ export function TrendChart({
               )}
             />
           )}
-          {metrics.map((metric) => (
-            <Area
-              key={metric}
-              type="monotone"
-              dataKey={metric}
-              name={METRIC_LABELS[metric]}
-              stroke={METRIC_COLORS[metric]}
-              fill={`url(#gradient-${metric})`}
-              strokeWidth={2}
-            />
-          ))}
+          {metrics.map((metric) => {
+            // Check if metric exists in data (some metrics might not be available)
+            const hasData = chartData.some((point: any) => point[metric] !== undefined);
+            if (!hasData) return null;
+            
+            return (
+              <Area
+                key={metric}
+                type="monotone"
+                dataKey={metric}
+                name={METRIC_LABELS[metric]}
+                stroke={METRIC_COLORS[metric]}
+                fill={`url(#gradient-${metric})`}
+                strokeWidth={2}
+              />
+            );
+          })}
         </AreaChart>
       </ResponsiveContainer>
     </div>
