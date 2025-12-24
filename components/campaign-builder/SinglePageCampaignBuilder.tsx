@@ -143,26 +143,57 @@ export default function SinglePageCampaignBuilder({
         const loadedDomains = domainsData.data.domains || [];
         setDomains(loadedDomains);
 
-        // If initialDomainId is provided and domains are loaded, validate it exists
+        // Get verified domains (domains that are verified and have DKIM verified)
+        const verifiedDomains = loadedDomains.filter(
+          (d) =>
+            d.verificationStatus === "verified" &&
+            d.dkimStatus === "verified"
+        );
+
+        let domainToSelect = initialDomainId;
+
+        // If no domainId in URL, select the first verified domain as default
+        if (!initialDomainId && verifiedDomains.length > 0) {
+          // Select the first verified domain (most recently created)
+          domainToSelect = verifiedDomains[0].id;
+          console.log(
+            `No domain in URL, selecting default verified domain: ${domainToSelect}`
+          );
+        }
+
+        // If initialDomainId is provided, validate it exists
         if (initialDomainId && loadedDomains.length > 0) {
           const domainExists = loadedDomains.some(
             (d) => d.id === initialDomainId
           );
-          if (domainExists) {
-            // Domain is valid, it's already set in initial state
-            console.log(`Initialized with domain from URL: ${initialDomainId}`);
-          } else {
-            // Domain from URL doesn't exist, clear it
+          if (!domainExists) {
+            // Domain from URL doesn't exist, use default verified domain
             console.warn(
-              `Domain ${initialDomainId} from URL not found. Clearing selection.`
+              `Domain ${initialDomainId} from URL not found. Using default domain.`
             );
-            setState((prev) => ({ ...prev, domainId: "" }));
-            const params = new URLSearchParams(searchParams.toString());
-            params.delete("domainId");
+            domainToSelect =
+              verifiedDomains.length > 0 ? verifiedDomains[0].id : "";
+          }
+        }
+
+        // Update state and URL with selected domain
+        if (domainToSelect) {
+          setState((prev) => ({ ...prev, domainId: domainToSelect }));
+          // Update URL to include domainId if it's not already there or if it changed
+          const params = new URLSearchParams(searchParams.toString());
+          if (params.get("domainId") !== domainToSelect) {
+            params.set("domainId", domainToSelect);
             router.replace(`/email/campaigns/builder?${params.toString()}`, {
               scroll: false,
             });
           }
+        } else if (initialDomainId) {
+          // No verified domains available, clear the invalid domain from URL
+          const params = new URLSearchParams(searchParams.toString());
+          params.delete("domainId");
+          router.replace(`/email/campaigns/builder?${params.toString()}`, {
+            scroll: false,
+          });
         }
       } catch (error: any) {
         toast.error("Failed to initialize campaign builder");
@@ -452,7 +483,8 @@ export default function SinglePageCampaignBuilder({
           );
           const base64 = btoa(binary);
 
-          await emailClient.post(
+          // Upload attachment and capture the response with s3Key
+          const uploadResponse = await emailClient.post(
             `/api/domains/${domainId}/campaigns/${campaignId}/upload-attachment`,
             {
               fileBuffer: base64,
@@ -461,13 +493,21 @@ export default function SinglePageCampaignBuilder({
             }
           );
 
+          // Get s3Key from upload response
+          const uploadData = uploadResponse.data?.data;
+          if (!uploadData?.s3Key) {
+            throw new Error("Failed to get s3Key from upload response");
+          }
+
+          // Update campaign with attachment metadata including s3Key
           await emailClient.patch(
             `/api/domains/${domainId}/campaigns/${campaignId}`,
             {
               attachment: {
-                fileName: attachment.name,
-                mimeType: attachment.type,
-                size: attachment.size,
+                s3Key: uploadData.s3Key,
+                fileName: uploadData.fileName || attachment.name,
+                mimeType: uploadData.mimeType || attachment.type,
+                size: uploadData.size || attachment.size,
               },
             }
           );
@@ -477,6 +517,10 @@ export default function SinglePageCampaignBuilder({
         } catch (attachmentError: any) {
           toast.dismiss();
           console.error("Attachment upload error:", attachmentError);
+          toast.error(
+            attachmentError.response?.data?.message ||
+              "Failed to upload attachment"
+          );
           // Continue without attachment
         }
       }
