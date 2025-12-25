@@ -20,6 +20,17 @@ interface EmailSender {
   updatedAt: string;
 }
 
+interface SenderQuota {
+  senderId: string;
+  dailyCap: number;
+  used: number;
+  remaining: number;
+  totalSent: number;
+  resetAt: string;
+  override: number | null;
+  allowed: boolean;
+}
+
 interface Domain {
   id: string;
   domain: string;
@@ -37,6 +48,12 @@ export default function EmailSendersPage() {
   const [newDisplayName, setNewDisplayName] = useState("");
   const [creating, setCreating] = useState(false);
   const [emailError, setEmailError] = useState("");
+  const [senderQuotas, setSenderQuotas] = useState<Record<string, SenderQuota>>(
+    {}
+  );
+  const [loadingQuotas, setLoadingQuotas] = useState<Record<string, boolean>>(
+    {}
+  );
 
   useEffect(() => {
     fetchDomain();
@@ -61,7 +78,15 @@ export default function EmailSendersPage() {
         `/api/email-senders?domainId=${domainId}`
       );
       if (response.data.success) {
-        setSenders(response.data.data.senders || []);
+        const fetchedSenders = response.data.data.senders || [];
+        setSenders(fetchedSenders);
+
+        // Fetch quota for each verified sender
+        fetchedSenders.forEach((sender: EmailSender) => {
+          if (sender.verificationStatus === "verified") {
+            fetchSenderQuota(sender.id);
+          }
+        });
       }
     } catch (error: any) {
       const errorMessage =
@@ -69,6 +94,26 @@ export default function EmailSendersPage() {
       toast.error(errorMessage);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSenderQuota = async (senderId: string) => {
+    try {
+      setLoadingQuotas((prev) => ({ ...prev, [senderId]: true }));
+      const response = await emailClient.get(
+        `/api/email-senders/${senderId}/quota`
+      );
+      if (response.data.success) {
+        setSenderQuotas((prev) => ({
+          ...prev,
+          [senderId]: response.data.data,
+        }));
+      }
+    } catch (error: any) {
+      console.error(`Failed to fetch quota for sender ${senderId}:`, error);
+      // Don't show error toast for quota - it's not critical
+    } finally {
+      setLoadingQuotas((prev) => ({ ...prev, [senderId]: false }));
     }
   };
 
@@ -129,6 +174,10 @@ export default function EmailSendersPage() {
       if (response.data.success) {
         toast.success(response.data.data.message);
         await fetchSenders();
+        // If sender is now verified, fetch quota
+        if (response.data.data.verificationStatus === "verified") {
+          await fetchSenderQuota(senderId);
+        }
       }
     } catch (error: any) {
       const errorMessage =
@@ -160,9 +209,9 @@ export default function EmailSendersPage() {
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { bg: string; text: string }> = {
-      verified: { bg: "bg-green-500/20", text: "text-green-400" },
-      pending: { bg: "bg-yellow-500/20", text: "text-yellow-400" },
-      failed: { bg: "bg-red-500/20", text: "text-red-400" },
+      verified: { bg: "bg-green-200", text: "text-green-500" },
+      pending: { bg: "bg-yellow-200", text: "text-yellow-500" },
+      failed: { bg: "bg-red-200", text: "text-red-500" },
     };
 
     const statusStyle = statusMap[status] || statusMap.pending;
@@ -259,45 +308,158 @@ export default function EmailSendersPage() {
               <p className="text-text-200">No email senders added yet</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {senders.map((sender) => (
-                <div
-                  key={sender.id}
-                  className="bg-black/30 rounded-lg p-4 flex items-center justify-between"
-                >
-                  <div className="flex-1">
-                    <p className="text-text-100 font-medium">
-                      {sender.displayName && <span>{sender.displayName} </span>}
-                      <span className="font-mono text-text-200">
-                        &lt;{sender.email}&gt;
-                      </span>
-                    </p>
-                    <p className="text-text-200 text-sm">
-                      Created: {new Date(sender.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
+            <div className="space-y-4">
+              {senders.map((sender) => {
+                const quota = senderQuotas[sender.id];
+                const isLoadingQuota = loadingQuotas[sender.id];
+                const isVerified = sender.verificationStatus === "verified";
 
-                  <div className="flex items-center gap-3">
-                    {getStatusBadge(sender.verificationStatus)}
+                return (
+                  <div
+                    key={sender.id}
+                    className="bg-white/10 rounded-lg p-4 border border-brand-main/10"
+                  >
+                    {/* Sender Info Row */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex-1">
+                        <p className="text-text-100 font-medium">
+                          {sender.displayName && (
+                            <span>{sender.displayName} </span>
+                          )}
+                          <span className="font-mono text-text-200">
+                            &lt;{sender.email}&gt;
+                          </span>
+                        </p>
+                        <p className="text-text-200 text-sm">
+                          Created:{" "}
+                          {new Date(sender.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
 
-                    {sender.verificationStatus === "pending" && (
-                      <Button
-                        onClick={() => handleVerifySender(sender.id)}
-                        className="bg-brand-main hover:bg-brand-main/80 text-text-100 px-4 py-2 rounded-lg transition text-sm"
-                      >
-                        Check Status
-                      </Button>
+                      <div className="flex items-center gap-3">
+                        {getStatusBadge(sender.verificationStatus)}
+
+                        {sender.verificationStatus === "pending" && (
+                          <Button
+                            onClick={() => handleVerifySender(sender.id)}
+                            className="bg-brand-main hover:bg-brand-main/80 text-text-100 px-4 py-2 rounded-lg transition text-sm"
+                          >
+                            Check Status
+                          </Button>
+                        )}
+
+                        <Button
+                          onClick={() => handleDeleteSender(sender.id)}
+                          className="bg-brand-secondary hover:bg-brand-secondary/80 text-text-100 px-4 py-2 rounded-lg transition text-sm"
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Sender Quota Section - Only show for verified senders */}
+                    {isVerified && (
+                      <div className="mt-4 pt-4 border-t border-brand-main/10">
+                        <h4 className="text-sm font-semibold text-text-100 mb-3">
+                          Daily Sending Quota
+                        </h4>
+                        {isLoadingQuota ? (
+                          <div className="flex items-center gap-2 text-text-200 text-sm">
+                            <div className="w-4 h-4 border-2 border-brand-main border-t-transparent rounded-full animate-spin"></div>
+                            Loading quota...
+                          </div>
+                        ) : quota ? (
+                          <div className="space-y-3">
+                            {/* Progress Bar */}
+                            <div>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-text-200 text-sm">
+                                  {quota.used} / {quota.dailyCap} emails sent
+                                  today
+                                </span>
+                                <span className="text-text-200 text-sm">
+                                  {quota.remaining} remaining
+                                </span>
+                              </div>
+                              <div className="w-full bg-brand-main/10 rounded-full h-2.5">
+                                <div
+                                  className={`h-2.5 rounded-full transition-all ${
+                                    quota.remaining === 0
+                                      ? "bg-red-500"
+                                      : quota.remaining < quota.dailyCap * 0.2
+                                      ? "bg-yellow-500"
+                                      : "bg-green-500"
+                                  }`}
+                                  style={{
+                                    width: `${Math.min(
+                                      (quota.used / quota.dailyCap) * 100,
+                                      100
+                                    )}%`,
+                                  }}
+                                ></div>
+                              </div>
+                            </div>
+
+                            {/* Quota Stats Grid */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                              <div className="bg-brand-main/5 rounded-lg p-3">
+                                <p className="text-text-200 text-xs mb-1">
+                                  Daily Cap
+                                </p>
+                                <p className="text-text-100 font-semibold text-lg">
+                                  {quota.dailyCap.toLocaleString()}
+                                </p>
+                              </div>
+                              <div className="bg-brand-main/5 rounded-lg p-3">
+                                <p className="text-text-200 text-xs mb-1">
+                                  Used Today
+                                </p>
+                                <p className="text-text-100 font-semibold text-lg">
+                                  {quota.used.toLocaleString()}
+                                </p>
+                              </div>
+                              <div className="bg-brand-main/5 rounded-lg p-3">
+                                <p className="text-text-200 text-xs mb-1">
+                                  Remaining
+                                </p>
+                                <p
+                                  className={`font-semibold text-lg ${
+                                    quota.remaining === 0
+                                      ? "text-red-400"
+                                      : quota.remaining < quota.dailyCap * 0.2
+                                      ? "text-yellow-400"
+                                      : "text-green-400"
+                                  }`}
+                                >
+                                  {quota.remaining.toLocaleString()}
+                                </p>
+                              </div>
+                              <div className="bg-brand-main/5 rounded-lg p-3">
+                                <p className="text-text-200 text-xs mb-1">
+                                  Total Sent
+                                </p>
+                                <p className="text-text-100 font-semibold text-lg">
+                                  {quota.totalSent.toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Reset Time */}
+                            <p className="text-text-200 text-xs mt-2">
+                              Resets at:{" "}
+                              {new Date(quota.resetAt).toLocaleString()}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-text-200 text-sm">
+                            No quota data available
+                          </p>
+                        )}
+                      </div>
                     )}
-
-                    <Button
-                      onClick={() => handleDeleteSender(sender.id)}
-                      className="bg-brand-secondary hover:bg-brand-secondary/80 text-text-100 px-4 py-2 rounded-lg transition text-sm"
-                    >
-                      Delete
-                    </Button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

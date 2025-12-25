@@ -10,7 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
@@ -36,7 +36,7 @@ interface CampaignState {
   campaignName: string;
   campaignDescription: string;
   domainId: string;
-  senderId: string;
+  senderIds: string[]; // Changed to array for rotation support
   emailTemplate: {
     subject: string;
     previewText?: string;
@@ -75,6 +75,12 @@ interface EmailSender {
   displayName?: string;
   domainId: string;
   verificationStatus: "pending" | "verified" | "failed";
+  quota?: {
+    dailyCap: number;
+    used: number;
+    remaining: number;
+    totalSent: number;
+  };
 }
 
 export default function SinglePageCampaignBuilder({
@@ -103,12 +109,13 @@ export default function SinglePageCampaignBuilder({
     leadIds: string[];
     leadEmails?: string[];
   } | null>(null);
+  const prevDomainIdRef = useRef<string>(initialDomainId);
 
   const [state, setState] = useState<CampaignState>({
     campaignName: "",
     campaignDescription: "",
     domainId: initialDomainId,
-    senderId: "",
+    senderIds: [],
     emailTemplate: {
       subject: "",
       previewText: "",
@@ -146,8 +153,7 @@ export default function SinglePageCampaignBuilder({
         // Get verified domains (domains that are verified and have DKIM verified)
         const verifiedDomains = loadedDomains.filter(
           (d) =>
-            d.verificationStatus === "verified" &&
-            d.dkimStatus === "verified"
+            d.verificationStatus === "verified" && d.dkimStatus === "verified"
         );
 
         let domainToSelect = initialDomainId;
@@ -206,28 +212,68 @@ export default function SinglePageCampaignBuilder({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load senders when domain is selected
+  // Load all verified senders from all domains (for multi-domain rotation)
   useEffect(() => {
-    if (state.domainId) {
-      fetchSenders();
-    } else {
-      setSenders([]);
+    fetchAllSenders();
+  }, []);
+
+  // Clear sender selections when domain changes
+  useEffect(() => {
+    const currentDomainId = state.domainId;
+    const previousDomainId = prevDomainIdRef.current;
+
+    // Only clear if domainId actually changed and is not empty
+    if (
+      currentDomainId &&
+      currentDomainId !== previousDomainId &&
+      previousDomainId
+    ) {
+      setState((prev) => ({
+        ...prev,
+        senderIds: [],
+      }));
     }
+
+    // Update the ref to track the current domainId
+    prevDomainIdRef.current = currentDomainId;
   }, [state.domainId]);
 
-  const fetchSenders = async () => {
+  const fetchAllSenders = async () => {
     try {
       setLoadingSenders(true);
       const response = await emailClient.get("/api/email-senders", {
         params: { page: 1, limit: 100 },
       });
       const allSenders = response.data?.data?.senders || [];
-      const filteredSenders = allSenders.filter(
-        (sender: EmailSender) =>
-          sender.domainId === state.domainId &&
-          sender.verificationStatus === "verified"
+      // Filter only verified senders (from any domain)
+      const verifiedSenders = allSenders.filter(
+        (sender: EmailSender) => sender.verificationStatus === "verified"
       );
-      setSenders(filteredSenders);
+
+      // Fetch quota for each verified sender
+      const sendersWithQuota = await Promise.all(
+        verifiedSenders.map(async (sender: EmailSender) => {
+          try {
+            const quotaResponse = await emailClient.get(
+              `/api/email-senders/${sender.id}/quota`
+            );
+            if (quotaResponse.data.success) {
+              return {
+                ...sender,
+                quota: quotaResponse.data.data,
+              };
+            }
+          } catch (error) {
+            console.warn(
+              `Failed to fetch quota for sender ${sender.id}:`,
+              error
+            );
+          }
+          return sender;
+        })
+      );
+
+      setSenders(sendersWithQuota);
     } catch (error: any) {
       toast.error("Failed to fetch email senders");
       console.error(error);
@@ -236,6 +282,71 @@ export default function SinglePageCampaignBuilder({
     }
   };
 
+  // Calculate rotation distribution
+  const calculateRotation = () => {
+    if (state.senderIds.length === 0 || state.selectedRecipients.count === 0) {
+      return null;
+    }
+
+    const selectedSenders = senders.filter((s) =>
+      state.senderIds.includes(s.id)
+    );
+    const totalCapacity = selectedSenders.reduce(
+      (sum, sender) =>
+        sum + (sender.quota?.remaining || sender.quota?.dailyCap || 0),
+      0
+    );
+    const leadCount = state.selectedRecipients.count;
+
+    if (totalCapacity === 0) return null;
+
+    // Distribute leads evenly across senders based on their remaining capacity
+    const distribution: Array<{ sender: EmailSender; leads: number }> = [];
+    let remainingLeads = leadCount;
+    let remainingCapacity = totalCapacity;
+
+    selectedSenders.forEach((sender) => {
+      const capacity = sender.quota?.remaining || sender.quota?.dailyCap || 0;
+      if (capacity > 0 && remainingLeads > 0) {
+        // Calculate proportional distribution
+        const proportion = capacity / remainingCapacity;
+        const assignedLeads = Math.min(
+          Math.floor(leadCount * proportion),
+          capacity,
+          remainingLeads
+        );
+        distribution.push({ sender, leads: assignedLeads });
+        remainingLeads -= assignedLeads;
+        remainingCapacity -= capacity;
+      } else {
+        distribution.push({ sender, leads: 0 });
+      }
+    });
+
+    // Distribute any remaining leads to senders with capacity
+    if (remainingLeads > 0) {
+      selectedSenders.forEach((sender, index) => {
+        if (remainingLeads <= 0) return;
+        const capacity = sender.quota?.remaining || sender.quota?.dailyCap || 0;
+        const currentAssigned = distribution[index].leads;
+        const canTake = Math.min(capacity - currentAssigned, remainingLeads);
+        if (canTake > 0) {
+          distribution[index].leads += canTake;
+          remainingLeads -= canTake;
+        }
+      });
+    }
+
+    return {
+      distribution,
+      totalCapacity,
+      canSend: leadCount <= totalCapacity,
+      excess: Math.max(0, leadCount - totalCapacity),
+    };
+  };
+
+  const rotation = calculateRotation();
+
   // Validation helpers
   const validation = {
     recipients: state.selectedRecipients.count > 0,
@@ -243,7 +354,8 @@ export default function SinglePageCampaignBuilder({
     content: state.emailTemplate.htmlContent.trim().length > 0,
     campaignName: state.campaignName.trim().length > 0,
     domain: state.domainId.length > 0,
-    sender: state.senderId.length > 0,
+    sender: state.senderIds.length > 0,
+    capacity: rotation ? rotation.canSend : false,
   };
 
   const isFormValid = Object.values(validation).every((v) => v === true);
@@ -293,7 +405,13 @@ export default function SinglePageCampaignBuilder({
       return;
     }
     if (!validation.sender) {
-      toast.error("Please select an email sender");
+      toast.error("Please select at least one email sender");
+      return;
+    }
+    if (!validation.capacity) {
+      toast.error(
+        `Insufficient sender capacity. Please add more senders or reduce lead count.`
+      );
       return;
     }
 
@@ -529,10 +647,25 @@ export default function SinglePageCampaignBuilder({
       toast.loading(`Sending campaign...`);
 
       try {
+        // For now, use the first sender ID for backward compatibility
+        // TODO: Backend should be updated to handle senderIds array and rotation
+        const primarySenderId = state.senderIds[0];
+        if (!primarySenderId) {
+          toast.dismiss();
+          toast.error("No sender selected");
+          return;
+        }
+
         const sendResponse = await emailClient.post(
           `/api/domains/${domainId}/campaigns/${campaignId}/send`,
           {
-            senderId: state.senderId,
+            senderId: primarySenderId,
+            // Include all sender IDs for future rotation support
+            senderIds: state.senderIds,
+            rotationDistribution: rotation?.distribution.map((d) => ({
+              senderId: d.sender.id,
+              leadCount: d.leads,
+            })),
           }
         );
 
@@ -887,7 +1020,7 @@ export default function SinglePageCampaignBuilder({
                   <h3 className="text-sm font-medium text-text-100">
                     Sending Configuration
                   </h3>
-                  <div>
+                  {/* <div>
                     <label className="block text-xs font-medium text-text-200 mb-1.5">
                       Select Domain *
                     </label>
@@ -903,7 +1036,7 @@ export default function SinglePageCampaignBuilder({
                           setState((prev) => ({
                             ...prev,
                             domainId: newDomainId,
-                            senderId: "",
+                            senderIds: [],
                           }));
 
                           // Update URL query parameter to maintain domain selection
@@ -930,10 +1063,10 @@ export default function SinglePageCampaignBuilder({
                         ))}
                       </select>
                     )}
-                  </div>
+                  </div> */}
                   <div>
                     <label className="block text-xs font-medium text-text-200 mb-1.5">
-                      Select Email Sender *
+                      Select Email Senders (Multi-Domain Rotation) *
                     </label>
                     {loadingSenders ? (
                       <div className="text-text-200 text-xs py-2">
@@ -942,31 +1075,280 @@ export default function SinglePageCampaignBuilder({
                     ) : senders.length === 0 ? (
                       <div className="bg-warning/10 border border-warning/30 rounded-lg p-3">
                         <p className="text-xs text-text-200">
-                          {state.domainId
-                            ? "No verified senders for this domain. Please verify a sender first."
-                            : "Please select a domain first."}
+                          No verified senders found. Please verify at least one
+                          sender from any domain.
                         </p>
                       </div>
                     ) : (
-                      <select
-                        value={state.senderId}
-                        onChange={(e) =>
-                          setState((prev) => ({
-                            ...prev,
-                            senderId: e.target.value,
-                          }))
-                        }
-                        className="w-full px-3 py-2 text-sm bg-brand-main/5 border border-brand-main/20 rounded-lg text-text-100 focus:outline-none focus:ring-2 focus:ring-brand-main"
-                      >
-                        <option value="">Choose a sender...</option>
-                        {senders.map((sender) => (
-                          <option key={sender.id} value={sender.id}>
-                            {sender.displayName
-                              ? `${sender.displayName} <${sender.email}>`
-                              : sender.email}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="space-y-3">
+                        {/* Helper text */}
+                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2">
+                          <p className="text-xs text-text-200">
+                            💡 You can select senders from{" "}
+                            <strong>multiple domains</strong> for automatic
+                            rotation. Leads will be distributed based on each
+                            sender's daily capacity.
+                          </p>
+                        </div>
+
+                        {/* Multi-select checkboxes - Grouped by domain */}
+                        <div className="max-h-64 overflow-y-auto space-y-3 border border-brand-main/20 rounded-lg p-3 bg-brand-main/5">
+                          {(() => {
+                            // Group senders by domain
+                            const sendersByDomain = senders.reduce(
+                              (acc, sender) => {
+                                const domain = domains.find(
+                                  (d) => d.id === sender.domainId
+                                );
+                                const domainName =
+                                  domain?.domain || `Domain ${sender.domainId}`;
+                                if (!acc[domainName]) {
+                                  acc[domainName] = [];
+                                }
+                                acc[domainName].push(sender);
+                                return acc;
+                              },
+                              {} as Record<string, EmailSender[]>
+                            );
+
+                            return Object.entries(sendersByDomain).map(
+                              ([domainName, domainSenders]) => (
+                                <div key={domainName} className="space-y-2">
+                                  <div className="flex items-center gap-2 pb-1 border-b border-brand-main/10">
+                                    <div className="w-2 h-2 rounded-full bg-brand-main"></div>
+                                    <p className="text-xs font-semibold text-text-100">
+                                      {domainName}
+                                    </p>
+                                    <span className="text-xs text-text-200/60">
+                                      ({domainSenders.length} sender
+                                      {domainSenders.length > 1 ? "s" : ""})
+                                    </span>
+                                  </div>
+                                  {domainSenders.map((sender) => {
+                                    const isSelected = state.senderIds.includes(
+                                      sender.id
+                                    );
+                                    const quota = sender.quota;
+                                    const remaining =
+                                      quota?.remaining ?? quota?.dailyCap ?? 0;
+
+                                    return (
+                                      <label
+                                        key={sender.id}
+                                        className={`flex items-start gap-3 p-2 rounded-lg cursor-pointer transition-all ml-4 ${
+                                          isSelected
+                                            ? "bg-brand-main/20 border-2 border-brand-main"
+                                            : "bg-transparent border-2 border-transparent hover:bg-brand-main/10"
+                                        }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={(e) => {
+                                            if (e.target.checked) {
+                                              setState((prev) => ({
+                                                ...prev,
+                                                senderIds: [
+                                                  ...prev.senderIds,
+                                                  sender.id,
+                                                ],
+                                              }));
+                                            } else {
+                                              setState((prev) => ({
+                                                ...prev,
+                                                senderIds:
+                                                  prev.senderIds.filter(
+                                                    (id) => id !== sender.id
+                                                  ),
+                                              }));
+                                            }
+                                          }}
+                                          className="mt-1 w-4 h-4 rounded border-brand-main/20 text-brand-main focus:ring-brand-main"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center justify-between">
+                                            <p className="text-xs font-medium text-text-100">
+                                              {sender.displayName ||
+                                                sender.email}
+                                            </p>
+                                            {quota && (
+                                              <span className="text-xs text-text-200 ml-2 whitespace-nowrap">
+                                                {remaining.toLocaleString()} /{" "}
+                                                {quota.dailyCap.toLocaleString()}{" "}
+                                                remaining
+                                              </span>
+                                            )}
+                                          </div>
+                                          {sender.displayName && (
+                                            <p className="text-xs text-text-200/60 mt-0.5">
+                                              {sender.email}
+                                            </p>
+                                          )}
+                                          {quota && (
+                                            <div className="mt-1.5">
+                                              <div className="w-full bg-brand-main/10 rounded-full h-1.5">
+                                                <div
+                                                  className={`h-1.5 rounded-full ${
+                                                    remaining === 0
+                                                      ? "bg-red-500"
+                                                      : remaining <
+                                                        quota.dailyCap * 0.2
+                                                      ? "bg-yellow-500"
+                                                      : "bg-green-500"
+                                                  }`}
+                                                  style={{
+                                                    width: `${Math.min(
+                                                      ((quota.dailyCap -
+                                                        remaining) /
+                                                        quota.dailyCap) *
+                                                        100,
+                                                      100
+                                                    )}%`,
+                                                  }}
+                                                ></div>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              )
+                            );
+                          })()}
+                        </div>
+
+                        {/* Rotation Preview */}
+                        {state.senderIds.length > 0 &&
+                          state.selectedRecipients.count > 0 &&
+                          rotation && (
+                            <div
+                              className={`rounded-lg p-3 border ${
+                                rotation.canSend
+                                  ? "bg-success/10 border-success/30"
+                                  : "bg-error/10 border-error/30"
+                              }`}
+                            >
+                              <h4 className="text-xs font-semibold text-text-100 mb-2">
+                                Email Rotation Preview
+                              </h4>
+                              {rotation.canSend ? (
+                                <div className="space-y-2">
+                                  {rotation.distribution.map((dist, idx) => (
+                                    <div
+                                      key={dist.sender.id}
+                                      className="flex items-center justify-between text-xs"
+                                    >
+                                      <span className="text-text-200">
+                                        {dist.sender.displayName ||
+                                          dist.sender.email}
+                                      </span>
+                                      <span className="font-medium text-success">
+                                        {dist.leads.toLocaleString()} leads
+                                      </span>
+                                    </div>
+                                  ))}
+                                  <div className="pt-2 border-t border-success/20 mt-2">
+                                    <p className="text-xs text-text-200">
+                                      Total:{" "}
+                                      <span className="font-semibold text-success">
+                                        {state.selectedRecipients.count.toLocaleString()}{" "}
+                                        leads
+                                      </span>{" "}
+                                      across{" "}
+                                      <span className="font-semibold text-success">
+                                        {state.senderIds.length} sender
+                                        {state.senderIds.length > 1 ? "s" : ""}
+                                      </span>
+                                    </p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  <p className="text-xs font-medium text-error mb-2">
+                                    ⚠️ Insufficient Capacity
+                                  </p>
+                                  <p className="text-xs text-text-200 mb-2">
+                                    You're trying to send{" "}
+                                    <span className="font-semibold text-error">
+                                      {state.selectedRecipients.count.toLocaleString()}{" "}
+                                      leads
+                                    </span>
+                                    , but your selected senders can only handle{" "}
+                                    <span className="font-semibold text-error">
+                                      {rotation.totalCapacity.toLocaleString()}
+                                    </span>
+                                    .
+                                  </p>
+                                  <div className="bg-error/5 rounded p-2 space-y-1">
+                                    <p className="text-xs font-semibold text-error">
+                                      To fix this:
+                                    </p>
+                                    <ul className="text-xs text-text-200 space-y-1 ml-4 list-disc">
+                                      <li>
+                                        Add{" "}
+                                        <span className="font-semibold">
+                                          {Math.ceil(rotation.excess / 200)}{" "}
+                                          more sender
+                                          {Math.ceil(rotation.excess / 200) > 1
+                                            ? "s"
+                                            : ""}{" "}
+                                          (200/day each)
+                                        </span>
+                                      </li>
+                                      <li>
+                                        Or reduce leads to{" "}
+                                        <span className="font-semibold">
+                                          {rotation.totalCapacity.toLocaleString()}
+                                        </span>
+                                      </li>
+                                    </ul>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                        {/* Selected senders summary */}
+                        {state.senderIds.length > 0 && (
+                          <div className="bg-brand-main/10 border border-brand-main/20 rounded-lg p-2">
+                            <p className="text-xs font-medium text-text-100 mb-1">
+                              Selected: {state.senderIds.length} sender
+                              {state.senderIds.length > 1 ? "s" : ""} from{" "}
+                              {
+                                new Set(
+                                  state.senderIds
+                                    .map((id) => {
+                                      const sender = senders.find(
+                                        (s) => s.id === id
+                                      );
+                                      return domains.find(
+                                        (d) => d.id === sender?.domainId
+                                      )?.domain;
+                                    })
+                                    .filter(Boolean)
+                                ).size
+                              }{" "}
+                              domain
+                              {new Set(
+                                state.senderIds
+                                  .map((id) => {
+                                    const sender = senders.find(
+                                      (s) => s.id === id
+                                    );
+                                    return domains.find(
+                                      (d) => d.id === sender?.domainId
+                                    )?.domain;
+                                  })
+                                  .filter(Boolean)
+                              ).size > 1
+                                ? "s"
+                                : ""}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1252,9 +1634,9 @@ export default function SinglePageCampaignBuilder({
                     </div>
                   </div>
 
-                  {/* Sender */}
+                  {/* Senders */}
                   <div>
-                    <p className="text-xs text-text-200 mb-1">Sender</p>
+                    <p className="text-xs text-text-200 mb-1">Senders</p>
                     <div className="flex items-center gap-2">
                       {validation.sender ? (
                         <CheckCircle2 size={14} className="text-success" />
@@ -1266,11 +1648,42 @@ export default function SinglePageCampaignBuilder({
                           validation.sender ? "text-text-100" : "text-error"
                         }`}
                       >
-                        {senders.find((s) => s.id === state.senderId)?.email ||
-                          "Not selected"}
+                        {state.senderIds.length === 0
+                          ? "Not selected"
+                          : state.senderIds.length === 1
+                          ? senders.find((s) => s.id === state.senderIds[0])
+                              ?.email || "1 sender"
+                          : `${state.senderIds.length} senders (rotation)`}
                       </p>
                     </div>
                   </div>
+
+                  {/* Capacity Check */}
+                  {validation.sender &&
+                    state.selectedRecipients.count > 0 &&
+                    rotation && (
+                      <div>
+                        <p className="text-xs text-text-200 mb-1">Capacity</p>
+                        <div className="flex items-center gap-2">
+                          {validation.capacity ? (
+                            <CheckCircle2 size={14} className="text-success" />
+                          ) : (
+                            <AlertCircle size={14} className="text-error" />
+                          )}
+                          <p
+                            className={`text-xs font-medium ${
+                              validation.capacity
+                                ? "text-success"
+                                : "text-error"
+                            }`}
+                          >
+                            {validation.capacity
+                              ? `${state.selectedRecipients.count.toLocaleString()} / ${rotation.totalCapacity.toLocaleString()}`
+                              : `Exceeds by ${rotation.excess.toLocaleString()}`}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                 </div>
               </div>
 
