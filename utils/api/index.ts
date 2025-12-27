@@ -23,6 +23,9 @@ export * from "./feedbackClient";
 // Email Service API
 export * from "./emailClient";
 
+// WhatsApp Service API
+export * from "./whatsappClient";
+
 // Affiliate API
 export * from "./affiliateClient";
 

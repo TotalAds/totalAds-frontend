@@ -1,31 +1,19 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import { AnimatePresence, motion } from 'framer-motion';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
 
-import { useAuthContext } from "@/context/AuthContext";
-import { getSubscriptionInfo, SubscriptionInfo } from "@/utils/api/emailClient";
-import { cn } from "@/utils/cn";
+import { useAuthContext } from '@/context/AuthContext';
+import { getSubscriptionInfo, SubscriptionInfo } from '@/utils/api/emailClient';
+import { cn } from '@/utils/cn';
 import {
-  IconChartBar,
-  IconChevronDown,
-  IconChevronLeft,
-  IconChevronRight,
-  IconCreditCard,
-  IconFlame,
-  IconGift,
-  IconLayoutDashboard,
-  IconLogout,
-  IconMail,
-  IconSettings,
-  IconUsers,
-  IconWorld,
-  IconX,
-} from "@tabler/icons-react";
+    IconChartBar, IconChevronDown, IconChevronLeft, IconChevronRight, IconCreditCard, IconFlame,
+    IconGift, IconLayoutDashboard, IconLogout, IconMail, IconSettings, IconUsers, IconWorld, IconX
+} from '@tabler/icons-react';
 
-import GetLogo from "../common/getLogo";
+import GetLogo from '../common/getLogo';
 
 interface NavItem {
   name: string;
@@ -129,6 +117,36 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
         },
       ],
     },
+    // {
+    //   title: "WHATSAPP",
+    //   items: [
+    //     {
+    //       name: "Dashboard",
+    //       href: "/whatsapp/dashboard",
+    //       icon: <IconLayoutDashboard className="w-5 h-5" />,
+    //     },
+    //     {
+    //       name: "Campaigns",
+    //       href: "/whatsapp/campaigns",
+    //       icon: <IconMail className="w-5 h-5" />,
+    //     },
+    //     {
+    //       name: "Templates",
+    //       href: "/whatsapp/templates",
+    //       icon: <IconMail className="w-5 h-5" />,
+    //     },
+    //     {
+    //       name: "Contacts",
+    //       href: "/whatsapp/contacts",
+    //       icon: <IconUsers className="w-5 h-5" />,
+    //     },
+    //     {
+    //       name: "Chat",
+    //       href: "/whatsapp/chat",
+    //       icon: <IconUsers className="w-5 h-5" />,
+    //     },
+    //   ],
+    // },
     {
       title: "SUPPORT",
       items: [
