@@ -1,19 +1,31 @@
 "use client";
 
-import { AnimatePresence, motion } from 'framer-motion';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import { AnimatePresence, motion } from "framer-motion";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import React, { useEffect, useState } from "react";
 
-import { useAuthContext } from '@/context/AuthContext';
-import { getSubscriptionInfo, SubscriptionInfo } from '@/utils/api/emailClient';
-import { cn } from '@/utils/cn';
+import { useAuthContext } from "@/context/AuthContext";
+import { getSubscriptionInfo, SubscriptionInfo } from "@/utils/api/emailClient";
+import { cn } from "@/utils/cn";
 import {
-    IconChartBar, IconChevronDown, IconChevronLeft, IconChevronRight, IconCreditCard, IconFlame,
-    IconGift, IconLayoutDashboard, IconLogout, IconMail, IconSettings, IconUsers, IconWorld, IconX
-} from '@tabler/icons-react';
+  IconChartBar,
+  IconChevronDown,
+  IconChevronLeft,
+  IconChevronRight,
+  IconCreditCard,
+  IconFlame,
+  IconGift,
+  IconLayoutDashboard,
+  IconLogout,
+  IconMail,
+  IconSettings,
+  IconUsers,
+  IconWorld,
+  IconX,
+} from "@tabler/icons-react";
 
-import GetLogo from '../common/getLogo';
+import GetLogo from "../common/getLogo";
 
 interface NavItem {
   name: string;

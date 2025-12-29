@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { toast } from "react-hot-toast";
 import Papa from "papaparse";
+import { useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -85,7 +85,9 @@ export default function CreateCampaignPage() {
       }
     } catch (error: any) {
       console.error("Error validating campaign:", error);
-      toast.error(error.response?.data?.message || "Failed to validate campaign");
+      toast.error(
+        error.response?.data?.message || "Failed to validate campaign"
+      );
     } finally {
       setLoading(false);
     }
@@ -297,21 +299,24 @@ export default function CreateCampaignPage() {
                   </div>
                 </div>
 
-                {validationResult.errors && validationResult.errors.length > 0 && (
-                  <div className="mt-4">
-                    <p className="text-text-200 text-sm mb-2">Errors:</p>
-                    <div className="max-h-48 overflow-y-auto">
-                      {validationResult.errors.slice(0, 10).map((error: any, idx: number) => (
-                        <div
-                          key={idx}
-                          className="text-xs text-red-400 p-2 bg-red-500/10 rounded mb-1"
-                        >
-                          Row {error.row}: {error.error}
-                        </div>
-                      ))}
+                {validationResult.errors &&
+                  validationResult.errors.length > 0 && (
+                    <div className="mt-4">
+                      <p className="text-text-200 text-sm mb-2">Errors:</p>
+                      <div className="max-h-48 overflow-y-auto">
+                        {validationResult.errors
+                          .slice(0, 10)
+                          .map((error: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className="text-xs text-red-400 p-2 bg-red-500/10 rounded mb-1"
+                            >
+                              Row {error.row}: {error.error}
+                            </div>
+                          ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
 
               <div className="flex justify-between">
@@ -336,4 +341,3 @@ export default function CreateCampaignPage() {
     </div>
   );
 }
-
