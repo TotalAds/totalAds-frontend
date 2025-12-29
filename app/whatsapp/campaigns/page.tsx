@@ -10,6 +10,7 @@ import AGGridWrapper from "@/components/common/AGGridWrapper";
 import { Button } from "@/components/ui/button";
 import {
   deleteCampaign,
+  downloadCSVTemplate,
   getCampaigns,
   pauseCampaign,
   resumeCampaign,
@@ -251,11 +252,26 @@ export default function WhatsAppCampaignsPage() {
               Create and manage your WhatsApp campaigns
             </p>
           </div>
-          <Link href="/whatsapp/campaigns/create">
-            <Button className="bg-brand-main hover:bg-brand-main/80 text-white px-6 py-2 rounded-lg transition">
-              + Create Campaign
+          <div className="flex gap-3">
+            <Button
+              onClick={async () => {
+                try {
+                  await downloadCSVTemplate();
+                  toast.success("CSV template downloaded successfully");
+                } catch (error: any) {
+                  toast.error("Failed to download CSV template");
+                }
+              }}
+              className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg transition"
+            >
+              📥 Download CSV Template
             </Button>
-          </Link>
+            <Link href="/whatsapp/campaigns/create">
+              <Button className="bg-brand-main hover:bg-brand-main/80 text-white px-6 py-2 rounded-lg transition">
+                + Create Campaign
+              </Button>
+            </Link>
+          </div>
         </div>
       </header>
 

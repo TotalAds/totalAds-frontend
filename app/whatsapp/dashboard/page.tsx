@@ -18,6 +18,8 @@ import {
   IconTrendingUp,
   IconUsers,
 } from "@tabler/icons-react";
+import ReputationMetrics from "@/components/whatsapp/ReputationMetrics";
+import CostTracking from "@/components/whatsapp/CostTracking";
 
 export default function WhatsAppDashboardPage() {
   const router = useRouter();
@@ -25,26 +27,36 @@ export default function WhatsAppDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState<any>(null);
   const [range, setRange] = useState<7 | 30>(7);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  
+  // TODO: Get phoneNumberId from user settings
+  const phoneNumberId = "default"; // This should come from user's Meta settings
 
   useEffect(() => {
     if (!state.isAuthenticated) {
       router.push("/login");
       return;
     }
-    fetchAnalytics();
+    fetchAnalytics(true);
+
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchAnalytics(false);
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, [state.isAuthenticated, range]);
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const endDate = new Date();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - range);
 
-      // TODO: Get phoneNumberId from user settings
-      const phoneNumberId = "default"; // This should come from user's Meta settings
       const data = await getDashboardAnalytics(phoneNumberId, startDate, endDate);
       setAnalytics(data);
+      setLastUpdated(new Date());
     } catch (error: any) {
       console.error("Error fetching analytics:", error);
 
@@ -55,9 +67,11 @@ export default function WhatsAppDashboardPage() {
         return;
       }
 
-      toast.error("Failed to fetch analytics");
+      if (showLoading) {
+        toast.error("Failed to fetch analytics");
+      }
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
@@ -94,9 +108,20 @@ export default function WhatsAppDashboardPage() {
               </h1>
               <p className="text-text-200 text-sm mt-1">
                 Overview of your WhatsApp messaging performance
+                {lastUpdated && (
+                  <span className="ml-2">
+                    • Last updated: {lastUpdated.toLocaleTimeString()}
+                  </span>
+                )}
               </p>
             </div>
             <div className="flex gap-2">
+              <button
+                onClick={() => fetchAnalytics(true)}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white transition"
+              >
+                Refresh
+              </button>
               <button
                 onClick={() => setRange(7)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
@@ -202,6 +227,22 @@ export default function WhatsAppDashboardPage() {
               {stats.totalFailed.toLocaleString()} failed
             </p>
           </div>
+        </div>
+
+        {/* Reputation Metrics Section */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-text-100 mb-4">
+            Reputation & Quality Metrics
+          </h2>
+          <ReputationMetrics phoneNumberId={phoneNumberId} />
+        </div>
+
+        {/* Cost Tracking Section */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-text-100 mb-4">
+            Cost Tracking
+          </h2>
+          <CostTracking phoneNumberId={phoneNumberId} range={range} />
         </div>
 
         {/* Quick Actions */}

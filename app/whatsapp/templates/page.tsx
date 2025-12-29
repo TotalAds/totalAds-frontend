@@ -24,6 +24,10 @@ export default function TemplatesPage() {
   // TODO: Get phoneNumberId from user settings
   const phoneNumberId = "default";
 
+  const handleCreateTemplate = () => {
+    router.push("/whatsapp/templates/create");
+  };
+
   useEffect(() => {
     fetchTemplates();
   }, [statusFilter]);
@@ -113,13 +117,21 @@ export default function TemplatesPage() {
               Manage your WhatsApp message templates
             </p>
           </div>
-          <Button
-            onClick={handleSync}
-            disabled={syncing}
-            className="bg-brand-main hover:bg-brand-main/80 text-white px-6 py-2 rounded-lg transition"
-          >
-            {syncing ? "Syncing..." : "Sync from Meta"}
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              onClick={handleCreateTemplate}
+              className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition"
+            >
+              + Create Template
+            </Button>
+            <Button
+              onClick={handleSync}
+              disabled={syncing}
+              className="bg-brand-main hover:bg-brand-main/80 text-white px-6 py-2 rounded-lg transition"
+            >
+              {syncing ? "Syncing..." : "Sync from Meta"}
+            </Button>
+          </div>
         </div>
       </header>
 

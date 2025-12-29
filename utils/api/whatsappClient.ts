@@ -237,6 +237,30 @@ export const syncTemplates = async (phoneNumberId: string) => {
   return response.data.data;
 };
 
+export const createTemplate = async (data: {
+  name: string;
+  category: "MARKETING" | "UTILITY" | "AUTHENTICATION";
+  language: string;
+  components?: Array<{
+    type: "HEADER" | "BODY" | "FOOTER" | "BUTTONS";
+    format?: "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT";
+    text?: string;
+    buttons?: Array<{
+      type: "QUICK_REPLY" | "URL" | "PHONE_NUMBER";
+      text: string;
+      url?: string;
+      phone_number?: string;
+    }>;
+  }>;
+}) => {
+  const response = await whatsappClient.post<{
+    success: boolean;
+    data: WhatsAppTemplate;
+    message: string;
+  }>("/api/v1/template", data);
+  return response.data;
+};
+
 export const getTemplateReference = async (
   phoneNumberId: string,
   templateName: string
@@ -505,6 +529,152 @@ export const getCampaignAnalytics = async (campaignId: string) => {
     };
   }>(`/api/v1/analytics/campaign/${campaignId}`);
   return response.data.data;
+};
+
+// Reputation Metrics API
+export const getReputationMetrics = async () => {
+  const response = await whatsappClient.get<{
+    success: boolean;
+    data: {
+      phoneNumberId: string;
+      warmup: {
+        stage: string;
+        day: number;
+        maxDailySend: number;
+        warmupStartDate?: string;
+        schedule: any;
+        nextMilestone: string;
+        nextMilestoneDay: number;
+        messagesUntilNextMilestone: number;
+        progress: number;
+      };
+      quality: {
+        rating: string;
+        score: number;
+        banStatus: string;
+        qualityGuardStatus: string;
+        qualityGuardLastChecked?: string;
+      };
+      messageLimits: {
+        daily: number;
+        last24Hours: number;
+        last7Days: number;
+        last30Days: number;
+        totalVolume: number;
+        metaLimit?: number;
+      };
+      metrics: {
+        deliveryRate: number;
+        readRate: number;
+        replyRate: number;
+        blockRate: number;
+        spamRate: number;
+        complaintRate: number;
+        optOutRate: number;
+      };
+      autoPausedCampaigns: any[];
+      lastUpdated: string;
+    };
+  }>("/api/v1/analytics/reputation");
+  return response.data.data;
+};
+
+// Cost Tracking API
+export const getCostTracking = async (
+  startDate?: Date,
+  endDate?: Date
+) => {
+  const params = new URLSearchParams();
+  if (startDate) params.append("startDate", startDate.toISOString());
+  if (endDate) params.append("endDate", endDate.toISOString());
+
+  const response = await whatsappClient.get<{
+    success: boolean;
+    data: {
+      summary: {
+        totalSpent: number;
+        totalMessages: number;
+        avgCostPerMessage: number;
+        currency: string;
+        dateRange: { start: string; end: string };
+      };
+      breakdown: {
+        byCategory: Record<string, number>;
+        byConversationType: Record<string, number>;
+        byPricingTier: Record<string, number>;
+      };
+      trends: {
+        dailySpending: Array<{ date: string; amount: number }>;
+      };
+      topCampaigns: Array<{
+        campaignId: string;
+        campaignName: string;
+        cost: number;
+      }>;
+      billingEvents: Array<{
+        id: string;
+        category: string;
+        conversationType: string;
+        cost: number;
+        currency: string;
+        pricingTier?: string;
+        campaignId?: string;
+        createdAt: string;
+      }>;
+    };
+  }>(`/api/v1/analytics/cost-tracking?${params.toString()}`);
+  return response.data.data;
+};
+
+// CSV Template Download
+export const downloadCSVTemplate = async () => {
+  const response = await whatsappClient.get("/api/v1/campaign/csv-template", {
+    responseType: "blob",
+  });
+  
+  // Create blob and download
+  const blob = new Blob([response.data], { type: "text/csv" });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "whatsapp-campaign-template.csv";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+};
+
+// Export Reputation Metrics
+export const exportReputationMetrics = async (format: "csv" | "json" = "csv") => {
+  const response = await whatsappClient.get(
+    `/api/v1/analytics/reputation/export?format=${format}`,
+    {
+      responseType: "blob",
+    }
+  );
+
+  // Get filename from Content-Disposition header or use default
+  const contentDisposition = response.headers["content-disposition"];
+  let filename = `reputation-metrics-${new Date().toISOString().split("T")[0]}.${format}`;
+  if (contentDisposition) {
+    const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+    if (filenameMatch) {
+      filename = filenameMatch[1];
+    }
+  }
+
+  // Create blob and download
+  const blob = new Blob([response.data], {
+    type: format === "json" ? "application/json" : "text/csv",
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
 };
 
 // Opt-in APIs
