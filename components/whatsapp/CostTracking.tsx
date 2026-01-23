@@ -3,19 +3,26 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 import {
-  LineChart,
-  Line,
-  BarChart,
   Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
 } from "recharts";
-import { IconCurrencyDollar, IconTrendingUp, IconChartBar } from "@tabler/icons-react";
+
 import { getCostTracking } from "@/utils/api/whatsappClient";
+import {
+  IconChartBar,
+  IconCurrencyDollar,
+  IconTrendingUp,
+} from "@tabler/icons-react";
+
+import { Button } from "../ui/button";
 
 interface CostTrackingProps {
   phoneNumberId?: string;
@@ -108,7 +115,9 @@ export default function CostTracking({
             </div>
             <IconTrendingUp className="w-5 h-5 text-green-400" />
           </div>
-          <h3 className="text-text-200 text-sm font-medium mb-1">Total Spent</h3>
+          <h3 className="text-text-200 text-sm font-medium mb-1">
+            Total Spent
+          </h3>
           <p className="text-3xl font-bold text-text-100">
             {costData.summary.currency} {costData.summary.totalSpent.toFixed(2)}
           </p>
@@ -123,7 +132,9 @@ export default function CostTracking({
               <IconChartBar className="w-6 h-6 text-blue-400" />
             </div>
           </div>
-          <h3 className="text-text-200 text-sm font-medium mb-1">Avg Cost/Message</h3>
+          <h3 className="text-text-200 text-sm font-medium mb-1">
+            Avg Cost/Message
+          </h3>
           <p className="text-3xl font-bold text-text-100">
             {costData.summary.currency}{" "}
             {costData.summary.avgCostPerMessage.toFixed(4)}
@@ -136,7 +147,9 @@ export default function CostTracking({
               <IconTrendingUp className="w-6 h-6 text-purple-400" />
             </div>
           </div>
-          <h3 className="text-text-200 text-sm font-medium mb-1">Total Messages</h3>
+          <h3 className="text-text-200 text-sm font-medium mb-1">
+            Total Messages
+          </h3>
           <p className="text-3xl font-bold text-text-100">
             {costData.summary.totalMessages.toLocaleString()}
           </p>
@@ -146,7 +159,9 @@ export default function CostTracking({
       {/* Daily Spending Trend Chart */}
       {costData.trends.dailySpending.length > 0 && (
         <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-6">
-          <h2 className="text-xl font-bold text-text-100 mb-4">Daily Spending Trend</h2>
+          <h2 className="text-xl font-bold text-text-100 mb-4">
+            Daily Spending Trend
+          </h2>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={costData.trends.dailySpending}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -186,56 +201,20 @@ export default function CostTracking({
       {/* Breakdown */}
       <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-6">
         <h2 className="text-xl font-bold text-text-100 mb-4">Cost Breakdown</h2>
-        
+
         {/* Breakdown Charts */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           {/* By Category Chart */}
           {Object.keys(costData.breakdown.byCategory).length > 0 && (
             <div>
-              <h3 className="text-text-200 text-sm font-medium mb-3">By Category</h3>
+              <h3 className="text-text-200 text-sm font-medium mb-3">
+                By Category
+              </h3>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart
-                  data={Object.entries(costData.breakdown.byCategory).map(([name, value]) => ({
-                    name: name.charAt(0) + name.slice(1).toLowerCase(),
-                    value: parseFloat(value.toString()),
-                  }))}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis
-                    dataKey="name"
-                    stroke="#9CA3AF"
-                    tick={{ fill: "#9CA3AF", fontSize: 12 }}
-                  />
-                  <YAxis
-                    stroke="#9CA3AF"
-                    tick={{ fill: "#9CA3AF", fontSize: 12 }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#1F2937",
-                      border: "1px solid #374151",
-                      borderRadius: "8px",
-                    }}
-                    formatter={(value: any) => [
-                      `${costData.summary.currency} ${parseFloat(value).toFixed(2)}`,
-                      "Cost",
-                    ]}
-                  />
-                  <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {/* By Conversation Type Chart */}
-          {Object.keys(costData.breakdown.byConversationType).length > 0 && (
-            <div>
-              <h3 className="text-text-200 text-sm font-medium mb-3">By Conversation Type</h3>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart
-                  data={Object.entries(costData.breakdown.byConversationType).map(
+                  data={Object.entries(costData.breakdown.byCategory).map(
                     ([name, value]) => ({
-                      name: name.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+                      name: name.charAt(0) + name.slice(1).toLowerCase(),
                       value: parseFloat(value.toString()),
                     })
                   )}
@@ -257,7 +236,55 @@ export default function CostTracking({
                       borderRadius: "8px",
                     }}
                     formatter={(value: any) => [
-                      `${costData.summary.currency} ${parseFloat(value).toFixed(2)}`,
+                      `${costData.summary.currency} ${parseFloat(value).toFixed(
+                        2
+                      )}`,
+                      "Cost",
+                    ]}
+                  />
+                  <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* By Conversation Type Chart */}
+          {Object.keys(costData.breakdown.byConversationType).length > 0 && (
+            <div>
+              <h3 className="text-text-200 text-sm font-medium mb-3">
+                By Conversation Type
+              </h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart
+                  data={Object.entries(
+                    costData.breakdown.byConversationType
+                  ).map(([name, value]) => ({
+                    name: name
+                      .replace("_", " ")
+                      .replace(/\b\w/g, (l) => l.toUpperCase()),
+                    value: parseFloat(value.toString()),
+                  }))}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis
+                    dataKey="name"
+                    stroke="#9CA3AF"
+                    tick={{ fill: "#9CA3AF", fontSize: 12 }}
+                  />
+                  <YAxis
+                    stroke="#9CA3AF"
+                    tick={{ fill: "#9CA3AF", fontSize: 12 }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#1F2937",
+                      border: "1px solid #374151",
+                      borderRadius: "8px",
+                    }}
+                    formatter={(value: any) => [
+                      `${costData.summary.currency} ${parseFloat(value).toFixed(
+                        2
+                      )}`,
                       "Cost",
                     ]}
                   />
@@ -270,16 +297,22 @@ export default function CostTracking({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* By Category */}
           <div>
-            <h3 className="text-text-200 text-sm font-medium mb-3">By Category</h3>
+            <h3 className="text-text-200 text-sm font-medium mb-3">
+              By Category
+            </h3>
             <div className="space-y-2">
-              {Object.entries(costData.breakdown.byCategory).map(([category, cost]: [string, any]) => (
-                <div key={category} className="flex justify-between">
-                  <span className="text-text-200 text-sm capitalize">{category}</span>
-                  <span className="text-text-100 font-semibold">
-                    {costData.summary.currency} {cost.toFixed(2)}
-                  </span>
-                </div>
-              ))}
+              {Object.entries(costData.breakdown.byCategory).map(
+                ([category, cost]: [string, any]) => (
+                  <div key={category} className="flex justify-between">
+                    <span className="text-text-200 text-sm capitalize">
+                      {category}
+                    </span>
+                    <span className="text-text-100 font-semibold">
+                      {costData.summary.currency} {cost.toFixed(2)}
+                    </span>
+                  </div>
+                )
+              )}
             </div>
           </div>
 
@@ -304,7 +337,9 @@ export default function CostTracking({
 
           {/* By Pricing Tier */}
           <div>
-            <h3 className="text-text-200 text-sm font-medium mb-3">By Pricing Tier</h3>
+            <h3 className="text-text-200 text-sm font-medium mb-3">
+              By Pricing Tier
+            </h3>
             <div className="space-y-2">
               {Object.entries(costData.breakdown.byPricingTier).map(
                 ([tier, cost]: [string, any]) => (
@@ -324,7 +359,9 @@ export default function CostTracking({
       {/* Top Campaigns */}
       {costData.topCampaigns.length > 0 && (
         <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-6">
-          <h2 className="text-xl font-bold text-text-100 mb-4">Top Campaigns by Cost</h2>
+          <h2 className="text-xl font-bold text-text-100 mb-4">
+            Top Campaigns by Cost
+          </h2>
           <div className="space-y-2">
             {costData.topCampaigns.map((campaign: any, index: number) => (
               <div
@@ -332,8 +369,12 @@ export default function CostTracking({
                 className="flex justify-between items-center p-3 bg-brand-main/5 rounded-lg"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-text-200 text-sm font-medium">#{index + 1}</span>
-                  <span className="text-text-100 font-medium">{campaign.campaignName}</span>
+                  <span className="text-text-200 text-sm font-medium">
+                    #{index + 1}
+                  </span>
+                  <span className="text-text-100 font-medium">
+                    {campaign.campaignName}
+                  </span>
                 </div>
                 <span className="text-text-100 font-semibold">
                   {costData.summary.currency} {campaign.cost.toFixed(2)}
@@ -346,4 +387,3 @@ export default function CostTracking({
     </div>
   );
 }
-

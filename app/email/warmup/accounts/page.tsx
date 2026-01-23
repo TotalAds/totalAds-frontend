@@ -565,8 +565,8 @@ export default function WarmupAccountsPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Tabs */}
-            <div className="flex gap-4 border-b border-brand-main/10">
+            {/* Tabs - Hidden for simplified view */}
+            <div className="hidden flex gap-4 border-b border-brand-main/10">
               <button
                 onClick={() => setActiveTab("accounts")}
                 className={`px-4 py-3 font-medium transition border-b-2 ${

@@ -1,6 +1,6 @@
 "use client";
 
-import axios from "axios";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -8,8 +8,18 @@ import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
 import { useAuthContext } from "@/context/AuthContext";
-import { tokenStorage } from "@/utils/auth/tokenStorage";
-import { IconArrowLeft, IconMail } from "@tabler/icons-react";
+import emailClient from "@/utils/api/emailClient";
+import {
+  IconArrowLeft,
+  IconCheck,
+  IconX,
+  IconLoader,
+  IconShieldCheck,
+  IconPlugConnected,
+  IconMail,
+  IconServer,
+  IconLock,
+} from "@tabler/icons-react";
 
 type Provider = "yahoo" | "custom";
 
@@ -28,6 +38,13 @@ interface ImapSmtpFormData {
   imapPort: number;
   imapUsername: string;
   imapPassword: string;
+}
+
+interface ConnectionTestResult {
+  smtp: "pending" | "testing" | "success" | "error";
+  imap: "pending" | "testing" | "success" | "error";
+  smtpError?: string;
+  imapError?: string;
 }
 
 const PROVIDER_DEFAULTS: Record<
@@ -62,23 +79,29 @@ export default function ImapSmtpConfigPage() {
   const { state } = useAuthContext();
 
   const provider = (searchParams.get("provider") as Provider) || "custom";
+  const emailParam = searchParams.get("email") || "";
   const defaults = PROVIDER_DEFAULTS[provider];
 
   const [loading, setLoading] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionTest, setConnectionTest] = useState<ConnectionTestResult>({
+    smtp: "pending",
+    imap: "pending",
+  });
   const [formData, setFormData] = useState<ImapSmtpFormData>({
-    email: "",
+    email: emailParam,
     displayName: "",
-    username: "",
+    username: emailParam.split("@")[0] || "",
     mailDisplayName: "",
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     dailyLimit: 10,
     smtpHost: defaults.smtpHost,
     smtpPort: defaults.smtpPort,
-    smtpUsername: "",
+    smtpUsername: emailParam,
     smtpPassword: "",
     imapHost: defaults.imapHost,
     imapPort: defaults.imapPort,
-    imapUsername: "",
+    imapUsername: emailParam,
     imapPassword: "",
   });
 
@@ -91,6 +114,14 @@ export default function ImapSmtpConfigPage() {
     }
   }, [state.isLoading, state.isAuthenticated, state.user, router]);
 
+  // Check if email is provided (required for verified sender)
+  useEffect(() => {
+    if (!emailParam) {
+      toast.error("Please select a verified sender first");
+      router.push("/email/warmup/connect");
+    }
+  }, [emailParam, router]);
+
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -102,30 +133,35 @@ export default function ImapSmtpConfigPage() {
           ? parseInt(value) || 0
           : value,
     }));
+    // Reset connection test when credentials change
+    if (
+      name.includes("smtp") ||
+      name.includes("imap") ||
+      name === "email"
+    ) {
+      setConnectionTest({ smtp: "pending", imap: "pending" });
+    }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Validation
+  const validateForm = (): boolean => {
     if (!formData.email) {
       toast.error("Email address is required");
-      return;
+      return false;
     }
 
     if (!formData.mailDisplayName) {
       toast.error("Mail Display Name is required");
-      return;
+      return false;
     }
 
     if (!formData.username) {
       toast.error("Username is required");
-      return;
+      return false;
     }
 
     if (!formData.timezone) {
       toast.error("Timezone is required");
-      return;
+      return false;
     }
 
     if (
@@ -134,7 +170,7 @@ export default function ImapSmtpConfigPage() {
       formData.dailyLimit > 150
     ) {
       toast.error("Daily limit must be between 5 and 150");
-      return;
+      return false;
     }
 
     // SMTP validation
@@ -145,7 +181,7 @@ export default function ImapSmtpConfigPage() {
       !formData.smtpPassword
     ) {
       toast.error("All SMTP fields are required");
-      return;
+      return false;
     }
 
     // IMAP validation
@@ -156,6 +192,80 @@ export default function ImapSmtpConfigPage() {
       !formData.imapPassword
     ) {
       toast.error("All IMAP fields are required");
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleTestConnection = async () => {
+    if (!validateForm()) return;
+
+    try {
+      setTestingConnection(true);
+      setConnectionTest({
+        smtp: "testing",
+        imap: "testing",
+      });
+
+      // Call backend to test connection
+      const response = await emailClient.post(
+        `/api/warmup/oauth/test-connection`,
+        {
+          provider,
+          email: formData.email,
+          smtpHost: formData.smtpHost,
+          smtpPort: formData.smtpPort,
+          smtpUsername: formData.smtpUsername,
+          smtpPassword: formData.smtpPassword,
+          imapHost: formData.imapHost,
+          imapPort: formData.imapPort,
+          imapUsername: formData.imapUsername,
+          imapPassword: formData.imapPassword,
+        }
+      );
+
+      const result = response.data;
+
+      setConnectionTest({
+        smtp: result.data?.smtp?.success ? "success" : "error",
+        imap: result.data?.imap?.success ? "success" : "error",
+        smtpError: result.data?.smtp?.error,
+        imapError: result.data?.imap?.error,
+      });
+
+      if (result.data?.smtp?.success && result.data?.imap?.success) {
+        toast.success("Connection test successful! You can now connect your account.");
+      } else {
+        const errors = [];
+        if (!result.data?.smtp?.success) errors.push(`SMTP: ${result.data?.smtp?.error || "Connection failed"}`);
+        if (!result.data?.imap?.success) errors.push(`IMAP: ${result.data?.imap?.error || "Connection failed"}`);
+        toast.error(errors.join("\n"));
+      }
+    } catch (error: any) {
+      console.error("Connection test failed:", error);
+      setConnectionTest({
+        smtp: "error",
+        imap: "error",
+        smtpError: error?.response?.data?.message || "Test failed",
+        imapError: error?.response?.data?.message || "Test failed",
+      });
+      toast.error(
+        error?.response?.data?.message || "Connection test failed. Please check your credentials."
+      );
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) return;
+
+    // Check if connection test passed
+    if (connectionTest.smtp !== "success" || connectionTest.imap !== "success") {
+      toast.error("Please test your connection first before proceeding.");
       return;
     }
 
@@ -163,18 +273,9 @@ export default function ImapSmtpConfigPage() {
       setLoading(true);
       const toastId = toast.loading("Connecting account...");
 
-      const accessToken = tokenStorage.getAccessToken();
-      if (!accessToken) {
-        toast.error("Not authenticated. Please login first.");
-        return;
-      }
-
-      const emailServiceUrl =
-        process.env.NEXT_PUBLIC_EMAIL_SERVICE_URL || "http://localhost:3001";
-
-      // Call backend API
-      const { data } = await axios.post(
-        `${emailServiceUrl}/api/warmup/oauth/imap-smtp/${provider}`,
+      // Call backend API using emailClient
+      const response = await emailClient.post(
+        `/api/warmup/oauth/imap-smtp/${provider}`,
         {
           code: formData.email, // Backend uses 'code' field for email
           displayName: formData.displayName || formData.email,
@@ -187,25 +288,19 @@ export default function ImapSmtpConfigPage() {
           imapPort: formData.imapPort,
           imapUsername: formData.imapUsername,
           imapPassword: formData.imapPassword,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
         }
       );
 
       toast.dismiss(toastId);
 
-      if (data?.success) {
+      if (response.data?.success) {
         toast.success("Account connected successfully!");
         // Redirect to accounts page after 1 second
         setTimeout(() => {
           router.push("/email/warmup/accounts");
         }, 1000);
       } else {
-        throw new Error(data?.message || "Failed to connect account");
+        throw new Error(response.data?.message || "Failed to connect account");
       }
     } catch (error: any) {
       console.error("Failed to connect account:", error);
@@ -217,6 +312,22 @@ export default function ImapSmtpConfigPage() {
       setLoading(false);
     }
   };
+
+  const ConnectionStatusIcon = ({ status }: { status: string }) => {
+    switch (status) {
+      case "success":
+        return <IconCheck className="w-5 h-5 text-green-400" />;
+      case "error":
+        return <IconX className="w-5 h-5 text-red-400" />;
+      case "testing":
+        return <IconLoader className="w-5 h-5 text-yellow-400 animate-spin" />;
+      default:
+        return <div className="w-5 h-5 rounded-full border-2 border-text-300" />;
+    }
+  };
+
+  const isConnectionTestPassed =
+    connectionTest.smtp === "success" && connectionTest.imap === "success";
 
   return (
     <div className="min-h-screen bg-bg-100">
@@ -234,7 +345,7 @@ export default function ImapSmtpConfigPage() {
             Configure {defaults.name}
           </h1>
           <p className="text-text-200 text-sm mt-1">
-            Enter your IMAP/SMTP credentials and account details
+            Enter your IMAP/SMTP credentials and test the connection
           </p>
         </div>
       </header>
@@ -242,11 +353,29 @@ export default function ImapSmtpConfigPage() {
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Verified Sender Badge */}
+          {emailParam && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="backdrop-blur-xl bg-green-500/10 border border-green-500/30 rounded-2xl p-4 flex items-center gap-3"
+            >
+              <IconShieldCheck className="w-6 h-6 text-green-400" />
+              <div>
+                <p className="text-green-400 font-medium">Verified Sender</p>
+                <p className="text-text-200 text-sm">{emailParam}</p>
+              </div>
+            </motion.div>
+          )}
+
           {/* Account Information */}
           <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-6">
-            <h2 className="text-xl font-bold text-text-100 mb-6">
-              Account Information
-            </h2>
+            <div className="flex items-center gap-3 mb-6">
+              <IconMail className="w-6 h-6 text-brand-main" />
+              <h2 className="text-xl font-bold text-text-100">
+                Account Information
+              </h2>
+            </div>
             <div className="space-y-4">
               {/* Email Address */}
               <div>
@@ -259,11 +388,12 @@ export default function ImapSmtpConfigPage() {
                   value={formData.email}
                   onChange={handleInputChange}
                   placeholder="your-email@example.com"
-                  className="w-full px-4 py-3 bg-bg-200 border border-bg-300 rounded-lg text-text-100 placeholder-text-300 focus:outline-none focus:border-brand-main transition"
+                  className="w-full px-4 py-3 bg-bg-200 border border-bg-300 rounded-lg text-text-100 placeholder-text-300 focus:outline-none focus:border-brand-main transition opacity-70 cursor-not-allowed"
                   required
+                  disabled
                 />
                 <p className="text-text-300 text-xs mt-1">
-                  Must be from a verified domain
+                  Email from your verified sender (cannot be changed)
                 </p>
               </div>
 
@@ -367,9 +497,33 @@ export default function ImapSmtpConfigPage() {
 
           {/* SMTP Configuration */}
           <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-6">
-            <h2 className="text-xl font-bold text-text-100 mb-6">
-              SMTP Configuration
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <IconServer className="w-6 h-6 text-brand-main" />
+                <h2 className="text-xl font-bold text-text-100">
+                  SMTP Configuration
+                </h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <ConnectionStatusIcon status={connectionTest.smtp} />
+                <span className={`text-sm ${
+                  connectionTest.smtp === "success" ? "text-green-400" :
+                  connectionTest.smtp === "error" ? "text-red-400" :
+                  connectionTest.smtp === "testing" ? "text-yellow-400" :
+                  "text-text-300"
+                }`}>
+                  {connectionTest.smtp === "success" ? "Connected" :
+                   connectionTest.smtp === "error" ? "Failed" :
+                   connectionTest.smtp === "testing" ? "Testing..." :
+                   "Not tested"}
+                </span>
+              </div>
+            </div>
+            {connectionTest.smtpError && (
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                {connectionTest.smtpError}
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-text-100 mb-2">
@@ -432,9 +586,33 @@ export default function ImapSmtpConfigPage() {
 
           {/* IMAP Configuration */}
           <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-2xl p-6">
-            <h2 className="text-xl font-bold text-text-100 mb-6">
-              IMAP Configuration
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <IconLock className="w-6 h-6 text-brand-main" />
+                <h2 className="text-xl font-bold text-text-100">
+                  IMAP Configuration
+                </h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <ConnectionStatusIcon status={connectionTest.imap} />
+                <span className={`text-sm ${
+                  connectionTest.imap === "success" ? "text-green-400" :
+                  connectionTest.imap === "error" ? "text-red-400" :
+                  connectionTest.imap === "testing" ? "text-yellow-400" :
+                  "text-text-300"
+                }`}>
+                  {connectionTest.imap === "success" ? "Connected" :
+                   connectionTest.imap === "error" ? "Failed" :
+                   connectionTest.imap === "testing" ? "Testing..." :
+                   "Not tested"}
+                </span>
+              </div>
+            </div>
+            {connectionTest.imapError && (
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                {connectionTest.imapError}
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-text-100 mb-2">
@@ -495,23 +673,65 @@ export default function ImapSmtpConfigPage() {
             </div>
           </div>
 
-          {/* Submit Button */}
-          <div className="flex gap-4">
+          {/* Action Buttons */}
+          <div className="space-y-4">
+            {/* Test Connection Button */}
             <Button
               type="button"
-              onClick={() => router.push("/email/warmup/connect")}
-              className="flex-1 bg-bg-300 hover:bg-bg-300/80 text-text-100 px-6 py-3 rounded-lg transition"
-              disabled={loading}
+              onClick={handleTestConnection}
+              disabled={testingConnection || loading}
+              className="w-full bg-bg-300 hover:bg-bg-300/80 text-text-100 px-6 py-3 rounded-lg transition flex items-center justify-center gap-2"
             >
-              Cancel
+              {testingConnection ? (
+                <>
+                  <IconLoader className="w-5 h-5 animate-spin" />
+                  Testing Connection...
+                </>
+              ) : (
+                <>
+                  <IconPlugConnected className="w-5 h-5" />
+                  Test Connection
+                </>
+              )}
             </Button>
-            <Button
-              type="submit"
-              className="flex-1 bg-brand-main hover:bg-brand-main/80 text-text-100 px-6 py-3 rounded-lg transition"
-              disabled={loading}
-            >
-              {loading ? "Connecting..." : "Connect Account"}
-            </Button>
+
+            <div className="flex gap-4">
+              <Button
+                type="button"
+                onClick={() => router.push("/email/warmup/connect")}
+                className="flex-1 bg-bg-300 hover:bg-bg-300/80 text-text-100 px-6 py-3 rounded-lg transition"
+                disabled={loading || testingConnection}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className={`flex-1 px-6 py-3 rounded-lg transition flex items-center justify-center gap-2 ${
+                  isConnectionTestPassed
+                    ? "bg-brand-main hover:bg-brand-main/80 text-text-100"
+                    : "bg-bg-300 text-text-300 cursor-not-allowed"
+                }`}
+                disabled={loading || testingConnection || !isConnectionTestPassed}
+              >
+                {loading ? (
+                  <>
+                    <IconLoader className="w-5 h-5 animate-spin" />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <IconCheck className="w-5 h-5" />
+                    Connect Account
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {!isConnectionTestPassed && (
+              <p className="text-center text-text-300 text-sm">
+                Please test your connection before connecting the account
+              </p>
+            )}
           </div>
         </form>
       </main>

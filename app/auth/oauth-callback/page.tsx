@@ -2,16 +2,19 @@
 
 import axios from "axios";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
 import { tokenStorage } from "@/utils/auth/tokenStorage";
+import { IconAlertTriangle, IconArrowLeft } from "@tabler/icons-react";
+import Link from "next/link";
 
 export default function OAuthCallbackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [hasProcessed, setHasProcessed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // Prevent double execution in React strict mode
@@ -71,6 +74,7 @@ export default function OAuthCallbackPage() {
         let username: string | undefined;
         let timezone: string | undefined;
         let dailyLimit: number | undefined;
+        let expectedEmail: string | undefined;
 
         if (typeof window !== "undefined") {
           try {
@@ -85,6 +89,8 @@ export default function OAuthCallbackPage() {
               if (typeof parsed.dailyLimit === "number") {
                 dailyLimit = parsed.dailyLimit;
               }
+              // Get expected email for validation (from verified sender selection)
+              expectedEmail = parsed.email || undefined;
             }
           } catch (settingsError) {
             console.error(
@@ -103,6 +109,8 @@ export default function OAuthCallbackPage() {
         if (username) payload.username = username;
         if (timezone) payload.timezone = timezone;
         if (typeof dailyLimit === "number") payload.dailyLimit = dailyLimit;
+        // Pass expected email for backend validation
+        if (expectedEmail) payload.expectedEmail = expectedEmail;
 
         // Send callback to backend using axios (project convention)
         const { data } = await axios.post(
@@ -131,19 +139,45 @@ export default function OAuthCallbackPage() {
         }
       } catch (error: any) {
         console.error("OAuth callback error:", error);
-        const errorMessage = error.message || "Failed to connect email account";
-        toast.error(errorMessage);
-        // Redirect back to connect page
-        setTimeout(() => {
-          router.push("/email/warmup/connect");
-        }, 2000);
-      } finally {
+        // Show backend error message if available (e.g., email mismatch)
+        const errorMessage = 
+          error.response?.data?.message || 
+          error.message || 
+          "Failed to connect email account";
+        
+        setError(errorMessage);
         setLoading(false);
       }
     };
 
     handleOAuthCallback();
   }, [hasProcessed, router, searchParams]);
+
+  // Show error state with proper UI
+  if (error) {
+    return (
+      <div className="min-h-screen bg-bg-100 flex items-center justify-center p-6">
+        <div className="max-w-md w-full backdrop-blur-xl bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center">
+          <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+            <IconAlertTriangle className="w-8 h-8 text-red-400" />
+          </div>
+          <h1 className="text-xl font-bold text-text-100 mb-3">
+            Connection Failed
+          </h1>
+          <p className="text-text-200 mb-6">
+            {error}
+          </p>
+          <Link
+            href="/email/warmup/connect"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-brand-main hover:bg-brand-main/90 text-white font-medium rounded-xl transition"
+          >
+            <IconArrowLeft className="w-4 h-4" />
+            Try Again
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-bg-100 flex items-center justify-center">

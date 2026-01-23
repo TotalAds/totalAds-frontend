@@ -92,7 +92,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
   // Navigation sections like Second Brain Labs
   const navSections: NavSection[] = [
     {
-      title: "GENERAL",
+      title: "EMAIL",
       items: [
         {
           name: "Dashboard",
@@ -110,11 +110,6 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
           href: "/email/leads",
           icon: <IconUsers className="w-5 h-5" />,
         },
-      ],
-    },
-    {
-      title: "EMAIL",
-      items: [
         {
           name: "Domains",
           href: "/email/domains",
@@ -129,6 +124,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
         },
       ],
     },
+    
     // {
     //   title: "WHATSAPP",
     //   items: [
