@@ -29,6 +29,8 @@ interface SenderQuota {
   resetAt: string;
   override: number | null;
   allowed: boolean;
+  domainTrustLevel?: 'new' | 'warming' | 'aged' | 'agency';
+  domainAgeInDays?: number;
 }
 
 interface Domain {
@@ -222,6 +224,53 @@ export default function EmailSendersPage() {
       >
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
+    );
+  };
+
+  const getTrustLevelBadge = (trustLevel?: string, ageInDays?: number) => {
+    const trustMap: Record<string, { bg: string; text: string; label: string; description: string }> = {
+      new: { 
+        bg: "bg-blue-100", 
+        text: "text-blue-600", 
+        label: "🌱 New Domain",
+        description: "Conservative ramp-up (20-1000/day)"
+      },
+      warming: { 
+        bg: "bg-yellow-100", 
+        text: "text-yellow-600", 
+        label: "🔥 Warming Up",
+        description: "Moderate ramp-up (100-2000/day)"
+      },
+      aged: { 
+        bg: "bg-green-100", 
+        text: "text-green-600", 
+        label: "✅ Aged Domain",
+        description: "Full capacity available"
+      },
+      agency: { 
+        bg: "bg-purple-100", 
+        text: "text-purple-600", 
+        label: "🏢 Agency",
+        description: "Manual override enabled"
+      },
+    };
+
+    const style = trustMap[trustLevel || 'new'] || trustMap.new;
+
+    return (
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${style.bg} ${style.text}`}>
+            {style.label}
+          </span>
+          {ageInDays !== undefined && (
+            <span className="text-text-200 text-xs">
+              {ageInDays} days old
+            </span>
+          )}
+        </div>
+        <p className="text-text-200 text-xs">{style.description}</p>
+      </div>
     );
   };
 
@@ -443,6 +492,16 @@ export default function EmailSendersPage() {
                                 </p>
                               </div>
                             </div>
+
+                            {/* Domain Trust Level */}
+                            {quota.domainTrustLevel && (
+                              <div className="bg-brand-main/5 rounded-lg p-3 mt-3">
+                                <p className="text-text-200 text-xs mb-2 font-medium">
+                                  Domain Ramp-Up Status
+                                </p>
+                                {getTrustLevelBadge(quota.domainTrustLevel, quota.domainAgeInDays)}
+                              </div>
+                            )}
 
                             {/* Reset Time */}
                             <p className="text-text-200 text-xs mt-2">

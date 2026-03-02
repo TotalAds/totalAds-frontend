@@ -320,9 +320,21 @@ export default function LeadsPage() {
     if (!lead || !lead.tags || lead.tags.length === 0) {
       return <span className="text-gray-500 text-sm">-</span>;
     }
+
+    const MAX_VISIBLE_TAGS = 2;
+    const visibleTags = lead.tags.slice(0, MAX_VISIBLE_TAGS);
+    const remainingCount = lead.tags.length - MAX_VISIBLE_TAGS;
+    const remainingTagsNames =
+      remainingCount > 0
+        ? lead.tags
+            .slice(MAX_VISIBLE_TAGS)
+            .map((t) => t.name)
+            .join(", ")
+        : "";
+
     return (
       <div
-        className="flex flex-wrap gap-1.5"
+        className="flex flex-wrap gap-1.5 items-center"
         style={{
           width: "100%",
           maxWidth: "100%",
@@ -330,7 +342,7 @@ export default function LeadsPage() {
           boxSizing: "border-box",
         }}
       >
-        {lead.tags.map((tag) => (
+        {visibleTags.map((tag) => (
           <span
             key={tag.id}
             className="px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap"
@@ -347,6 +359,15 @@ export default function LeadsPage() {
             {tag.name}
           </span>
         ))}
+        {remainingCount > 0 && (
+          <span
+            className="px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap bg-gray-100 text-gray-600 border border-gray-200"
+            title={remainingTagsNames}
+            style={{ flexShrink: 0 }}
+          >
+            +{remainingCount}
+          </span>
+        )}
       </div>
     );
   }, []);
@@ -357,9 +378,21 @@ export default function LeadsPage() {
       if (!lead || !lead.categories || lead.categories.length === 0) {
         return <span className="text-gray-500 text-sm">-</span>;
       }
+
+      const MAX_VISIBLE_CATEGORIES = 2;
+      const visibleCategories = lead.categories.slice(0, MAX_VISIBLE_CATEGORIES);
+      const remainingCount = lead.categories.length - MAX_VISIBLE_CATEGORIES;
+      const remainingCategoriesNames =
+        remainingCount > 0
+          ? lead.categories
+              .slice(MAX_VISIBLE_CATEGORIES)
+              .map((c) => c.name)
+              .join(", ")
+          : "";
+
       return (
         <div
-          className="flex flex-wrap gap-1.5"
+          className="flex flex-wrap gap-1.5 items-center"
           style={{
             width: "100%",
             maxWidth: "100%",
@@ -367,7 +400,7 @@ export default function LeadsPage() {
             boxSizing: "border-box",
           }}
         >
-          {lead.categories.map((category) => (
+          {visibleCategories.map((category) => (
             <span
               key={category.id}
               className="px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap"
@@ -388,6 +421,15 @@ export default function LeadsPage() {
               {category.name}
             </span>
           ))}
+          {remainingCount > 0 && (
+            <span
+              className="px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap bg-gray-100 text-gray-600 border border-gray-200"
+              title={remainingCategoriesNames}
+              style={{ flexShrink: 0 }}
+            >
+              +{remainingCount}
+            </span>
+          )}
         </div>
       );
     },
