@@ -6,7 +6,9 @@ import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
+import { EmailDeliveryBanner } from "@/components/email/EmailDeliveryBanner";
 import emailClient from "@/utils/api/emailClient";
+import { useEmailProvider } from "@/hooks/useEmailProvider";
 
 interface EmailSender {
   id: string;
@@ -31,6 +33,10 @@ interface SenderQuota {
   allowed: boolean;
   domainTrustLevel?: 'new' | 'warming' | 'aged' | 'agency';
   domainAgeInDays?: number;
+  healthScore?: number;
+  healthStatus?: 'excellent' | 'good' | 'warning' | 'critical';
+  bounceRate7d?: number;
+  complaintRate7d?: number;
 }
 
 interface Domain {
@@ -42,6 +48,7 @@ interface Domain {
 export default function EmailSendersPage() {
   const params = useParams();
   const domainId = params.id as string;
+  const { sesProvider, sesConnected } = useEmailProvider();
 
   const [senders, setSenders] = useState<EmailSender[]>([]);
   const [domain, setDomain] = useState<Domain | null>(null);
@@ -304,6 +311,7 @@ export default function EmailSendersPage() {
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <EmailDeliveryBanner sesProvider={sesProvider} sesConnected={sesConnected} />
         {/* Add New Sender Form */}
         <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-xl p-6 mb-8">
           <h2 className="text-lg font-semibold text-text-100 mb-4">
@@ -494,12 +502,36 @@ export default function EmailSendersPage() {
                             </div>
 
                             {/* Domain Trust Level */}
-                            {quota.domainTrustLevel && (
+                            {(quota.domainTrustLevel || quota.healthScore !== undefined) && (
                               <div className="bg-brand-main/5 rounded-lg p-3 mt-3">
                                 <p className="text-text-200 text-xs mb-2 font-medium">
-                                  Domain Ramp-Up Status
+                                  Reputation & Ramp-Up Status
                                 </p>
-                                {getTrustLevelBadge(quota.domainTrustLevel, quota.domainAgeInDays)}
+                                {quota.domainTrustLevel && getTrustLevelBadge(quota.domainTrustLevel, quota.domainAgeInDays)}
+                                {quota.healthScore !== undefined && (
+                                  <div className="mt-2 flex flex-col gap-1">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-text-200 text-xs">
+                                        Health Score
+                                      </span>
+                                      <span className="text-text-100 text-sm font-semibold">
+                                        {quota.healthScore}/100{" "}
+                                        {quota.healthStatus &&
+                                          `(${quota.healthStatus.charAt(0).toUpperCase()}${quota.healthStatus.slice(
+                                            1
+                                          )})`}
+                                      </span>
+                                    </div>
+                                    {(quota.bounceRate7d !== undefined ||
+                                      quota.complaintRate7d !== undefined) && (
+                                      <p className="text-text-200 text-xs">
+                                        7-day bounce:{" "}
+                                        {((quota.bounceRate7d || 0) * 100).toFixed(2)}%, complaints:{" "}
+                                        {((quota.complaintRate7d || 0) * 100).toFixed(3)}%
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             )}
 

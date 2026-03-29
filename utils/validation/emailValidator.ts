@@ -171,7 +171,7 @@ export const validateEmails = (
  * @returns Object with duplicates and unique emails
  */
 export const findDuplicateEmails = (
-  csvData: Array<Record<string, any>> | any,
+  csvData: Array<Record<string, any>> | string[],
   emailField: string = "email"
 ): {
   unique: string[];
@@ -180,19 +180,32 @@ export const findDuplicateEmails = (
   const emailMap = new Map<string, number[]>();
   const unique: string[] = [];
 
-  csvData.forEach((row: Record<string, any>, index: number) => {
-    const email = row[emailField];
-    if (!email) return;
-
-    const normalized = normalizeEmail(email);
-    if (!normalized) return;
-
+  const pushIndex = (normalized: string, index: number) => {
     if (!emailMap.has(normalized)) {
       emailMap.set(normalized, []);
       unique.push(normalized);
     }
     emailMap.get(normalized)!.push(index);
-  });
+  };
+
+  // Plain string list (e.g. pre-extracted emails) — same dedupe semantics as row objects
+  if (Array.isArray(csvData) && csvData.length > 0 && typeof csvData[0] === "string") {
+    (csvData as string[]).forEach((raw, index) => {
+      const normalized = normalizeEmail(raw);
+      if (!normalized) return;
+      pushIndex(normalized, index);
+    });
+  } else {
+    (csvData as Array<Record<string, any>>).forEach((row: Record<string, any>, index: number) => {
+      const email = row[emailField];
+      if (!email) return;
+
+      const normalized = normalizeEmail(email);
+      if (!normalized) return;
+
+      pushIndex(normalized, index);
+    });
+  }
 
   const duplicates = Array.from(emailMap.entries())
     .filter(([_, indices]) => indices.length > 1)

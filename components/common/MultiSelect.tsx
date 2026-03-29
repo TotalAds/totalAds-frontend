@@ -39,23 +39,26 @@ export default function MultiSelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Theme-specific classes
   const isDark = theme === "dark";
-  const inputBg = isDark ? "bg-brand-main/10" : "bg-white/5";
-  const inputBorder = isDark ? "border-brand-main/20" : "border-white/15";
-  const inputText = isDark ? "text-text-100" : "text-white";
-  const inputPlaceholder = isDark
-    ? "placeholder-text-200"
-    : "placeholder-gray-500";
-  const dropdownBg = isDark ? "bg-bg-200" : "bg-white/10";
-  const dropdownBorder = isDark ? "border-brand-main/20" : "border-white/15";
-  const hoverBg = isDark ? "hover:bg-brand-main/10" : "hover:bg-white/5";
-  const chipBg = isDark ? "bg-brand-main/20" : "bg-purple-500/30";
-  const chipText = isDark ? "text-text-100" : "text-white";
-  const focusRing = isDark ? "focus:ring-brand-main" : "focus:ring-purple-500";
+  const shellClass = isDark
+    ? "bg-bg-100 border-white/10 text-text-100"
+    : "bg-white border-slate-200 text-slate-700";
+  const placeholderClass = isDark ? "text-text-200" : "text-slate-400";
+  const inputPlaceholderClass = isDark
+    ? "placeholder:text-text-200"
+    : "placeholder:text-slate-400";
+  const dropdownClass = isDark
+    ? "bg-bg-100 border-white/10"
+    : "bg-white border-slate-200";
+  const chipClass = isDark
+    ? "bg-brand-main/20 text-text-100"
+    : "bg-slate-100 text-slate-700";
+  const optionHoverClass = isDark
+    ? "hover:bg-brand-main/10"
+    : "hover:bg-slate-50";
   const checkboxClass = isDark
-    ? "w-4 h-4 rounded border-brand-main/30 text-brand-main focus:ring-brand-main"
-    : "w-4 h-4 rounded border-purple-400 text-purple-500 focus:ring-purple-500";
+    ? "w-4 h-4 rounded border-white/20 text-brand-main focus:ring-blue-500"
+    : "w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500";
 
   const selectedOptions = options.filter((opt) => selectedIds.includes(opt.id));
   const filteredOptions = options.filter((opt) =>
@@ -111,28 +114,26 @@ export default function MultiSelect({
       <button
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
-        className={`w-full px-4 py-2 ${inputBg} border ${inputBorder} rounded-lg ${inputText} focus:outline-none focus:ring-2 ${focusRing} text-left flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed ${styles.button}`}
+        className={`w-full min-h-11 px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-left flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 ${shellClass} ${styles.button}`}
       >
         <div className="flex flex-wrap gap-2 flex-1">
           {selectedOptions.length > 0 ? (
             selectedOptions.map((opt) => (
               <div
                 key={opt.id}
-                className={`flex items-center gap-1 px-2 py-1 ${chipBg} rounded text-xs ${chipText}`}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs ${chipClass}`}
               >
                 <span>{opt.name}</span>
                 <button
                   onClick={(e) => handleRemoveChip(opt.id, e)}
-                  className={
-                    isDark ? "hover:text-text-200" : "hover:text-gray-200"
-                  }
+                  className={isDark ? "hover:text-text-200" : "hover:text-slate-500"}
                 >
                   <IconX size={14} />
                 </button>
               </div>
             ))
           ) : (
-            <span className={isDark ? "text-text-200" : "text-gray-400"}>
+            <span className={placeholderClass}>
               {placeholder}
             </span>
           )}
@@ -146,7 +147,7 @@ export default function MultiSelect({
       {/* Dropdown */}
       {isOpen && (
         <div
-          className={`${styles.dropdown} ${dropdownBg} border ${dropdownBorder} rounded-lg shadow-2xl`}
+          className={`${styles.dropdown} border rounded-lg shadow-xl ${dropdownClass}`}
         >
           {searchable && (
             <div
@@ -157,7 +158,7 @@ export default function MultiSelect({
               <div className="relative">
                 <IconSearch
                   size={16}
-                  className={isDark ? "text-text-200" : "text-gray-400"}
+                  className={`absolute left-3 top-1/2 -translate-y-1/2 ${placeholderClass}`}
                 />
                 <input
                   ref={searchInputRef}
@@ -165,7 +166,7 @@ export default function MultiSelect({
                   placeholder="Search..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className={`w-full pl-9 pr-3 py-2 ${inputBg} border ${inputBorder} rounded ${inputText} ${inputPlaceholder} focus:outline-none focus:ring-1 ${focusRing} text-sm`}
+                  className={`w-full h-10 pl-9 pr-3 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors duration-200 ${shellClass} ${inputPlaceholderClass}`}
                 />
               </div>
             </div>
@@ -175,7 +176,7 @@ export default function MultiSelect({
             {filteredOptions.length === 0 ? (
               <div
                 className={`p-3 text-center ${
-                  isDark ? "text-text-200" : "text-gray-400"
+                  isDark ? "text-text-200" : "text-slate-400"
                 } text-sm`}
               >
                 No options found
@@ -184,7 +185,7 @@ export default function MultiSelect({
               filteredOptions.map((opt) => (
                 <label
                   key={opt.id}
-                  className={`flex items-center gap-3 px-4 py-2 ${hoverBg} cursor-pointer transition`}
+                  className={`flex items-center gap-3 px-4 py-2 cursor-pointer transition-colors ${optionHoverClass}`}
                 >
                   <input
                     type="checkbox"
@@ -200,9 +201,7 @@ export default function MultiSelect({
                       />
                     )}
                     <span
-                      className={`${
-                        isDark ? "text-text-100" : "text-white"
-                      } text-sm`}
+                      className={`${isDark ? "text-text-100" : "text-slate-700"} text-sm`}
                     >
                       {opt.name}
                     </span>
@@ -210,7 +209,7 @@ export default function MultiSelect({
                   {opt.count !== undefined && (
                     <span
                       className={`${
-                        isDark ? "text-text-200" : "text-gray-400"
+                        isDark ? "text-text-200" : "text-slate-400"
                       } text-xs`}
                     >
                       ({opt.count})
@@ -232,7 +231,7 @@ export default function MultiSelect({
                 className={`w-full px-3 py-1 text-xs ${
                   isDark
                     ? "text-text-200 hover:text-text-100 hover:bg-brand-main/10"
-                    : "text-gray-400 hover:text-white hover:bg-white/10"
+                    : "text-slate-500 hover:text-slate-700 hover:bg-slate-100"
                 } rounded transition`}
               >
                 Clear all

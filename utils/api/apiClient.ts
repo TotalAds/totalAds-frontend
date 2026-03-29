@@ -252,3 +252,31 @@ apiClient.interceptors.response.use(
 );
 
 export default apiClient;
+
+/** Email delivery provider (onboarding step 5). One-time choice. */
+export type SesProvider = "leadsnipper_managed" | "custom";
+
+export interface EmailProviderStatus {
+  sesProvider: SesProvider | null;
+  sesProviderSetAt: string | null;
+}
+
+/** GET /onboarding/email-provider - current user's email delivery mode */
+export const getEmailProvider = async (): Promise<EmailProviderStatus> => {
+  const res = await apiClient.get("/onboarding/email-provider");
+  const data = res.data;
+  // Backend shape: { status, message, payload: { success, payload: { sesProvider, sesProviderSetAt } } }
+  const inner =
+    data?.payload?.payload ??
+    data?.payload ??
+    data;
+  return inner as EmailProviderStatus;
+};
+
+/** POST /onboarding/step/5 - set email delivery and mark onboarding complete */
+export const setEmailProviderStep5 = async (
+  sesProvider: SesProvider
+): Promise<{ redirectTo: string; onboardingCompleted: boolean }> => {
+  const res = await apiClient.post("/onboarding/step/5", { sesProvider });
+  return res.data?.payload ?? res.data;
+};

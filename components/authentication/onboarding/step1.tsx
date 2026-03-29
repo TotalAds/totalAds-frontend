@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import toast from "react-hot-toast";
 
+import { useAuthContext } from "@/context/AuthContext";
 import apiClient from "@/utils/api/apiClient";
 
 import { OnboardingData } from "../onboarding";
@@ -13,9 +14,8 @@ interface Step1Props {
 }
 
 export function OnboardingStep1({ onComplete, isLoading }: Step1Props) {
+  const { refreshUser } = useAuthContext();
   const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
     company: "",
     companyWebsite: "",
     hasWebsite: false,
@@ -36,14 +36,6 @@ export function OnboardingStep1({ onComplete, isLoading }: Step1Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.firstName.trim()) {
-      toast.error("First name is required");
-      return;
-    }
-    if (!formData.lastName.trim()) {
-      toast.error("Last name is required");
-      return;
-    }
     if (!formData.company.trim()) {
       toast.error("Company name is required");
       return;
@@ -61,13 +53,12 @@ export function OnboardingStep1({ onComplete, isLoading }: Step1Props) {
     try {
       setSubmitting(true);
       await apiClient.post("/onboarding/step/1", {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
         company: formData.company,
         companyWebsite: formData.hasWebsite ? formData.companyWebsite : "",
         hasWebsite: formData.hasWebsite,
       });
 
+      await refreshUser();
       toast.success("Step 1 completed!");
       onComplete(formData);
     } catch (error: any) {
@@ -81,37 +72,8 @@ export function OnboardingStep1({ onComplete, isLoading }: Step1Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <h2 className="text-xl font-semibold text-text-100 mb-4">
-        Tell us about yourself
+        Tell us about your company
       </h2>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium text-text-100 mb-1">
-            First Name
-          </label>
-          <input
-            type="text"
-            name="firstName"
-            value={formData.firstName}
-            onChange={handleChange}
-            placeholder="John"
-            className="w-full px-3 py-2 text-sm border border-bg-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-main bg-bg-100 text-text-100"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-text-100 mb-1">
-            Last Name
-          </label>
-          <input
-            type="text"
-            name="lastName"
-            value={formData.lastName}
-            onChange={handleChange}
-            placeholder="Doe"
-            className="w-full px-3 py-2 text-sm border border-bg-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-main bg-bg-100 text-text-100"
-          />
-        </div>
-      </div>
 
       <div>
         <label className="block text-sm font-medium text-text-100 mb-1">

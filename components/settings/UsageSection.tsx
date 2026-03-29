@@ -15,6 +15,8 @@ interface UsageStats {
   complaintRate: number;
   openRate: number;
   clickRate: number;
+  healthScore: number;
+  healthStatus: "excellent" | "good" | "warning" | "critical";
 }
 
 interface ChartData {
@@ -88,6 +90,51 @@ const UsageSection = () => {
 
   return (
     <div className="space-y-8">
+      {/* Account Health */}
+      <div>
+        <h2 className="text-2xl font-bold text-text-100 mb-3">
+          Account Health
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="rounded-xl border border-brand-main/10 p-5 bg-bg-300/40 shadow-sm">
+            <p className="text-text-200 text-xs mb-2">Health Score</p>
+            <p className="text-3xl font-bold text-brand-main">
+              {usageStats.healthScore.toFixed(0)}
+              <span className="text-text-200 text-sm ml-2">/ 100</span>
+            </p>
+            <p className="text-text-200 text-xs mt-1 capitalize">
+              Status: {usageStats.healthStatus}
+            </p>
+          </div>
+          <div className="rounded-xl border border-brand-main/10 p-5 bg-bg-300/40 shadow-sm">
+            <p className="text-text-200 text-xs mb-2">Reputation Signals (30d)</p>
+            <p className="text-sm text-text-200">
+              Bounce:{" "}
+              <span className="font-semibold text-red-400">
+                {usageStats.bounceRate.toFixed(2)}%
+              </span>
+              , Complaints:{" "}
+              <span className="font-semibold text-red-400">
+                {usageStats.complaintRate.toFixed(3)}%
+              </span>
+            </p>
+          </div>
+          <div className="rounded-xl border border-brand-main/10 p-5 bg-bg-300/40 shadow-sm">
+            <p className="text-text-200 text-xs mb-2">Engagement (30d)</p>
+            <p className="text-sm text-text-200">
+              Opens:{" "}
+              <span className="font-semibold text-brand-main">
+                {usageStats.openRate.toFixed(2)}%
+              </span>
+              , Clicks:{" "}
+              <span className="font-semibold text-brand-main">
+                {usageStats.clickRate.toFixed(2)}%
+              </span>
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Usage Overview */}
       <div>
         <h2 className="text-2xl font-bold text-text-100 mb-6">

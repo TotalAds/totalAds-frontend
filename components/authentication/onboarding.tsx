@@ -1,49 +1,60 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import React, { useState } from "react";
-import toast from "react-hot-toast";
+import React, { useEffect, useRef, useState } from "react";
 
 import GetLogo from "@/components/common/getLogo";
+import { useAuthContext } from "@/context/AuthContext";
 
 import OnboardingStep1 from "./onboarding/step1";
-import OnboardingStep2 from "./onboarding/step2";
-import OnboardingStep3 from "./onboarding/step3";
-import OnboardingStep4 from "./onboarding/step4";
+import OnboardingStep2Combined from "./onboarding/step2Combined";
+import OnboardingStep3Combined from "./onboarding/step3Combined";
 
 export interface OnboardingData {
   // Step 1
-  firstName?: string;
-  lastName?: string;
   company?: string;
   companyWebsite?: string;
   hasWebsite?: boolean;
 
-  // Step 2
+  // Step 2 (combined)
   teamSize?: string;
   contactsNeeded?: string;
   sellOnline?: boolean;
   marketingUpdatesOptIn?: boolean;
 
-  // Step 3
+  // Step 2 (combined)
   companyAddress?: string;
   companyZipcode?: string;
   companyCity?: string;
   companyCountry?: string;
 
-  // Step 4
+  // Step 3 (combined)
   phoneNumber?: string;
 }
 
 export function OnboardingComponent() {
-  const router = useRouter();
+  const { state } = useAuthContext();
   const [currentStep, setCurrentStep] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState<OnboardingData>({});
+  const [isLoading] = useState(false);
 
-  const handleStepComplete = (stepData: Partial<OnboardingData>) => {
-    setFormData((prev) => ({ ...prev, ...stepData }));
-    if (currentStep < 4) {
+  const totalSteps = 3;
+  const didInitFromUser = useRef(false);
+
+  useEffect(() => {
+    if (didInitFromUser.current) return;
+    if (state.isLoading) return;
+    const step = state.user?.onboardingStep ?? 0;
+
+    // Backend step mapping -> UI steps (3-step wizard)
+    // 0: nothing saved -> UI 1
+    // 1 or 2: step 1/2 saved -> UI 2 (our combined step)
+    // 3+: address saved (and beyond) -> UI 3 (phone + email)
+    const uiStep = step >= 3 ? 3 : step >= 1 ? 2 : 1;
+    setCurrentStep(uiStep);
+    didInitFromUser.current = true;
+  }, [state.isLoading, state.user]);
+
+  const handleStepComplete = (_stepData: Partial<OnboardingData>) => {
+    if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -55,7 +66,7 @@ export function OnboardingComponent() {
   };
 
   return (
-    <div className="min-h-screen bg-bg-100 flex items-center justify-center p-4 overflow-hidden">
+    <div className="h-screen  bg-bg-100 flex items-center justify-center p-4 overflow-auto">
       {/* Background decorative elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-brand-main rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
@@ -63,7 +74,7 @@ export function OnboardingComponent() {
       </div>
 
       {/* Main content */}
-      <div className="relative z-10 w-full max-w-md">
+      <div className="h-full relative z-10 w-full max-w-md ">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-4">
@@ -75,13 +86,13 @@ export function OnboardingComponent() {
             Welcome to LeadSnipper
           </h1>
           <p className="text-text-200 text-sm">
-            Step {currentStep} of 4 - Let's get you set up
+            Step {currentStep} of {totalSteps} - Let’s get you set up
           </p>
         </div>
 
         {/* Progress bar */}
         <div className="mb-8 flex gap-2">
-          {[1, 2, 3, 4].map((step) => (
+          {Array.from({ length: totalSteps }, (_, idx) => idx + 1).map((step) => (
             <div
               key={step}
               className={`h-1 flex-1 rounded-full transition-colors ${
@@ -100,25 +111,16 @@ export function OnboardingComponent() {
             />
           )}
           {currentStep === 2 && (
-            <OnboardingStep2
+            <OnboardingStep2Combined
               onComplete={handleStepComplete}
               onBack={handleBack}
               isLoading={isLoading}
             />
           )}
           {currentStep === 3 && (
-            <OnboardingStep3
-              onComplete={handleStepComplete}
+            <OnboardingStep3Combined
               onBack={handleBack}
               isLoading={isLoading}
-            />
-          )}
-          {currentStep === 4 && (
-            <OnboardingStep4
-              onComplete={handleStepComplete}
-              onBack={handleBack}
-              isLoading={isLoading}
-              formData={formData}
             />
           )}
         </div>

@@ -204,6 +204,19 @@ export default function CreatableSelect({
     }
   };
 
+  const handleInputKeyDown = async (
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (e.key !== "Enter") return;
+
+    e.preventDefault();
+    if (isCreating || isLoading) return;
+
+    if (canCreate && onCreateNew) {
+      await handleCreateNew();
+    }
+  };
+
   const filteredOptions = options.filter(
     (opt) =>
       opt.name?.toLowerCase()?.includes(inputValue.toLowerCase()) &&
@@ -219,7 +232,7 @@ export default function CreatableSelect({
   return (
     <div ref={containerRef} className="relative w-full">
       {label && (
-        <label className="block text-sm font-medium text-text-200 mb-2">
+        <label className="mb-2 block text-sm font-medium text-slate-600">
           {label}
         </label>
       )}
@@ -229,17 +242,17 @@ export default function CreatableSelect({
         <div
           ref={triggerRef}
           onClick={() => !isLoading && setIsOpen(!isOpen)}
-          className={`min-h-10 px-3 py-2 bg-brand-main/5 border border-brand-main/20 rounded-lg flex flex-wrap gap-2 items-center transition-colors ${
+          className={`min-h-11 px-4 py-2.5 bg-white border border-slate-200 rounded-lg flex flex-wrap gap-2 items-center transition-colors duration-200 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 ${
             isLoading
               ? "opacity-60 cursor-not-allowed"
-              : "cursor-pointer hover:bg-brand-main/10"
+              : "cursor-pointer hover:border-slate-300"
           }`}
         >
           {value.length > 0 ? (
             value.map((item) => (
               <div
                 key={item.id}
-                className="flex items-center gap-1 px-2 py-1 bg-brand-main/10 rounded text-sm text-text-100"
+                className="flex items-center gap-1 px-2 py-1 bg-slate-100 rounded-md text-sm text-slate-700"
               >
                 {item.color && (
                   <div
@@ -253,20 +266,20 @@ export default function CreatableSelect({
                     e.stopPropagation();
                     handleRemove(item.id);
                   }}
-                  className="hover:text-brand-main transition-colors"
+                  className="text-slate-500 hover:text-slate-700 transition-colors"
                 >
                   <IconX size={14} />
                 </button>
               </div>
             ))
           ) : (
-            <span className="text-text-200/60">
+            <span className="text-slate-400">
               {isLoading ? "Loading..." : placeholder}
             </span>
           )}
           <IconChevronDown
             size={18}
-            className={`ml-auto text-text-200/60 transition-transform ${
+            className={`ml-auto text-slate-400 transition-transform ${
               isOpen ? "rotate-180" : ""
             } ${isLoading ? "opacity-50" : ""}`}
           />
@@ -278,7 +291,7 @@ export default function CreatableSelect({
           createPortal(
             <div
               data-creatable-select-dropdown
-              className="fixed bg-bg-100 border border-brand-main/20 rounded-lg shadow-lg z-[9999] backdrop-blur-xl overflow-y-auto overflow-x-hidden"
+              className="fixed bg-white border border-slate-200 rounded-lg shadow-xl z-[9999] overflow-y-auto overflow-x-hidden"
               style={{
                 ...(dropdownPosition.isAbove
                   ? { bottom: `${dropdownPosition.bottom}px` }
@@ -289,18 +302,25 @@ export default function CreatableSelect({
               }}
             >
               {/* Search input */}
-              <div className="p-2 border-b border-brand-main/20">
+              <div className="p-2 border-b border-slate-200">
                 <input
                   ref={inputRef}
                   type="text"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleInputKeyDown}
                   placeholder="Search or create..."
-                  className="w-full px-3 py-2 bg-brand-main/5 border border-brand-main/20 rounded text-text-100 placeholder-text-200/60 focus:outline-none focus:ring-2 focus:ring-brand-main"
+                  className="w-full h-10 px-3 py-2 bg-white border border-slate-200 rounded-md text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors duration-200"
                   disabled={isLoading}
                   autoFocus
                 />
               </div>
+
+              {canCreate && onCreateNew && (
+                <div className="px-3 py-2 border-b border-slate-200 text-xs text-slate-500 bg-slate-50/80">
+                  Press Enter to create "{inputValue.trim()}"
+                </div>
+              )}
 
               {/* Options list */}
               <div
@@ -317,7 +337,7 @@ export default function CreatableSelect({
                     <button
                       key={option.id}
                       onClick={() => handleSelect(option)}
-                      className="w-full text-left px-3 py-2 hover:bg-brand-main/10 transition-colors flex items-center gap-2 text-text-100"
+                      className="w-full text-left px-3 py-2 hover:bg-slate-50 transition-colors flex items-center gap-2 text-slate-700"
                     >
                       {option.color && (
                         <div
@@ -329,24 +349,11 @@ export default function CreatableSelect({
                     </button>
                   ))
                 ) : (
-                  <div className="px-3 py-2 text-text-200/60 text-sm">
+                  <div className="px-3 py-2 text-slate-400 text-sm">
                     No options found
                   </div>
                 )}
               </div>
-
-              {/* Create new option */}
-              {canCreate && onCreateNew && (
-                <div className="border-t border-brand-main/20 p-2">
-                  <button
-                    onClick={handleCreateNew}
-                    disabled={isCreating}
-                    className="w-full px-3 py-2 bg-brand-main/20 hover:bg-brand-main/30 text-brand-main rounded text-sm transition-colors disabled:opacity-50"
-                  >
-                    {isCreating ? "Creating..." : `Create "${inputValue}"`}
-                  </button>
-                </div>
-              )}
             </div>,
             document.body
           )}

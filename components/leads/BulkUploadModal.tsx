@@ -430,41 +430,38 @@ export default function BulkUploadModal({
     });
 
     const duplicateEmailsInFile: Array<{ email: string; rows: number[] }> = [];
-    const uniqueEmails: string[] = [];
 
     emailMap.forEach((rows, email) => {
       if (rows.length > 1) {
         duplicateEmailsInFile.push({ email, rows });
-      } else {
-        uniqueEmails.push(email);
       }
     });
 
-    const duplicateCount = duplicateEmailsInFile.reduce(
+    const duplicateRowCount = duplicateEmailsInFile.reduce(
       (sum, dup) => sum + dup.rows.length - 1,
       0
     );
-    const uniqueCount = uniqueEmails.length;
+    const distinctInFile = emailMap.size;
 
-    // Show clear message about duplicates and unique emails
-    if (duplicateCount > 0) {
+    // Show clear message about duplicates and distinct contacts (aligned with backend)
+    if (duplicateRowCount > 0) {
       const sampleDuplicates = duplicateEmailsInFile
         .slice(0, 3)
         .map((d) => d.email)
         .join(", ");
       toast.info(
-        `Found ${duplicateCount} duplicate email(s) in file (${
+        `Found ${duplicateRowCount} duplicate row(s) in file (${
           duplicateEmailsInFile.length
-        } unique emails have duplicates). Sample: ${sampleDuplicates}${
+        } email(s) appear more than once). Sample: ${sampleDuplicates}${
           duplicateEmailsInFile.length > 3
             ? ` (and ${duplicateEmailsInFile.length - 3} more)`
             : ""
-        }. ${uniqueCount} unique email(s) will be inserted.`,
+        }. ${distinctInFile} distinct contact(s) will be processed (first row per email kept).`,
         { duration: 8000 }
       );
     } else if (invalidRows.length > 0) {
       toast.warning(
-        `Skipping ${invalidRows.length} invalid email(s). ${uniqueCount} unique email(s) will be inserted.`,
+        `Skipping ${invalidRows.length} invalid email(s). ${distinctInFile} contact(s) will be processed.`,
         { duration: 6000 }
       );
     }
@@ -472,8 +469,19 @@ export default function BulkUploadModal({
     setUploading(true);
 
     try {
-      // Normalize data for API - only use valid rows
-      const csvData = validRows.map((row) => {
+      // Dedupe by email (first occurrence wins) — matches createLeadsFromCSVService / worker
+      const seenEmails = new Set<string>();
+      const dedupedValidRows = validRows.filter((row) => {
+        const email = String(row[emailColumn] || "")
+          .toLowerCase()
+          .trim();
+        if (seenEmails.has(email)) return false;
+        seenEmails.add(email);
+        return true;
+      });
+
+      // Normalize data for API — one row per distinct email
+      const csvData = dedupedValidRows.map((row) => {
         const normalized: Record<string, any> = {};
         // Map email column
         normalized.email = String(row[emailColumn] || "")
@@ -549,7 +557,7 @@ export default function BulkUploadModal({
 
       // Show persistent toast with progress tracking
       const toastId = `bulk-upload-${job.jobId}`;
-      toast.loading(`Processing ${job.totalRows} leads... 0%`, {
+      toast.loading(`Processing ${job.totalRows} contact(s)... 0%`, {
         id: toastId,
         duration: Infinity, // Keep toast until dismissed or completed
       });
@@ -599,21 +607,20 @@ export default function BulkUploadModal({
     rows: number[];
     count: number;
   }> = [];
-  const uniqueEmails: string[] = [];
 
   emailMap.forEach((rows, email) => {
     if (rows.length > 1) {
       duplicateEmailsInFile.push({ email, rows, count: rows.length });
-    } else {
-      uniqueEmails.push(email);
     }
   });
 
+  /** Extra rows after the first occurrence of each email (matches backend batch dedupe). */
   const duplicateCount = duplicateEmailsInFile.reduce(
     (sum, dup) => sum + dup.count - 1,
     0
   );
-  const uniqueCount = uniqueEmails.length;
+  /** Distinct valid emails in the file — this is how many leads the upload will create/update. */
+  const distinctEmailCount = emailMap.size;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -749,13 +756,13 @@ export default function BulkUploadModal({
                     <span className="text-green-400 mt-0.5">✅</span>
                     <div className="flex-1">
                       <p className="text-text-100 font-medium">
-                        {uniqueCount} unique email(s) will be inserted
+                        {distinctEmailCount} contact(s) will be processed
                       </p>
                       {duplicateCount > 0 && (
                         <p className="text-text-200 text-sm mt-1">
-                          ({validRows.length} total valid rows -{" "}
-                          {duplicateCount} duplicates removed = {uniqueCount}{" "}
-                          unique)
+                          {validRows.length} valid rows in file; {duplicateCount}{" "}
+                          duplicate row(s) skipped (first row per email kept) →{" "}
+                          {distinctEmailCount} distinct contact(s).
                         </p>
                       )}
                     </div>
@@ -910,10 +917,12 @@ export default function BulkUploadModal({
               </Button>
               <Button
                 onClick={handleUpload}
-                disabled={uploading || uniqueCount === 0}
+                disabled={uploading || distinctEmailCount === 0}
                 className="bg-brand-main hover:bg-brand-main/80 text-white"
               >
-                {uploading ? "Uploading..." : `Upload ${uniqueCount} Leads`}
+                {uploading
+                  ? "Uploading..."
+                  : `Upload ${distinctEmailCount} contact(s)`}
               </Button>
             </div>
           </div>

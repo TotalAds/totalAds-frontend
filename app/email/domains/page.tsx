@@ -8,11 +8,14 @@ import { toast } from "react-hot-toast";
 
 import AGGridWrapper from "@/components/common/AGGridWrapper";
 import { Button } from "@/components/ui/button";
+import { EmailDeliveryBanner } from "@/components/email/EmailDeliveryBanner";
 import { deleteDomain, Domain, getDomains } from "@/utils/api/emailClient";
 import { tokenStorage } from "@/utils/auth/tokenStorage";
+import { useEmailProvider } from "@/hooks/useEmailProvider";
 
 export default function DomainsPage() {
   const router = useRouter();
+  const { sesProvider, sesConnected } = useEmailProvider();
   const [domains, setDomains] = useState<Domain[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -232,6 +235,7 @@ export default function DomainsPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <EmailDeliveryBanner sesProvider={sesProvider} sesConnected={sesConnected} />
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">

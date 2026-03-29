@@ -31,6 +31,8 @@ export interface UserProfile {
   onboardingCompleted: boolean;
   onboardingStep: number | null;
   onboardingSkipped: boolean;
+  phoneVerified?: boolean | null;
+  sesProvider?: "leadsnipper_managed" | "custom" | null;
   // Early signup bonus (formerly founding member)
   foundingMember?: boolean; // Kept for backward compatibility
   foundingTierLockedPrice?: number; // Kept for backward compatibility

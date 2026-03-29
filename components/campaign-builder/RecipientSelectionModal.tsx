@@ -30,7 +30,6 @@ import emailClient, {
   getLeadCategories,
   getLeads,
   getLeadTags,
-  getListContacts,
   getLists,
   getUserCampaigns,
   LeadCategory,
@@ -51,6 +50,7 @@ interface RecipientSelectionModalProps {
     csvData?: Array<Record<string, string>>;
     columns?: string[];
     emailColumn?: string;
+    csvUploadNote?: string;
   }) => void;
   initialSelection?: {
     type: "list" | "filter" | "individual" | "csv";
@@ -102,6 +102,7 @@ export default function RecipientSelectionModal({
     csvData: Array<Record<string, string>>;
     csvColumns: string[];
     csvEmailColumn: string;
+    csvUploadNote?: string;
   }>({
     lists: [],
     filterCriteria: {
@@ -130,6 +131,19 @@ export default function RecipientSelectionModal({
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvUploading, setCsvUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // CSV upload result: show modal with valid / invalid / duplicate breakdown instead of tooltips
+  const [csvResultModal, setCsvResultModal] = useState<{
+    totalUploaded: number;
+    readyToAdd: number;
+    invalidCount: number;
+    duplicateCount: number;
+    invalidEmails: Array<{ email: string; index: number }>;
+    duplicateEmails: Array<{ email: string; count: number }>;
+    validRows: Array<Record<string, any>>;
+    columns: string[];
+    emailField: string;
+  } | null>(null);
   
   // Pagination for individual contacts
   const [contactsPage, setContactsPage] = useState(1);
@@ -151,18 +165,14 @@ export default function RecipientSelectionModal({
     statuses: [],
   });
   const [loadingFilterOptions, setLoadingFilterOptions] = useState(false);
+  /** Distinct lead count for union of selected lists (Lists tab); avoids double-count when lists overlap */
+  const [listsUnionCount, setListsUnionCount] = useState<number | null>(null);
+  const [filterMatchLoading, setFilterMatchLoading] = useState(false);
 
   // Load data based on active tab
   useEffect(() => {
     if (open) {
       loadData();
-    }
-  }, [open, activeTab]);
-
-  // Load filter options when modal opens and filter tab is active
-  useEffect(() => {
-    if (open && activeTab === "filter") {
-      loadFilterOptions();
     }
   }, [open, activeTab]);
 
@@ -181,16 +191,10 @@ export default function RecipientSelectionModal({
   const loadData = async () => {
     setLoading(true);
     try {
-      if (activeTab === "lists" || activeTab === "filter") {
-        const listsData = await getLists(1, 100);
-        // Show all lists including 0 contact lists
-        setLists(listsData.data.lists || []);
-      }
-      if (activeTab === "filter") {
-        // Load filter options first (which includes campaigns with counts)
-        await loadFilterOptions();
-        // Note: loadFilterOptions already loads campaigns with counts, so we don't need to load them again
-      }
+      // Lists + filter options (tags, categories, campaigns) for every tab so Filter tab is prefetched
+      const listsData = await getLists(1, 100);
+      setLists(listsData.data.lists || []);
+      await loadFilterOptions();
       if (activeTab === "individual") {
         await loadContacts(1, contactsSearchTerm || undefined);
       }
@@ -212,6 +216,7 @@ export default function RecipientSelectionModal({
         categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
         campaignIds: campaignIds.length > 0 ? campaignIds : undefined,
         statuses: statuses.length > 0 ? statuses : undefined,
+        listIds: listIds.length > 0 ? listIds : undefined,
       });
       setFilterOptions(options);
       
@@ -288,7 +293,33 @@ export default function RecipientSelectionModal({
     }
   }, [selectedItems.filterCriteria, activeTab]);
 
-  // Apply filters and get lead IDs
+  // Lists tab: exact union count for selected lists (same semantics as backend / Apply)
+  useEffect(() => {
+    if (selectedItems.csvData.length > 0 || selectedItems.lists.length === 0) {
+      setListsUnionCount(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await filterLeadsByCriteria({
+          listIds: selectedItems.lists,
+        });
+        if (!cancelled) {
+          const n = result.data?.count ?? result.data?.leadIds?.length ?? 0;
+          setListsUnionCount(n);
+        }
+      } catch (e) {
+        console.error("Failed to resolve list selection count:", e);
+        if (!cancelled) setListsUnionCount(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedItems.lists, selectedItems.csvData.length]);
+
+  // Apply filters (AND across campaign, lists, tags, categories, status) — server-side
   useEffect(() => {
     const applyFilters = async () => {
       const { tagIds, categoryIds, campaignIds, statuses, listIds } =
@@ -304,69 +335,33 @@ export default function RecipientSelectionModal({
       if (!hasFilters) {
         setFilteredLeadIds([]);
         setFilteredLeadCount(0);
+        setFilterMatchLoading(false);
         return;
       }
 
+      setFilterMatchLoading(true);
       try {
-        // If listIds are selected, get leads from those lists
-        let leadIdsFromLists: string[] = [];
-        if (listIds.length > 0) {
-          const listPromises = listIds.map(async (listId) => {
-            try {
-              const listData = await getListContacts(listId, 1, 10000);
-              return listData.data.contacts.map((c) => c.id);
-            } catch (error) {
-              console.error(`Failed to get contacts for list ${listId}:`, error);
-              return [];
-            }
-          });
-          const allListLeadIds = await Promise.all(listPromises);
-          leadIdsFromLists = allListLeadIds.flat();
-        }
-
-        // Apply other filters
-        let finalLeadIds: string[] = [];
-        
-        // If we have any filters (tags, categories, campaigns, statuses), use filterLeadsByCriteria
-        if (tagIds.length > 0 || categoryIds.length > 0 || campaignIds.length > 0 || statuses.length > 0) {
-          try {
-            const result = await filterLeadsByCriteria({
-              tagIds: tagIds.length > 0 ? tagIds : undefined,
-              categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
-              campaignIds: campaignIds.length > 0 ? campaignIds : undefined,
-              statuses: statuses.length > 0 ? statuses : undefined,
-            });
-            finalLeadIds = result.data.leadIds || [];
-          } catch (error: any) {
-            console.error("Failed to filter leads:", error);
-            toast.error(error.response?.data?.message || "Failed to filter leads. Please try again.");
-            setFilteredLeadIds([]);
-            setFilteredLeadCount(0);
-            return;
-          }
-        }
-
-        // If listIds are selected, intersect with leads from lists
-        if (listIds.length > 0) {
-          if (finalLeadIds.length > 0) {
-            // Intersect: only leads that are in both the filtered results AND the selected lists
-            finalLeadIds = finalLeadIds.filter((id) =>
-              leadIdsFromLists.includes(id)
-            );
-          } else {
-            // If no other filters, use leads from lists
-            finalLeadIds = leadIdsFromLists;
-          }
-        }
-
-        // Remove duplicates
-        finalLeadIds = [...new Set(finalLeadIds)];
-
-        setFilteredLeadIds(finalLeadIds);
-        setFilteredLeadCount(finalLeadIds.length);
+        const result = await filterLeadsByCriteria({
+          tagIds: tagIds.length > 0 ? tagIds : undefined,
+          categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
+          campaignIds: campaignIds.length > 0 ? campaignIds : undefined,
+          statuses: statuses.length > 0 ? statuses : undefined,
+          listIds: listIds.length > 0 ? listIds : undefined,
+        });
+        const leadIds = result.data.leadIds || [];
+        setFilteredLeadIds(leadIds);
+        setFilteredLeadCount(
+          result.data.count ?? result.data.total ?? leadIds.length
+        );
       } catch (error: any) {
         console.error("Failed to filter leads:", error);
-        toast.error("Failed to filter leads");
+        toast.error(
+          error.response?.data?.message || "Failed to filter leads. Please try again."
+        );
+        setFilteredLeadIds([]);
+        setFilteredLeadCount(0);
+      } finally {
+        setFilterMatchLoading(false);
       }
     };
 
@@ -481,34 +476,36 @@ export default function RecipientSelectionModal({
       normalized.forEach((row, index) => {
         const email = row[emailField];
         if (!email || !isValidEmail(email)) {
-          invalidEmails.push({ email: email || "EMPTY", index });
+          invalidEmails.push({ email: String(email || "EMPTY").trim(), index: index + 1 });
           return;
         }
         validatedData.push(row);
       });
 
-      const { duplicates } = findDuplicateEmails(validatedData, emailField);
+      const { unique, duplicates } = findDuplicateEmails(validatedData, emailField);
+      const seen = new Set<string>();
+      const validUniqueRows: typeof validatedData = [];
+      validatedData.forEach((row) => {
+        const email = String(row[emailField] ?? "").trim().toLowerCase();
+        if (seen.has(email)) return;
+        seen.add(email);
+        validUniqueRows.push(row);
+      });
 
-      if (invalidEmails.length > 0) {
-        toast.error(
-          `Found ${invalidEmails.length} invalid email(s). They will be excluded.`
-        );
-      }
+      const duplicateCount = validatedData.length - validUniqueRows.length;
+      const duplicateEmails = duplicates.map((d) => ({ email: d.email, count: d.count }));
 
-      if (duplicates.length > 0) {
-        toast.error(
-          `Found ${duplicates.length} duplicate email(s). They will be excluded.`
-        );
-      }
-
-      setSelectedItems((prev) => ({
-        ...prev,
-        csvData: validatedData,
-        csvColumns: columns,
-        csvEmailColumn: emailField,
-      }));
-
-      toast.success(`Uploaded ${validatedData.length} valid contacts from CSV`);
+      setCsvResultModal({
+        totalUploaded: normalized.length,
+        readyToAdd: validUniqueRows.length,
+        invalidCount: invalidEmails.length,
+        duplicateCount,
+        invalidEmails,
+        duplicateEmails,
+        validRows: validUniqueRows,
+        columns,
+        emailField,
+      });
       setCsvUploading(false);
     };
 
@@ -633,6 +630,22 @@ export default function RecipientSelectionModal({
     }));
   };
 
+  const handleCsvResultAddRecipients = () => {
+    if (!csvResultModal) return;
+    const note =
+      csvResultModal.invalidCount > 0 || csvResultModal.duplicateCount > 0
+        ? `From your file we added ${csvResultModal.readyToAdd} recipient${csvResultModal.readyToAdd !== 1 ? "s" : ""}. We skipped ${csvResultModal.invalidCount} email${csvResultModal.invalidCount !== 1 ? "s" : ""} with mistakes and ${csvResultModal.duplicateCount} duplicate${csvResultModal.duplicateCount !== 1 ? "s" : ""} to keep your list clean. This is only a basic check — full email verification happens later when you send the campaign.`
+        : undefined;
+    setSelectedItems((prev) => ({
+      ...prev,
+      csvData: csvResultModal.validRows,
+      csvColumns: csvResultModal.columns,
+      csvEmailColumn: csvResultModal.emailField,
+      csvUploadNote: note,
+    }));
+    setCsvResultModal(null);
+  };
+
   const handleApply = async () => {
     let type: "list" | "filter" | "individual" | "csv" = "individual";
     let ids: string[] = [];
@@ -640,6 +653,7 @@ export default function RecipientSelectionModal({
     let csvData: Array<Record<string, string>> = [];
     let columns: string[] = [];
     let emailColumn = "email";
+    let csvUploadNote: string | undefined;
 
     if (selectedItems.csvData.length > 0) {
       type = "csv";
@@ -647,19 +661,20 @@ export default function RecipientSelectionModal({
       csvData = selectedItems.csvData;
       columns = selectedItems.csvColumns;
       emailColumn = selectedItems.csvEmailColumn;
+      csvUploadNote = selectedItems.csvUploadNote;
     } else if (selectedItems.lists.length > 0) {
       type = "list";
-      // Get lead IDs from selected lists
       try {
-        const listPromises = selectedItems.lists.map(async (listId) => {
-          const listData = await getListContacts(listId, 1, 10000);
-          return listData.data.contacts.map((c) => c.id);
+        const result = await filterLeadsByCriteria({
+          listIds: selectedItems.lists,
         });
-        const allLeadIds = await Promise.all(listPromises);
-        ids = allLeadIds.flat();
-        count = ids.length;
+        ids = result.data.leadIds || [];
+        count = result.data.count ?? result.data.total ?? ids.length;
+        ids = [...new Set(ids)];
       } catch (error: any) {
-        toast.error("Failed to get list contacts");
+        toast.error(
+          error.response?.data?.message || "Failed to resolve list recipients"
+        );
         return;
       }
     } else if (
@@ -690,6 +705,7 @@ export default function RecipientSelectionModal({
       csvData,
       columns,
       emailColumn,
+      csvUploadNote,
     });
   };
 
@@ -698,7 +714,7 @@ export default function RecipientSelectionModal({
       return selectedItems.csvData.length;
     }
     if (selectedItems.lists.length > 0) {
-      // Return sum of contact counts from selected lists
+      if (listsUnionCount !== null) return listsUnionCount;
       return selectedItems.lists.reduce((sum, listId) => {
         const list = lists.find((l) => l.id === listId);
         return sum + (list?.contactCount || 0);
@@ -892,9 +908,11 @@ export default function RecipientSelectionModal({
                                 ? "text-amber-400"
                                 : "text-text-200"
                             }`}>
-                              {list.contactCount || list.count || 0} contacts
-                              {(list.contactCount || list.count || 0) === 0 && (
-                                <span className="ml-1">(Empty list)</span>
+                              {list.contactCount ?? list.count ?? 0} contacts
+                              {(list.contactCount ?? list.count ?? 0) === 0 && (
+                                <span className="ml-1 block mt-0.5 text-text-200/80">
+                                  No contacts in this list yet — add them from Leads or run a bulk upload with this list selected.
+                                </span>
                               )}
                             </p>
                           </div>
@@ -1107,7 +1125,25 @@ export default function RecipientSelectionModal({
                   </div>
 
                   {/* Results */}
-                  {filteredLeadCount > 0 && (
+                  {filterMatchLoading && (
+                    <div className="flex items-center gap-2 text-text-200 text-sm py-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-brand-main" />
+                      Calculating matching recipients…
+                    </div>
+                  )}
+                  {!filterMatchLoading &&
+                    (selectedItems.filterCriteria.tagIds.length > 0 ||
+                      selectedItems.filterCriteria.categoryIds.length > 0 ||
+                      selectedItems.filterCriteria.campaignIds.length > 0 ||
+                      selectedItems.filterCriteria.statuses.length > 0 ||
+                      selectedItems.filterCriteria.listIds.length > 0) &&
+                    filteredLeadCount === 0 && (
+                      <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-sm text-text-200">
+                        No leads match every selected criterion (all conditions
+                        apply together). Try removing or changing a filter.
+                      </div>
+                    )}
+                  {!filterMatchLoading && filteredLeadCount > 0 && (
                     <div className="bg-success/10 border-2 border-success/30 rounded-xl p-4">
                       <div className="flex items-center gap-2">
                         <CheckCircle2 size={20} className="text-success" />
@@ -1296,7 +1332,13 @@ export default function RecipientSelectionModal({
                   <h3 className="text-sm font-medium text-text-100">
                     Upload CSV/Excel
                   </h3>
-                  {selectedItems.csvData.length === 0 ? (
+                  {csvUploading ? (
+                    <div className="border-2 border-dashed border-brand-main/20 rounded-lg p-12 text-center">
+                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-main mx-auto mb-4" />
+                      <p className="text-text-100 font-medium">Processing your file...</p>
+                      <p className="text-xs text-text-200 mt-1">Checking for invalid and duplicate emails</p>
+                    </div>
+                  ) : selectedItems.csvData.length === 0 && !csvResultModal ? (
                     <div
                       onClick={() => fileInputRef.current?.click()}
                       className="border-2 border-dashed border-brand-main/20 rounded-lg p-12 text-center cursor-pointer hover:border-brand-main/40 transition"
@@ -1323,7 +1365,7 @@ export default function RecipientSelectionModal({
                         className="hidden"
                       />
                     </div>
-                  ) : (
+                  ) : selectedItems.csvData.length > 0 ? (
                     <div className="bg-brand-main/10 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-sm font-medium text-text-100">
@@ -1336,6 +1378,7 @@ export default function RecipientSelectionModal({
                               csvData: [],
                               csvColumns: [],
                               csvEmailColumn: "email",
+                              csvUploadNote: undefined,
                             }));
                             setCsvFile(null);
                           }}
@@ -1350,7 +1393,7 @@ export default function RecipientSelectionModal({
                         </p>
                       )}
                     </div>
-                  )}
+                  ) : null}
                 </div>
               )}
             </>
@@ -1385,6 +1428,112 @@ export default function RecipientSelectionModal({
           </div>
         </div>
       </div>
+
+      {/* CSV upload result modal: show valid / invalid / duplicate breakdown */}
+      {csvResultModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-bg-200 border border-brand-main/20 rounded-xl shadow-2xl flex flex-col max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            <div className="px-6 py-4 border-b border-brand-main/10">
+              <h3 className="text-lg font-semibold text-text-100">
+                We&apos;ve checked your recipient list
+              </h3>
+              <p className="text-sm text-text-200 mt-1">
+                Here&apos;s what we found in your file.
+              </p>
+            </div>
+            <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1">
+              <p className="text-sm text-text-200">
+                We looked through your file and found some issues. We removed email addresses that are clearly wrong or repeated, so you only work with a clean list.
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-brand-main/10 border border-brand-main/20 rounded-lg p-3">
+                  <p className="text-xs text-text-200">Total uploaded</p>
+                  <p className="text-lg font-semibold text-text-100">{csvResultModal.totalUploaded}</p>
+                </div>
+                <div className="bg-success/10 border border-success/30 rounded-lg p-3">
+                  <p className="text-xs text-text-200">Ready to add</p>
+                  <p className="text-lg font-semibold text-success">{csvResultModal.readyToAdd}</p>
+                </div>
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                  <p className="text-xs text-text-200">Duplicates skipped</p>
+                  <p className="text-lg font-semibold text-amber-500">{csvResultModal.duplicateCount}</p>
+                </div>
+                <div className="bg-error/10 border border-error/30 rounded-lg p-3">
+                  <p className="text-xs text-text-200">Invalid skipped</p>
+                  <p className="text-lg font-semibold text-error">{csvResultModal.invalidCount}</p>
+                </div>
+              </div>
+              {csvResultModal.invalidEmails.length > 0 && (
+                <div className="border border-error/20 rounded-lg overflow-hidden">
+                  <button
+                    type="button"
+                    className="w-full px-4 py-2 text-left text-sm font-medium text-text-100 bg-error/10 flex items-center justify-between"
+                  >
+                    <span>Invalid emails ({csvResultModal.invalidEmails.length})</span>
+                    <ChevronDown size={16} className="text-text-200" />
+                  </button>
+                  <div className="max-h-40 overflow-y-auto p-3 bg-bg-300/50 border-t border-error/10">
+                    <p className="text-xs text-text-200 mb-2">
+                      These email addresses have obvious mistakes and can&apos;t receive emails. Please fix them in your original file if needed.
+                    </p>
+                    <ul className="text-xs text-text-100 space-y-1 font-mono">
+                      {csvResultModal.invalidEmails.map((item, i) => (
+                        <li key={i}>• {item.email}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+              {csvResultModal.duplicateEmails.length > 0 && (
+                <div className="border border-amber-500/20 rounded-lg overflow-hidden">
+                  <button
+                    type="button"
+                    className="w-full px-4 py-2 text-left text-sm font-medium text-text-100 bg-amber-500/10 flex items-center justify-between"
+                  >
+                    <span>Duplicate emails ({csvResultModal.duplicateEmails.length} unique, {csvResultModal.duplicateCount} extra skipped)</span>
+                    <ChevronDown size={16} className="text-text-200" />
+                  </button>
+                  <div className="max-h-40 overflow-y-auto p-3 bg-bg-300/50 border-t border-amber-500/10">
+                    <p className="text-xs text-text-200 mb-2">
+                      These email addresses appeared more than once in your file. We kept only one copy and ignored the extra ones.
+                    </p>
+                    <ul className="text-xs text-text-100 space-y-1 font-mono">
+                      {csvResultModal.duplicateEmails.map((d, i) => (
+                        <li key={i}>• {d.email} (appears {d.count} times)</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+              {csvResultModal.readyToAdd > 0 && (
+                <div className="bg-success/5 border border-success/20 rounded-lg p-3">
+                  <p className="text-sm text-text-100">
+                    We will add <strong>{csvResultModal.readyToAdd}</strong> recipient{csvResultModal.readyToAdd !== 1 ? "s" : ""} to your campaign.
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-brand-main/10 bg-bg-200/50 flex items-center justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setCsvResultModal(null)}
+                className="px-4 py-2"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCsvResultAddRecipients}
+                disabled={csvResultModal.readyToAdd === 0}
+                className="px-6 py-2 bg-brand-main hover:bg-brand-main/90 text-white disabled:opacity-50"
+              >
+                {csvResultModal.readyToAdd === 0
+                  ? "No valid recipients to add"
+                  : `Add ${csvResultModal.readyToAdd} recipient${csvResultModal.readyToAdd !== 1 ? "s" : ""}`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

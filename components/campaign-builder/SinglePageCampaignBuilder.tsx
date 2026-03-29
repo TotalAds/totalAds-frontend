@@ -3,6 +3,7 @@
 import {
   AlertCircle,
   CheckCircle2,
+  Clock,
   Mail,
   Send,
   Settings,
@@ -13,10 +14,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
+import CreatableSelect from "@/components/common/CreatableSelect";
 import { Button } from "@/components/ui/button";
 import emailClient, {
+  createList,
+  EmailList,
   getCampaignEligibility,
   getDomains,
+  getLists,
   LeadCategory,
   LeadTag,
 } from "@/utils/api/emailClient";
@@ -59,15 +64,21 @@ interface CampaignState {
   };
   selectedTags: LeadTag[];
   selectedCategories: LeadCategory[];
+  /** When importing CSV recipients, new leads are added to these lists */
+  selectedLists: EmailList[];
   csvData: Array<Record<string, string>>;
   columns: string[];
   emailColumn: string;
+  csvUploadNote?: string;
+  dailySendTime: string;
 }
 
 interface Domain {
   id: string;
   domain: string;
 }
+
+type DomainTrustLevel = "new" | "warming" | "aged" | "agency";
 
 interface EmailSender {
   id: string;
@@ -80,6 +91,11 @@ interface EmailSender {
     used: number;
     remaining: number;
     totalSent: number;
+    resetAt?: string;
+    override?: number | null;
+    allowed?: boolean;
+    domainTrustLevel?: DomainTrustLevel;
+    domainAgeInDays?: number;
   };
 }
 
@@ -95,6 +111,7 @@ export default function SinglePageCampaignBuilder({
     eligible: boolean;
     verifiedDomainCount: number;
     verifiedSenderCount: number;
+    ineligibleReason?: string;
   }>(null);
   const [domains, setDomains] = useState<Domain[]>([]);
   const [senders, setSenders] = useState<EmailSender[]>([]);
@@ -102,6 +119,8 @@ export default function SinglePageCampaignBuilder({
   const [loadingSenders, setLoadingSenders] = useState(false);
   const [sending, setSending] = useState(false);
   const [showRecipientModal, setShowRecipientModal] = useState(false);
+  const [listOptions, setListOptions] = useState<EmailList[]>([]);
+  const [loadingLists, setLoadingLists] = useState(false);
   const [showReoonModal, setShowReoonModal] = useState(false);
   const [reoonModalPayload, setReoonModalPayload] = useState<{
     domainId: string;
@@ -133,9 +152,12 @@ export default function SinglePageCampaignBuilder({
     },
     selectedTags: [],
     selectedCategories: [],
+    selectedLists: [],
     csvData: [],
     columns: [],
     emailColumn: "email",
+    csvUploadNote: undefined,
+    dailySendTime: "09:00",
   });
 
   // Check eligibility and load domains
@@ -217,6 +239,27 @@ export default function SinglePageCampaignBuilder({
     fetchAllSenders();
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadLists = async () => {
+      setLoadingLists(true);
+      try {
+        const listsRes = await getLists(1, 100);
+        if (!cancelled) {
+          setListOptions(listsRes.data?.lists || []);
+        }
+      } catch (e) {
+        console.error("Failed to load email lists:", e);
+      } finally {
+        if (!cancelled) setLoadingLists(false);
+      }
+    };
+    loadLists();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Clear sender selections when domain changes
   useEffect(() => {
     const currentDomainId = state.domainId;
@@ -291,61 +334,205 @@ export default function SinglePageCampaignBuilder({
     const selectedSenders = senders.filter((s) =>
       state.senderIds.includes(s.id)
     );
-    const totalCapacity = selectedSenders.reduce(
-      (sum, sender) =>
-        sum + (sender.quota?.remaining || sender.quota?.dailyCap || 0),
-      0
-    );
     const leadCount = state.selectedRecipients.count;
 
-    if (totalCapacity === 0) return null;
+    if (selectedSenders.length === 0 || leadCount === 0) {
+      return null;
+    }
 
-    // Distribute leads evenly across senders based on their remaining capacity
-    const distribution: Array<{ sender: EmailSender; leads: number }> = [];
-    let remainingLeads = leadCount;
-    let remainingCapacity = totalCapacity;
-
-    selectedSenders.forEach((sender) => {
-      const capacity = sender.quota?.remaining || sender.quota?.dailyCap || 0;
-      if (capacity > 0 && remainingLeads > 0) {
-        // Calculate proportional distribution
-        const proportion = capacity / remainingCapacity;
-        const assignedLeads = Math.min(
-          Math.floor(leadCount * proportion),
-          capacity,
-          remainingLeads
-        );
-        distribution.push({ sender, leads: assignedLeads });
-        remainingLeads -= assignedLeads;
-        remainingCapacity -= capacity;
-      } else {
-        distribution.push({ sender, leads: 0 });
-      }
+    // Use sender dailyCap / remaining quota as weights for proportional distribution.
+    // We intentionally DO NOT hard-cap by today's capacity, so that all leads are
+    // assigned to senders and overflow is naturally spread across multiple days
+    // by the backend warmup/quota logic.
+    const weightedSenders = selectedSenders.map((sender) => {
+      const cap =
+        sender.quota?.dailyCap ||
+        sender.quota?.remaining ||
+        1; // ensure every sender has at least minimal weight
+      return {
+        sender,
+        weight: Math.max(1, cap),
+      };
     });
 
-    // Distribute any remaining leads to senders with capacity
-    if (remainingLeads > 0) {
-      selectedSenders.forEach((sender, index) => {
-        if (remainingLeads <= 0) return;
-        const capacity = sender.quota?.remaining || sender.quota?.dailyCap || 0;
-        const currentAssigned = distribution[index].leads;
-        const canTake = Math.min(capacity - currentAssigned, remainingLeads);
-        if (canTake > 0) {
-          distribution[index].leads += canTake;
-          remainingLeads -= canTake;
-        }
-      });
+    const totalWeight = weightedSenders.reduce(
+      (sum, w) => sum + w.weight,
+      0
+    );
+
+    if (totalWeight === 0) {
+      return {
+        distribution: weightedSenders.map((w) => ({ sender: w.sender, leads: 0 })),
+        totalCapacity: 0,
+        canSend: false,
+        excess: leadCount,
+      };
     }
+
+    // First pass: proportional allocation based on weights
+    let remainingLeads = leadCount;
+    const provisional = weightedSenders.map((w) => {
+      const raw = (leadCount * w.weight) / totalWeight;
+      const assigned = Math.floor(raw);
+      remainingLeads -= assigned;
+      return {
+        sender: w.sender,
+        leads: assigned,
+        fractional: raw - assigned,
+      };
+    });
+
+    // Second pass: assign remaining leads to senders with largest fractional remainder
+    if (remainingLeads > 0) {
+      provisional
+        .sort((a, b) => b.fractional - a.fractional)
+        .forEach((entry) => {
+          if (remainingLeads <= 0) return;
+          entry.leads += 1;
+          remainingLeads -= 1;
+        });
+    }
+
+    const distribution = provisional.map(({ sender, leads }) => ({
+      sender,
+      leads,
+    }));
+
+    const totalAssigned = distribution.reduce(
+      (sum, d) => sum + d.leads,
+      0
+    );
+
+    // For multi-day sending we only require that all leads are assigned and that
+    // there is some positive daily capacity across senders.
+    const totalCapacity = weightedSenders.reduce(
+      (sum, w) =>
+        sum +
+        (w.sender.quota?.remaining || w.sender.quota?.dailyCap || 0),
+      0
+    );
 
     return {
       distribution,
       totalCapacity,
-      canSend: leadCount <= totalCapacity,
-      excess: Math.max(0, leadCount - totalCapacity),
+      canSend: totalAssigned === leadCount && totalCapacity > 0,
+      excess: 0,
     };
   };
 
   const rotation = calculateRotation();
+
+  // Approximate warmup ramp used ONLY for UI forecasting.
+  // Backend ultimately enforces the true per-sender cap via reputationService.
+  const NEW_DOMAIN_RAMPUP: [number, number][] = [
+    // Domain age (days) -> max emails per day:
+    // 0-1: 20, 2: 25, 3: 30, 4: 40, 5: 50,
+    // 6: 70, 7: 100, 8: 120, 9: 150, 10: 180, 11+: 200
+    [11, 200],
+    [10, 180],
+    [9, 150],
+    [8, 120],
+    [7, 100],
+    [6, 70],
+    [5, 50],
+    [4, 40],
+    [3, 30],
+    [2, 25],
+    [0, 20],
+  ];
+
+  const WARMING_DOMAIN_RAMPUP: [number, number][] = [
+    [60, 2000],
+    [30, 1000],
+    [21, 500],
+    [14, 200],
+    [0, 100],
+  ];
+
+  const getCapFromRampTable = (
+    ageInDays: number,
+    table: [number, number][]
+  ): number => {
+    for (const [minDay, cap] of table) {
+      if (ageInDays >= minDay) return cap;
+    }
+    return table[table.length - 1][1];
+  };
+
+  const estimateSenderDailyCapForDayOffset = (
+    sender: EmailSender,
+    dayOffset: number
+  ): number => {
+    if (!sender.quota) return 0;
+    const { dailyCap, remaining } = sender.quota;
+
+    // Start from the actual backend-exposed cap for this sender.
+    const baseCap = dailyCap || remaining || 0;
+    if (baseCap <= 0) return 0;
+
+    const maxCap = 200;
+
+    // Day 0 (today): never exceed the current cap.
+    if (dayOffset === 0) {
+      return Math.min(baseCap, maxCap);
+    }
+
+    // Growth factor based on current level:
+    // - small caps grow by ~10% per active day
+    // - mid caps by ~15%
+    // - higher caps by ~20%
+    const growthRate =
+      baseCap < 50 ? 0.15 : baseCap < 100 ? 0.20 : 0.25;
+
+    let cap = baseCap;
+    for (let i = 0; i < dayOffset; i++) {
+      cap = Math.min(maxCap, Math.round(cap * (1 + growthRate)));
+      if (cap >= maxCap) break;
+    }
+
+    return cap;
+  };
+
+  const computeScheduleEstimate = () => {
+    if (!rotation) return null;
+
+    const leadCount = state.selectedRecipients.count;
+    if (leadCount <= 0) return null;
+
+    // Build a simple forecast using backend-like warmup logic per sender.
+    // We don't try to predict reputation changes, just the domain-based ramp.
+    const maxDays = 90; // hard cap to avoid huge arrays
+    const breakdown: { day: number; count: number }[] = [];
+    let remaining = leadCount;
+    let dayIndex = 0;
+
+    while (remaining > 0 && dayIndex < maxDays) {
+      const dayOffset = dayIndex; // 0 = today,
+      const dailyCapTotal = rotation.distribution.reduce((sum, dist) => {
+        return (
+          sum + estimateSenderDailyCapForDayOffset(dist.sender, dayOffset)
+        );
+      }, 0);
+
+      if (dailyCapTotal <= 0) {
+        // No capacity at all; stop to avoid infinite loop
+        break;
+      }
+
+      const todaySend = Math.min(dailyCapTotal, remaining);
+      breakdown.push({ day: dayIndex + 1, count: todaySend });
+      remaining -= todaySend;
+      dayIndex += 1;
+    }
+
+    if (breakdown.length === 0) return null;
+
+    const estimatedDays = breakdown.length;
+
+    return { estimatedDays, breakdown, remaining };
+  };
+
+  const scheduleEstimate = computeScheduleEstimate();
 
   // Validation helpers
   const validation = {
@@ -355,7 +542,12 @@ export default function SinglePageCampaignBuilder({
     campaignName: state.campaignName.trim().length > 0,
     domain: state.domainId.length > 0,
     sender: state.senderIds.length > 0,
-    capacity: rotation ? rotation.canSend : false,
+    // Capacity now means: "do selected senders have *any* daily capacity so we can start?"
+    // We allow campaigns that will take multiple days; backend warmup handles pacing.
+    capacity:
+      rotation && typeof rotation.totalCapacity === "number"
+        ? rotation.totalCapacity > 0
+        : false,
   };
 
   const isFormValid = Object.values(validation).every((v) => v === true);
@@ -367,6 +559,7 @@ export default function SinglePageCampaignBuilder({
     csvData?: Array<Record<string, string>>;
     columns?: string[];
     emailColumn?: string;
+    csvUploadNote?: string;
   }) => {
     setState((prev) => ({
       ...prev,
@@ -378,6 +571,8 @@ export default function SinglePageCampaignBuilder({
       csvData: data.csvData || prev.csvData,
       columns: data.columns || prev.columns,
       emailColumn: data.emailColumn || prev.emailColumn,
+      csvUploadNote: data.type === "csv" ? (data.csvUploadNote ?? prev.csvUploadNote) : undefined,
+      selectedLists: data.type === "csv" ? prev.selectedLists : [],
     }));
     setShowRecipientModal(false);
   };
@@ -410,7 +605,7 @@ export default function SinglePageCampaignBuilder({
     }
     if (!validation.capacity) {
       toast.error(
-        `Insufficient sender capacity. Please add more senders or reduce lead count.`
+        `Your selected senders have no daily sending capacity. Please warm up senders or add more senders.`
       );
       return;
     }
@@ -486,6 +681,7 @@ export default function SinglePageCampaignBuilder({
               tags: state.selectedTags?.map((t: any) => t.name) || [],
               categories:
                 state.selectedCategories?.map((c: any) => c.name) || [],
+              listIds: state.selectedLists?.map((l) => l.id) || [],
             }
           );
 
@@ -660,12 +856,12 @@ export default function SinglePageCampaignBuilder({
           `/api/domains/${domainId}/campaigns/${campaignId}/send`,
           {
             senderId: primarySenderId,
-            // Include all sender IDs for future rotation support
             senderIds: state.senderIds,
             rotationDistribution: rotation?.distribution.map((d) => ({
               senderId: d.sender.id,
               leadCount: d.leads,
             })),
+            dailySendTime: state.dailySendTime || undefined,
           }
         );
 
@@ -732,16 +928,28 @@ export default function SinglePageCampaignBuilder({
               You're almost ready to send
             </h2>
             <p className="text-text-200 mb-6">
-              To build a campaign, you'll need at least one verified domain with
-              DKIM and one verified sender.
+              {eligibility.ineligibleReason
+                ? eligibility.ineligibleReason
+                : "To build a campaign, you'll need at least one verified domain with DKIM and one verified sender."}
             </p>
             <div className="space-y-2 text-left max-w-md mx-auto mb-6">
-              {eligibility.verifiedDomainCount === 0 && (
+              {eligibility.ineligibleReason && (
+                <p className="text-text-200">
+                  <a
+                    href="/email/settings"
+                    className="text-brand-main hover:underline font-medium"
+                  >
+                    Go to Settings → Email delivery
+                  </a>{" "}
+                  to connect your AWS SES credentials.
+                </p>
+              )}
+              {!eligibility.ineligibleReason && eligibility.verifiedDomainCount === 0 && (
                 <p className="text-text-200">
                   • No verified domains found. Verify your domain first.
                 </p>
               )}
-              {eligibility.verifiedSenderCount === 0 && (
+              {!eligibility.ineligibleReason && eligibility.verifiedSenderCount === 0 && (
                 <p className="text-text-200">
                   • No verified senders found. Add and verify a sender.
                 </p>
@@ -749,17 +957,23 @@ export default function SinglePageCampaignBuilder({
             </div>
             <div className="flex items-center justify-center gap-3">
               <Button
-                onClick={() => (window.location.href = "/email/domains")}
+                onClick={() =>
+                  window.location.href = eligibility.ineligibleReason
+                    ? "/email/settings"
+                    : "/email/domains"
+                }
                 className="px-4 py-2 rounded-lg bg-brand-main text-text-100"
               >
-                Manage Domains
+                {eligibility.ineligibleReason ? "Settings" : "Manage Domains"}
               </Button>
-              <Button
-                onClick={() => (window.location.href = "/email/domains")}
-                className="px-4 py-2 rounded-lg bg-brand-main/20 text-text-100 border border-brand-main/30"
-              >
-                Add Sender
-              </Button>
+              {!eligibility.ineligibleReason && (
+                <Button
+                  onClick={() => (window.location.href = "/email/domains")}
+                  className="px-4 py-2 rounded-lg bg-brand-main/20 text-text-100 border border-brand-main/30"
+                >
+                  Add Sender
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -833,30 +1047,42 @@ export default function SinglePageCampaignBuilder({
               </div>
 
               {state.selectedRecipients.count > 0 ? (
-                <div className="bg-success/10 border-2 border-success/30 rounded-lg p-3 mb-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <CheckCircle2 size={16} className="text-success" />
-                        <p className="font-semibold text-sm text-text-100">
-                          {state.selectedRecipients.count} recipient
-                          {state.selectedRecipients.count !== 1 ? "s" : ""}{" "}
-                          selected
+                <>
+                  <div className="bg-success/10 border-2 border-success/30 rounded-lg p-3 mb-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <CheckCircle2 size={16} className="text-success" />
+                          <p className="font-semibold text-sm text-text-100">
+                            {state.selectedRecipients.count} recipient
+                            {state.selectedRecipients.count !== 1 ? "s" : ""}{" "}
+                            selected
+                          </p>
+                        </div>
+                        <p className="text-xs text-text-200">
+                          Type: {state.selectedRecipients.type}
                         </p>
                       </div>
+                      <Button
+                        onClick={() => setShowRecipientModal(true)}
+                        variant="outline"
+                        className="border-brand-main/20 text-xs px-3 py-1.5"
+                      >
+                        Change
+                      </Button>
+                    </div>
+                  </div>
+                  {state.csvUploadNote && (
+                    <div className="bg-brand-main/10 border border-brand-main/20 rounded-lg p-3 mb-3">
                       <p className="text-xs text-text-200">
-                        Type: {state.selectedRecipients.type}
+                        {state.csvUploadNote}
                       </p>
                     </div>
-                    <Button
-                      onClick={() => setShowRecipientModal(true)}
-                      variant="outline"
-                      className="border-brand-main/20 text-xs px-3 py-1.5"
-                    >
-                      Change
-                    </Button>
-                  </div>
-                </div>
+                  )}
+                  <p className="text-xs text-text-200/80 mb-3">
+                    Email verification is required for every lead before sending. If a lead is not already verified, we will run verification in the next step.
+                  </p>
+                </>
               ) : (
                 <div className="border-2 border-dashed border-brand-main/20 rounded-lg p-6 text-center mb-3">
                   <Users size={40} className="mx-auto text-text-200/40 mb-3" />
@@ -872,6 +1098,41 @@ export default function SinglePageCampaignBuilder({
                 </div>
               )}
             </div>
+
+            {state.selectedRecipients.type === "csv" &&
+              state.selectedRecipients.count > 0 && (
+                <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-xl p-4">
+                  <h3 className="text-sm font-semibold text-text-100 mb-1">
+                    Lists for new contacts
+                  </h3>
+                  <p className="text-xs text-text-200 mb-3">
+                    Optional. Leads created from your CSV will be linked to these
+                    lists (same as bulk upload on the Leads page).
+                  </p>
+                  <CreatableSelect
+                    options={listOptions.map((l) => ({
+                      id: l.id,
+                      name: l.name,
+                    }))}
+                    value={state.selectedLists}
+                    onChange={(selected) =>
+                      setState((prev) => ({
+                        ...prev,
+                        selectedLists: selected as EmailList[],
+                      }))
+                    }
+                    onCreateNew={async (name: string) => {
+                      const newList = await createList({ name });
+                      setListOptions((prev) => [...prev, newList]);
+                      return { id: newList.id, name: newList.name };
+                    }}
+                    placeholder="Select or create lists..."
+                    label="Lists"
+                    isMulti={true}
+                    isLoading={loadingLists}
+                  />
+                </div>
+              )}
 
             {/* Section 2: Email Content */}
             <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-xl p-4">
@@ -1233,80 +1494,75 @@ export default function SinglePageCampaignBuilder({
                               <h4 className="text-xs font-semibold text-text-100 mb-2">
                                 Email Rotation Preview
                               </h4>
-                              {rotation.canSend ? (
-                                <div className="space-y-2">
-                                  {rotation.distribution.map((dist, idx) => (
-                                    <div
-                                      key={dist.sender.id}
-                                      className="flex items-center justify-between text-xs"
-                                    >
-                                      <span className="text-text-200">
-                                        {dist.sender.displayName ||
-                                          dist.sender.email}
-                                      </span>
-                                      <span className="font-medium text-success">
-                                        {dist.leads.toLocaleString()} leads
-                                      </span>
-                                    </div>
-                                  ))}
-                                  <div className="pt-2 border-t border-success/20 mt-2">
-                                    <p className="text-xs text-text-200">
-                                      Total:{" "}
-                                      <span className="font-semibold text-success">
-                                        {state.selectedRecipients.count.toLocaleString()}{" "}
-                                        leads
-                                      </span>{" "}
-                                      across{" "}
-                                      <span className="font-semibold text-success">
-                                        {state.senderIds.length} sender
-                                        {state.senderIds.length > 1 ? "s" : ""}
-                                      </span>
-                                    </p>
+                              <div className="space-y-2">
+                                {rotation.distribution.map((dist) => (
+                                  <div
+                                    key={dist.sender.id}
+                                    className="flex items-center justify-between text-xs"
+                                  >
+                                    <span className="text-text-200">
+                                      {dist.sender.displayName ||
+                                        dist.sender.email}
+                                    </span>
+                                    <span className="font-medium text-success">
+                                      {dist.leads.toLocaleString()} leads
+                                    </span>
                                   </div>
-                                </div>
-                              ) : (
-                                <div className="space-y-2">
-                                  <p className="text-xs font-medium text-error mb-2">
-                                    ⚠️ Insufficient Capacity
-                                  </p>
-                                  <p className="text-xs text-text-200 mb-2">
-                                    You're trying to send{" "}
-                                    <span className="font-semibold text-error">
+                                ))}
+                                <div className="pt-2 border-t border-success/20 mt-2 space-y-1">
+                                  <p className="text-xs text-text-200">
+                                    Total:{" "}
+                                    <span className="font-semibold text-success">
                                       {state.selectedRecipients.count.toLocaleString()}{" "}
                                       leads
+                                    </span>{" "}
+                                    across{" "}
+                                    <span className="font-semibold text-success">
+                                      {state.senderIds.length} sender
+                                      {state.senderIds.length > 1 ? "s" : ""}
                                     </span>
-                                    , but your selected senders can only handle{" "}
-                                    <span className="font-semibold text-error">
-                                      {rotation.totalCapacity.toLocaleString()}
-                                    </span>
-                                    .
                                   </p>
-                                  <div className="bg-error/5 rounded p-2 space-y-1">
-                                    <p className="text-xs font-semibold text-error">
-                                      To fix this:
-                                    </p>
-                                    <ul className="text-xs text-text-200 space-y-1 ml-4 list-disc">
-                                      <li>
-                                        Add{" "}
+                                  {typeof rotation.totalCapacity === "number" &&
+                                    rotation.totalCapacity > 0 && (
+                                      <p className="text-xs text-text-200">
+                                        Combined current daily capacity:{" "}
+                                        <span className="font-semibold text-success">
+                                          {rotation.totalCapacity.toLocaleString()}{" "}
+                                          emails/day
+                                        </span>
+                                      </p>
+                                    )}
+                                  {scheduleEstimate && (
+                                    <div className="mt-1 bg-brand-main/5 border border-brand-main/20 rounded-md p-2">
+                                      <p className="text-xs font-medium text-text-100 mb-1">
+                                        Estimated sending schedule
+                                      </p>
+                                      <p className="text-xs text-text-200">
+                                        With your current warmup caps, this
+                                        campaign is expected to complete in{" "}
                                         <span className="font-semibold">
-                                          {Math.ceil(rotation.excess / 200)}{" "}
-                                          more sender
-                                          {Math.ceil(rotation.excess / 200) > 1
+                                          {scheduleEstimate.estimatedDays} day
+                                          {scheduleEstimate.estimatedDays > 1
                                             ? "s"
-                                            : ""}{" "}
-                                          (200/day each)
+                                            : ""}
                                         </span>
-                                      </li>
-                                      <li>
-                                        Or reduce leads to{" "}
-                                        <span className="font-semibold">
-                                          {rotation.totalCapacity.toLocaleString()}
-                                        </span>
-                                      </li>
-                                    </ul>
-                                  </div>
+                                        .
+                                      </p>
+                                      <ul className="mt-1 text-xs text-text-200 space-y-0.5">
+                                        {scheduleEstimate.breakdown.map((d) => (
+                                          <li key={d.day}>
+                                            Day {d.day}: approx.{" "}
+                                            <span className="font-semibold">
+                                              {d.count.toLocaleString()}
+                                            </span>{" "}
+                                            emails
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
                                 </div>
-                              )}
+                              </div>
                             </div>
                           )}
 
@@ -1686,6 +1942,56 @@ export default function SinglePageCampaignBuilder({
                     )}
                 </div>
               </div>
+
+              {/* Daily Send Time Picker */}
+              {state.selectedRecipients.count > 0 && (
+                <div className="bg-bg-300/50 border border-bg-200 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Clock size={14} className="text-text-200" />
+                    <p className="text-xs font-medium text-text-100">
+                      Daily send window
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-text-300 leading-snug">
+                    If recipients exceed today&apos;s quota, remaining emails resume at
+                    this time on the next day (your timezone).
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="time"
+                      value={state.dailySendTime}
+                      onChange={(e) =>
+                        setState((prev) => ({
+                          ...prev,
+                          dailySendTime: e.target.value,
+                        }))
+                      }
+                      className="flex-1 px-2 py-1.5 text-sm rounded-md border border-bg-200 bg-bg-100 text-text-100"
+                    />
+                    <div className="flex gap-1">
+                      {["09:00", "10:00", "14:00"].map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() =>
+                            setState((prev) => ({ ...prev, dailySendTime: t }))
+                          }
+                          className={`px-2 py-1 text-[11px] rounded-md border transition-colors ${
+                            state.dailySendTime === t
+                              ? "border-brand-main bg-brand-main/10 text-brand-main"
+                              : "border-bg-200 text-text-300 hover:text-text-100"
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-text-300">
+                    Recommended: 9 – 10 AM or 2 PM local time for best open rates.
+                  </p>
+                </div>
+              )}
 
               {/* Send Button */}
               <Button

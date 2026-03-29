@@ -1,10 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
 import BillingSection from "@/components/settings/BillingSection";
+import EmailDeliverySection from "@/components/settings/EmailDeliverySection";
 import IntegrationsSection from "@/components/settings/IntegrationsSection";
 import ProfileSection from "@/components/settings/ProfileSection";
 import RoadmapSection from "@/components/settings/RoadmapSection";
@@ -13,13 +14,14 @@ import { useAuthContext } from "@/context/AuthContext";
 import {
   IconChevronRight,
   IconCreditCard,
+  IconMail,
   IconMap,
   IconPlug,
   IconRoadSign,
   IconUser,
 } from "@tabler/icons-react";
 
-type SettingsTab = "profile" | "billing" | "roadmap" | "usage" | "integrations";
+type SettingsTab = "profile" | "billing" | "email-delivery" | "roadmap" | "usage" | "integrations";
 
 interface SettingsNavItem {
   id: SettingsTab;
@@ -30,11 +32,19 @@ interface SettingsNavItem {
 
 const SettingsPage = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { state } = useAuthContext();
   const { isAuthenticated, user } = state;
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
+  const tabFromUrl = searchParams.get("tab") as SettingsTab | null;
+  const [activeTab, setActiveTab] = useState<SettingsTab>(tabFromUrl || "profile");
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (tabFromUrl && ["profile", "billing", "email-delivery", "roadmap", "usage", "integrations"].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [tabFromUrl]);
 
   useEffect(() => {
     // Only redirect if we've finished loading and user is not authenticated
@@ -55,6 +65,12 @@ const SettingsPage = () => {
       label: "Billing",
       icon: <IconCreditCard className="w-5 h-5" />,
       description: "View billing and payment history",
+    },
+    {
+      id: "email-delivery",
+      label: "Email delivery",
+      icon: <IconMail className="w-5 h-5" />,
+      description: "Sending mode and AWS SES (BYO) credentials",
     },
     {
       id: "usage",
@@ -119,6 +135,9 @@ const SettingsPage = () => {
 
               {/* Billing Section */}
               {activeTab === "billing" && <BillingSection />}
+
+              {/* Email delivery Section */}
+              {activeTab === "email-delivery" && <EmailDeliverySection />}
 
               {/* Usage Section */}
               {activeTab === "usage" && <UsageSection />}

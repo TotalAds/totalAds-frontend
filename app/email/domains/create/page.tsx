@@ -6,10 +6,13 @@ import { useState } from "react";
 import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
+import { EmailDeliveryBanner } from "@/components/email/EmailDeliveryBanner";
 import emailClient from "@/utils/api/emailClient";
+import { useEmailProvider } from "@/hooks/useEmailProvider";
 
 export default function CreateDomainPage() {
   const router = useRouter();
+  const { sesProvider, sesConnected } = useEmailProvider();
   const [loading, setLoading] = useState(false);
   const [domain, setDomain] = useState("");
   const [error, setError] = useState("");
@@ -84,6 +87,7 @@ export default function CreateDomainPage() {
 
       {/* Main Content */}
       <main className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <EmailDeliveryBanner sesProvider={sesProvider} sesConnected={sesConnected} />
         <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-8 shadow-2xl">
           {/* Header */}
           <div className="text-center mb-8">

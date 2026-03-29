@@ -6,7 +6,6 @@ import { toast } from "sonner";
 
 import CreatableSelect from "@/components/common/CreatableSelect";
 import emailClient, {
-  addContactsToList,
   createLeadCategory,
   createLeadTag,
   createList,
@@ -85,22 +84,9 @@ export default function CreateLeadPage() {
         ...formData,
         categories: selectedCategories.map((c) => c.id),
         tags: selectedTags.map((t) => t.id),
+        listIds: selectedLists.map((l) => l.id),
       };
-      const response = await emailClient.post("/api/leads", payload);
-      const leadId = response.data?.data?.id || response.data?.id;
-
-      // Add lead to selected lists
-      if (leadId && selectedLists.length > 0) {
-        try {
-          await Promise.all(
-            selectedLists.map((list) => addContactsToList(list.id, [leadId]))
-          );
-        } catch (listError: any) {
-          console.error("Failed to add lead to lists:", listError);
-          // Don't fail the whole operation if list addition fails
-          toast.error("Lead created but failed to add to some lists");
-        }
-      }
+      await emailClient.post("/api/leads", payload);
 
       toast.success("Lead created successfully");
       router.push("/email/leads");

@@ -46,11 +46,20 @@ export default function CreateCampaignPage() {
 
     try {
       setLoading(true);
+      const tags = formData.tags
+        ? formData.tags.split(",").map((t) => t.trim()).filter(Boolean)
+        : [];
       const payload = {
-        ...formData,
-        tags: formData.tags
-          ? formData.tags.split(",").map((t) => t.trim())
-          : [],
+        name: formData.name,
+        description: formData.description || undefined,
+        sequence: [
+          {
+            subject: formData.subject,
+            body: formData.htmlContent,
+            delayMinutes: 0,
+          },
+        ],
+        tags,
       };
 
       const response = await emailClient.post(

@@ -360,17 +360,16 @@ export default function CampaignReoonVerificationModal({
             Verify emails with Reoon
           </DialogTitle>
           <DialogDescription className="text-text-200/80 text-sm">
-            Improve your deliverability by verifying {leadIds.length} leads
-            before sending. This step is optional but recommended.
+            In our campaign builder, email verification is required for every lead. If a lead is not already verified, we need to verify it before you can send. This step checks all {leadIds.length} leads and verifies any that aren&apos;t verified yet.
           </DialogDescription>
         </DialogHeader>
 
         {phase === "prompt" && (
           <div className="space-y-4 py-4">
             <p className="text-sm text-text-200">
-              We can verify all {leadIds.length} email addresses using Reoon
+              We will verify all {leadIds.length} email addresses using Reoon
               Email Verifier. Verified results are cached so you won&apos;t pay
-              twice for the same email.
+              twice for the same email. Unverified leads cannot receive campaign emails until verification is complete.
             </p>
             <div className="flex justify-end gap-3 pt-2">
               <Button

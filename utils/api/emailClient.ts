@@ -848,6 +848,7 @@ export interface CampaignEligibility {
   eligible: boolean;
   verifiedDomainCount: number;
   verifiedSenderCount: number;
+  ineligibleReason?: string;
 }
 
 export const getCampaignEligibility =
@@ -860,6 +861,86 @@ export const getCampaignEligibility =
       throw error;
     }
   };
+
+/** BYO-SES credentials status (never includes raw secrets) */
+export interface SesCredentialsStatus {
+  connected: boolean;
+  awsRegion?: string;
+  isVerified?: boolean;
+  verifiedAt?: string | null;
+  snsSetupComplete?: boolean;
+  configurationSetName?: string | null;
+  snsTopicArn?: string | null;
+}
+
+export const getSesCredentialsStatus =
+  async (): Promise<SesCredentialsStatus> => {
+    const resp = await emailClient.get("/api/ses-credentials");
+    return resp.data?.payload.payload ?? resp.data;
+  };
+
+export const storeSesCredentials = async (data: {
+  awsRegion: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+}): Promise<void> => {
+  const resp = await emailClient.post("/api/ses-credentials", data);
+  if (!resp.data?.success) throw new Error(resp.data?.message || "Failed to save");
+};
+
+export const testSesCredentials = async (): Promise<{ success: boolean; message?: string }> => {
+  const resp = await emailClient.post("/api/ses-credentials/test");
+  return { success: resp.data?.success ?? false, message: resp.data?.message };
+};
+
+export const deleteSesCredentials = async (): Promise<void> => {
+  await emailClient.delete("/api/ses-credentials");
+};
+
+/** One-click SNS event tracking setup (creates SNS topic + SES Config Set in user's AWS account) */
+export const setupSnsTracking = async (): Promise<{
+  success: boolean;
+  message?: string;
+  data?: {
+    snsTopicArn?: string;
+    configurationSetName?: string;
+    webhookUrl?: string;
+    steps?: { step: string; status: string; detail?: string }[];
+  };
+}> => {
+  const resp = await emailClient.post("/api/ses-credentials/setup-sns");
+  return {
+    success: resp.data?.success ?? false,
+    message: resp.data?.message,
+    data: resp.data?.data,
+  };
+};
+
+/** Verify that SNS event tracking is correctly wired */
+export const verifySnsTracking = async (): Promise<{
+  success: boolean;
+  data?: {
+    snsTopicExists: boolean;
+    subscriptionConfirmed: boolean;
+    configurationSetExists: boolean;
+    eventDestinationExists: boolean;
+    webhookUrl?: string;
+  };
+}> => {
+  const resp = await emailClient.post("/api/ses-credentials/verify-sns");
+  return { success: resp.data?.success ?? false, data: resp.data?.data };
+};
+
+/** Manually save a Configuration Set name */
+export const saveManualConfigSet = async (configurationSetName: string): Promise<{
+  success: boolean;
+  message?: string;
+}> => {
+  const resp = await emailClient.post("/api/ses-credentials/config-set", {
+    configurationSetName,
+  });
+  return { success: resp.data?.success ?? false, message: resp.data?.message };
+};
 
 // Enhanced Campaign Analytics Types
 export interface TimeSeriesDataPoint {
@@ -1033,7 +1114,19 @@ export const getLists = async (
     const response = await emailClient.get("/api/lists", {
       params: { page, limit },
     });
-    return response.data || { data: { lists: [], pagination: {} } };
+    const body = response.data;
+    const inner = body?.data ?? body;
+    return {
+      data: {
+        lists: inner?.lists ?? [],
+        pagination: inner?.pagination ?? {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+        },
+      },
+    };
   } catch (error: any) {
     console.error("Failed to fetch lists:", error);
     throw error;
@@ -1152,6 +1245,8 @@ export const filterLeadsByCriteria = async (filters: {
   categoryIds?: string[];
   campaignIds?: string[];
   statuses?: string[];
+  /** Union across selected lists; combined with other filters using AND */
+  listIds?: string[];
 }): Promise<{ data: { leadIds: string[]; count: number; total: number } }> => {
   try {
     const response = await emailClient.post("/api/lists/filter-leads", filters);
@@ -1174,6 +1269,7 @@ export const getFilterOptions = async (filters?: {
   tagIds?: string[];
   campaignIds?: string[];
   statuses?: string[];
+  listIds?: string[];
 }): Promise<FilterOptions> => {
   try {
     const params = new URLSearchParams();
@@ -1188,6 +1284,9 @@ export const getFilterOptions = async (filters?: {
     }
     if (filters?.statuses && filters.statuses.length > 0) {
       params.append("statuses", filters.statuses.join(","));
+    }
+    if (filters?.listIds && filters.listIds.length > 0) {
+      params.append("listIds", filters.listIds.join(","));
     }
     const response = await emailClient.get<{ data: FilterOptions }>(
       `/api/leads/filter-options?${params.toString()}`

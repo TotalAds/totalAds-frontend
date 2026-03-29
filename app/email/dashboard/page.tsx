@@ -10,21 +10,25 @@ import {
   Analytics,
   ContactMetrics,
   DailyCounterRow,
+  default as emailClient,
   getAnalytics,
   getContactMetrics,
   getDailyCounters,
   getLeads,
   getQuotaCardData,
+  getSesCredentialsStatus,
   QuotaCardData,
 } from "@/utils/api/emailClient";
+import { getEmailProvider, type SesProvider } from "@/utils/api/apiClient";
 import { tokenStorage } from "@/utils/auth/tokenStorage";
 import {
+  IconAlertTriangle,
   IconArrowUpRight,
   IconChartLine,
   IconClick,
   IconMail,
+  IconSettings,
   IconShieldCheck,
-  IconTrendingUp,
   IconUpload,
   IconUsers,
   IconWorld,
@@ -42,6 +46,13 @@ export default function DashboardPage() {
   );
   const [totalLeadsCount, setTotalLeadsCount] = useState<number>(0);
   const [range, setRange] = useState<7 | 30>(7);
+  const [sesProvider, setSesProvider] = useState<SesProvider | null>(null);
+  const [sesConnected, setSesConnected] = useState(true);
+  const [managedSenderQuota, setManagedSenderQuota] = useState<{
+    cap: number;
+    remaining: number;
+    used: number;
+  } | null>(null);
 
   // Calculate metrics from backend data
   const dashboardMetrics = useMemo(() => {
@@ -111,6 +122,7 @@ export default function DashboardPage() {
       setCounters(dailyCounters || []);
       setAnalytics(analyticsData);
       setContactMetrics(contactMetricsData);
+      setManagedSenderQuota(null);
 
       // Fetch total leads count
       try {
@@ -119,6 +131,59 @@ export default function DashboardPage() {
         setTotalLeadsCount(totalLeads);
       } catch (error) {
         console.error("Failed to fetch leads count:", error);
+      }
+
+      // Check BYO-SES credentials status
+      try {
+        const provider = await getEmailProvider();
+        const prov = (provider.sesProvider as SesProvider) || null;
+        setSesProvider(prov);
+        if (prov === "custom") {
+          try {
+            const creds = await getSesCredentialsStatus();
+            setSesConnected(creds.connected);
+          } catch {
+            setSesConnected(false);
+          }
+        } else if (prov === "leadsnipper_managed") {
+          try {
+            const sendersResp = await emailClient.get("/api/email-senders", {
+              params: { page: 1, limit: 100 },
+            });
+            const allSenders = sendersResp.data?.data?.senders || [];
+            const verifiedSenders = allSenders.filter(
+              (sender: { id: string; verificationStatus: string }) =>
+                sender.verificationStatus === "verified"
+            );
+
+            if (verifiedSenders.length > 0) {
+              const quotaResponses = await Promise.all(
+                verifiedSenders.map((sender: { id: string }) =>
+                  emailClient.get(`/api/email-senders/${sender.id}/quota`)
+                )
+              );
+
+              const aggregated = quotaResponses.reduce(
+                (acc, res) => {
+                  const q = res.data?.data || {};
+                  acc.cap += Number(q.dailyCap || 0);
+                  acc.remaining += Number(q.remaining || 0);
+                  acc.used += Number(q.used || 0);
+                  return acc;
+                },
+                { cap: 0, remaining: 0, used: 0 }
+              );
+              setManagedSenderQuota(aggregated);
+            } else {
+              setManagedSenderQuota({ cap: 0, remaining: 0, used: 0 });
+            }
+          } catch {
+            // Fallback to quota card data if sender-level quotas are unavailable
+            setManagedSenderQuota(null);
+          }
+        }
+      } catch {
+        // non-fatal
       }
     } catch (error) {
       console.error("Failed to fetch dashboard data:", error);
@@ -153,261 +218,439 @@ export default function DashboardPage() {
       (c.sentCount || 0) + (c.bounceCount || 0) + (c.complaintCount || 0) > 0
   );
 
+  const reputationLabel =
+    dashboardMetrics.bounceRate < 2
+      ? "Stable"
+      : dashboardMetrics.bounceRate < 5
+        ? "Good"
+        : "Needs attention";
+  const reputationHint =
+    dashboardMetrics.bounceRate < 2
+      ? "Your emails are reaching inboxes well."
+      : dashboardMetrics.bounceRate < 5
+        ? "A few emails didn’t deliver; keep an eye on your list."
+        : "Many emails bounced. Clean your list and check addresses.";
+
+  const domainHealthLabel =
+    dashboardMetrics.bounceRate < 2 && dashboardMetrics.totalComplained === 0
+      ? "Good"
+      : dashboardMetrics.bounceRate < 5
+        ? "Fair"
+        : "Review needed";
+
+  const sesNotConfigured = sesProvider === "custom" && !sesConnected;
+  const displayedQuota =
+    sesProvider === "leadsnipper_managed" && managedSenderQuota
+      ? managedSenderQuota
+      : quota;
+
   return (
     <div className="min-h-screen bg-bg-100">
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-text-100 mb-2">Dashboard</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-text-100 mb-1">Dashboard</h1>
           <p className="text-text-200">
-            Overview of your email marketing performance and account health
+            See how your emails are doing and how healthy your account is
           </p>
         </div>
 
-        {/* KPI Cards */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[
-            {
-              label: "Total Leads",
-              value: dashboardMetrics.totalLeads.toLocaleString(),
-              icon: <IconUsers className="w-5 h-5" />,
-              color: "text-blue-600",
-              bgColor: "bg-blue-50",
-            },
-            {
-              label: "Total Emails Sent",
-              value: dashboardMetrics.totalEmailsSent.toLocaleString(),
-              icon: <IconMail className="w-5 h-5" />,
-              color: "text-brand-main",
-              bgColor: "bg-brand-main/10",
-            },
-            {
-              label: "Open Rate",
-              value: `${dashboardMetrics.openRate.toFixed(1)}%`,
-              icon: <IconChartLine className="w-5 h-5" />,
-              color: "text-green-600",
-              bgColor: "bg-green-50",
-            },
-            {
-              label: "Click Rate",
-              value: `${dashboardMetrics.clickRate.toFixed(1)}%`,
-              icon: <IconClick className="w-5 h-5" />,
-              color: "text-purple-600",
-              bgColor: "bg-purple-50",
-            },
-            {
-              label: "Reply Rate",
-              value:
-                dashboardMetrics.replyRate > 0
-                  ? `${dashboardMetrics.replyRate.toFixed(1)}%`
-                  : "—",
-              icon: <IconTrendingUp className="w-5 h-5" />,
-              color: "text-orange-600",
-              bgColor: "bg-orange-50",
-            },
-            {
-              label: "Bounce Rate",
-              value: `${dashboardMetrics.bounceRate.toFixed(1)}%`,
-              icon: <IconShieldCheck className="w-5 h-5" />,
-              color:
-                dashboardMetrics.bounceRate < 2
-                  ? "text-green-600"
-                  : "text-red-600",
-              bgColor:
-                dashboardMetrics.bounceRate < 2 ? "bg-green-50" : "bg-red-50",
-            },
-          ].map((card) => (
-            <div
-              key={card.label}
-              className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div
-                  className={`w-10 h-10 ${card.bgColor} ${card.color} rounded-lg flex items-center justify-center`}
-                >
-                  {card.icon}
-                </div>
-              </div>
-              <p className="text-sm text-gray-600 mb-1">{card.label}</p>
-              <p className="text-2xl font-bold text-gray-900">{card.value}</p>
+        {/* BYO-SES Setup Banner */}
+        {sesProvider === "custom" && !sesConnected && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-5 flex items-start gap-4 shadow-sm">
+            <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+              <IconAlertTriangle className="w-5 h-5 text-amber-600" />
             </div>
-          ))}
-        </section>
-
-        {/* Performance Section */}
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Campaign Summary */}
-          <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Campaign Performance
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base font-semibold text-gray-900 mb-1">
+                Set up your AWS SES credentials
               </h3>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {[
-                { label: "Sent", value: dashboardMetrics.totalEmailsSent },
-                { label: "Delivered", value: dashboardMetrics.totalDelivered },
-                { label: "Opened", value: dashboardMetrics.totalOpened },
-                { label: "Clicked", value: dashboardMetrics.totalClicked },
-                { label: "Bounced", value: dashboardMetrics.totalBounced },
-                {
-                  label: "Complained",
-                  value: dashboardMetrics.totalComplained,
-                },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  className="bg-gray-50 rounded-lg p-3 border border-gray-100"
-                >
-                  <p className="text-xs text-gray-600 mb-1">{item.label}</p>
-                  <p className="text-lg font-semibold text-gray-900">
-                    {item.value.toLocaleString()}
-                  </p>
-                </div>
-              ))}
+              <p className="text-sm text-gray-700 mb-3">
+                You chose <strong>Bring Your Own SES</strong> but haven&apos;t connected your AWS credentials yet.
+                Campaigns, domains, and sender verification all require a working SES connection.
+                Head to <strong>Settings → Email Delivery</strong> to add your Access Key and Secret.
+              </p>
+              <Link
+                href="/email/settings?tab=email-delivery"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors"
+              >
+                <IconSettings className="w-4 h-4" />
+                Go to Email Delivery Settings
+              </Link>
             </div>
           </div>
+        )}
 
-          {/* Engagement Score */}
-          <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Engagement Score
+        {/* At a glance — 4 big numbers */}
+        <section>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">
+            At a glance
+          </h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+              <p className="text-sm text-gray-500 mb-1">Your contacts</p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900">
+                {dashboardMetrics.totalLeads.toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">People in your list</p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+              <p className="text-sm text-gray-500 mb-1">Emails sent</p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900">
+                {dashboardMetrics.totalEmailsSent.toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">Total campaigns</p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+              <p className="text-sm text-gray-500 mb-1">Inbox health</p>
+              {sesNotConfigured ? (
+                <>
+                  <p className="text-2xl sm:text-3xl font-bold text-amber-600">
+                    Set up required
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Connect AWS SES in Settings to see inbox health
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p
+                    className={`text-2xl sm:text-3xl font-bold ${
+                      dashboardMetrics.bounceRate < 2
+                        ? "text-green-600"
+                        : dashboardMetrics.bounceRate < 5
+                          ? "text-amber-600"
+                          : "text-red-600"
+                    }`}
+                  >
+                    {reputationLabel}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">{reputationHint}</p>
+                </>
+              )}
+            </div>
+            <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+              <p className="text-sm text-gray-500 mb-1">Emails left today</p>
+              {sesNotConfigured ? (
+                <>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-500">
+                    —
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Connect AWS SES in Settings to see your daily limit
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900">
+                    {(displayedQuota?.remaining ?? 0).toLocaleString()}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    of {(displayedQuota?.cap ?? 0).toLocaleString()} daily limit
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* How your emails did — plain-language counts */}
+        <section className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">
+            How your emails did
+          </h2>
+          <p className="text-sm text-gray-500 mb-5">
+            Counts from your campaigns (what happened after you hit send)
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            {[
+              {
+                label: "Sent",
+                value: dashboardMetrics.totalEmailsSent,
+                hint: "You sent this many",
+              },
+              {
+                label: "Delivered",
+                value: dashboardMetrics.totalDelivered,
+                hint: "Reached their inbox",
+              },
+              {
+                label: "Opened",
+                value: dashboardMetrics.totalOpened,
+                hint: "Recipients opened",
+              },
+              {
+                label: "Clicked",
+                value: dashboardMetrics.totalClicked,
+                hint: "Clicked a link",
+              },
+              {
+                label: "Bounced",
+                value: dashboardMetrics.totalBounced,
+                hint: "Couldn’t deliver",
+              },
+              {
+                label: "Complaints",
+                value: dashboardMetrics.totalComplained,
+                hint: "Marked as spam",
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="bg-gray-50 rounded-lg p-4 border border-gray-100"
+              >
+                <p className="text-lg font-bold text-gray-900">
+                  {item.value.toLocaleString()}
+                </p>
+                <p className="text-sm font-medium text-gray-700">{item.label}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{item.hint}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Rates that matter — open, click, bounce with explanations */}
+        <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-green-50 text-green-600 rounded-lg flex items-center justify-center">
+                <IconChartLine className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-700">Open rate</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {dashboardMetrics.openRate.toFixed(1)}%
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">
+              People who opened your email out of everyone who received it
+            </p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-lg flex items-center justify-center">
+                <IconClick className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-700">Click rate</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {dashboardMetrics.clickRate.toFixed(1)}%
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">
+              People who clicked a link in your email
+            </p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+            <div className="flex items-center gap-3 mb-2">
+              <div
+                className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  dashboardMetrics.bounceRate < 2
+                    ? "bg-green-50 text-green-600"
+                    : "bg-red-50 text-red-600"
+                }`}
+              >
+                <IconShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-700">
+                  Bounce rate
+                </p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {dashboardMetrics.bounceRate.toFixed(1)}%
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">
+              Emails that couldn’t be delivered (lower is better)
+            </p>
+          </div>
+        </section>
+
+        {/* Engagement + Account health in one row */}
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Engagement score — what it means */}
+          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">
+              Engagement score
             </h3>
-            <div className="flex items-center justify-center mb-4">
-              <div className="relative w-32 h-32">
-                <svg className="w-32 h-32 transform -rotate-90">
+            <p className="text-sm text-gray-500 mb-4">
+              How interested people are (opens, clicks, few bounces)
+            </p>
+            <div className="flex items-center gap-6">
+              <div className="relative w-28 h-28 flex-shrink-0">
+                <svg className="w-28 h-28 transform -rotate-90">
                   <circle
                     className="text-gray-200"
                     strokeWidth="8"
                     stroke="currentColor"
                     fill="transparent"
-                    r="52"
-                    cx="64"
-                    cy="64"
+                    r="44"
+                    cx="56"
+                    cy="56"
                   />
                   <circle
                     className="text-brand-main"
                     strokeWidth="8"
                     strokeDasharray={`${
-                      (dashboardMetrics.engagementScore / 100) * 326.73
+                      (dashboardMetrics.engagementScore / 100) * 276.46
                     }, 999`}
                     strokeLinecap="round"
                     stroke="currentColor"
                     fill="transparent"
-                    r="52"
-                    cx="64"
-                    cy="64"
+                    r="44"
+                    cx="56"
+                    cy="56"
                   />
                 </svg>
-                <div className="absolute inset-0 flex items-center justify-center flex-col">
-                  <span className="text-3xl font-bold text-gray-900">
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-gray-900">
                     {dashboardMetrics.engagementScore}
                   </span>
                   <span className="text-xs text-gray-500">/100</span>
                 </div>
               </div>
+              <p className="text-sm text-gray-600">
+                {dashboardMetrics.engagementScore >= 70
+                  ? "Great — your audience is engaging."
+                  : dashboardMetrics.engagementScore >= 40
+                    ? "Good — there’s room to improve with better subject lines and content."
+                    : "Low — try cleaning your list and testing different content."}
+              </p>
             </div>
-            <p className="text-xs text-gray-600 text-center">
-              Based on open rate, click rate, and deliverability
+          </div>
+
+          {/* Account health — reputation, domain, capacity */}
+          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">
+              Account health
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Your sending reputation and daily limit
             </p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                      sesNotConfigured
+                        ? "bg-gray-200 text-gray-500"
+                        : reputationLabel === "Stable"
+                          ? "bg-green-100 text-green-600"
+                          : reputationLabel === "Good"
+                            ? "bg-amber-100 text-amber-600"
+                            : "bg-red-100 text-red-600"
+                    }`}
+                  >
+                    <IconShieldCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      Your reputation
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {sesNotConfigured
+                        ? "Connect AWS SES to see your sending reputation"
+                        : reputationHint}
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={`text-sm font-semibold ${
+                    sesNotConfigured
+                      ? "text-gray-500"
+                      : reputationLabel === "Stable"
+                        ? "text-green-600"
+                        : reputationLabel === "Good"
+                          ? "text-amber-600"
+                          : "text-red-600"
+                  }`}
+                >
+                  {sesNotConfigured ? "Set up required" : reputationLabel}
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center">
+                    <IconWorld className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      Domain health
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {sesNotConfigured
+                        ? "Connect SES first to see domain status"
+                        : dashboardMetrics.totalComplained === 0
+                          ? "No spam complaints"
+                          : `${dashboardMetrics.totalComplained} complaint(s)`}
+                    </p>
+                  </div>
+                </div>
+                <span className="text-sm font-semibold text-gray-700">
+                  {sesNotConfigured ? "Set up required" : domainHealthLabel}
+                </span>
+              </div>
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-900">
+                    Daily sending limit
+                  </span>
+                  {sesNotConfigured ? (
+                    <span className="text-sm text-gray-500">
+                      Connect SES to see limit
+                    </span>
+                  ) : (
+                    <span className="text-sm font-semibold text-gray-700">
+                      {(displayedQuota?.remaining ?? 0).toLocaleString()} left
+                      of {(displayedQuota?.cap ?? 0).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+                {sesNotConfigured ? (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Add your AWS SES credentials in{" "}
+                    <Link
+                      href="/email/settings?tab=email-delivery"
+                      className="text-brand-main hover:underline"
+                    >
+                      Settings → Email Delivery
+                    </Link>{" "}
+                    to see your real daily limit.
+                  </p>
+                ) : (
+                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden mt-1">
+                    <div
+                      className="h-full bg-brand-main transition-all duration-500"
+                      style={{
+                        width: displayedQuota?.cap
+                          ? `${Math.min(
+                              ((displayedQuota.used || 0) /
+                                displayedQuota.cap) *
+                                100,
+                              100
+                            )}%`
+                          : "0%",
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </section>
 
-        {/* Deliverability Health */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-base font-semibold text-gray-900">
-                Reputation Status
-              </h4>
-              <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                <IconShieldCheck className="w-4 h-4 text-green-600" />
-              </div>
-            </div>
-            <p className="text-sm text-gray-600 mb-2">
-              {dashboardMetrics.bounceRate < 2
-                ? "Stable"
-                : dashboardMetrics.bounceRate < 5
-                ? "Good"
-                : "Needs Attention"}
-            </p>
-            <p className="text-xs text-gray-500">
-              Bounce rate: {dashboardMetrics.bounceRate.toFixed(2)}%
-            </p>
-          </div>
-
-          <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-base font-semibold text-gray-900">
-                Domain Health
-              </h4>
-              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                <IconShieldCheck className="w-4 h-4 text-blue-600" />
-              </div>
-            </div>
-            <p className="text-sm text-gray-600 mb-2">
-              {dashboardMetrics.bounceRate < 2 &&
-              dashboardMetrics.totalComplained === 0
-                ? "Good"
-                : dashboardMetrics.bounceRate < 5
-                ? "Fair"
-                : "Review Needed"}
-            </p>
-            <p className="text-xs text-gray-500">
-              {dashboardMetrics.totalComplained === 0
-                ? "No complaints recorded"
-                : `${dashboardMetrics.totalComplained} complaint(s)`}
-            </p>
-          </div>
-
-          <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-base font-semibold text-gray-900">
-                Daily Sending Capacity
-              </h4>
-              <div className="w-8 h-8 bg-brand-main/10 rounded-lg flex items-center justify-center">
-                <IconMail className="w-4 h-4 text-brand-main" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Remaining</span>
-                <span className="text-lg font-semibold text-gray-900">
-                  {quota?.remaining ?? 0}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Daily Cap</span>
-                <span className="text-lg font-semibold text-gray-900">
-                  {quota?.cap ?? 0}
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                <div
-                  className="h-full bg-brand-main transition-all duration-500"
-                  style={{
-                    width: quota?.cap
-                      ? `${Math.min(
-                          ((quota.used || 0) / quota.cap) * 100,
-                          100
-                        )}%`
-                      : "0%",
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Trend Chart */}
-        <section className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
+        {/* Sending over time */}
+        <section className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div>
               <h3 className="text-lg font-semibold text-gray-900">
-                Email Sending Trends
+                Emails sent over time
               </h3>
-              <p className="text-sm text-gray-600">
-                Track your sending volume over time
+              <p className="text-sm text-gray-500">
+                How many you sent each day (last {range} days)
               </p>
             </div>
             <div className="flex gap-2">
@@ -422,7 +665,7 @@ export default function DashboardPage() {
                   fetchDashboardData(7);
                 }}
               >
-                7 Days
+                7 days
               </button>
               <button
                 className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
@@ -435,12 +678,12 @@ export default function DashboardPage() {
                   fetchDashboardData(30);
                 }}
               >
-                30 Days
+                30 days
               </button>
             </div>
           </div>
 
-          <div className="h-64 flex items-center justify-center">
+          <div className="h-56 flex items-center justify-center">
             {hasAnyData ? (
               <svg viewBox="0 0 400 200" className="w-full h-full">
                 <defs>
@@ -496,54 +739,59 @@ export default function DashboardPage() {
             ) : (
               <div className="text-center text-gray-500">
                 <IconChartLine className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No sending data available yet</p>
+                <p className="text-sm">No sending data yet</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  Start sending campaigns to see trends here
+                  Send a campaign to see your trend here
                 </p>
               </div>
             )}
           </div>
         </section>
 
-        {/* Quick Actions */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[
-            {
-              title: "Create Campaign",
-              description: "Set up and launch a new email campaign",
-              href: "/email/campaigns",
-              icon: <IconMail className="w-6 h-6" />,
-            },
-            {
-              title: "Upload Leads",
-              description: "Import contacts and build your lead list",
-              href: "/email/leads",
-              icon: <IconUpload className="w-6 h-6" />,
-            },
-            {
-              title: "Verify Domains",
-              description: "Add and verify domains for better deliverability",
-              href: "/email/domains",
-              icon: <IconWorld className="w-6 h-6" />,
-            },
-          ].map((action) => (
-            <Link
-              key={action.title}
-              href={action.href}
-              className="group bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:shadow-md hover:border-brand-main/50 transition-all"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-brand-main/10 text-brand-main rounded-lg flex items-center justify-center group-hover:bg-brand-main/20 transition-colors">
-                  {action.icon}
+        {/* Quick actions */}
+        <section>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">
+            Quick actions
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              {
+                title: "Create campaign",
+                description: "Write and send a new email to your list",
+                href: "/email/campaigns",
+                icon: <IconMail className="w-6 h-6" />,
+              },
+              {
+                title: "Upload leads",
+                description: "Add contacts from a file or paste a list",
+                href: "/email/leads",
+                icon: <IconUpload className="w-6 h-6" />,
+              },
+              {
+                title: "Verify domains",
+                description: "Connect your domain so emails send from your address",
+                href: "/email/domains",
+                icon: <IconWorld className="w-6 h-6" />,
+              },
+            ].map((action) => (
+              <Link
+                key={action.title}
+                href={action.href}
+                className="group bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md hover:border-brand-main/50 transition-all"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-12 h-12 bg-brand-main/10 text-brand-main rounded-lg flex items-center justify-center group-hover:bg-brand-main/20 transition-colors">
+                    {action.icon}
+                  </div>
+                  <IconArrowUpRight className="w-5 h-5 text-gray-400 group-hover:text-brand-main transition-colors" />
                 </div>
-                <IconArrowUpRight className="w-5 h-5 text-gray-400 group-hover:text-brand-main transition-colors" />
-              </div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-1">
-                {action.title}
-              </h4>
-              <p className="text-sm text-gray-600">{action.description}</p>
-            </Link>
-          ))}
+                <h4 className="text-lg font-semibold text-gray-900 mb-1">
+                  {action.title}
+                </h4>
+                <p className="text-sm text-gray-600">{action.description}</p>
+              </Link>
+            ))}
+          </div>
         </section>
       </main>
     </div>

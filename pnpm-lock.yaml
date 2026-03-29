@@ -167,6 +167,9 @@ importers:
       tailwindcss-animate:
         specifier: ^1.0.7
         version: 1.0.7(tailwindcss@3.4.17)
+      totalads-shared:
+        specifier: link:totalads-shared
+        version: link:totalads-shared
       xlsx:
         specifier: ^0.18.5
         version: 0.18.5
