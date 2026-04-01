@@ -303,7 +303,7 @@ export const createDomain = async (domainData: {
 
 export const verifyDomain = async (domainId: string): Promise<Domain> => {
   try {
-    const response = await emailClient.post(`/api/domains/${domainId}/verify`);
+    const response = await emailClient.post(`/api/domains/${domainId}/verify`, {});
     return response.data?.data || response.data;
   } catch (error: any) {
     console.error("Failed to verify domain:", error);
@@ -866,6 +866,8 @@ export const getCampaignEligibility =
 export interface SesCredentialsStatus {
   connected: boolean;
   awsRegion?: string;
+  /** Masked access key, e.g. ****1ABC */
+  accessKeyIdHint?: string;
   isVerified?: boolean;
   verifiedAt?: string | null;
   snsSetupComplete?: boolean;
@@ -876,7 +878,17 @@ export interface SesCredentialsStatus {
 export const getSesCredentialsStatus =
   async (): Promise<SesCredentialsStatus> => {
     const resp = await emailClient.get("/api/ses-credentials");
-    return resp.data?.payload.payload ?? resp.data;
+    const raw = resp.data as {
+      success?: boolean;
+      data?: SesCredentialsStatus;
+      payload?: { payload?: SesCredentialsStatus };
+    };
+    const status =
+      raw?.data ?? raw?.payload?.payload ?? (raw as unknown as SesCredentialsStatus | undefined);
+    if (status && typeof status.connected === "boolean") {
+      return status;
+    }
+    return { connected: false };
   };
 
 export const storeSesCredentials = async (data: {
@@ -889,7 +901,7 @@ export const storeSesCredentials = async (data: {
 };
 
 export const testSesCredentials = async (): Promise<{ success: boolean; message?: string }> => {
-  const resp = await emailClient.post("/api/ses-credentials/test");
+  const resp = await emailClient.post("/api/ses-credentials/test", {});
   return { success: resp.data?.success ?? false, message: resp.data?.message };
 };
 
@@ -908,7 +920,7 @@ export const setupSnsTracking = async (): Promise<{
     steps?: { step: string; status: string; detail?: string }[];
   };
 }> => {
-  const resp = await emailClient.post("/api/ses-credentials/setup-sns");
+  const resp = await emailClient.post("/api/ses-credentials/setup-sns", {});
   return {
     success: resp.data?.success ?? false,
     message: resp.data?.message,
@@ -927,7 +939,7 @@ export const verifySnsTracking = async (): Promise<{
     webhookUrl?: string;
   };
 }> => {
-  const resp = await emailClient.post("/api/ses-credentials/verify-sns");
+  const resp = await emailClient.post("/api/ses-credentials/verify-sns", {});
   return { success: resp.data?.success ?? false, data: resp.data?.data };
 };
 

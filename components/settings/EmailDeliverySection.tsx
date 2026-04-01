@@ -20,11 +20,20 @@ import {
   IconChevronDown,
   IconChevronUp,
   IconCircleDot,
+  IconCopy,
   IconExternalLink,
   IconLock,
   IconMail,
   IconShieldCheck,
 } from "@tabler/icons-react";
+
+const SNS_WEBHOOK_EVENTS = [
+  { key: "send", label: "Sends" },
+  { key: "reject", label: "Rejects" },
+  { key: "bounce", label: "Bounces" },
+  { key: "complaint", label: "Complaints" },
+  { key: "delivery", label: "Deliveries" },
+] as const;
 
 const AWS_REGIONS: { value: string; label: string }[] = [
   { value: "us-east-1", label: "US East (N. Virginia) — us-east-1" },
@@ -58,6 +67,7 @@ export default function EmailDeliverySection() {
   const [creds, setCreds] = useState<{
     connected: boolean;
     awsRegion?: string;
+    accessKeyIdHint?: string;
     isVerified?: boolean;
     verifiedAt?: string | null;
     snsSetupComplete?: boolean;
@@ -78,6 +88,8 @@ export default function EmailDeliverySection() {
   const [showManualSns, setShowManualSns] = useState(false);
   const [manualConfigSetName, setManualConfigSetName] = useState("");
   const [savingConfigSet, setSavingConfigSet] = useState(false);
+  /** Full multiline error from auto-setup (toast is too short for IAM instructions) */
+  const [snsSetupError, setSnsSetupError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -111,7 +123,9 @@ export default function EmailDeliverySection() {
     setSaving(true);
     try {
       await storeSesCredentials(form);
-      toast.success("Credentials saved. Test connection to verify.");
+      toast.success(
+        "AWS credentials saved and validated. Run “Test connection” to mark them verified."
+      );
       setForm((f) => ({ ...f, secretAccessKey: "" }));
       load();
     } catch (e: any) {
@@ -154,20 +168,25 @@ export default function EmailDeliverySection() {
 
   const handleAutoSetupSns = async () => {
     setSettingUpSns(true);
+    setSnsSetupError(null);
     try {
       const result = await setupSnsTracking();
       if (result.success) {
+        setSnsSetupError(null);
         toast.success("SNS event tracking configured successfully");
         load();
       } else {
-        toast.error(result.message || "SNS setup failed");
-        if (result.data?.steps?.some((s) => s.status === "failed" && s.detail?.includes("SNS"))) {
-          setShowManualSns(true);
-        }
+        const msg = result.message || "SNS setup failed";
+        setSnsSetupError(msg);
+        toast.error("SNS auto-setup failed — see instructions below.");
+        const failed = result.data?.steps?.some((s) => s.status === "failed");
+        if (failed) setShowManualSns(true);
       }
     } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.message || "SNS setup failed";
-      toast.error(msg);
+      const msg =
+        e?.response?.data?.message || e?.message || "SNS setup failed";
+      setSnsSetupError(typeof msg === "string" ? msg : String(msg));
+      toast.error("SNS auto-setup failed — see instructions below.");
       setShowManualSns(true);
     } finally {
       setSettingUpSns(false);
@@ -277,9 +296,9 @@ export default function EmailDeliverySection() {
               <p className="font-medium text-text-100">Bring Your Own SES</p>
             </div>
             <p className="text-sm text-text-200">
-              Your AWS credentials are encrypted with AES-256 before storage and
-              are never exposed in API responses. Only our sending engine can
-              decrypt them at send time.
+              Access keys are stored with AWS KMS envelope encryption (same as our
+              other secrets). They are never returned in API responses; only the
+              sending engine decrypts them at runtime.
             </p>
           </div>
 
@@ -411,6 +430,14 @@ export default function EmailDeliverySection() {
                   <span className="text-text-100">
                     {AWS_REGIONS.find((r) => r.value === creds.awsRegion)?.label || creds.awsRegion}
                   </span>
+                  {creds.accessKeyIdHint && (
+                    <>
+                      <span className="text-text-300">Access key ID</span>
+                      <span className="text-text-100 font-mono text-xs">
+                        {creds.accessKeyIdHint}
+                      </span>
+                    </>
+                  )}
                   <span className="text-text-300">Status</span>
                   <span className={creds.isVerified ? "text-green-600" : "text-amber-600"}>
                     {creds.isVerified ? "Verified" : "Not verified"}
@@ -469,8 +496,42 @@ export default function EmailDeliverySection() {
                 </div>
                 <p className="text-sm text-text-200 mb-3">
                   Required for email analytics — bounces, complaints, deliveries,
-                  and reputation metrics are tracked through AWS SNS notifications.
+                  and reputation metrics are tracked through AWS SNS notifications
+                  to our HTTPS webhook.
                 </p>
+
+                {/* Webhook endpoint (same URL auto-setup subscribes for SNS → SES events) */}
+                <div className="p-3 rounded-lg bg-bg-300/50 border border-bg-200 mb-4 space-y-2">
+                  <p className="text-xs font-medium text-text-100">
+                    SNS HTTPS subscription (send, reject, bounce, complaint, delivery)
+                  </p>
+                  <p className="text-[11px] text-text-300">
+                    Auto-setup creates an SNS topic and subscribes this endpoint so SES
+                    can publish delivery events we use for analytics and suppression.
+                    Events: {SNS_WEBHOOK_EVENTS.map((e) => e.label).join(", ")}.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <code className="text-[11px] break-all bg-bg-100 px-2 py-1.5 rounded border border-bg-200 flex-1 min-w-0">
+                      {typeof window !== "undefined"
+                        ? `${process.env.NEXT_PUBLIC_EMAIL_SERVICE_URL || "http://localhost:3001"}/api/webhooks/sns`
+                        : "/api/webhooks/sns"}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = `${process.env.NEXT_PUBLIC_EMAIL_SERVICE_URL || "http://localhost:3001"}/api/webhooks/sns`;
+                        void navigator.clipboard.writeText(url).then(
+                          () => toast.success("Webhook URL copied"),
+                          () => toast.error("Could not copy")
+                        );
+                      }}
+                      className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-text-100 bg-bg-200 rounded-lg hover:bg-bg-300 shrink-0"
+                    >
+                      <IconCopy className="w-3.5 h-3.5" />
+                      Copy
+                    </button>
+                  </div>
+                </div>
 
                 {!creds.snsSetupComplete ? (
                   <>
@@ -508,7 +569,7 @@ export default function EmailDeliverySection() {
                       <ol className="text-xs text-text-200 space-y-1 list-decimal pl-4">
                         <li>An SNS topic named <code className="bg-bg-300 px-1 py-0.5 rounded">leadsniper-ses-events</code></li>
                         <li>An HTTPS subscription pointing to our webhook endpoint</li>
-                        <li>An SES Configuration Set named <code className="bg-bg-300 px-1 py-0.5 rounded">leadsniper-email-events</code></li>
+                        <li>An SES Configuration Set named <code className="bg-bg-300 px-1 py-0.5 rounded">{process.env.AWS_SES_CONFIGURATION_SET_NAME || 'leadsnipper'}</code></li>
                         <li>Event destinations for bounces, complaints, deliveries, sends, and rejects</li>
                       </ol>
                       <p className="text-[11px] text-text-300 mt-1">
@@ -536,6 +597,29 @@ export default function EmailDeliverySection() {
                         {verifyingSns ? "Verifying..." : "Verify setup"}
                       </button>
                     </div>
+
+                    {snsSetupError && (
+                      <div className="mb-4 p-4 rounded-lg bg-red-500/10 border border-red-500/30 space-y-2">
+                        <div className="flex gap-2">
+                          <IconAlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-text-100 mb-2">
+                              SNS auto-setup could not finish
+                            </p>
+                            <pre className="text-xs text-text-200 whitespace-pre-wrap font-sans break-words m-0">
+                              {snsSetupError}
+                            </pre>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSnsSetupError(null)}
+                          className="text-xs text-text-300 hover:text-text-100"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    )}
 
                     {/* Manual setup toggle */}
                     <button
@@ -573,7 +657,7 @@ export default function EmailDeliverySection() {
                             <p className="font-medium text-text-100 mb-1">Step 3: Create SES Configuration Set</p>
                             <ol className="list-decimal pl-4 space-y-0.5">
                               <li>Go to <a href="https://console.aws.amazon.com/ses/home#/configuration-sets" target="_blank" rel="noopener noreferrer" className="text-brand-main hover:underline">SES Configuration Sets <IconExternalLink className="w-3 h-3 inline" /></a></li>
-                              <li>Click &quot;Create set&quot; → Name it (e.g., <code className="bg-bg-300 px-1 py-0.5 rounded">leadsniper-email-events</code>)</li>
+                              <li>Click &quot;Create set&quot; → Name it (e.g., <code className="bg-bg-300 px-1 py-0.5 rounded">{process.env.AWS_SES_CONFIGURATION_SET_NAME || 'leadsnipper'}</code>)</li>
                               <li>Add an event destination → SNS → select the topic from Step 1</li>
                               <li>Enable events: Sends, Rejects, Bounces, Complaints, Deliveries</li>
                             </ol>
@@ -588,7 +672,7 @@ export default function EmailDeliverySection() {
                             type="text"
                             value={manualConfigSetName}
                             onChange={(e) => setManualConfigSetName(e.target.value)}
-                            placeholder="e.g. leadsniper-email-events"
+                            placeholder={`e.g. ${process.env.AWS_SES_CONFIGURATION_SET_NAME || 'leadsnipper'}`}
                             className="flex-1 px-3 py-2 border border-bg-200 rounded-lg bg-bg-100 text-text-100 text-sm font-mono"
                           />
                           <button

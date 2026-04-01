@@ -280,11 +280,18 @@ export default function CampaignReoonVerificationModal({
       );
     } catch (error: any) {
       console.error("Reoon verification error:", error);
+      const code = error?.response?.data?.code;
       const message =
         error?.response?.data?.message ||
         error?.message ||
-        "Failed to queue verification. Continuing without verification.";
+        "Failed to queue verification.";
       toast.error(message);
+      if (code === "REOON_NOT_CONFIGURED") {
+        setPhase("ready");
+        setIsLoading(false);
+        setProgressMessage("");
+        return;
+      }
       onDecision({ usedVerification: false, filteredLeadIds: leadIds });
     } finally {
       setIsLoading(false);

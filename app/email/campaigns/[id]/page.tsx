@@ -11,7 +11,6 @@ import {
   MousePointerClick,
   RefreshCw,
   Send,
-  Shield,
   TrendingUp,
   XCircle,
   AlertTriangle,
@@ -26,17 +25,12 @@ import toast from "react-hot-toast";
 import { FilterPanel } from "@/components/campaign-analytics/FilterPanel";
 import KPICard from "@/components/campaign-analytics/KPICard";
 import { MetricsSummary } from "@/components/campaign-analytics/MetricsSummary";
-import {
-  ReoonVerificationAnalytics,
-  ReoonVerificationAnalyticsData,
-} from "@/components/campaign-analytics/ReoonVerificationAnalytics";
 import { TrendChart } from "@/components/campaign-analytics/TrendChart";
 import { Button } from "@/components/ui/button";
 import emailClient, {
   EnhancedAnalyticsFilters,
   EnhancedCampaignAnalytics,
   getEnhancedCampaignAnalytics,
-  getReoonVerificationAnalytics,
 } from "@/utils/api/emailClient";
 import { exportCampaignAnalyticsToPDF } from "@/utils/pdfExport";
 
@@ -93,6 +87,15 @@ interface CampaignAnalytics {
   } | null;
 }
 
+interface CampaignLeadIssue {
+  id: string;
+  toEmail: string;
+  status: string;
+  error?: string | null;
+  errorDetails?: string | null;
+  retryCount?: number;
+}
+
 export default function CampaignDetailsPage() {
   const router = useRouter();
   const params = useParams();
@@ -100,16 +103,14 @@ export default function CampaignDetailsPage() {
   const [analytics, setAnalytics] = useState<CampaignAnalytics | null>(null);
   const [enhancedAnalytics, setEnhancedAnalytics] =
     useState<EnhancedCampaignAnalytics | null>(null);
-  const [reoonAnalytics, setReoonAnalytics] =
-    useState<ReoonVerificationAnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [enhancedLoading, setEnhancedLoading] = useState(false);
-  const [reoonLoading, setReoonLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"trends">("trends");
   const [filters, setFilters] = useState<EnhancedAnalyticsFilters>({
     dateRange: "30d",
   });
   const [isExporting, setIsExporting] = useState(false);
+  const [failedLeadIssues, setFailedLeadIssues] = useState<CampaignLeadIssue[]>([]);
   const chartRef = useRef<HTMLDivElement>(null);
 
   const fetchCampaignAnalytics = useCallback(async () => {
@@ -141,28 +142,33 @@ export default function CampaignDetailsPage() {
     }
   }, [campaignId, filters]);
 
-  const fetchReoonAnalytics = useCallback(async () => {
+  const fetchLeadIssues = useCallback(async () => {
     try {
-      setReoonLoading(true);
-      const data = await getReoonVerificationAnalytics(campaignId);
-      setReoonAnalytics(data);
-    } catch (error: any) {
-      console.error("Failed to fetch Reoon analytics:", error);
-      // Don't show toast for Reoon analytics failure - it's optional
-    } finally {
-      setReoonLoading(false);
+      const response = await emailClient.get(
+        `/api/analytics/campaigns/${campaignId}/leads?page=1&limit=100`
+      );
+      const leads: CampaignLeadIssue[] = response?.data?.data?.leads || [];
+      const failed = leads.filter(
+        (lead) =>
+          lead.status === "failed" && (!!lead.error || !!lead.errorDetails)
+      );
+      setFailedLeadIssues(failed.slice(0, 8));
+    } catch (error) {
+      console.error("Failed to fetch campaign lead issues:", error);
+      setFailedLeadIssues([]);
     }
   }, [campaignId]);
 
   useEffect(() => {
     fetchCampaignAnalytics();
     fetchEnhancedAnalytics();
-    fetchReoonAnalytics();
+    fetchLeadIssues();
     // Auto-refresh every 5s while sending
     const interval = setInterval(() => {
       if (analytics?.campaign.status === "sending") {
         fetchCampaignAnalytics();
         fetchEnhancedAnalytics();
+        fetchLeadIssues();
       }
     }, 5000);
     return () => clearInterval(interval);
@@ -171,7 +177,7 @@ export default function CampaignDetailsPage() {
     analytics?.campaign.status,
     fetchCampaignAnalytics,
     fetchEnhancedAnalytics,
-    fetchReoonAnalytics,
+    fetchLeadIssues,
   ]);
 
   const handleExportPDF = async () => {
@@ -463,7 +469,7 @@ export default function CampaignDetailsPage() {
           </div>
 
           {/* Delivery Status & Issues - Single Row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
               <div className="flex items-center gap-2 mb-3">
                 <Send className="w-4 h-4 text-slate-600" />
@@ -501,62 +507,31 @@ export default function CampaignDetailsPage() {
                   compact
                 />
               </div>
+              {failedLeadIssues.length > 0 && (
+                <div className="mt-3 border-t border-slate-100 pt-3">
+                  <p className="text-xs font-semibold text-slate-700 mb-2">
+                    Recent Failed Deliveries
+                  </p>
+                  <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                    {failedLeadIssues.map((lead) => (
+                      <div
+                        key={lead.id}
+                        className="rounded border border-red-200 bg-red-50 p-2"
+                      >
+                        <p className="text-xs font-medium text-red-900 truncate">
+                          {lead.toEmail}
+                        </p>
+                        <p className="text-xs text-red-700">
+                          {(lead.errorDetails || lead.error || "Send failed")
+                            .toString()
+                            .slice(0, 160)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-
-            {/* Reoon Verification - Compact */}
-            {reoonAnalytics && reoonAnalytics.used ? (
-              <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <Shield className="w-4 h-4 text-blue-600" />
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    Email Verification
-                  </h3>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-slate-600">Total Verified</span>
-                    <span className="text-sm font-bold text-slate-900">
-                      {reoonAnalytics.totalVerified.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-emerald-50 rounded p-2 border border-emerald-200">
-                      <p className="text-xs text-emerald-700 font-medium">Valid</p>
-                      <p className="text-sm font-bold text-emerald-900">
-                        {reoonAnalytics.breakdown.valid.toLocaleString()}
-                      </p>
-                      <p className="text-xs text-emerald-600">
-                        {reoonAnalytics.percentages.valid}%
-                      </p>
-                    </div>
-                    <div className="bg-red-50 rounded p-2 border border-red-200">
-                      <p className="text-xs text-red-700 font-medium">Invalid</p>
-                      <p className="text-sm font-bold text-red-900">
-                        {reoonAnalytics.breakdown.invalid.toLocaleString()}
-                      </p>
-                      <p className="text-xs text-red-600">
-                        {reoonAnalytics.percentages.invalid}%
-                      </p>
-                    </div>
-                    <div className="bg-amber-50 rounded p-2 border border-amber-200">
-                      <p className="text-xs text-amber-700 font-medium">Risky</p>
-                      <p className="text-sm font-bold text-amber-900">
-                        {reoonAnalytics.breakdown.risky.toLocaleString()}
-                      </p>
-                      <p className="text-xs text-amber-600">
-                        {reoonAnalytics.percentages.risky}%
-                      </p>
-                    </div>
-                    <div className="bg-slate-50 rounded p-2 border border-slate-200">
-                      <p className="text-xs text-slate-700 font-medium">Credits</p>
-                      <p className="text-sm font-bold text-slate-900">
-                        {reoonAnalytics.creditsUsed}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : null}
 
             {/* Campaign Info - Compact */}
             <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
@@ -595,6 +570,14 @@ export default function CampaignDetailsPage() {
                     </div>
                   )}
                 </div>
+                {reoon?.excludedAsRisky != null && reoon.excludedAsRisky > 0 && (
+                  <div className="pt-2 mt-2 border-t border-slate-100">
+                    <p className="text-slate-500">Risky leads excluded</p>
+                    <p className="text-slate-900 font-medium">
+                      {reoon.excludedAsRisky.toLocaleString()} before send
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -25,8 +25,10 @@ import emailClient, {
   LeadCategory,
   LeadTag,
 } from "@/utils/api/emailClient";
+import { getReoonStatus } from "@/utils/api/reoonClient";
 
 import CampaignReoonVerificationModal from "./CampaignReoonVerificationModal";
+import ReoonApiKeyRequiredModal from "./ReoonApiKeyRequiredModal";
 import EmailTemplateEditor from "./EmailTemplateEditor";
 import RecipientSelectionModal from "./RecipientSelectionModal";
 
@@ -122,6 +124,8 @@ export default function SinglePageCampaignBuilder({
   const [listOptions, setListOptions] = useState<EmailList[]>([]);
   const [loadingLists, setLoadingLists] = useState(false);
   const [showReoonModal, setShowReoonModal] = useState(false);
+  const [showReoonKeyRequiredModal, setShowReoonKeyRequiredModal] =
+    useState(false);
   const [reoonModalPayload, setReoonModalPayload] = useState<{
     domainId: string;
     campaignId: string;
@@ -422,6 +426,12 @@ export default function SinglePageCampaignBuilder({
 
   const rotation = calculateRotation();
 
+  /** Only show daily send window when this campaign cannot complete today (overflow to next day). */
+  const showDailySendWindow =
+    !!rotation &&
+    state.selectedRecipients.count > 0 &&
+    state.selectedRecipients.count > rotation.totalCapacity;
+
   // Approximate warmup ramp used ONLY for UI forecasting.
   // Backend ultimately enforces the true per-sender cap via reputationService.
   const NEW_DOMAIN_RAMPUP: [number, number][] = [
@@ -606,6 +616,21 @@ export default function SinglePageCampaignBuilder({
     if (!validation.capacity) {
       toast.error(
         `Your selected senders have no daily sending capacity. Please warm up senders or add more senders.`
+      );
+      return;
+    }
+
+    try {
+      const reoonStatus = await getReoonStatus();
+      if (!reoonStatus.isConfigured) {
+        setShowReoonKeyRequiredModal(true);
+        return;
+      }
+    } catch (reoonErr: any) {
+      toast.error(
+        reoonErr?.response?.data?.message ||
+          reoonErr?.message ||
+          "Could not verify Reoon setup. Try again."
       );
       return;
     }
@@ -1532,7 +1557,8 @@ export default function SinglePageCampaignBuilder({
                                         </span>
                                       </p>
                                     )}
-                                  {scheduleEstimate && (
+                                  {scheduleEstimate &&
+                                    scheduleEstimate.estimatedDays > 1 && (
                                     <div className="mt-1 bg-brand-main/5 border border-brand-main/20 rounded-md p-2">
                                       <p className="text-xs font-medium text-text-100 mb-1">
                                         Estimated sending schedule
@@ -1943,8 +1969,8 @@ export default function SinglePageCampaignBuilder({
                 </div>
               </div>
 
-              {/* Daily Send Time Picker */}
-              {state.selectedRecipients.count > 0 && (
+              {/* Daily send window — only when some sends spill past today's combined sender quota */}
+              {showDailySendWindow && (
                 <div className="bg-bg-300/50 border border-bg-200 rounded-lg p-3 space-y-2">
                   <div className="flex items-center gap-2">
                     <Clock size={14} className="text-text-200" />
@@ -1953,8 +1979,11 @@ export default function SinglePageCampaignBuilder({
                     </p>
                   </div>
                   <p className="text-[11px] text-text-300 leading-snug">
-                    If recipients exceed today&apos;s quota, remaining emails resume at
-                    this time on the next day (your timezone).
+                    Part of this campaign sends on a later day because recipient count (
+                    {state.selectedRecipients.count.toLocaleString()}) exceeds today&apos;s
+                    combined sender capacity (
+                    {rotation?.totalCapacity?.toLocaleString() ?? "—"}). Remaining emails
+                    resume at this time on the next eligible day (your timezone).
                   </p>
                   <div className="flex items-center gap-2">
                     <input
@@ -2020,6 +2049,11 @@ export default function SinglePageCampaignBuilder({
           </div>
         </div>
       </main>
+
+      <ReoonApiKeyRequiredModal
+        open={showReoonKeyRequiredModal}
+        onOpenChange={setShowReoonKeyRequiredModal}
+      />
 
       {/* Recipient Selection Modal */}
       {showRecipientModal && (
