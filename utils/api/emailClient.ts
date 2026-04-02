@@ -862,6 +862,98 @@ export const getCampaignEligibility =
     }
   };
 
+export interface AIGeneratedCampaignEmailStep {
+  step: number;
+  subject: string;
+  body: string;
+  /** Inbox preheader / preview text for this variation */
+  preview_line: string;
+  /** Why this email is strong vs a generic alternative */
+  why_this_works: string;
+}
+
+export interface AIGeneratedCampaignResponse {
+  campaign_name: string;
+  /** Shown in campaign builder as the campaign description */
+  campaign_description: string;
+  subject_lines: string[];
+  /** Preheader for each subject option (same order as subject_lines) */
+  preview_lines: string[];
+  /** Why each subject option is strong (same order as subject_lines) */
+  subject_why_strong: string[];
+  emails: AIGeneratedCampaignEmailStep[];
+}
+
+export const generateAICampaign = async (payload: {
+  audience: string;
+  goal: string;
+  offer: string;
+  tone?: string;
+  extra?: string;
+}): Promise<AIGeneratedCampaignResponse> => {
+  try {
+    const response = await emailClient.post("/api/ai/generate-campaign", payload);
+    return response.data?.data || response.data;
+  } catch (error: any) {
+    console.error("Failed to generate AI campaign:", error);
+    throw error;
+  }
+};
+
+/** Admin: AI Knowledge Base (frameworks, examples, guidelines) */
+export type AIKnowledgeType = "framework" | "email" | "guideline" | "sequence";
+
+export interface AIKnowledgeEntry {
+  id: string;
+  title: string;
+  type: AIKnowledgeType;
+  content: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const listAIKnowledgeEntries = async (params?: {
+  search?: string;
+  type?: AIKnowledgeType;
+  limit?: number;
+}): Promise<AIKnowledgeEntry[]> => {
+  const response = await emailClient.get("/api/admin/knowledge", { params });
+  return response.data?.data ?? [];
+};
+
+export const getAIKnowledgeEntry = async (id: string): Promise<AIKnowledgeEntry> => {
+  const response = await emailClient.get(`/api/admin/knowledge/${id}`);
+  return response.data?.data;
+};
+
+export const createAIKnowledgeEntry = async (payload: {
+  title: string;
+  type: AIKnowledgeType;
+  content: string;
+  tags?: string[];
+}): Promise<AIKnowledgeEntry> => {
+  const response = await emailClient.post("/api/admin/knowledge", payload);
+  return response.data?.data;
+};
+
+export const updateAIKnowledgeEntry = async (
+  id: string,
+  payload: Partial<{
+    title: string;
+    type: AIKnowledgeType;
+    content: string;
+    tags: string[];
+  }>
+): Promise<AIKnowledgeEntry> => {
+  const response = await emailClient.put(`/api/admin/knowledge/${id}`, payload);
+  return response.data?.data;
+};
+
+export const deleteAIKnowledgeEntry = async (id: string): Promise<void> => {
+  await emailClient.delete(`/api/admin/knowledge/${id}`);
+};
+
 /** BYO-SES credentials status (never includes raw secrets) */
 export interface SesCredentialsStatus {
   connected: boolean;

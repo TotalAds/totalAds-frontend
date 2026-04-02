@@ -31,6 +31,8 @@ export interface UserProfile {
   onboardingCompleted: boolean;
   onboardingStep: number | null;
   onboardingSkipped: boolean;
+  /** Present after /users/me; use for admin-only UI */
+  userType?: "regular" | "admin";
   phoneVerified?: boolean | null;
   sesProvider?: "leadsnipper_managed" | "custom" | null;
   // Early signup bonus (formerly founding member)

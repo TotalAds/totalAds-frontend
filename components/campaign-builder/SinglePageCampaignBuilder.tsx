@@ -7,6 +7,7 @@ import {
   Mail,
   Send,
   Settings,
+  Sparkles,
   Users,
   X,
 } from "lucide-react";
@@ -17,6 +18,8 @@ import toast from "react-hot-toast";
 import CreatableSelect from "@/components/common/CreatableSelect";
 import { Button } from "@/components/ui/button";
 import emailClient, {
+  AIGeneratedCampaignEmailStep,
+  AIGeneratedCampaignResponse,
   createList,
   EmailList,
   getCampaignEligibility,
@@ -29,6 +32,8 @@ import { getReoonStatus } from "@/utils/api/reoonClient";
 
 import CampaignReoonVerificationModal from "./CampaignReoonVerificationModal";
 import ReoonApiKeyRequiredModal from "./ReoonApiKeyRequiredModal";
+import AICampaignGeneratorModal from "./AICampaignGeneratorModal";
+import AIGeneratedCampaignPanel from "./AIGeneratedCampaignPanel";
 import EmailTemplateEditor from "./EmailTemplateEditor";
 import RecipientSelectionModal from "./RecipientSelectionModal";
 
@@ -126,6 +131,10 @@ export default function SinglePageCampaignBuilder({
   const [showReoonModal, setShowReoonModal] = useState(false);
   const [showReoonKeyRequiredModal, setShowReoonKeyRequiredModal] =
     useState(false);
+  const [showAIModal, setShowAIModal] = useState(false);
+  /** Full AI response; panel stays visible until user clears */
+  const [aiGeneratedData, setAiGeneratedData] =
+    useState<AIGeneratedCampaignResponse | null>(null);
   const [reoonModalPayload, setReoonModalPayload] = useState<{
     domainId: string;
     campaignId: string;
@@ -759,6 +768,65 @@ export default function SinglePageCampaignBuilder({
     }
   };
 
+  const handleAIGenerated = (data: AIGeneratedCampaignResponse) => {
+    const sorted = [...(data.emails || [])].sort((a, b) => a.step - b.step);
+    const firstEmail = sorted.find((e) => e.step === 1) || sorted[0];
+    if (!firstEmail) {
+      toast.error("AI response did not include any email variation");
+      return;
+    }
+
+    const firstPreview =
+      data.preview_lines?.[0]?.trim() ||
+      firstEmail.preview_line?.trim() ||
+      "";
+    const firstBodyHtml = firstEmail.body
+      .split(/\n{2,}/)
+      .map((block) => `<p>${block.replace(/\n/g, "<br>")}</p>`)
+      .join("");
+
+    setAiGeneratedData(data);
+
+    setState((prev) => ({
+      ...prev,
+      campaignName: data.campaign_name || prev.campaignName,
+      campaignDescription:
+        data.campaign_description?.trim() || prev.campaignDescription,
+      emailTemplate: {
+        ...prev.emailTemplate,
+        subject:
+          data.subject_lines?.[0] ||
+          firstEmail.subject ||
+          prev.emailTemplate.subject,
+        previewText: firstPreview || prev.emailTemplate.previewText || "",
+        htmlContent: firstBodyHtml,
+        textContent: firstEmail.body,
+      },
+    }));
+  };
+
+  const handleClearAIGenerated = () => {
+    setAiGeneratedData(null);
+  };
+
+  const handleSelectAIEmailStep = (step: AIGeneratedCampaignEmailStep) => {
+    const preview = step.preview_line?.trim() || "";
+    const bodyHtml = step.body
+      .split(/\n{2,}/)
+      .map((block) => `<p>${block.replace(/\n/g, "<br>")}</p>`)
+      .join("");
+    setState((prev) => ({
+      ...prev,
+      emailTemplate: {
+        ...prev.emailTemplate,
+        subject: step.subject,
+        previewText: preview || prev.emailTemplate.previewText || "",
+        htmlContent: bodyHtml,
+        textContent: step.body,
+      },
+    }));
+  };
+
   const handleReoonDecision = async (decision: {
     usedVerification: boolean;
     filteredLeadIds: string[];
@@ -1192,6 +1260,45 @@ export default function SinglePageCampaignBuilder({
                   </div>
                 )}
               </div>
+
+              <div className="mb-3">
+                <Button
+                  type="button"
+                  onClick={() => setShowAIModal(true)}
+                  variant="secondary"
+                  className="group inline-flex h-auto items-center gap-2 rounded-xl border border-[#3b82f6]/35  px-4 py-2.5 text-sm font-semibold text-text-100 shadow-sm transition-all hover:border-[#3b82f6]/55 hover:!text-text-100 hover:shadow-md"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#3b82f6]/20 text-[#3b82f6] transition ">
+                    <Sparkles size={18} strokeWidth={2} />
+                  </span>
+                  <span className="text-left leading-tight">
+                    {aiGeneratedData ? (
+                      <>
+                        <span className="block">Generate again</span>
+                        <span className="block text-[11px] font-normal text-text-200">
+                          New email variations
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="block">Generate with AI</span>
+                        <span className="block text-[11px] font-normal text-text-200">
+                          Draft subject, preview, and body
+                        </span>
+                      </>
+                    )}
+                  </span>
+                </Button>
+              </div>
+
+              {aiGeneratedData ? (
+                <AIGeneratedCampaignPanel
+                  data={aiGeneratedData}
+                  editorBody={state.emailTemplate.htmlContent}
+                  onSelectEmailStep={handleSelectAIEmailStep}
+                  onClear={handleClearAIGenerated}
+                />
+              ) : null}
 
               <EmailTemplateEditor
                 subject={state.emailTemplate.subject}
@@ -2072,6 +2179,12 @@ export default function SinglePageCampaignBuilder({
           }
         />
       )}
+
+      <AICampaignGeneratorModal
+        open={showAIModal}
+        onClose={() => setShowAIModal(false)}
+        onGenerated={handleAIGenerated}
+      />
 
       {/* Reoon Verification Modal */}
       {reoonModalPayload && (

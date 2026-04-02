@@ -3,12 +3,13 @@
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import { useAuthContext } from "@/context/AuthContext";
 import { getSubscriptionInfo, SubscriptionInfo } from "@/utils/api/emailClient";
 import { cn } from "@/utils/cn";
 import {
+  IconBrain,
   IconChartBar,
   IconChevronDown,
   IconChevronLeft,
@@ -89,37 +90,46 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(newState));
   };
 
-  // Navigation sections like Second Brain Labs
-  const navSections: NavSection[] = [
-    {
-      title: "EMAIL",
-      items: [
-        {
-          name: "Dashboard",
-          href: "/email/dashboard",
-          icon: <IconLayoutDashboard className="w-5 h-5" />,
-        },
-        {
-          name: "Campaigns",
-          href: "/email/campaigns",
-          icon: <IconMail className="w-5 h-5" />,
-        },
-
-        {
-          name: "Leads",
-          href: "/email/leads",
-          icon: <IconUsers className="w-5 h-5" />,
-        },
-        {
-          name: "Domains",
-          href: "/email/domains",
-          icon: <IconWorld className="w-5 h-5" />,
-        },
-      ],
-    },
-    
+  // Navigation sections — AI Knowledge only for admin `userType`
+  const navSections: NavSection[] = useMemo(() => {
+    const emailItems: NavItem[] = [
+      {
+        name: "Dashboard",
+        href: "/email/dashboard",
+        icon: <IconLayoutDashboard className="w-5 h-5" />,
+      },
+      {
+        name: "Campaigns",
+        href: "/email/campaigns",
+        icon: <IconMail className="w-5 h-5" />,
+      },
+      {
+        name: "Leads",
+        href: "/email/leads",
+        icon: <IconUsers className="w-5 h-5" />,
+      },
+      {
+        name: "Domains",
+        href: "/email/domains",
+        icon: <IconWorld className="w-5 h-5" />,
+      },
+    ];
+    if (user?.userType === "admin") {
+      emailItems.push({
+        name: "AI Knowledge",
+        href: "/email/admin/knowledge",
+        icon: <IconBrain className="w-5 h-5" />,
+        badge: "Admin",
+        badgeColor: "blue",
+      });
+    }
+    return [
+      {
+        title: "EMAIL",
+        items: emailItems,
+      },
     // {
-    //   title: "WHATSAPP",
+   //   title: "WHATSAPP",
     //   items: [
     //     {
     //       name: "Dashboard",
@@ -171,6 +181,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
       ],
     },
   ];
+  }, [user?.userType]);
 
   const handleLogout = async () => {
     await logoutUser();

@@ -77,6 +77,16 @@ export default function DesignEditor({
       window.removeEventListener("totalads:insert-variable", handler);
   }, [editor]);
 
+  // Keep TipTap in sync when htmlContent changes from the parent (e.g. AI generation).
+  // useEditor only uses `content` on first mount; without this, external updates never appear.
+  useEffect(() => {
+    if (!editor) return;
+    const next = htmlContent || "";
+    const current = editor.getHTML();
+    if (next === current) return;
+    editor.commands.setContent(next, false);
+  }, [editor, htmlContent]);
+
   if (!editor) {
     return <div className="text-text-200">Loading editor...</div>;
   }
