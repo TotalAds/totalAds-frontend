@@ -84,7 +84,7 @@ export default function DesignEditor({
     const next = htmlContent || "";
     const current = editor.getHTML();
     if (next === current) return;
-    editor.commands.setContent(next, false);
+    editor.commands.setContent(next, { emitUpdate: false });
   }, [editor, htmlContent]);
 
   if (!editor) {

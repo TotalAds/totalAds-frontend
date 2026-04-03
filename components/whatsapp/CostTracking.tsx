@@ -215,7 +215,7 @@ export default function CostTracking({
                   data={Object.entries(costData.breakdown.byCategory).map(
                     ([name, value]) => ({
                       name: name.charAt(0) + name.slice(1).toLowerCase(),
-                      value: parseFloat(value.toString()),
+                      value: parseFloat(String(value)),
                     })
                   )}
                 >
@@ -262,7 +262,7 @@ export default function CostTracking({
                     name: name
                       .replace("_", " ")
                       .replace(/\b\w/g, (l) => l.toUpperCase()),
-                    value: parseFloat(value.toString()),
+                    value: parseFloat(String(value)),
                   }))}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />

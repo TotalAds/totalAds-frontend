@@ -65,18 +65,18 @@ export default function CreateTemplatePage() {
   };
 
   const handleAddButton = () => {
-    if (buttons.length >= 3) {
+    if (buttons && buttons.length >= 3) {
       toast.error("Maximum 3 buttons allowed");
       return;
     }
     setButtons([
-      ...buttons,
+      ...(buttons || []),
       { type: "QUICK_REPLY", text: "" },
     ]);
   };
 
   const handleRemoveButton = (index: number) => {
-    setButtons(buttons.filter((_, i) => i !== index));
+    setButtons(buttons && buttons.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
@@ -135,7 +135,7 @@ export default function CreateTemplatePage() {
       }
 
       // Add buttons if present
-      if (buttons.length > 0) {
+      if (buttons && buttons.length > 0) {
         components.push({
           type: "BUTTONS",
           buttons: buttons.map((btn) => ({
@@ -189,7 +189,7 @@ export default function CreateTemplatePage() {
           {footer && footer.content && (
             <div className="text-xs text-gray-500 mt-2">{footer.content}</div>
           )}
-          {buttons.length > 0 && (
+          {buttons && buttons.length > 0 && (
             <div className="mt-4 space-y-2">
               {buttons.map((btn, idx) => (
                 <button
@@ -483,14 +483,14 @@ export default function CreateTemplatePage() {
                 <Label>Buttons (Optional, Max 3)</Label>
                 <Button
                   onClick={handleAddButton}
-                  disabled={buttons.length >= 3}
+                  disabled={buttons && buttons.length >= 3}
                   className="bg-gray-600 hover:bg-gray-700 text-white text-sm"
                 >
                   <IconPlus className="w-4 h-4 mr-1" />
                   Add Button
                 </Button>
               </div>
-              {buttons.map((btn, idx) => (
+              {buttons && buttons.map((btn, idx) => (
                 <div key={idx} className="mb-3 p-4 bg-bg-200 rounded-lg space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-text-100">

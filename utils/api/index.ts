@@ -23,8 +23,8 @@ export * from "./feedbackClient";
 // Email Service API
 export * from "./emailClient";
 
-// WhatsApp Service API
-export * from "./whatsappClient";
+// WhatsApp Service API (namespaced — many symbols overlap with emailClient)
+export * as whatsappApi from "./whatsappClient";
 
 // Affiliate API
 export * from "./affiliateClient";
