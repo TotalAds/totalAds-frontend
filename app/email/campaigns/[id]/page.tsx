@@ -165,7 +165,8 @@ export default function CampaignDetailsPage() {
     fetchLeadIssues();
     // Auto-refresh every 5s while sending
     const interval = setInterval(() => {
-      if (analytics?.campaign.status === "sending") {
+      const st = analytics?.campaign.status;
+      if (st === "sending" || st === "verifying_leads") {
         fetchCampaignAnalytics();
         fetchEnhancedAnalytics();
         fetchLeadIssues();
@@ -272,6 +273,8 @@ export default function CampaignDetailsPage() {
     switch (status) {
       case "sending":
         return "bg-blue-100 border-blue-300 text-blue-700";
+      case "verifying_leads":
+        return "bg-violet-100 border-violet-300 text-violet-800";
       case "completed":
         return "bg-emerald-100 border-emerald-300 text-emerald-700";
       case "failed":
@@ -283,6 +286,13 @@ export default function CampaignDetailsPage() {
       default:
         return "bg-slate-100 border-slate-300 text-slate-600";
     }
+  };
+
+  const campaignStatusLabel = (status: string) => {
+    if (status === "verifying_leads") return "Verifying leads";
+    return (
+      status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " ")
+    );
   };
 
   return (
@@ -311,8 +321,7 @@ export default function CampaignDetailsPage() {
                   campaign.status
                 )}`}
               >
-                {campaign.status.charAt(0).toUpperCase() +
-                  campaign.status.slice(1)}
+                {campaignStatusLabel(campaign.status)}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -337,6 +346,16 @@ export default function CampaignDetailsPage() {
               </Button>
             </div>
           </div>
+
+          {campaign.status === "verifying_leads" && (
+            <div className="bg-violet-50 rounded-lg border border-violet-200 p-3 mb-4">
+              <p className="text-xs text-violet-900">
+                We are verifying your recipient list with Reoon. Sending stays
+                disabled until this finishes. You will get an email when
+                verification completes.
+              </p>
+            </div>
+          )}
 
           {/* Progress Bar - Ultra Compact */}
           {campaign.status === "sending" && (

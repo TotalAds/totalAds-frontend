@@ -5,6 +5,7 @@
 
 import axios, { AxiosError } from "axios";
 
+import { refreshAccessToken } from "../auth/refreshAccessToken";
 import { tokenStorage } from "../auth/tokenStorage";
 
 // WhatsApp service base URL
@@ -35,18 +36,86 @@ whatsappClient.interceptors.request.use(
   }
 );
 
-// Response interceptor for error handling
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value?: unknown) => void;
+  reject: (error?: unknown) => void;
+}> = [];
+let refreshAttempts = 0;
+const MAX_REFRESH_ATTEMPTS = 3;
+
+const processQueue = (error: unknown, token: string | null = null) => {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error);
+    } else {
+      resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+// Response interceptor: refresh access token on 401 (same pattern as api/email clients)
 whatsappClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    refreshAttempts = 0;
+    return response;
+  },
   async (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      // Token expired - clear and redirect to login
+    const originalRequest = error.config as any;
+
+    if (error.response?.status !== 401 || originalRequest._retry) {
+      return Promise.reject(error);
+    }
+
+    if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
       tokenStorage.removeTokens();
       if (typeof window !== "undefined") {
         window.location.href = "/login";
       }
+      return Promise.reject(
+        new Error("Authentication failed. Please sign in again.")
+      );
     }
-    return Promise.reject(error);
+
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        failedQueue.push({ resolve, reject });
+      })
+        .then((token) => {
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return whatsappClient(originalRequest);
+        })
+        .catch((err) => Promise.reject(err));
+    }
+
+    originalRequest._retry = true;
+    isRefreshing = true;
+    refreshAttempts++;
+
+    try {
+      const accessToken = await refreshAccessToken();
+      processQueue(null, accessToken);
+      refreshAttempts = 0;
+      originalRequest.headers = originalRequest.headers || {};
+      originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+      return whatsappClient(originalRequest);
+    } catch (refreshError) {
+      processQueue(refreshError, null);
+      tokenStorage.removeTokens();
+      if (typeof window !== "undefined") {
+        if (
+          !window.location.pathname.includes("/login") &&
+          !window.location.pathname.includes("/signup")
+        ) {
+          window.location.href = "/login";
+        }
+      }
+      return Promise.reject(refreshError);
+    } finally {
+      isRefreshing = false;
+    }
   }
 );
 

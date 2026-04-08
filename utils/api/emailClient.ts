@@ -5,7 +5,26 @@
 
 import axios, { AxiosError } from "axios";
 
+import { refreshAccessToken } from "../auth/refreshAccessToken";
 import { tokenStorage } from "../auth/tokenStorage";
+
+/** Readable message from email-service axios errors (checks `message` and `error` on response body). */
+export function getEmailServiceErrorMessage(
+  error: unknown,
+  fallback: string
+): string {
+  const ax = error as {
+    response?: { data?: { message?: string; error?: string } };
+    message?: string;
+  };
+  const d = ax.response?.data;
+  const fromBody =
+    (typeof d?.message === "string" && d.message.trim()) ||
+    (typeof d?.error === "string" && d.error.trim());
+  if (fromBody) return fromBody;
+  if (typeof ax.message === "string" && ax.message.trim()) return ax.message;
+  return fallback;
+}
 
 // API base URL for token refresh
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -153,6 +172,14 @@ emailClient.interceptors.response.use(
     }
 
     // Handle 401 errors with token refresh
+    const requestUrl = String(originalRequest?.url || "");
+    const isPublicUnsubscribeRequest =
+      requestUrl.includes("/api/public/unsubscribe");
+
+    if (error.response?.status === 401 && isPublicUnsubscribeRequest) {
+      return Promise.reject(error);
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       // Check if we've exceeded max refresh attempts
       if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
@@ -187,19 +214,7 @@ emailClient.interceptors.response.use(
       refreshAttempts++;
 
       try {
-        // Attempt to refresh the token using the main API
-        const refreshResponse = await axios.post(
-          `${API_BASE_URL}/auth/refresh`,
-          {},
-          {
-            withCredentials: true,
-          }
-        );
-
-        const { accessToken, expiresIn } = refreshResponse.data.payload;
-
-        // Store the new access token
-        tokenStorage.setTokens(accessToken, expiresIn);
+        const accessToken = await refreshAccessToken();
 
         // Update the authorization header
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
@@ -223,7 +238,9 @@ emailClient.interceptors.response.use(
             !window.location.pathname.includes("/login") &&
             !window.location.pathname.includes("/signup") &&
             !window.location.pathname.includes("/forgot-password") &&
-            !window.location.pathname.includes("/reset-password")
+            !window.location.pathname.includes("/reset-password") &&
+            !window.location.pathname.includes("/email/unsubscribe") &&
+            !window.location.pathname.includes("/unsubscribe")
           ) {
             console.log(
               "Email service token refresh failed, redirecting to login..."
@@ -698,9 +715,15 @@ export interface ContactMetrics {
     monthlyEmailLimit: number;
     monthlyCredits: number;
   } | null;
+  subscription?: {
+    status: string;
+  } | null;
   contacts: {
     total: number;
     limit: number;
+    remaining?: number | null;
+    atLimit?: boolean;
+    nearLimit?: boolean;
   };
   emails: {
     used: number;
@@ -715,7 +738,14 @@ export const getContactMetrics = async (): Promise<ContactMetrics> => {
     return (
       resp.data?.data || {
         tier: null,
-        contacts: { total: 0, limit: 0 },
+        subscription: null,
+        contacts: {
+          total: 0,
+          limit: 0,
+          remaining: null,
+          atLimit: false,
+          nearLimit: false,
+        },
         emails: { used: 0, allocated: 0, remaining: 0 },
       }
     );

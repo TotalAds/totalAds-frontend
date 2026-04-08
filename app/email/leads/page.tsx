@@ -8,11 +8,14 @@ import { toast } from "sonner";
 import AGGridWrapper from "@/components/common/AGGridWrapper";
 import BulkUploadModal from "@/components/leads/BulkUploadModal";
 import BulkUploadProgressBanner from "@/components/leads/BulkUploadProgressBanner";
+import ContactPlanLimitBanner from "@/components/leads/ContactPlanLimitBanner";
 // import LeadFilterModal from "@/components/leads/LeadFilterModal"; // Removed - using AG Grid built-in filters
 import { LeadVerificationModal } from "@/components/leads/LeadVerificationModal";
 import emailClient, {
   Campaign,
   checkActiveBulkUploadJobs,
+  ContactMetrics,
+  getContactMetrics,
   getUserCampaigns,
 } from "@/utils/api/emailClient";
 import {
@@ -95,6 +98,9 @@ export default function LeadsPage() {
   const [activeUploadJobs, setActiveUploadJobs] = useState<
     Array<{ jobId: string; totalRows: number }>
   >([]);
+  const [contactMetrics, setContactMetrics] = useState<ContactMetrics | null>(
+    null
+  );
 
   useEffect(() => {
     loadLeads();
@@ -181,9 +187,14 @@ export default function LeadsPage() {
       if (verificationFilter.length > 0)
         params.append("verification", verificationFilter.join(","));
 
-      const response = await emailClient.get<{ data: ListResponse }>(
-        `/api/leads?${params.toString()}`
-      );
+      const [response, metrics] = await Promise.all([
+        emailClient.get<{ data: ListResponse }>(
+          `/api/leads?${params.toString()}`
+        ),
+        getContactMetrics().catch(() => null),
+      ]);
+
+      if (metrics) setContactMetrics(metrics);
 
       if (response.data?.data) {
         setLeads(response.data.data.leads);
@@ -695,6 +706,8 @@ export default function LeadsPage() {
             </button>
           </div>
         </div>
+
+        <ContactPlanLimitBanner metrics={contactMetrics} className="mb-6" />
 
         {/* Bulk Upload Progress Banners */}
         {activeUploadJobs.length > 0 && (

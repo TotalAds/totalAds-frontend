@@ -136,14 +136,39 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
                     </div>
 
                     {/* Contact Metrics */}
-                    <div className="bg-brand-main/5 rounded-lg p-3 border border-brand-main/10">
+                    <div
+                      className={`rounded-lg p-3 border ${
+                        metrics.contacts.atLimit ||
+                        (metrics.contacts.limit > 0 &&
+                          metrics.contacts.total >= metrics.contacts.limit)
+                          ? "bg-rose-500/10 border-rose-500/40"
+                          : metrics.contacts.nearLimit ||
+                              (metrics.contacts.limit > 0 &&
+                                metrics.contacts.total / metrics.contacts.limit >=
+                                  0.9)
+                            ? "bg-amber-500/10 border-amber-500/35"
+                            : "bg-brand-main/5 border-brand-main/10"
+                      }`}
+                    >
                       <div className="text-xs text-text-200 mb-2">Contacts</div>
                       <div className="text-lg font-semibold text-text-100">
                         {metrics.contacts.total} / {metrics.contacts.limit}
                       </div>
                       <div className="w-full bg-brand-main/10 rounded-full h-1.5 mt-2">
                         <div
-                          className="bg-brand-tertiary h-1.5 rounded-full"
+                          className={`h-1.5 rounded-full ${
+                            metrics.contacts.atLimit ||
+                            (metrics.contacts.limit > 0 &&
+                              metrics.contacts.total >= metrics.contacts.limit)
+                              ? "bg-rose-500"
+                              : metrics.contacts.nearLimit ||
+                                  (metrics.contacts.limit > 0 &&
+                                    metrics.contacts.total /
+                                      metrics.contacts.limit >=
+                                      0.9)
+                                ? "bg-amber-500"
+                                : "bg-brand-tertiary"
+                          }`}
                           style={{
                             width: `${
                               metrics.contacts.limit > 0
@@ -158,6 +183,39 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
                           }}
                         />
                       </div>
+                      {(metrics.contacts.atLimit ||
+                        (metrics.contacts.limit > 0 &&
+                          metrics.contacts.total >= metrics.contacts.limit)) && (
+                        <p className="text-xs text-rose-700 mt-2">
+                          Limit reached —{" "}
+                          <Link
+                            href="/email/pricing"
+                            className="underline font-medium"
+                          >
+                            upgrade to add more
+                          </Link>
+                        </p>
+                      )}
+                      {(metrics.contacts.nearLimit ||
+                        (metrics.contacts.limit > 0 &&
+                          metrics.contacts.total / metrics.contacts.limit >=
+                            0.9 &&
+                          metrics.contacts.total < metrics.contacts.limit)) &&
+                        !(
+                          metrics.contacts.atLimit ||
+                          (metrics.contacts.limit > 0 &&
+                            metrics.contacts.total >= metrics.contacts.limit)
+                        ) && (
+                          <p className="text-xs text-amber-800 mt-2">
+                            Running low —{" "}
+                            <Link
+                              href="/email/pricing"
+                              className="underline font-medium"
+                            >
+                              see plans
+                            </Link>
+                          </p>
+                        )}
                     </div>
 
                     {/* Email Metrics */}

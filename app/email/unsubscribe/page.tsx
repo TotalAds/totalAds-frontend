@@ -1,13 +1,9 @@
 "use client";
 
-import axios from "axios";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import emailClient from "@/utils/api/emailClient";
-
-const EMAIL_SERVICE_URL =
-  process.env.NEXT_PUBLIC_EMAIL_SERVICE_URL || "http://localhost:3001";
 
 export default function EmailUnsubscribePage() {
   const params = useSearchParams();
@@ -23,9 +19,7 @@ export default function EmailUnsubscribePage() {
     setStatus("loading");
     setError("");
     try {
-      // One-click unsubscribe prefers POST per RFC 8058, but GET also supported by backend
-      const form = new URLSearchParams();
-
+      // One-click unsubscribe prefers POST per RFC 8058; backend accepts JSON body
       const resp = await emailClient.post(`/api/public/unsubscribe`, {
         m: messageId,
       });

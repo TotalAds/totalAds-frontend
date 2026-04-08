@@ -21,21 +21,29 @@ import emailClient, {
   AIGeneratedCampaignEmailStep,
   AIGeneratedCampaignResponse,
   createList,
+  deleteCampaign,
   EmailList,
   getCampaignEligibility,
   getDomains,
+  getEmailServiceErrorMessage,
   getLists,
   LeadCategory,
   LeadTag,
 } from "@/utils/api/emailClient";
-import { getReoonStatus } from "@/utils/api/reoonClient";
+import {
+  checkEmailsVerificationStatus,
+  getReoonStatus,
+  queueCampaignLeadsVerification,
+} from "@/utils/api/reoonClient";
 
-import CampaignReoonVerificationModal from "./CampaignReoonVerificationModal";
 import ReoonApiKeyRequiredModal from "./ReoonApiKeyRequiredModal";
 import AICampaignGeneratorModal from "./AICampaignGeneratorModal";
 import AIGeneratedCampaignPanel from "./AIGeneratedCampaignPanel";
 import EmailTemplateEditor from "./EmailTemplateEditor";
 import RecipientSelectionModal from "./RecipientSelectionModal";
+
+const VERIFICATION_EMAIL_CHECK_BATCH = 5000;
+const LEAD_EMAIL_FETCH_BATCH = 1000;
 
 interface SinglePageCampaignBuilderProps {
   onCancel?: () => void;
@@ -61,7 +69,7 @@ interface CampaignState {
       file: File;
     }>;
   };
-  replyTo?: string; // Optional reply-to email address
+  replyTo?: string; // Optional comma-separated reply-to addresses
   useReplyTo: boolean; // Checkbox state for reply-to
   useAttachment: boolean; // Checkbox state for attachment
   selectedRecipients: {
@@ -128,19 +136,12 @@ export default function SinglePageCampaignBuilder({
   const [showRecipientModal, setShowRecipientModal] = useState(false);
   const [listOptions, setListOptions] = useState<EmailList[]>([]);
   const [loadingLists, setLoadingLists] = useState(false);
-  const [showReoonModal, setShowReoonModal] = useState(false);
   const [showReoonKeyRequiredModal, setShowReoonKeyRequiredModal] =
     useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
   /** Full AI response; panel stays visible until user clears */
   const [aiGeneratedData, setAiGeneratedData] =
     useState<AIGeneratedCampaignResponse | null>(null);
-  const [reoonModalPayload, setReoonModalPayload] = useState<{
-    domainId: string;
-    campaignId: string;
-    leadIds: string[];
-    leadEmails?: string[];
-  } | null>(null);
   const prevDomainIdRef = useRef<string>(initialDomainId);
 
   const [state, setState] = useState<CampaignState>({
@@ -596,8 +597,122 @@ export default function SinglePageCampaignBuilder({
     setShowRecipientModal(false);
   };
 
+  const finalizeCampaignSend = async (campaignId: string, idsToUse: string[]) => {
+    const domainId = state.domainId;
+    toast.loading("Adding leads to campaign...");
+
+    try {
+      await emailClient.post(
+        `/api/domains/${domainId}/campaigns/${campaignId}/add-leads`,
+        {
+          leadIds: idsToUse,
+        }
+      );
+
+      toast.dismiss();
+      toast.success("Leads added to campaign successfully!");
+    } catch (addLeadsError: any) {
+      toast.dismiss();
+      const errorMsg =
+        addLeadsError.response?.data?.message ||
+        addLeadsError.message ||
+        "Failed to add leads to campaign";
+      toast.error(errorMsg);
+      console.error("Add leads error:", addLeadsError);
+      throw addLeadsError;
+    }
+
+    if (
+      state.useAttachment &&
+      state.emailTemplate.attachments &&
+      state.emailTemplate.attachments.length > 0
+    ) {
+      toast.loading("Uploading attachment...");
+      try {
+        const attachment = state.emailTemplate.attachments[0];
+        const fileBuffer = await attachment.file.arrayBuffer();
+        const bytes = new Uint8Array(fileBuffer);
+        const binary = bytes.reduce(
+          (acc, byte) => acc + String.fromCharCode(byte),
+          ""
+        );
+        const base64 = btoa(binary);
+
+        const uploadResponse = await emailClient.post(
+          `/api/domains/${domainId}/campaigns/${campaignId}/upload-attachment`,
+          {
+            fileBuffer: base64,
+            fileName: attachment.name,
+            mimeType: attachment.type,
+          }
+        );
+
+        const uploadData = uploadResponse.data?.data;
+        if (!uploadData?.s3Key) {
+          throw new Error("Failed to get s3Key from upload response");
+        }
+
+        await emailClient.patch(
+          `/api/domains/${domainId}/campaigns/${campaignId}`,
+          {
+            attachment: {
+              s3Key: uploadData.s3Key,
+              fileName: uploadData.fileName || attachment.name,
+              mimeType: uploadData.mimeType || attachment.type,
+              size: uploadData.size || attachment.size,
+            },
+          }
+        );
+
+        toast.dismiss();
+        toast.success("Attachment uploaded successfully!");
+      } catch (attachmentError: any) {
+        toast.dismiss();
+        console.error("Attachment upload error:", attachmentError);
+        toast.error(
+          attachmentError.response?.data?.message ||
+            "Failed to upload attachment"
+        );
+      }
+    }
+
+    toast.loading(`Sending campaign...`);
+
+    const primarySenderId = state.senderIds[0];
+    if (!primarySenderId) {
+      toast.dismiss();
+      toast.error("No sender selected");
+      throw new Error("No sender selected");
+    }
+
+    const sendResponse = await emailClient.post(
+      `/api/domains/${domainId}/campaigns/${campaignId}/send`,
+      {
+        senderId: primarySenderId,
+        senderIds: state.senderIds,
+        rotationDistribution: rotation?.distribution.map((d) => ({
+          senderId: d.sender.id,
+          leadCount: d.leads,
+        })),
+        dailySendTime: state.dailySendTime || undefined,
+      }
+    );
+
+    if (sendResponse.data?.success) {
+      const sentCount =
+        sendResponse.data?.data?.sentCount || idsToUse.length;
+      toast.dismiss();
+      toast.success(
+        `Campaign sent successfully to ${sentCount} recipients!`
+      );
+      if (onSuccess) onSuccess();
+    } else {
+      toast.dismiss();
+      toast.error("Failed to send campaign");
+    }
+  };
+
   const handleSend = async () => {
-    // Final validation
     if (!validation.recipients) {
       toast.error("Please select at least one recipient");
       return;
@@ -644,57 +759,9 @@ export default function SinglePageCampaignBuilder({
       return;
     }
 
+    setSending(true);
+
     try {
-      setSending(true);
-
-      // Step 1: Create campaign
-      toast.loading("Creating campaign...");
-      let campaignId: string = "";
-
-      try {
-        const campaignResponse = await emailClient.post(
-          `/api/domains/${state.domainId}/campaigns`,
-          {
-            name: state.campaignName,
-            description: state.campaignDescription,
-            sequence: [
-              {
-                subject: state.emailTemplate.subject,
-                previewText: state.emailTemplate.previewText || "",
-                body: state.emailTemplate.htmlContent,
-                delayMinutes: 0,
-                replyTo:
-                  state.useReplyTo && state.replyTo ? state.replyTo : undefined,
-              },
-            ],
-            replyTo:
-              state.useReplyTo && state.replyTo ? state.replyTo : undefined,
-            tags: state.selectedTags?.map((t: any) => t.name) || [],
-          }
-        );
-
-        campaignId = campaignResponse.data?.data?.id;
-
-        if (!campaignId) {
-          toast.dismiss();
-          toast.error("Failed to create campaign");
-          return;
-        }
-
-        toast.dismiss();
-        toast.success("Campaign created successfully!");
-      } catch (campaignError: any) {
-        toast.dismiss();
-        const errorMsg =
-          campaignError.response?.data?.message ||
-          campaignError.message ||
-          "Failed to create campaign";
-        toast.error(errorMsg);
-        console.error("Campaign creation error:", campaignError);
-        return;
-      }
-
-      // Step 2: Create leads from CSV if needed, or use existing lead IDs
       let leadIds: string[] = [];
 
       if (state.selectedRecipients.type === "csv" && state.csvData.length > 0) {
@@ -728,42 +795,212 @@ export default function SinglePageCampaignBuilder({
           }
 
           toast.dismiss();
-          toast.success(`Created ${leadIds.length} leads successfully!`);
         } catch (csvError: any) {
           toast.dismiss();
-          const errorMsg =
-            csvError.response?.data?.message ||
-            csvError.message ||
-            "Failed to create leads from CSV";
-          toast.error(errorMsg);
+          const errorMsg = getEmailServiceErrorMessage(
+            csvError,
+            "Failed to create leads from CSV"
+          );
+          toast.error(errorMsg, { duration: 8000 });
           console.error("CSV creation error:", csvError);
           return;
         }
       } else {
-        // Use existing lead IDs
         leadIds = state.selectedRecipients.ids;
       }
 
-      // Step 3: Optional Reoon verification
-      const leadEmails =
-        state.selectedRecipients.type === "csv"
-          ? state.csvData.map((row: any) => {
-              const emailColumn = state.emailColumn || "email";
-              return (row[emailColumn] || row.email || "").toLowerCase().trim();
-            })
-          : [];
+      const leadIdToEmail = new Map<string, string>();
 
-      setReoonModalPayload({
-        domainId: state.domainId,
-        campaignId,
-        leadIds,
-        leadEmails,
-      });
-      setShowReoonModal(true);
+      for (let i = 0; i < leadIds.length; i += LEAD_EMAIL_FETCH_BATCH) {
+        const batchIds = leadIds.slice(i, i + LEAD_EMAIL_FETCH_BATCH);
+        const response = await emailClient.post("/api/leads/batch-get", {
+          leadIds: batchIds,
+        });
+        const leads = response.data?.data?.leads || [];
+        for (const lead of leads) {
+          if (lead.id && lead.email) {
+            leadIdToEmail.set(
+              String(lead.id),
+              String(lead.email).toLowerCase().trim()
+            );
+          }
+        }
+      }
+
+      const uniqueEmails = [
+        ...new Set(Array.from(leadIdToEmail.values()).filter(Boolean)),
+      ];
+
+      const emailToDetail = new Map<
+        string,
+        { isVerified?: boolean; isSafeToSend?: boolean | null }
+      >();
+
+      for (let i = 0; i < uniqueEmails.length; i += VERIFICATION_EMAIL_CHECK_BATCH) {
+        const batch = uniqueEmails.slice(i, i + VERIFICATION_EMAIL_CHECK_BATCH);
+        const statusResult = await checkEmailsVerificationStatus(batch);
+        for (const d of statusResult.details || []) {
+          emailToDetail.set(d.email.toLowerCase().trim(), {
+            isVerified: d.isVerified,
+            isSafeToSend: d.isSafeToSend ?? null,
+          });
+        }
+      }
+
+      const unverifiedLeadIds: string[] = [];
+      const safeLeadIds: string[] = [];
+      let riskyCount = 0;
+
+      for (const [leadId, email] of leadIdToEmail.entries()) {
+        if (!email) continue;
+        const detail = emailToDetail.get(email);
+        if (!detail?.isVerified) {
+          unverifiedLeadIds.push(leadId);
+          continue;
+        }
+        if (detail.isSafeToSend === true) {
+          safeLeadIds.push(leadId);
+        } else {
+          riskyCount += 1;
+        }
+      }
+
+      toast(
+        `${safeLeadIds.length} leads verified and safe to send. ${unverifiedLeadIds.length} not verified yet — we will verify them with Reoon. ${riskyCount} excluded as risky.`,
+        { duration: 7000 }
+      );
+
+      const createCampaignRecord = async (): Promise<string | null> => {
+        toast.loading("Creating campaign...");
+        try {
+          const campaignResponse = await emailClient.post(
+            `/api/domains/${state.domainId}/campaigns`,
+            {
+              name: state.campaignName,
+              description: state.campaignDescription,
+              sequence: [
+                {
+                  subject: state.emailTemplate.subject,
+                  previewText: state.emailTemplate.previewText || "",
+                  body: state.emailTemplate.htmlContent,
+                  delayMinutes: 0,
+                  replyTo:
+                    state.useReplyTo && state.replyTo
+                      ? state.replyTo
+                      : undefined,
+                },
+              ],
+              replyTo:
+                state.useReplyTo && state.replyTo ? state.replyTo : undefined,
+              tags: state.selectedTags?.map((t: any) => t.name) || [],
+            }
+          );
+
+          const id = campaignResponse.data?.data?.id;
+          toast.dismiss();
+          if (!id) {
+            toast.error("Failed to create campaign");
+            return null;
+          }
+          return String(id);
+        } catch (campaignError: any) {
+          toast.dismiss();
+          const errorMsg = getEmailServiceErrorMessage(
+            campaignError,
+            "Failed to create campaign"
+          );
+          toast.error(errorMsg);
+          console.error("Campaign creation error:", campaignError);
+          return null;
+        }
+      };
+
+      if (unverifiedLeadIds.length > 0) {
+        const refreshed = await getReoonStatus(true);
+        const daily = refreshed.lastBalanceDailyCredits ?? 0;
+        const instant = refreshed.lastBalanceInstantCredits ?? 0;
+        if (daily + instant < 1) {
+          toast.error(
+            "You ran out of credits on Reoon. Add credits or update your API key in Settings → Integrations, then refresh and try again.",
+            { duration: 10000 }
+          );
+          return;
+        }
+
+        const campaignId = await createCampaignRecord();
+        if (!campaignId) return;
+
+        toast.loading("Adding leads and starting verification with Reoon...");
+        try {
+          await emailClient.post(
+            `/api/domains/${state.domainId}/campaigns/${campaignId}/add-leads`,
+            { leadIds }
+          );
+        } catch (addErr: any) {
+          toast.dismiss();
+          toast.error(
+            addErr?.response?.data?.message ||
+              addErr?.message ||
+              "Failed to add leads to campaign"
+          );
+          try {
+            await deleteCampaign(state.domainId, campaignId);
+          } catch {
+            /* best effort */
+          }
+          return;
+        }
+
+        try {
+          await queueCampaignLeadsVerification({
+            domainId: state.domainId,
+            campaignId,
+            leadIds,
+            mode: "power",
+          });
+        } catch (queueErr: any) {
+          toast.dismiss();
+          const code = queueErr?.response?.data?.code;
+          const msg =
+            queueErr?.response?.data?.message ||
+            queueErr?.message ||
+            "Failed to queue verification.";
+          toast.error(msg, { duration: 10000 });
+          try {
+            await deleteCampaign(state.domainId, campaignId);
+          } catch {
+            /* best effort */
+          }
+          return;
+        }
+
+        toast.dismiss();
+        toast.success(
+          "We are verifying your list with Reoon. This campaign is in Verifying leads until it finishes. You will get an email when verification completes.",
+          { duration: 9000 }
+        );
+        if (onSuccess) onSuccess();
+        return;
+      }
+
+      if (safeLeadIds.length === 0) {
+        toast.error(
+          "No leads are safe to send after verification. Add valid leads or wait for verification to finish."
+        );
+        return;
+      }
+
+      const campaignId = await createCampaignRecord();
+      if (!campaignId) return;
+
+      await finalizeCampaignSend(campaignId, safeLeadIds);
     } catch (error: any) {
       toast.dismiss();
-      toast.error(error.response?.data?.message || "Failed to send campaign");
+      toast.error(
+        error?.response?.data?.message || "Failed to send campaign"
+      );
       console.error(error);
+    } finally {
       setSending(false);
     }
   };
@@ -825,168 +1062,6 @@ export default function SinglePageCampaignBuilder({
         textContent: step.body,
       },
     }));
-  };
-
-  const handleReoonDecision = async (decision: {
-    usedVerification: boolean;
-    filteredLeadIds: string[];
-  }) => {
-    if (!reoonModalPayload) {
-      setShowReoonModal(false);
-      setSending(false);
-      return;
-    }
-
-    const { domainId, campaignId, leadIds } = reoonModalPayload;
-    const idsToUse =
-      decision &&
-      decision.filteredLeadIds &&
-      decision.filteredLeadIds.length > 0
-        ? decision.filteredLeadIds
-        : leadIds;
-
-    setShowReoonModal(false);
-
-    try {
-      // Add leads to campaign
-      toast.loading("Adding leads to campaign...");
-
-      try {
-        await emailClient.post(
-          `/api/domains/${domainId}/campaigns/${campaignId}/add-leads`,
-          {
-            leadIds: idsToUse,
-          }
-        );
-
-        toast.dismiss();
-        toast.success("Leads added to campaign successfully!");
-      } catch (addLeadsError: any) {
-        toast.dismiss();
-        const errorMsg =
-          addLeadsError.response?.data?.message ||
-          addLeadsError.message ||
-          "Failed to add leads to campaign";
-        toast.error(errorMsg);
-        console.error("Add leads error:", addLeadsError);
-        return;
-      }
-
-      // Upload attachment if exists and enabled
-      if (
-        state.useAttachment &&
-        state.emailTemplate.attachments &&
-        state.emailTemplate.attachments.length > 0
-      ) {
-        toast.loading("Uploading attachment...");
-        try {
-          const attachment = state.emailTemplate.attachments[0];
-          const fileBuffer = await attachment.file.arrayBuffer();
-          // Convert ArrayBuffer to base64 (browser-compatible)
-          const bytes = new Uint8Array(fileBuffer);
-          const binary = bytes.reduce(
-            (acc, byte) => acc + String.fromCharCode(byte),
-            ""
-          );
-          const base64 = btoa(binary);
-
-          // Upload attachment and capture the response with s3Key
-          const uploadResponse = await emailClient.post(
-            `/api/domains/${domainId}/campaigns/${campaignId}/upload-attachment`,
-            {
-              fileBuffer: base64,
-              fileName: attachment.name,
-              mimeType: attachment.type,
-            }
-          );
-
-          // Get s3Key from upload response
-          const uploadData = uploadResponse.data?.data;
-          if (!uploadData?.s3Key) {
-            throw new Error("Failed to get s3Key from upload response");
-          }
-
-          // Update campaign with attachment metadata including s3Key
-          await emailClient.patch(
-            `/api/domains/${domainId}/campaigns/${campaignId}`,
-            {
-              attachment: {
-                s3Key: uploadData.s3Key,
-                fileName: uploadData.fileName || attachment.name,
-                mimeType: uploadData.mimeType || attachment.type,
-                size: uploadData.size || attachment.size,
-              },
-            }
-          );
-
-          toast.dismiss();
-          toast.success("Attachment uploaded successfully!");
-        } catch (attachmentError: any) {
-          toast.dismiss();
-          console.error("Attachment upload error:", attachmentError);
-          toast.error(
-            attachmentError.response?.data?.message ||
-              "Failed to upload attachment"
-          );
-          // Continue without attachment
-        }
-      }
-
-      // Send campaign
-      toast.loading(`Sending campaign...`);
-
-      try {
-        // For now, use the first sender ID for backward compatibility
-        // TODO: Backend should be updated to handle senderIds array and rotation
-        const primarySenderId = state.senderIds[0];
-        if (!primarySenderId) {
-          toast.dismiss();
-          toast.error("No sender selected");
-          return;
-        }
-
-        const sendResponse = await emailClient.post(
-          `/api/domains/${domainId}/campaigns/${campaignId}/send`,
-          {
-            senderId: primarySenderId,
-            senderIds: state.senderIds,
-            rotationDistribution: rotation?.distribution.map((d) => ({
-              senderId: d.sender.id,
-              leadCount: d.leads,
-            })),
-            dailySendTime: state.dailySendTime || undefined,
-          }
-        );
-
-        if (sendResponse.data?.success) {
-          const sentCount =
-            sendResponse.data?.data?.sentCount || idsToUse.length;
-          toast.dismiss();
-          toast.success(
-            `Campaign sent successfully to ${sentCount} recipients!`
-          );
-          if (onSuccess) onSuccess();
-        } else {
-          toast.dismiss();
-          toast.error("Failed to send campaign");
-        }
-      } catch (sendError: any) {
-        toast.dismiss();
-        const errorMsg =
-          sendError.response?.data?.message ||
-          sendError.message ||
-          "Failed to send campaign";
-        toast.error(errorMsg);
-        console.error("Campaign send error:", sendError);
-      }
-    } catch (error: any) {
-      toast.dismiss();
-      toast.error(error.response?.data?.message || "Failed to send campaign");
-      console.error(error);
-    } finally {
-      setSending(false);
-      setReoonModalPayload(null);
-    }
   };
 
   // Extract variables from CSV columns
@@ -1173,7 +1248,7 @@ export default function SinglePageCampaignBuilder({
                     </div>
                   )}
                   <p className="text-xs text-text-200/80 mb-3">
-                    Email verification is required for every lead before sending. If a lead is not already verified, we will run verification in the next step.
+                    Recipients are verified with Reoon before sending. Unverified addresses are checked automatically when you send; the campaign stays in Verifying leads until that finishes.
                   </p>
                 </>
               ) : (
@@ -1764,13 +1839,15 @@ export default function SinglePageCampaignBuilder({
                           className="w-4 h-4 rounded border-brand-main/20 text-brand-main focus:ring-brand-main"
                         />
                         <span className="text-xs font-medium text-text-200">
-                          Use a different Reply-to address
+                          Use different Reply-to addresses
                         </span>
                       </label>
                       {state.useReplyTo && (
-                        <div className="mt-2">
+                        <div className="mt-2 space-y-1">
                           <input
-                            type="email"
+                            type="text"
+                            inputMode="email"
+                            autoComplete="off"
                             value={state.replyTo || ""}
                             onChange={(e) =>
                               setState((prev) => ({
@@ -1778,9 +1855,12 @@ export default function SinglePageCampaignBuilder({
                                 replyTo: e.target.value,
                               }))
                             }
-                            placeholder="Enter an email address"
+                            placeholder="e.g. support@company.com, sales@company.com"
                             className="w-full px-3 py-2 text-sm bg-brand-main/5 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200/50 focus:outline-none focus:ring-2 focus:ring-brand-main"
                           />
+                          <p className="text-[11px] text-text-200/80 leading-snug">
+                            Separate multiple addresses with commas.
+                          </p>
                         </div>
                       )}
                     </div>
@@ -2185,18 +2265,6 @@ export default function SinglePageCampaignBuilder({
         onClose={() => setShowAIModal(false)}
         onGenerated={handleAIGenerated}
       />
-
-      {/* Reoon Verification Modal */}
-      {reoonModalPayload && (
-        <CampaignReoonVerificationModal
-          open={showReoonModal}
-          domainId={reoonModalPayload.domainId}
-          campaignId={reoonModalPayload.campaignId}
-          leadIds={reoonModalPayload.leadIds}
-          leadEmails={reoonModalPayload.leadEmails}
-          onDecision={handleReoonDecision}
-        />
-      )}
     </div>
   );
 }

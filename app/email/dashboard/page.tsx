@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
 
+import ContactPlanLimitBanner from "@/components/leads/ContactPlanLimitBanner";
 import { useAuthContext } from "@/context/AuthContext";
 import {
   Analytics,
@@ -280,6 +281,8 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        <ContactPlanLimitBanner metrics={contactMetrics} />
 
         {/* At a glance — 4 big numbers */}
         <section>

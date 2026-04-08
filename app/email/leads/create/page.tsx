@@ -10,6 +10,7 @@ import emailClient, {
   createLeadTag,
   createList,
   EmailList,
+  getEmailServiceErrorMessage,
   getLeadCategories,
   getLeadTags,
   getLists,
@@ -92,11 +93,25 @@ export default function CreateLeadPage() {
       router.push("/email/leads");
     } catch (error: any) {
       console.error("Failed to create lead:", error);
-      if (error?.status === 409) {
+      const status = error?.response?.status;
+      if (status === 409) {
         toast.error("Lead with this email already exists");
         return;
       }
-      toast.error(error.response?.data?.message || "Failed to create lead");
+      if (status === 403) {
+        toast.error(
+          getEmailServiceErrorMessage(
+            error,
+            "You cannot add more contacts on your current plan. Upgrade to continue."
+          ),
+          { duration: 8000 }
+        );
+        return;
+      }
+      toast.error(
+        getEmailServiceErrorMessage(error, "Failed to create lead"),
+        { duration: status === 403 ? 8000 : 4000 }
+      );
     } finally {
       setIsLoading(false);
     }

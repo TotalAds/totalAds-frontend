@@ -76,6 +76,9 @@ export const requiresOnboarding = (pathname: string): boolean => {
     "/reset-password",
     "/onboarding",
     "/verify-email",
+    // Public one-click / consent unsubscribe (no account login)
+    "/email/unsubscribe",
+    "/unsubscribe",
   ];
 
   // Check if current path is in allowed paths or starts with allowed path
@@ -97,6 +100,9 @@ export const requiresEmailVerification = (pathname: string): boolean => {
     "/forgot-password",
     "/reset-password",
     "/verify-email",
+    // Public one-click / consent unsubscribe (no account login)
+    "/email/unsubscribe",
+    "/unsubscribe",
   ];
 
   // Check if current path is in allowed paths or starts with allowed path

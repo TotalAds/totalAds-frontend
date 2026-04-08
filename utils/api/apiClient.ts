@@ -2,6 +2,7 @@
 
 import axios from "axios";
 
+import { refreshAccessToken } from "../auth/refreshAccessToken";
 import { tokenStorage } from "../auth/tokenStorage";
 
 // API base URLs
@@ -176,19 +177,7 @@ apiClient.interceptors.response.use(
       refreshAttempts++;
 
       try {
-        // Attempt to refresh the token
-        const refreshResponse = await axios.post(
-          `${API_BASE_URL}/auth/refresh`,
-          {},
-          {
-            withCredentials: true,
-          }
-        );
-
-        const { accessToken, expiresIn } = refreshResponse.data.payload;
-
-        // Store the new access token
-        tokenStorage.setTokens(accessToken, expiresIn);
+        const accessToken = await refreshAccessToken();
 
         // Update the authorization header
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;

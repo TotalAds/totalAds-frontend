@@ -5,10 +5,10 @@
 
 import axios, { AxiosError } from "axios";
 
+import { refreshAccessToken } from "../auth/refreshAccessToken";
 import { tokenStorage } from "../auth/tokenStorage";
 
 // API base URLs
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const EMAIL_SERVICE_URL =
   process.env.NEXT_PUBLIC_EMAIL_SERVICE_URL || "http://localhost:3001";
 const WARMUP_API_URL = `${EMAIL_SERVICE_URL}/api/warmup`;
@@ -76,21 +76,11 @@ warmupClient.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refreshResponse = await axios.post(
-          `${API_BASE_URL}/auth/refresh`,
-          {},
-          { withCredentials: true }
-        );
-
-        const newAccessToken = refreshResponse.data?.data?.accessToken;
-        const expiresIn = refreshResponse.data?.data?.expiresIn || 3600;
-        if (newAccessToken) {
-          tokenStorage.setTokens(newAccessToken, expiresIn);
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-          processQueue(null, newAccessToken);
-          isRefreshing = false;
-          return warmupClient(originalRequest);
-        }
+        const newAccessToken = await refreshAccessToken();
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        processQueue(null, newAccessToken);
+        isRefreshing = false;
+        return warmupClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
         isRefreshing = false;

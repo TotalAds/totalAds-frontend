@@ -15,6 +15,7 @@ import emailClient, {
   createList,
   EmailList,
   getBulkUploadJobStatus,
+  getEmailServiceErrorMessage,
   getLeadCategories,
   getLeadTags,
   getLists,
@@ -568,11 +569,13 @@ export default function BulkUploadModal({
       // Trigger success callback with job info
       onSuccess(job.jobId, job.totalRows);
     } catch (error: any) {
-      const errorMsg =
-        error.response?.data?.message ||
-        error.message ||
-        "Failed to create bulk upload job";
-      toast.error(errorMsg);
+      const errorMsg = getEmailServiceErrorMessage(
+        error,
+        "Failed to create bulk upload job"
+      );
+      toast.error(errorMsg, {
+        duration: error.response?.status === 403 ? 10000 : 6000,
+      });
       console.error("Bulk upload error:", error);
     } finally {
       setUploading(false);

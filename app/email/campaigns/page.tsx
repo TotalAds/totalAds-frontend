@@ -109,16 +109,23 @@ export default function CampaignsPage() {
     const statusMap: Record<string, { bg: string; text: string }> = {
       draft: { bg: "bg-slate-100", text: "text-slate-600" },
       running: { bg: "bg-green-100", text: "text-green-700" },
+      verifying_leads: { bg: "bg-violet-100", text: "text-violet-800" },
       sending: { bg: "bg-blue-100", text: "text-blue-700" },
       paused: { bg: "bg-amber-100", text: "text-amber-700" },
       completed: { bg: "bg-emerald-100", text: "text-emerald-700" },
     };
+    const label: Record<string, string> = {
+      verifying_leads: "Verifying leads",
+    };
     const style = statusMap[status] || statusMap.draft;
+    const text =
+      label[status] ||
+      status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " ");
     return (
       <span
         className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${style.bg} ${style.text}`}
       >
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {text}
       </span>
     );
   };
