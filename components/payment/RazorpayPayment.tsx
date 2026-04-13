@@ -3,10 +3,13 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
+import { tierAllowedForSesProvider } from "@/lib/pricingTierSes";
+
 import emailClient, {
   getSubscriptionInfo,
   SubscriptionInfo,
 } from "@/utils/api/emailClient";
+import { getEmailProvider } from "@/utils/api/apiClient";
 
 import CustomPlanRequestModal from "./CustomPlanRequestModal";
 
@@ -34,6 +37,7 @@ interface PricingTier {
   prioritySupportEnabled: boolean;
   warmupEnabled?: boolean;
   warmupDailyLimit?: number;
+  maxDomains?: number;
   badgeText?: string | null;
   badgeColor?: string | null;
 }
@@ -69,11 +73,16 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [tiersResponse, subInfo] = await Promise.all([
+        const [tiersResponse, subInfo, provider] = await Promise.all([
           emailClient.get("/api/payment/pricing-tiers"),
           getSubscriptionInfo(),
+          getEmailProvider().catch(() => ({ sesProvider: null })),
         ]);
-        const fetchedTiers = tiersResponse.data.data || [];
+        const raw = tiersResponse.data.data || [];
+        const sp = provider.sesProvider ?? null;
+        const fetchedTiers = raw.filter((t: PricingTier) =>
+          tierAllowedForSesProvider(t.name, sp as any)
+        );
 
         setTiers(fetchedTiers);
         setCurrentSubscription(subInfo);
@@ -86,6 +95,17 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
   }, []);
 
   const handlePayment = async (tierId: string) => {
+    const tierMeta = tiers.find((t) => t.id === tierId);
+    if (tierMeta?.name === "trial" || tierMeta?.name === "byo_trial") {
+      toast(
+        tierMeta.name === "byo_trial"
+          ? "Try BYO SES is your free trial for Bring Your Own SES (1,000 contacts and 2,000 emails/month). It starts when you sign up and pick BYO SES. Connect AWS in Settings → Email delivery, then add or import a domain."
+          : "The managed free trial is started automatically when you sign up. No separate checkout is required.",
+        { icon: "ℹ️", duration: 6000 }
+      );
+      return;
+    }
+
     if (!sdkReady) {
       toast.error("Payment system not ready. Please refresh the page.");
       return;
@@ -170,8 +190,12 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
       razorpay.open();
     } catch (error: any) {
       console.error("Payment error:", error);
-      toast.error(error.message || "Payment failed");
-      if (onError) onError(error.message || "Payment failed");
+      const msg =
+        error?.response?.data?.error ||
+        error?.message ||
+        "Payment failed";
+      toast.error(msg);
+      if (onError) onError(msg);
     } finally {
       setLoading(false);
     }
@@ -210,7 +234,8 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
     return "border hover:border-white/30 bg-bg-200/80";
   };
 
-  const isPopularTier = (tierName: string) => tierName === "starter";
+  const isPopularTier = (tierName: string) =>
+    tierName === "starter" || tierName === "byo_pro";
 
   return (
     <div className="space-y-6">
@@ -223,12 +248,12 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
             isTierMatch && (status === "active" || status === "trial");
           const isExpiredCurrentTier = isTierMatch && status === "expired";
           const isCustomPlan = tier.name === "custom";
-          const isTrialPlan = tier.name === "trial";
+          const isTrialPlan =
+            tier.name === "trial" || tier.name === "byo_trial";
           const isPopular = isPopularTier(tier.name);
 
-          return isTrialPlan ? (
-            ""
-          ) : (
+          // Hide managed "Trial" from the grid (signup starts it). Always show Try BYO SES (byo_trial) for BYO users.
+          return tier.name === "trial" ? null : (
             <div
               key={tier.id}
               className={`relative backdrop-blur-xl border rounded-2xl p-6 transition-all duration-300 hover:shadow-xl ${getCardStyles(
@@ -358,9 +383,12 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
                       />
                     </svg>
                     <span>
-                      {tier.monthlyEmailLimit === 0
-                        ? "Unlimited emails"
-                        : `${tier.monthlyEmailLimit.toLocaleString()} emails/month`}
+                      {tier.name === "byo_pro" ||
+                      tier.monthlyEmailLimit >= 999999999
+                        ? "Send volume follows your AWS SES account"
+                        : tier.monthlyEmailLimit === 0
+                          ? "Unlimited emails"
+                          : `${tier.monthlyEmailLimit.toLocaleString()} emails/month`}
                     </span>
                   </div>
                   {tier.maxContacts !== undefined && tier.maxContacts > 0 && (
@@ -381,6 +409,28 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
                       <span>{tier.maxContacts.toLocaleString()} contacts</span>
                     </div>
                   )}
+                  {tier.name === "byo_trial" &&
+                    tier.maxDomains !== undefined &&
+                    tier.maxDomains > 0 && (
+                      <div className="flex items-center gap-2 text-text-200 text-sm">
+                        <svg
+                          className="w-4 h-4 text-primary-100"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
+                          />
+                        </svg>
+                        <span>
+                          Up to {tier.maxDomains} verified domains on the platform
+                        </span>
+                      </div>
+                    )}
                   {isCustomPlan && (
                     <div className="flex items-center gap-2 text-text-200 text-sm">
                       <svg

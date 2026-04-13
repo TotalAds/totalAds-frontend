@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
+import { SesAwsIdentitiesImportSection } from "@/components/email/SesAwsIdentitiesImportSection";
 import {
   deleteSesCredentials,
+  getDomains,
+  getEmailSendersTotalCount,
   getSesCredentialsStatus,
   saveManualConfigSet,
   setupSnsTracking,
@@ -91,6 +94,9 @@ export default function EmailDeliverySection() {
   /** Full multiline error from auto-setup (toast is too short for IAM instructions) */
   const [snsSetupError, setSnsSetupError] = useState<string | null>(null);
 
+  const [appDomainCount, setAppDomainCount] = useState(0);
+  const [appSenderCount, setAppSenderCount] = useState(0);
+
   const load = useCallback(async () => {
     try {
       const status = await getEmailProvider();
@@ -100,6 +106,21 @@ export default function EmailDeliverySection() {
         try {
           const c = await getSesCredentialsStatus();
           setCreds(c);
+          try {
+            const domResp = await getDomains(1, 1);
+            const d =
+              (domResp as { data?: { pagination?: { total?: number } } } | null)?.data
+                ?.pagination?.total ?? 0;
+            setAppDomainCount(Number(d) || 0);
+          } catch {
+            setAppDomainCount(0);
+          }
+          try {
+            const n = await getEmailSendersTotalCount();
+            setAppSenderCount(n);
+          } catch {
+            setAppSenderCount(0);
+          }
         } catch {
           setCreds({ connected: false });
         }
@@ -310,8 +331,11 @@ export default function EmailDeliverySection() {
                 { done: creds.connected, label: "Connect AWS SES API credentials" },
                 { done: creds.isVerified, label: "Test and verify the connection" },
                 { done: !!creds.snsSetupComplete, label: "Set up SNS event tracking (for analytics)" },
-                { done: false, label: "Add and verify a sending domain" },
-                { done: false, label: "Create and verify an email sender" },
+                { done: appDomainCount > 0, label: "Add and verify a sending domain" },
+                {
+                  done: appSenderCount > 0,
+                  label: "Create and verify an email sender",
+                },
               ].map((step, i) => (
                 <div key={i} className="flex items-center gap-2 text-sm">
                   {step.done ? (
@@ -482,6 +506,14 @@ export default function EmailDeliverySection() {
                 </button>
               </div>
             </div>
+          )}
+
+          {/* Import domains & senders from AWS */}
+          {creds.connected && creds.isVerified && (
+            <SesAwsIdentitiesImportSection
+              className="border-t border-bg-200 pt-5 max-w-3xl"
+              onImportComplete={() => void load()}
+            />
           )}
 
           {/* ── SNS Event Tracking Setup ── */}

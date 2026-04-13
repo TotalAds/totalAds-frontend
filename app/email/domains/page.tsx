@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
 
 import AGGridWrapper from "@/components/common/AGGridWrapper";
+import { SesAwsIdentitiesImportSection } from "@/components/email/SesAwsIdentitiesImportSection";
 import { Button } from "@/components/ui/button";
 import { EmailDeliveryBanner } from "@/components/email/EmailDeliveryBanner";
 import { deleteDomain, Domain, getDomains } from "@/utils/api/emailClient";
@@ -15,7 +16,13 @@ import { useEmailProvider } from "@/hooks/useEmailProvider";
 
 export default function DomainsPage() {
   const router = useRouter();
-  const { sesProvider, sesConnected } = useEmailProvider();
+  const {
+    sesProvider,
+    sesConnected,
+    sesVerified,
+    loading: emailProviderLoading,
+    refetch: refetchEmailProvider,
+  } = useEmailProvider();
   const [domains, setDomains] = useState<Domain[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -236,6 +243,19 @@ export default function DomainsPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <EmailDeliveryBanner sesProvider={sesProvider} sesConnected={sesConnected} />
+        {sesProvider === "custom" &&
+          sesConnected &&
+          sesVerified &&
+          !emailProviderLoading && (
+            <div className="mb-8 backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-6">
+              <SesAwsIdentitiesImportSection
+                onImportComplete={async () => {
+                  await fetchDomains();
+                  await refetchEmailProvider();
+                }}
+              />
+            </div>
+          )}
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">

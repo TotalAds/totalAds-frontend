@@ -3,9 +3,10 @@
 import Cookies from "js-cookie";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
 
+import { DomainDnsSetupPanel } from "@/components/email/DomainDnsSetupPanel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { dnsRegistrarHost } from "@/lib/dnsRegistrarHost";
 import emailClient from "@/utils/api/emailClient";
 import {
   IconCheck,
@@ -25,11 +27,12 @@ import {
   IconShield,
 } from "@tabler/icons-react";
 
-// Compact DNS Record for Multiple Records
+// Compact DNS Record — Name (registrar Host/Name) + Value only; MX priority in header
 function CompactDNSRecord({
   recordNumber,
-  nameLabel,
-  nameValue,
+  fqdnFull,
+  hostShort,
+  dnsZone: _dnsZone,
   valueLabel,
   valueValue,
   type,
@@ -41,8 +44,12 @@ function CompactDNSRecord({
   priorityId,
 }: {
   recordNumber?: number;
-  nameLabel: string;
-  nameValue: string;
+  /** Full DNS name (hint for accessibility; Name uses host) */
+  fqdnFull: string;
+  /** Short host for registrar Host/Name field */
+  hostShort: string;
+  /** Domain zone (reserved for callers) */
+  dnsZone?: string;
   valueLabel: string;
   valueValue: string;
   type: string;
@@ -53,71 +60,80 @@ function CompactDNSRecord({
   valueId: string;
   priorityId?: string;
 }) {
+  const nameCopyId = `${nameId}-name`;
+  const priorityCopyId = priorityId || `${nameId}-priority`;
+  const nameForDns = hostShort || fqdnFull;
+
   return (
     <div className="bg-bg-200/60 rounded-lg p-4 border border-text-200/90 hover:border-primary-100/30 transition-all">
-      {/* Record Number and Type at Top */}
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3 text-xs text-text-300/80">
         {recordNumber && (
-          <div className="text-xs font-semibold text-primary-200 uppercase tracking-wider">
+          <span className="font-semibold text-primary-200 uppercase tracking-wider">
             Record {recordNumber}
-          </div>
+          </span>
         )}
-        <div className="text-xs text-text-300/70">•</div>
-        <div className="text-xs text-text-300/80">
+        {recordNumber && <span className="text-text-300/70">•</span>}
+        <span>
           Type:{" "}
-          <span className="font-mono bold font-medium text-sm text-primary-200">
+          <span className="font-mono font-medium text-sm text-primary-200">
             {type}
           </span>
-        </div>
+        </span>
+        {priority && (
+          <>
+            <span className="text-text-300/70">•</span>
+            <span className="inline-flex items-center gap-1.5">
+              Priority{" "}
+              <code className="font-mono text-text-200 text-[0.8125rem]">
+                {priority}
+              </code>
+              <button
+                type="button"
+                onClick={() => onCopy(priority, priorityCopyId)}
+                className="p-1 hover:bg-primary-100/15 rounded transition"
+                title="Copy priority"
+              >
+                {copiedIndex === priorityCopyId ? (
+                  <IconCheck className="w-3 h-3 text-green-500" />
+                ) : (
+                  <IconCopy className="w-3 h-3 text-primary-200" />
+                )}
+              </button>
+            </span>
+          </>
+        )}
       </div>
 
       <div className="space-y-3">
         <div>
           <label className="text-xs font-medium text-text-300/90 uppercase tracking-wide block mb-1.5">
-            {nameLabel}
+            Name
           </label>
-          <div className="flex items-center gap-2 bg-bg-100/50 rounded-md p-2.5 border border-bg-300/30">
+          <div
+            className="flex items-center gap-2 bg-bg-100/50 rounded-md p-2.5 border border-bg-300/30"
+            title={`Full DNS name: ${fqdnFull}`}
+          >
             <code className="text-text-100 font-mono text-xs break-all flex-1">
-              {nameValue}
+              {nameForDns}
             </code>
             <button
-              onClick={() => onCopy(nameValue, nameId)}
+              type="button"
+              onClick={() => onCopy(nameForDns, nameCopyId)}
               className="p-1.5 hover:bg-primary-100/15 rounded transition flex-shrink-0"
-              title="Copy"
+              title="Copy name"
             >
-              {copiedIndex === nameId ? (
+              {copiedIndex === nameCopyId ? (
                 <IconCheck className="w-3.5 h-3.5 text-green-500" />
               ) : (
                 <IconCopy className="w-3.5 h-3.5 text-primary-200" />
               )}
             </button>
           </div>
+          <p className="mt-1.5 text-[11px] text-text-300/85 leading-snug">
+            Copy Name into Host
+          </p>
         </div>
-        {priority && (
-          <div>
-            <label className="text-xs font-medium text-text-300/90 uppercase tracking-wide block mb-1.5">
-              Priority
-            </label>
-            <div className="flex items-center gap-2 bg-bg-100/50 rounded-md p-2.5 border border-bg-300/30">
-              <code className="text-text-200 font-mono text-xs break-all flex-1">
-                {priority}
-              </code>
-              <button
-                onClick={() =>
-                  onCopy(priority, priorityId || `${nameId}-priority`)
-                }
-                className="p-1.5 hover:bg-primary-100/15 rounded transition flex-shrink-0"
-                title="Copy"
-              >
-                {copiedIndex === (priorityId || `${nameId}-priority`) ? (
-                  <IconCheck className="w-3.5 h-3.5 text-green-500" />
-                ) : (
-                  <IconCopy className="w-3.5 h-3.5 text-primary-200" />
-                )}
-              </button>
-            </div>
-          </div>
-        )}
+
         <div>
           <label className="text-xs font-medium text-text-300/90 uppercase tracking-wide block mb-1.5">
             {valueLabel}
@@ -127,6 +143,7 @@ function CompactDNSRecord({
               {valueValue}
             </code>
             <button
+              type="button"
               onClick={() => onCopy(valueValue, valueId)}
               className="p-1.5 hover:bg-primary-100/15 rounded transition flex-shrink-0"
               title="Copy"
@@ -152,7 +169,6 @@ export default function VerifyDomainPage() {
   const [domainInfo, setDomainInfo] = useState<any>(null);
   const [dns, setDns] = useState<any>(null);
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
-  const [currentStep, setCurrentStep] = useState<number>(1);
   const [spfTab, setSpfTab] = useState<"merge" | "new">("merge"); // Tab for SPF record options
   const [showVerificationScreen, setShowVerificationScreen] = useState(false);
   const [showDnsModal, setShowDnsModal] = useState(false);
@@ -276,64 +292,120 @@ export default function VerifyDomainPage() {
     domainInfo?.verificationStatus === "pending" ||
     domainInfo?.dkimStatus === "pending";
 
-  // Get all DNS records for the modal
+  const spfOk = Boolean(dns?.liveDnsChecks?.spfSatisfied);
+  /** Public DNS already has correct DKIM CNAMEs (may still need Amazon SES to confirm) */
+  const dnsDkimOk = Boolean(dns?.liveDnsChecks?.dkimSatisfied);
+  /** Only hide DKIM CNAME rows after SES marks DKIM verified */
+  const sesDkimVerified = domainInfo?.dkimStatus === "verified";
+
+  /** How to present the setup UI based on live DNS checks */
+  const setupLayout = useMemo(() => {
+    if (isFullyVerified) return "verified" as const;
+    if (!dns?.liveDnsChecks) return "loading" as const;
+    if (spfOk && dnsDkimOk && sesDkimVerified) return "compact" as const;
+    if (spfOk && dnsDkimOk && !sesDkimVerified)
+      return "ses-dkim-pending" as const;
+    if (!spfOk && !dnsDkimOk) return "dual" as const;
+    if (!spfOk && dnsDkimOk) return "spf-only" as const;
+    return "dkim-only" as const;
+  }, [
+    dns?.liveDnsChecks,
+    isFullyVerified,
+    spfOk,
+    dnsDkimOk,
+    sesDkimVerified,
+  ]);
+
+  const dnsZone = domainInfo?.domain || "";
+
+  /** Host to paste at GoDaddy / Namecheap + full FQDN note (registrars append your domain) */
+  const dnsReg = useMemo(() => {
+    const z = domainInfo?.domain || "";
+    if (!z) return { mx: null, spf: null, dmarc: null };
+    const spf = dnsRegistrarHost(z, z);
+    const dmarc = dnsRegistrarHost(`_dmarc.${z}`, z);
+    const mx = dns?.dnsRecords?.mailFrom
+      ? dnsRegistrarHost(dns.dnsRecords.mailFrom.domain, z)
+      : null;
+    return { mx, spf, dmarc };
+  }, [domainInfo?.domain, dns?.dnsRecords?.mailFrom]);
+
+  // Get all DNS records for the modal (registrar-relative host + FQDN hint)
   const getAllDnsRecords = () => {
-    const records: any[] = [];
+    const records: {
+      number: number;
+      type: string;
+      nameHost: string;
+      fqdn: string;
+      value: string;
+      priority?: string;
+    }[] = [];
     let recordNum = 1;
 
     // MX Record
-    if (dns?.dnsRecords?.mailFrom) {
+    if (dns?.dnsRecords?.mailFrom && dnsZone) {
+      const mx = dnsRegistrarHost(dns.dnsRecords.mailFrom.domain, dnsZone);
       records.push({
         number: recordNum++,
         type: "MX",
-        name: dns.dnsRecords.mailFrom.domain,
+        nameHost: mx.host,
+        fqdn: mx.fqdn,
         value: dns.dnsRecords.mailFrom.mx.value,
         priority: dns.dnsRecords.mailFrom.mx.priority,
       });
     }
 
-    // Root Domain SPF (only this one, not mailFrom SPF)
-    if (dns?.dnsRecords?.spf) {
+    // Root Domain SPF (omit when live DNS already authorizes SES)
+    if (dns?.dnsRecords?.spf && !spfOk && dnsZone) {
       const spfValue =
         spfTab === "merge" && dns.dnsRecords.spf.recommendedMerge
           ? dns.dnsRecords.spf.recommendedMerge
           : dns.dnsRecords.spf.recommendedNew;
+      const spf = dnsRegistrarHost(dnsZone, dnsZone);
       records.push({
         number: recordNum++,
         type: "TXT",
-        name: domainInfo?.domain,
+        nameHost: spf.host,
+        fqdn: spf.fqdn,
         value: spfValue,
       });
     }
 
     // DMARC
-    if (dns?.dnsRecords?.dmarc) {
+    if (dns?.dnsRecords?.dmarc && dnsZone) {
       const dmarcValue =
         dns.dnsRecords.dmarc.recommendedMerge ||
         dns.dnsRecords.dmarc.recommendedNew;
+      const dm = dnsRegistrarHost(`_dmarc.${dnsZone}`, dnsZone);
       records.push({
         number: recordNum++,
         type: "TXT",
-        name: `_dmarc.${domainInfo?.domain}`,
+        nameHost: dm.host,
+        fqdn: dm.fqdn,
         value: dmarcValue,
       });
     }
 
-    // DKIM Records
+    // DKIM Records (omit when CNAMEs already correct or SES verified)
     const dkimTokens =
       dns?.dnsRecords?.dkim || domainInfo?.dkimTokens?.tokens || [];
-    dkimTokens.forEach((token: any) => {
-      const tokenStr =
-        typeof token === "string"
-          ? token
-          : token?.name?.split("._domainkey.")[0];
-      records.push({
-        number: recordNum++,
-        type: "CNAME",
-        name: `${tokenStr}._domainkey.${domainInfo?.domain}`,
-        value: `${tokenStr}.dkim.amazonses.com`,
+    if (!sesDkimVerified && dnsZone) {
+      dkimTokens.forEach((token: any) => {
+        const tokenStr =
+          typeof token === "string"
+            ? token
+            : token?.name?.split("._domainkey.")[0];
+        const dkimFq = `${tokenStr}._domainkey.${dnsZone}`;
+        const dk = dnsRegistrarHost(dkimFq, dnsZone);
+        records.push({
+          number: recordNum++,
+          type: "CNAME",
+          nameHost: dk.host,
+          fqdn: dk.fqdn,
+          value: `${tokenStr}.dkim.amazonses.com`,
+        });
       });
-    });
+    }
 
     return records;
   };
@@ -486,31 +558,43 @@ export default function VerifyDomainPage() {
                     Setup Your Domain
                   </h1>
                   <p className="text-text-300 text-sm">
-                    2 easy steps to get started
+                    {setupLayout === "loading" &&
+                      "Checking your public DNS for existing records…"}
+                    {setupLayout === "dual" &&
+                      "Strict setup: add or fix every record in one place — including DKIM CNAMEs at the bottom."}
+                    {setupLayout === "compact" &&
+                      "SPF and DKIM are confirmed in DNS and by Amazon SES. Finish any remaining records below."}
+                    {setupLayout === "ses-dkim-pending" &&
+                      "Public DNS already has SPF and DKIM CNAMEs. Click Verify so Amazon SES can confirm DKIM."}
+                    {setupLayout === "spf-only" &&
+                      "Your DKIM CNAMEs already match what we need in DNS. Fix SPF (and review DMARC) below."}
+                    {setupLayout === "dkim-only" &&
+                      "Your SPF already authorizes our mail. Add or fix DKIM CNAMEs below."}
                   </p>
                 </div>
 
-                {/* Progress Indicator */}
-                <div className="mb-8">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-2xl font-bold text-primary-100">
-                      {currentStep}/2
-                    </span>
-                    <span className="text-sm text-text-300">Steps</span>
+                {setupLayout === "dual" && (
+                  <div className="mb-6 rounded-xl border-2 border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/95">
+                    <strong className="font-semibold text-amber-50">
+                      Action needed:
+                    </strong>{" "}
+                    Both SPF and public DKIM CNAMEs need attention. Use the full
+                    list below (scroll to DKIM CNAMEs) — do not skip them.
                   </div>
-                  <div className="flex gap-2">
-                    <div
-                      className={`h-1.5 flex-1 rounded-full transition-all ${
-                        currentStep >= 1 ? "bg-primary-100" : "bg-bg-300"
-                      }`}
-                    ></div>
-                    <div
-                      className={`h-1.5 flex-1 rounded-full transition-all ${
-                        currentStep >= 2 ? "bg-primary-100" : "bg-bg-300"
-                      }`}
-                    ></div>
-                  </div>
-                </div>
+                )}
+
+                <DomainDnsSetupPanel
+                  domainId={domainId}
+                  domainLabel={domainInfo?.domain || ""}
+                  useMergedSpf={Boolean(
+                    dns?.dnsRecords?.spf?.existing?.length
+                  )}
+                  onAfterAutomatedApply={async () => {
+                    await fetchDnsRecords();
+                    await fetchDomainInfo();
+                    await handleVerifyDomain();
+                  }}
+                />
               </>
             )}
 
@@ -527,45 +611,111 @@ export default function VerifyDomainPage() {
             )}
 
             {/* Step Content Card - Show Only Current Step for unverified, show all for verified */}
-            <div className="bg-gradient-to-br from-primary-100/8 to-primary-300/8 rounded-2xl border border-primary-100/15 overflow-hidden mb-6">
-              {/* Step Header - Only show for unverified */}
-              {!isFullyVerified && (
-                <div className="bg-gradient-to-r from-primary-100/90 to-primary-200/90 p-6 text-text-100">
+            <div
+              className={`bg-gradient-to-br from-primary-100/8 to-primary-300/8 rounded-2xl overflow-hidden mb-6 ${
+                setupLayout === "dual"
+                  ? "border-2 border-amber-500/45 ring-2 ring-amber-500/25 shadow-lg shadow-amber-950/20"
+                  : setupLayout === "spf-only" || setupLayout === "dkim-only"
+                    ? "border-2 border-amber-500/40 ring-1 ring-amber-500/20"
+                    : setupLayout === "compact" ||
+                        setupLayout === "ses-dkim-pending"
+                      ? "border border-emerald-500/35 ring-1 ring-emerald-500/15"
+                      : "border border-primary-100/15"
+              }`}
+            >
+              {/* Header — strict “dual” path (all record types on one scroll) */}
+              {!isFullyVerified && setupLayout === "dual" && (
+                <div className="bg-gradient-to-r from-amber-700/90 to-amber-900/90 p-6 text-text-100">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-xl bg-black/30 text-white flex items-center justify-center flex-shrink-0">
-                      {currentStep === 1 && <IconShield className="w-6 h-6" />}
-                      {currentStep === 2 && <IconMail className="w-6 h-6" />}
+                      <IconShield className="w-6 h-6" />
                     </div>
                     <div>
                       <div className="text-sm font-semibold opacity-95 mb-1">
-                        Step {currentStep} of 2
+                        Strict setup (one screen)
                       </div>
-                      <h2 className="text-xl  font-bold">
-                        {currentStep === 1 && "Secure Your Emails"}
-                        {currentStep === 2 && "Enable Email Sending"}
+                      <h2 className="text-xl font-bold">
+                        MX, SPF, DMARC & DKIM CNAMEs
                       </h2>
                       <p className="text-sm opacity-95 mt-1">
-                        {currentStep === 1 &&
-                          "Add security records to protect your domain reputation"}
-                        {currentStep === 2 &&
-                          "Copy these records so you can send emails"}
+                        Scroll through every block. DKIM CNAMEs are required for
+                        Amazon SES — they appear in the DKIM section at the bottom.
                       </p>
                     </div>
                   </div>
                 </div>
               )}
 
+              {/* Single-screen headers (non–strict wizard) */}
+              {!isFullyVerified &&
+                (setupLayout === "compact" ||
+                  setupLayout === "spf-only" ||
+                  setupLayout === "dkim-only" ||
+                  setupLayout === "ses-dkim-pending") && (
+                  <div className="bg-gradient-to-r from-primary-100/90 to-primary-200/90 p-6 text-text-100">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-black/30 text-white flex items-center justify-center flex-shrink-0">
+                        {setupLayout === "compact" ||
+                        setupLayout === "ses-dkim-pending" ? (
+                          <IconCircleCheck className="w-6 h-6" />
+                        ) : setupLayout === "spf-only" ? (
+                          <IconShield className="w-6 h-6" />
+                        ) : (
+                          <IconMail className="w-6 h-6" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold opacity-95 mb-1">
+                          {setupLayout === "compact"
+                            ? "Almost there"
+                            : setupLayout === "ses-dkim-pending"
+                              ? "DNS looks good"
+                              : setupLayout === "spf-only"
+                                ? "Fix SPF"
+                                : "Fix DKIM"}
+                        </div>
+                        <h2 className="text-xl font-bold">
+                          {setupLayout === "compact" &&
+                            "MX & DMARC — finish routing & reporting"}
+                          {setupLayout === "ses-dkim-pending" &&
+                            "Confirm with Amazon SES"}
+                          {setupLayout === "spf-only" &&
+                            "SPF, DMARC & mail routing"}
+                          {setupLayout === "dkim-only" &&
+                            "DKIM CNAMEs, DMARC & mail routing"}
+                        </h2>
+                        <p className="text-sm opacity-95 mt-1">
+                          {setupLayout === "compact" &&
+                            "We hid the SPF row because DNS already authorizes our mail. DKIM CNAMEs stay listed below until Amazon SES marks DKIM verified."}
+                          {setupLayout === "ses-dkim-pending" &&
+                            "Your public DNS already has the right SPF and DKIM CNAMEs; the DKIM section below is for your records and copy/paste. Click Verify & Complete so Amazon SES can mark DKIM verified."}
+                          {setupLayout === "spf-only" &&
+                            "DKIM is already correct in DNS; focus on SPF and the records below."}
+                          {setupLayout === "dkim-only" &&
+                            "SPF already includes our mail servers; add the DKIM CNAMEs below."}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
               {/* Step Content */}
               <div className="p-6 bg-bg-100/30">
-                {/* For unverified: Show current step only */}
-                {!isFullyVerified && currentStep === 1 && (
+                {/* --- Shared: MX + SPF + DMARC (varies by layout) --- */}
+                {!isFullyVerified &&
+                  (setupLayout === "loading" ||
+                    setupLayout === "spf-only" ||
+                    setupLayout === "compact" ||
+                    setupLayout === "dkim-only" ||
+                    setupLayout === "ses-dkim-pending" ||
+                    setupLayout === "dual") && (
                   <div className="space-y-4">
-                    {/* Custom MAIL FROM - MX Record */}
-                    {dns?.dnsRecords?.mailFrom && (
+                    {dns?.dnsRecords?.mailFrom && dnsReg.mx && (
                       <CompactDNSRecord
                         recordNumber={1}
-                        nameLabel="Name"
-                        nameValue={dns.dnsRecords.mailFrom.domain}
+                        fqdnFull={dnsReg.mx.fqdn}
+                        hostShort={dnsReg.mx.host}
+                        dnsZone={dnsZone}
                         valueLabel="Value"
                         valueValue={dns.dnsRecords.mailFrom.mx.value}
                         type="MX"
@@ -578,8 +728,10 @@ export default function VerifyDomainPage() {
                       />
                     )}
 
-                    {/* Root Domain SPF Record with Tabs (ONLY this one, not mailFrom SPF) */}
-                    {dns?.dnsRecords?.spf && (
+                    {/* SPF — hidden when live DNS already authorizes SES */}
+                    {!spfOk &&
+                      dns?.dnsRecords?.spf &&
+                      dnsReg.spf && (
                       <div className="space-y-3">
                         {/* Show tabs only if existing SPF detected */}
                         {dns.dnsRecords.spf.existing &&
@@ -619,8 +771,9 @@ export default function VerifyDomainPage() {
                                 </div>
                                 <CompactDNSRecord
                                   recordNumber={2}
-                                  nameLabel="Name"
-                                  nameValue={domainInfo?.domain}
+                                  fqdnFull={dnsReg.spf.fqdn}
+                                  hostShort={dnsReg.spf.host}
+                                  dnsZone={dnsZone}
                                   valueLabel="Merged SPF Value"
                                   valueValue={
                                     dns.dnsRecords.spf.recommendedMerge
@@ -635,8 +788,9 @@ export default function VerifyDomainPage() {
                             ) : (
                               <CompactDNSRecord
                                 recordNumber={2}
-                                nameLabel="Name"
-                                nameValue={domainInfo?.domain}
+                                fqdnFull={dnsReg.spf.fqdn}
+                                hostShort={dnsReg.spf.host}
+                                dnsZone={dnsZone}
                                 valueLabel="Value"
                                 valueValue={dns.dnsRecords.spf.recommendedNew}
                                 type="TXT"
@@ -650,8 +804,9 @@ export default function VerifyDomainPage() {
                         ) : (
                           <CompactDNSRecord
                             recordNumber={2}
-                            nameLabel="Name"
-                            nameValue={domainInfo?.domain}
+                            fqdnFull={dnsReg.spf.fqdn}
+                            hostShort={dnsReg.spf.host}
+                            dnsZone={dnsZone}
                             valueLabel="Value"
                             valueValue={dns.dnsRecords.spf.recommendedNew}
                             type="TXT"
@@ -665,7 +820,7 @@ export default function VerifyDomainPage() {
                     )}
 
                     {/* DMARC Record */}
-                    {dns?.dnsRecords?.dmarc && (
+                    {dns?.dnsRecords?.dmarc && dnsReg.dmarc && (
                       <>
                         {dns.dnsRecords.dmarc.existing ? (
                           <div className="space-y-3">
@@ -676,8 +831,9 @@ export default function VerifyDomainPage() {
                             </div>
                             <CompactDNSRecord
                               recordNumber={3}
-                              nameLabel="Name"
-                              nameValue={`_dmarc.${domainInfo?.domain}`}
+                              fqdnFull={dnsReg.dmarc.fqdn}
+                              hostShort={dnsReg.dmarc.host}
+                              dnsZone={dnsZone}
                               valueLabel="Merged DMARC Value"
                               valueValue={dns.dnsRecords.dmarc.recommendedMerge}
                               type="TXT"
@@ -690,8 +846,9 @@ export default function VerifyDomainPage() {
                         ) : (
                           <CompactDNSRecord
                             recordNumber={3}
-                            nameLabel="Name"
-                            nameValue={`_dmarc.${domainInfo?.domain}`}
+                            fqdnFull={dnsReg.dmarc.fqdn}
+                            hostShort={dnsReg.dmarc.host}
+                            dnsZone={dnsZone}
                             valueLabel="Value"
                             valueValue={dns.dnsRecords.dmarc.recommendedNew}
                             type="TXT"
@@ -703,42 +860,50 @@ export default function VerifyDomainPage() {
                         )}
                       </>
                     )}
-                  </div>
-                )}
 
-                {/* For unverified: Step 2 - Enable Email Sending (DKIM) */}
-                {!isFullyVerified && currentStep === 2 && (
-                  <div className="space-y-4">
-                    {((dns?.dnsRecords?.dkim?.length || 0) > 0 ||
-                      (domainInfo?.dkimTokens?.tokens?.length || 0) > 0) && (
-                      <div className="space-y-3">
-                        {(
-                          dns?.dnsRecords?.dkim ||
-                          domainInfo?.dkimTokens?.tokens ||
-                          []
-                        ).map((token: any, index: number) => {
-                          const tokenStr =
-                            typeof token === "string"
-                              ? token
-                              : token?.name?.split("._domainkey.")[0];
-                          return (
-                            <CompactDNSRecord
-                              key={index}
-                              recordNumber={index + 1}
-                              nameLabel="Name"
-                              nameValue={`${tokenStr}._domainkey.${domainInfo?.domain}`}
-                              valueLabel="Value"
-                              valueValue={`${tokenStr}.dkim.amazonses.com`}
-                              type="CNAME"
-                              copiedIndex={copiedIndex}
-                              onCopy={copyToClipboard}
-                              nameId={`dkim-name-${index}`}
-                              valueId={`dkim-value-${index}`}
-                            />
-                          );
-                        })}
-                      </div>
-                    )}
+                    {/* DKIM CNAMEs — show until SES confirms DKIM; never hide just because SPF/DKIM look OK in DNS */}
+                    {!sesDkimVerified &&
+                      ((dns?.dnsRecords?.dkim?.length || 0) > 0 ||
+                        (domainInfo?.dkimTokens?.tokens?.length || 0) > 0) && (
+                        <div className="space-y-3 pt-2 border-t border-bg-300/40">
+                          <p className="text-xs font-semibold text-text-200 uppercase tracking-wide">
+                            DKIM (CNAME)
+                          </p>
+                          {(
+                            dns?.dnsRecords?.dkim ||
+                            domainInfo?.dkimTokens?.tokens ||
+                            []
+                          ).map((token: any, index: number) => {
+                            const tokenStr =
+                              typeof token === "string"
+                                ? token
+                                : token?.name?.split("._domainkey.")[0];
+                            const dk = dnsZone
+                              ? dnsRegistrarHost(
+                                  `${tokenStr}._domainkey.${dnsZone}`,
+                                  dnsZone
+                                )
+                              : null;
+                            if (!dk) return null;
+                            return (
+                              <CompactDNSRecord
+                                key={index}
+                                recordNumber={index + 1}
+                                fqdnFull={dk.fqdn}
+                                hostShort={dk.host}
+                                dnsZone={dnsZone}
+                                valueLabel="Value"
+                                valueValue={`${tokenStr}.dkim.amazonses.com`}
+                                type="CNAME"
+                                copiedIndex={copiedIndex}
+                                onCopy={copyToClipboard}
+                                nameId={`dkim-name-${index}`}
+                                valueId={`dkim-value-${index}`}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
                   </div>
                 )}
 
@@ -753,11 +918,12 @@ export default function VerifyDomainPage() {
                       </h3>
                       <div className="space-y-4">
                         {/* MX Record */}
-                        {dns?.dnsRecords?.mailFrom && (
+                        {dns?.dnsRecords?.mailFrom && dnsReg.mx && (
                           <CompactDNSRecord
                             recordNumber={1}
-                            nameLabel="Name"
-                            nameValue={dns.dnsRecords.mailFrom.domain}
+                            fqdnFull={dnsReg.mx.fqdn}
+                            hostShort={dnsReg.mx.host}
+                            dnsZone={dnsZone}
                             valueLabel="Value"
                             valueValue={dns.dnsRecords.mailFrom.mx.value}
                             type="MX"
@@ -771,11 +937,12 @@ export default function VerifyDomainPage() {
                         )}
 
                         {/* Root SPF (only this one, not mailFrom SPF) */}
-                        {dns?.dnsRecords?.spf && (
+                        {dns?.dnsRecords?.spf && dnsReg.spf && (
                           <CompactDNSRecord
                             recordNumber={2}
-                            nameLabel="Name"
-                            nameValue={domainInfo?.domain}
+                            fqdnFull={dnsReg.spf.fqdn}
+                            hostShort={dnsReg.spf.host}
+                            dnsZone={dnsZone}
                             valueLabel="Value"
                             valueValue={
                               dns.dnsRecords.spf.recommendedMerge ||
@@ -790,11 +957,12 @@ export default function VerifyDomainPage() {
                         )}
 
                         {/* DMARC */}
-                        {dns?.dnsRecords?.dmarc && (
+                        {dns?.dnsRecords?.dmarc && dnsReg.dmarc && (
                           <CompactDNSRecord
                             recordNumber={3}
-                            nameLabel="Name"
-                            nameValue={`_dmarc.${domainInfo?.domain}`}
+                            fqdnFull={dnsReg.dmarc.fqdn}
+                            hostShort={dnsReg.dmarc.host}
+                            dnsZone={dnsZone}
                             valueLabel="Value"
                             valueValue={
                               dns.dnsRecords.dmarc.recommendedMerge ||
@@ -830,12 +998,20 @@ export default function VerifyDomainPage() {
                                 typeof token === "string"
                                   ? token
                                   : token?.name?.split("._domainkey.")[0];
+                              const dk = dnsZone
+                                ? dnsRegistrarHost(
+                                    `${tokenStr}._domainkey.${dnsZone}`,
+                                    dnsZone
+                                  )
+                                : null;
+                              if (!dk) return null;
                               return (
                                 <CompactDNSRecord
                                   key={index}
                                   recordNumber={index + 1}
-                                  nameLabel="Name"
-                                  nameValue={`${tokenStr}._domainkey.${domainInfo?.domain}`}
+                                  fqdnFull={dk.fqdn}
+                                  hostShort={dk.host}
+                                  dnsZone={dnsZone}
                                   valueLabel="Value"
                                   valueValue={`${tokenStr}.dkim.amazonses.com`}
                                   type="CNAME"
@@ -855,30 +1031,19 @@ export default function VerifyDomainPage() {
               </div>
             </div>
 
-            {/* Navigation Buttons - Only show for unverified */}
-            {!isFullyVerified && (
-              <div className="flex items-center justify-between gap-4 mb-6">
-                {currentStep > 1 && (
-                  <Button
-                    onClick={() => setCurrentStep(currentStep - 1)}
-                    variant="outline"
-                    className="border-bg-300 text-text-200 hover:bg-bg-200 transition-colors"
-                  >
-                    ← Back
-                  </Button>
-                )}
-                {currentStep < 2 ? (
-                  <Button
-                    onClick={() => setCurrentStep(currentStep + 1)}
-                    className="bg-brand hover:bg-primary-200/90 text-white ml-auto transition-colors"
-                  >
-                    Continue →
-                  </Button>
-                ) : (
+            {/* Navigation — all setup paths use a single Verify (dual wizard merged into one list) */}
+            {!isFullyVerified &&
+              (setupLayout === "compact" ||
+                setupLayout === "spf-only" ||
+                setupLayout === "dkim-only" ||
+                setupLayout === "ses-dkim-pending" ||
+                setupLayout === "dual" ||
+                setupLayout === "loading") && (
+                <div className="flex justify-end mb-6">
                   <Button
                     onClick={handleVerifyDomain}
                     disabled={loading}
-                    className="bg-green-500 hover:bg-green-600 text-white ml-auto transition-colors"
+                    className="bg-green-500 hover:bg-green-600 text-white min-w-[200px]"
                   >
                     {loading ? (
                       <>
@@ -892,9 +1057,8 @@ export default function VerifyDomainPage() {
                       </>
                     )}
                   </Button>
-                )}
-              </div>
-            )}
+                </div>
+              )}
 
             {/* Info Section - Only show for unverified */}
             {!isFullyVerified && (
@@ -907,31 +1071,37 @@ export default function VerifyDomainPage() {
                   <li className="flex gap-3">
                     <span className="text-primary-200 font-bold">1.</span>
                     <span>
-                      Copy each DNS record above (click the copy button)
+                      If you use Cloudflare, optionally use{" "}
+                      <strong className="text-text-100">Use Cloudflare</strong>{" "}
+                      above to apply everything automatically (otherwise continue
+                      manually).
                     </span>
                   </li>
                   <li className="flex gap-3">
                     <span className="text-primary-200 font-bold">2.</span>
                     <span>
-                      Log in to your domain provider (GoDaddy, Namecheap,
-                      Cloudflare, etc.)
+                      Copy each DNS value above (use the copy buttons).
                     </span>
                   </li>
                   <li className="flex gap-3">
                     <span className="text-primary-200 font-bold">3.</span>
-                    <span>Add the records to your DNS settings</span>
+                    <span>
+                      Open your domain host (GoDaddy, Namecheap, Cloudflare,
+                      etc.) and paste into DNS / DNS management.
+                    </span>
                   </li>
                   <li className="flex gap-3">
                     <span className="text-primary-200 font-bold">4.</span>
                     <span>
-                      Wait 5-30 minutes for DNS propagation (can take up to 72
-                      hours)
+                      Wait 5–30 minutes for DNS to update (rarely up to 48
+                      hours).
                     </span>
                   </li>
                   <li className="flex gap-3">
                     <span className="text-primary-200 font-bold">5.</span>
                     <span>
-                      Click "Verify & Complete" above to check your setup
+                      Click &quot;Verify &amp; Complete&quot; to let Amazon check
+                      your records.
                     </span>
                   </li>
                 </ul>
@@ -951,17 +1121,18 @@ export default function VerifyDomainPage() {
               DNS Records
             </DialogTitle>
             <DialogDescription className="text-text-200/80 text-sm">
-              All DNS records that need to be added to your domain
+              Copy Name into Host
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             {getAllDnsRecords().map((record) => (
               <CompactDNSRecord
-                key={`${record.type}-${record.name}-${record.number}`}
+                key={`${record.type}-${record.nameHost}-${record.number}`}
                 recordNumber={record.number}
-                nameLabel="Name"
-                nameValue={record.name}
+                fqdnFull={record.fqdn}
+                hostShort={record.nameHost}
+                dnsZone={dnsZone}
                 valueLabel="Value"
                 valueValue={record.value}
                 type={record.type}

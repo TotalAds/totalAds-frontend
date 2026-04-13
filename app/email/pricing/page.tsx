@@ -57,7 +57,7 @@ const faqs: FAQItem[] = [
   {
     question: "How does the trial work?",
     answer:
-      "Start with our free trial plan for 1 month with 1,000 emails and 500 contacts. No credit card required. At the end of the trial, simply choose a paid plan to continue.",
+      "Managed mode: 1 month with 1,000 emails and 500 contacts. Bring Your Own SES (BYO): Try BYO SES includes 2,000 emails/month, 1,000 contacts, and up to 2 verified domains on the platform — connect your AWS account in Settings, then add or import domains. No credit card required. When the trial ends, choose a paid plan to continue.",
   },
   {
     question: "Do you offer refunds?",

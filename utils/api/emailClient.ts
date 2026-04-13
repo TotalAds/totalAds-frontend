@@ -328,6 +328,30 @@ export const verifyDomain = async (domainId: string): Promise<Domain> => {
   }
 };
 
+export interface ApplyCloudflareDnsResult {
+  message: string;
+  zoneName: string;
+  created: string[];
+  updated: string[];
+  unchanged: string[];
+}
+
+/** Apply SES DNS records via Cloudflare API (token is sent once; not stored). */
+export const applyCloudflareDns = async (
+  domainId: string,
+  apiToken: string,
+  spfChoice?: "merge" | "new"
+): Promise<ApplyCloudflareDnsResult> => {
+  const response = await emailClient.post(
+    `/api/domains/${domainId}/dns-integrations/cloudflare/apply`,
+    {
+      apiToken,
+      ...(spfChoice ? { spfChoice } : {}),
+    }
+  );
+  return response.data?.data || response.data;
+};
+
 export const deleteDomain = async (domainId: string): Promise<void> => {
   try {
     await emailClient.delete(`/api/domains/${domainId}`);
@@ -1074,6 +1098,67 @@ export const saveManualConfigSet = async (configurationSetName: string): Promise
     configurationSetName,
   });
   return { success: resp.data?.success ?? false, message: resp.data?.message };
+};
+
+/** Prefetch SES domain + email identities from the user's AWS account (BYO). */
+export interface DiscoverSesIdentitiesData {
+  awsRegion: string;
+  domains: Array<{
+    identity: string;
+    verificationStatus: string;
+    dkimStatus: string;
+    readyForSending: boolean;
+    alreadyImported: boolean;
+  }>;
+  emailAddresses: Array<{
+    email: string;
+    domain: string;
+    verificationStatus: string;
+    canImport: boolean;
+    importHint?: string;
+    alreadyImported: boolean;
+  }>;
+  snsIntegration: {
+    success: boolean;
+    snsTopicExists: boolean;
+    subscriptionConfirmed: boolean;
+    configurationSetExists: boolean;
+    eventDestinationExists: boolean;
+    webhookUrl?: string;
+    error?: string;
+  };
+}
+
+export const discoverSesIdentitiesFromAws =
+  async (): Promise<DiscoverSesIdentitiesData | null> => {
+    const resp = await emailClient.get("/api/ses-credentials/discover-identities");
+    if (resp.data?.success && resp.data?.data) {
+      return resp.data.data as DiscoverSesIdentitiesData;
+    }
+    return null;
+  };
+
+export const importSesIdentitiesFromAws = async (body: {
+  domains?: string[];
+  senders?: { email: string; displayName?: string }[];
+}): Promise<{
+  importedDomains: string[];
+  importedSenders: string[];
+  skipped: { item: string; reason: string }[];
+}> => {
+  const resp = await emailClient.post("/api/ses-credentials/import-identities", body);
+  if (!resp.data?.success) {
+    throw new Error(resp.data?.message || "Import failed");
+  }
+  return resp.data.data;
+};
+
+/** Total senders for the current user (for settings checklist). */
+export const getEmailSendersTotalCount = async (): Promise<number> => {
+  const resp = await emailClient.get("/api/email-senders", {
+    params: { page: 1, limit: 1 },
+  });
+  return Number(resp.data?.data?.pagination?.total ?? 0);
 };
 
 // Enhanced Campaign Analytics Types
