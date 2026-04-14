@@ -36,6 +36,8 @@ interface Lead {
   campaigns?: Array<{ id: string; name: string; status?: string }>;
   tags?: Array<{ id: string; name: string; color?: string }>;
   categories?: Array<{ id: string; name: string; color?: string }>;
+  /** Email lists this contact belongs to (your account lists) */
+  lists?: Array<{ id: string; name: string }>;
   createdAt: Date;
   verificationStatus?: string | null;
   isSafeToSend?: boolean | null;
@@ -447,6 +449,52 @@ export default function LeadsPage() {
     []
   );
 
+  const ListsCellRenderer = useCallback((params: ICellRendererParams<Lead>) => {
+    const lead = params.data;
+    if (!lead || !lead.lists || lead.lists.length === 0) {
+      return <span className="text-gray-500 text-sm">-</span>;
+    }
+
+    const MAX_VISIBLE = 2;
+    const visible = lead.lists.slice(0, MAX_VISIBLE);
+    const remainingCount = lead.lists.length - MAX_VISIBLE;
+    const remainingNames =
+      remainingCount > 0
+        ? lead.lists.slice(MAX_VISIBLE).map((l) => l.name).join(", ")
+        : "";
+
+    return (
+      <div
+        className="flex flex-wrap gap-1.5 items-center"
+        style={{
+          width: "100%",
+          maxWidth: "100%",
+          overflow: "hidden",
+          boxSizing: "border-box",
+        }}
+      >
+        {visible.map((list) => (
+          <span
+            key={list.id}
+            className="px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap border border-cyan-500/35 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 max-w-[100%] truncate"
+            title={list.name}
+          >
+            {list.name}
+          </span>
+        ))}
+        {remainingCount > 0 && (
+          <span
+            className="px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap bg-gray-100 text-gray-600 border border-gray-200"
+            title={remainingNames}
+            style={{ flexShrink: 0 }}
+          >
+            +{remainingCount}
+          </span>
+        )}
+      </div>
+    );
+  }, []);
+
   const ActionsCellRenderer = useCallback(
     (params: ICellRendererParams<Lead>) => {
       const lead = params.data;
@@ -583,6 +631,36 @@ export default function LeadsPage() {
         },
       },
       {
+        headerName: "Lists",
+        flex: 2,
+        minWidth: 180,
+        resizable: true,
+        cellRenderer: ListsCellRenderer,
+        sortable: false,
+        autoHeight: true,
+        wrapText: true,
+        cellStyle: {
+          overflowX: "hidden",
+          overflowY: "visible",
+          display: "flex",
+          alignItems: "flex-start",
+          wordWrap: "break-word",
+        },
+        filter: "agTextColumnFilter",
+        filterParams: {
+          buttons: ["reset", "apply"],
+          closeOnApply: true,
+          filterOptions: ["contains"],
+          defaultOption: "contains",
+        },
+        valueGetter: (params: any) => {
+          if (params.data?.lists && params.data.lists.length > 0) {
+            return params.data.lists.map((l: { name: string }) => l.name).join(", ");
+          }
+          return "";
+        },
+      },
+      {
         headerName: "Campaign",
         flex: 1,
         minWidth: 150,
@@ -620,6 +698,7 @@ export default function LeadsPage() {
       VerificationCellRenderer,
       TagsCellRenderer,
       CategoriesCellRenderer,
+      ListsCellRenderer,
       CampaignCellRenderer,
       ActionsCellRenderer,
       leads,

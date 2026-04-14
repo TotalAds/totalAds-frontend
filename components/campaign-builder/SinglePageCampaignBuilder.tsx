@@ -36,6 +36,7 @@ import {
   queueCampaignLeadsVerification,
 } from "@/utils/api/reoonClient";
 
+import { useEmailProvider } from "@/hooks/useEmailProvider";
 import ReoonApiKeyRequiredModal from "./ReoonApiKeyRequiredModal";
 import AICampaignGeneratorModal from "./AICampaignGeneratorModal";
 import AIGeneratedCampaignPanel from "./AIGeneratedCampaignPanel";
@@ -111,6 +112,7 @@ interface EmailSender {
     allowed?: boolean;
     domainTrustLevel?: DomainTrustLevel;
     domainAgeInDays?: number;
+    quotaMode?: "byo" | "managed";
   };
 }
 
@@ -122,6 +124,7 @@ export default function SinglePageCampaignBuilder({
 }: SinglePageCampaignBuilderProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { sesProvider } = useEmailProvider();
   const [eligibility, setEligibility] = useState<null | {
     eligible: boolean;
     verifiedDomainCount: number;
@@ -358,7 +361,13 @@ export default function SinglePageCampaignBuilder({
     // We intentionally DO NOT hard-cap by today's capacity, so that all leads are
     // assigned to senders and overflow is naturally spread across multiple days
     // by the backend warmup/quota logic.
+    // BYO SES: no artificial minimum weight — senders without a configured cap contribute 0.
     const weightedSenders = selectedSenders.map((sender) => {
+      if (sesProvider === "custom") {
+        const cap =
+          sender.quota?.dailyCap || sender.quota?.remaining || 0;
+        return { sender, weight: Math.max(0, cap) };
+      }
       const cap =
         sender.quota?.dailyCap ||
         sender.quota?.remaining ||
@@ -489,6 +498,11 @@ export default function SinglePageCampaignBuilder({
     // Start from the actual backend-exposed cap for this sender.
     const baseCap = dailyCap || remaining || 0;
     if (baseCap <= 0) return 0;
+
+    // BYO SES: no LeadSnipper reputation warmup forecast — use your effective cap each day.
+    if (sesProvider === "custom") {
+      return baseCap;
+    }
 
     const maxCap = 200;
 
@@ -739,7 +753,9 @@ export default function SinglePageCampaignBuilder({
     }
     if (!validation.capacity) {
       toast.error(
-        `Your selected senders have no daily sending capacity. Please warm up senders or add more senders.`
+        sesProvider === "custom"
+          ? `Your selected senders have no daily send cap configured (or capacity is zero). Set a daily send cap per sender under Email → Domains → Senders.`
+          : `Your selected senders have no daily sending capacity. Please warm up senders or add more senders.`
       );
       return;
     }
@@ -779,10 +795,15 @@ export default function SinglePageCampaignBuilder({
             `/api/domains/${state.domainId}/campaigns/leads/create-from-csv`,
             {
               csvData: csvDataForApi,
-              tags: state.selectedTags?.map((t: any) => t.name) || [],
-              categories:
-                state.selectedCategories?.map((c: any) => c.name) || [],
-              listIds: state.selectedLists?.map((l) => l.id) || [],
+              tagIds: state.selectedTags?.map((t: any) => String(t.id)) || [],
+              categoryIds:
+                state.selectedCategories?.map((c: any) => String(c.id)) || [],
+              listIds:
+                state.selectedLists
+                  ?.map((l) => String(l.id))
+                  .filter(
+                    (id) => id.length > 0 && id !== "undefined" && id !== "null"
+                  ) || [],
             }
           );
 
@@ -1555,7 +1576,10 @@ export default function SinglePageCampaignBuilder({
                             💡 You can select senders from{" "}
                             <strong>multiple domains</strong> for automatic
                             rotation. Leads will be distributed based on each
-                            sender's daily capacity.
+                            sender&apos;s{" "}
+                            {sesProvider === "custom"
+                              ? "configured daily send cap (BYO SES)."
+                              : "daily capacity."}
                           </p>
                         </div>
 
@@ -1746,8 +1770,11 @@ export default function SinglePageCampaignBuilder({
                                         Estimated sending schedule
                                       </p>
                                       <p className="text-xs text-text-200">
-                                        With your current warmup caps, this
-                                        campaign is expected to complete in{" "}
+                                        With your current{" "}
+                                        {sesProvider === "custom"
+                                          ? "BYO daily send caps"
+                                          : "warmup caps"}
+                                        , this campaign is expected to complete in{" "}
                                         <span className="font-semibold">
                                           {scheduleEstimate.estimatedDays} day
                                           {scheduleEstimate.estimatedDays > 1

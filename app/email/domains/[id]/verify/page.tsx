@@ -166,6 +166,7 @@ export default function VerifyDomainPage() {
   const domainId = params.id as string;
 
   const [loading, setLoading] = useState(false);
+  const [dnsLoading, setDnsLoading] = useState(true);
   const [domainInfo, setDomainInfo] = useState<any>(null);
   const [dns, setDns] = useState<any>(null);
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
@@ -212,6 +213,7 @@ export default function VerifyDomainPage() {
   };
 
   const fetchDnsRecords = async () => {
+    setDnsLoading(true);
     try {
       const token = Cookies.get("userAccessToken");
       const response = await emailClient.get(
@@ -224,6 +226,8 @@ export default function VerifyDomainPage() {
       setDns(response.data.data);
     } catch (error: any) {
       console.error("Error fetching DNS records:", error);
+    } finally {
+      setDnsLoading(false);
     }
   };
 
@@ -552,13 +556,31 @@ export default function VerifyDomainPage() {
             <>
             {/* Page Header - Only show for unverified domains */}
             {!isFullyVerified && (
+              <div className="relative min-h-[260px]">
+            {dnsLoading && (
+              <div
+                className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-2xl bg-bg-100/85 backdrop-blur-sm border border-bg-300/40"
+                aria-busy="true"
+                aria-live="polite"
+              >
+                <IconLoader2 className="w-10 h-10 text-primary-200 animate-spin" />
+                <p className="mt-4 text-sm font-medium text-text-100">
+                  Loading DNS records…
+                </p>
+                <p className="mt-1 text-xs text-text-300/90 max-w-sm text-center px-4">
+                  Checking your domain and public DNS. This may take a few seconds.
+                </p>
+              </div>
+            )}
               <>
                 <div className="mb-6">
                   <h1 className="text-2xl font-bold text-text-100 mb-1">
                     Setup Your Domain
                   </h1>
                   <p className="text-text-300 text-sm">
-                    {setupLayout === "loading" &&
+                    {dnsLoading &&
+                      "Loading DNS recommendations and live checks…"}
+                    {!dnsLoading && setupLayout === "loading" &&
                       "Checking your public DNS for existing records…"}
                     {setupLayout === "dual" &&
                       "Strict setup: add or fix every record in one place — including DKIM CNAMEs at the bottom."}
@@ -574,8 +596,8 @@ export default function VerifyDomainPage() {
                 </div>
 
                 {setupLayout === "dual" && (
-                  <div className="mb-6 rounded-xl border-2 border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/95">
-                    <strong className="font-semibold text-amber-50">
+                  <div className="mb-6 rounded-xl border-2 border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-500">
+                    <strong className="font-semibold text-amber-600">
                       Action needed:
                     </strong>{" "}
                     Both SPF and public DKIM CNAMEs need attention. Use the full
@@ -583,19 +605,9 @@ export default function VerifyDomainPage() {
                   </div>
                 )}
 
-                <DomainDnsSetupPanel
-                  domainId={domainId}
-                  domainLabel={domainInfo?.domain || ""}
-                  useMergedSpf={Boolean(
-                    dns?.dnsRecords?.spf?.existing?.length
-                  )}
-                  onAfterAutomatedApply={async () => {
-                    await fetchDnsRecords();
-                    await fetchDomainInfo();
-                    await handleVerifyDomain();
-                  }}
-                />
+                <DomainDnsSetupPanel />
               </>
+              </div>
             )}
 
             {/* Header for verified domains */}
@@ -612,7 +624,7 @@ export default function VerifyDomainPage() {
 
             {/* Step Content Card - Show Only Current Step for unverified, show all for verified */}
             <div
-              className={`bg-gradient-to-br from-primary-100/8 to-primary-300/8 rounded-2xl overflow-hidden mb-6 ${
+              className={`relative bg-gradient-to-br from-primary-100/8 to-primary-300/8 rounded-2xl overflow-hidden mb-6 ${
                 setupLayout === "dual"
                   ? "border-2 border-amber-500/45 ring-2 ring-amber-500/25 shadow-lg shadow-amber-950/20"
                   : setupLayout === "spf-only" || setupLayout === "dkim-only"
@@ -623,9 +635,21 @@ export default function VerifyDomainPage() {
                       : "border border-primary-100/15"
               }`}
             >
+              {dnsLoading && !isFullyVerified && (
+                <div
+                  className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-bg-100/80 backdrop-blur-[2px]"
+                  aria-busy="true"
+                  aria-live="polite"
+                >
+                  <IconLoader2 className="w-9 h-9 text-primary-200 animate-spin" />
+                  <p className="mt-3 text-sm font-medium text-text-100">
+                    Loading DNS records…
+                  </p>
+                </div>
+              )}
               {/* Header — strict “dual” path (all record types on one scroll) */}
               {!isFullyVerified && setupLayout === "dual" && (
-                <div className="bg-gradient-to-r from-amber-700/90 to-amber-900/90 p-6 text-text-100">
+                <div className="bg-gradient-to-r from-amber-500/90 to-amber-600/90 p-6 text-text-100">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-xl bg-black/30 text-white flex items-center justify-center flex-shrink-0">
                       <IconShield className="w-6 h-6" />
@@ -1042,7 +1066,7 @@ export default function VerifyDomainPage() {
                 <div className="flex justify-end mb-6">
                   <Button
                     onClick={handleVerifyDomain}
-                    disabled={loading}
+                    disabled={loading || dnsLoading}
                     className="bg-green-500 hover:bg-green-600 text-white min-w-[200px]"
                   >
                     {loading ? (
@@ -1071,34 +1095,25 @@ export default function VerifyDomainPage() {
                   <li className="flex gap-3">
                     <span className="text-primary-200 font-bold">1.</span>
                     <span>
-                      If you use Cloudflare, optionally use{" "}
-                      <strong className="text-text-100">Use Cloudflare</strong>{" "}
-                      above to apply everything automatically (otherwise continue
-                      manually).
-                    </span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="text-primary-200 font-bold">2.</span>
-                    <span>
                       Copy each DNS value above (use the copy buttons).
                     </span>
                   </li>
                   <li className="flex gap-3">
-                    <span className="text-primary-200 font-bold">3.</span>
+                    <span className="text-primary-200 font-bold">2.</span>
                     <span>
                       Open your domain host (GoDaddy, Namecheap, Cloudflare,
                       etc.) and paste into DNS / DNS management.
                     </span>
                   </li>
                   <li className="flex gap-3">
-                    <span className="text-primary-200 font-bold">4.</span>
+                    <span className="text-primary-200 font-bold">3.</span>
                     <span>
                       Wait 5–30 minutes for DNS to update (rarely up to 48
                       hours).
                     </span>
                   </li>
                   <li className="flex gap-3">
-                    <span className="text-primary-200 font-bold">5.</span>
+                    <span className="text-primary-200 font-bold">4.</span>
                     <span>
                       Click &quot;Verify &amp; Complete&quot; to let Amazon check
                       your records.

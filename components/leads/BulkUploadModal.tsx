@@ -9,12 +9,14 @@ import CreatableSelect from "@/components/common/CreatableSelect";
 import { Button } from "@/components/ui/button";
 import emailClient, {
   checkActiveBulkUploadJobs,
+  ContactMetrics,
   createBulkUploadJob,
   createLeadCategory,
   createLeadTag,
   createList,
   EmailList,
   getBulkUploadJobStatus,
+  getContactMetrics,
   getEmailServiceErrorMessage,
   getLeadCategories,
   getLeadTags,
@@ -57,6 +59,9 @@ export default function BulkUploadModal({
     new Set()
   );
   const [loadingOptions, setLoadingOptions] = useState(false);
+  const [contactMetrics, setContactMetrics] = useState<ContactMetrics | null>(
+    null
+  );
 
   // Function to refresh all options data
   const refreshOptions = async () => {
@@ -97,6 +102,12 @@ export default function BulkUploadModal({
         .catch((error) => {
           console.error("Failed to check active jobs:", error);
           // Don't block the user if check fails
+        });
+
+      getContactMetrics()
+        .then((metrics) => setContactMetrics(metrics))
+        .catch((error) => {
+          console.warn("Failed to load contact slots:", error);
         });
     }
   }, [isOpen]);
@@ -443,6 +454,17 @@ export default function BulkUploadModal({
       0
     );
     const distinctInFile = emailMap.size;
+    const remainingSlots =
+      typeof contactMetrics?.contacts?.remaining === "number"
+        ? Math.max(0, contactMetrics.contacts.remaining)
+        : null;
+    if (remainingSlots !== null && distinctInFile > remainingSlots) {
+      toast.error(
+        `Your plan allows ${remainingSlots} more contact(s). Reduce this file to ${remainingSlots} or fewer distinct emails before uploading.`,
+        { duration: 9000 }
+      );
+      return;
+    }
 
     // Show clear message about duplicates and distinct contacts (aligned with backend)
     if (duplicateRowCount > 0) {
@@ -501,9 +523,11 @@ export default function BulkUploadModal({
       let job;
       try {
         job = await createBulkUploadJob(csvData, {
-          tags: selectedTags.map((t) => t.name),
-          categories: selectedCategories.map((c) => c.name),
-          listIds: selectedLists.map((l) => l.id),
+          tagIds: selectedTags.map((t) => String(t.id)),
+          categoryIds: selectedCategories.map((c) => String(c.id)),
+          listIds: selectedLists
+            .map((l) => String(l.id))
+            .filter((id) => id.length > 0 && id !== "undefined" && id !== "null"),
         });
       } catch (error: any) {
         // Handle conflict error (active job exists)
@@ -624,6 +648,12 @@ export default function BulkUploadModal({
   );
   /** Distinct valid emails in the file — this is how many leads the upload will create/update. */
   const distinctEmailCount = emailMap.size;
+  const remainingSlots =
+    typeof contactMetrics?.contacts?.remaining === "number"
+      ? Math.max(0, contactMetrics.contacts.remaining)
+      : null;
+  const exceedsContactSlots =
+    remainingSlots !== null && distinctEmailCount > remainingSlots;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -718,6 +748,27 @@ export default function BulkUploadModal({
                 </h3>
 
                 <div className="space-y-2">
+                  {remainingSlots !== null && (
+                    <div
+                      className={`rounded-md px-3 py-2 text-sm ${
+                        exceedsContactSlots
+                          ? "bg-red-500/15 border border-red-500/30 text-red-300"
+                          : "bg-green-500/10 border border-green-500/30 text-green-300"
+                      }`}
+                    >
+                      Available contact slots:{" "}
+                      <span className="font-semibold">{remainingSlots}</span>
+                      {exceedsContactSlots && (
+                        <span>
+                          {" "}
+                          • File has {distinctEmailCount} distinct emails.
+                          Remove {distinctEmailCount - remainingSlots} to
+                          continue.
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {duplicateCount > 0 && (
                     <div className="flex items-start gap-2">
                       <span className="text-amber-400 mt-0.5">⚠️</span>
@@ -920,7 +971,9 @@ export default function BulkUploadModal({
               </Button>
               <Button
                 onClick={handleUpload}
-                disabled={uploading || distinctEmailCount === 0}
+                disabled={
+                  uploading || distinctEmailCount === 0 || exceedsContactSlots
+                }
                 className="bg-brand-main hover:bg-brand-main/80 text-white"
               >
                 {uploading

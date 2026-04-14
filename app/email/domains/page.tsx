@@ -10,7 +10,12 @@ import AGGridWrapper from "@/components/common/AGGridWrapper";
 import { SesAwsIdentitiesImportSection } from "@/components/email/SesAwsIdentitiesImportSection";
 import { Button } from "@/components/ui/button";
 import { EmailDeliveryBanner } from "@/components/email/EmailDeliveryBanner";
-import { deleteDomain, Domain, getDomains } from "@/utils/api/emailClient";
+import {
+  deleteDomain,
+  Domain,
+  getDomains,
+  verifyDomain,
+} from "@/utils/api/emailClient";
 import { tokenStorage } from "@/utils/auth/tokenStorage";
 import { useEmailProvider } from "@/hooks/useEmailProvider";
 
@@ -26,53 +31,95 @@ export default function DomainsPage() {
   const [domains, setDomains] = useState<Domain[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const limit = 10;
 
+  const fetchDomains = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      try {
+        if (!opts?.silent) setLoading(true);
+        const result = await getDomains(page, limit);
+        setDomains(result.data.domains);
+        setTotal(result.data.pagination.total);
+      } catch (error: any) {
+        console.error("Error fetching domains:", error);
+
+        if (error.response?.status === 401) {
+          toast.error("Your session has expired. Please sign in again.");
+          tokenStorage.removeTokens();
+          router.push("/login");
+          return;
+        }
+
+        toast.error(error.response?.data?.message || "Failed to fetch domains");
+      } finally {
+        if (!opts?.silent) setLoading(false);
+      }
+    },
+    [page, limit, router]
+  );
+
   useEffect(() => {
     fetchDomains();
-  }, [page]);
+  }, [fetchDomains]);
 
-  const fetchDomains = async () => {
-    try {
-      setLoading(true);
-      const result = await getDomains(page, limit);
-      setDomains(result.data.domains);
-      setTotal(result.data.pagination.total);
-    } catch (error: any) {
-      console.error("Error fetching domains:", error);
+  const isDomainFullyVerified = (d: Domain) =>
+    d.verificationStatus === "verified" && d.dkimStatus === "verified";
 
-      // Handle authentication errors
-      if (error.response?.status === 401) {
-        toast.error("Your session has expired. Please sign in again.");
-        tokenStorage.removeTokens();
-        router.push("/login");
-        return;
+  const handleVerifyCheck = useCallback(
+    async (domainId: string) => {
+      try {
+        setVerifyingId(domainId);
+        const updated = await verifyDomain(domainId);
+        await fetchDomains({ silent: true });
+        const verified =
+          updated.verificationStatus === "verified" &&
+          updated.dkimStatus === "verified";
+        if (verified) {
+          toast.success("Domain verified successfully!");
+        } else {
+          toast.success(
+            "Verification check completed. Domain is still pending verification."
+          );
+        }
+      } catch (error: any) {
+        console.error("Error checking verification:", error);
+        if (error.response?.status === 401) {
+          toast.error("Your session has expired. Please sign in again.");
+          tokenStorage.removeTokens();
+          router.push("/login");
+          return;
+        }
+        toast.error(
+          error.response?.data?.message || "Failed to check verification status"
+        );
+      } finally {
+        setVerifyingId(null);
       }
+    },
+    [fetchDomains, router]
+  );
 
-      // Handle other errors
-      toast.error(error.response?.data?.message || "Failed to fetch domains");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handleDelete = useCallback(
+    async (domainId: string) => {
+      if (!confirm("Are you sure you want to delete this domain?")) return;
 
-  const handleDelete = async (domainId: string) => {
-    if (!confirm("Are you sure you want to delete this domain?")) return;
-
-    try {
-      setDeleting(domainId);
-      await deleteDomain(domainId);
-      toast.success("Domain deleted successfully");
-      fetchDomains();
-    } catch (error: any) {
-      console.error("Error deleting domain:", error);
-      toast.error(error.response?.data?.message || "Failed to delete domain");
-    } finally {
-      setDeleting(null);
-    }
-  };
+      try {
+        setDeleting(domainId);
+        await deleteDomain(domainId);
+        toast.success("Domain deleted successfully");
+        fetchDomains();
+      } catch (error: any) {
+        console.error("Error deleting domain:", error);
+        toast.error(error.response?.data?.message || "Failed to delete domain");
+      } finally {
+        setDeleting(null);
+      }
+    },
+    [fetchDomains]
+  );
 
   const totalPages = Math.ceil(total / limit);
 
@@ -136,8 +183,20 @@ export default function DomainsPage() {
     (params: ICellRendererParams<Domain>) => {
       const domain = params.data;
       if (!domain) return null;
+      const pendingVerification = !isDomainFullyVerified(domain);
+      const busy = verifyingId === domain.id;
       return (
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 flex-wrap">
+          {pendingVerification && (
+            <Button
+              type="button"
+              onClick={() => handleVerifyCheck(domain.id)}
+              disabled={busy || deleting === domain.id}
+              className="bg-amber-200 hover:bg-amber-300 text-amber-900 text-xs px-3 py-1 rounded transition disabled:opacity-50"
+            >
+              {busy ? "Checking…" : "Verify"}
+            </Button>
+          )}
           <Link href={`/email/domains/${domain.id}`}>
             <Button className="bg-blue-200 hover:bg-blue-300 text-blue-500 text-xs px-3 py-1 rounded transition">
               View
@@ -145,7 +204,7 @@ export default function DomainsPage() {
           </Link>
           <Button
             onClick={() => handleDelete(domain.id)}
-            disabled={deleting === domain.id}
+            disabled={deleting === domain.id || busy}
             className="bg-red-200 hover:bg-red-300 text-red-500 text-xs px-3 py-1 rounded transition disabled:opacity-50"
           >
             {deleting === domain.id ? "Deleting..." : "Delete"}
@@ -153,7 +212,7 @@ export default function DomainsPage() {
         </div>
       );
     },
-    [deleting]
+    [deleting, verifyingId, handleVerifyCheck, handleDelete]
   );
 
   // AG Grid Column Definitions
@@ -212,7 +271,7 @@ export default function DomainsPage() {
       {
         headerName: "Actions",
         flex: 1.5,
-        minWidth: 180,
+        minWidth: 260,
         cellRenderer: ActionsCellRenderer,
         sortable: false,
         filter: false,

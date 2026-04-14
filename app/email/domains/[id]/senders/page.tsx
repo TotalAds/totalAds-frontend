@@ -7,7 +7,8 @@ import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
 import { EmailDeliveryBanner } from "@/components/email/EmailDeliveryBanner";
-import emailClient from "@/utils/api/emailClient";
+import { BYO_DEFAULT_DAILY_SEND_CAP } from "@/lib/pricingTierSes";
+import emailClient, { patchEmailSender } from "@/utils/api/emailClient";
 import { useEmailProvider } from "@/hooks/useEmailProvider";
 
 interface EmailSender {
@@ -20,6 +21,8 @@ interface EmailSender {
   verifiedAt?: string;
   createdAt: string;
   updatedAt: string;
+  /** BYO SES: user-set target daily cap (LeadSnipper pacing; not AWS SES quota) */
+  byoDailySendCap?: number | null;
 }
 
 interface SenderQuota {
@@ -37,6 +40,8 @@ interface SenderQuota {
   healthStatus?: 'excellent' | 'good' | 'warning' | 'critical';
   bounceRate7d?: number;
   complaintRate7d?: number;
+  quotaMode?: "byo" | "managed";
+  byoUserRequestedCap?: number | null;
 }
 
 interface Domain {
@@ -55,7 +60,13 @@ export default function EmailSendersPage() {
   const [loading, setLoading] = useState(true);
   const [newEmail, setNewEmail] = useState("");
   const [newDisplayName, setNewDisplayName] = useState("");
+  /** BYO: optional initial daily cap when creating a sender */
+  const [newByoDailyCap, setNewByoDailyCap] = useState("");
   const [creating, setCreating] = useState(false);
+  const [senderCapDrafts, setSenderCapDrafts] = useState<Record<string, string>>(
+    {}
+  );
+  const [savingCapId, setSavingCapId] = useState<string | null>(null);
   const [emailError, setEmailError] = useState("");
   const [senderQuotas, setSenderQuotas] = useState<Record<string, SenderQuota>>(
     {}
@@ -89,6 +100,14 @@ export default function EmailSendersPage() {
       if (response.data.success) {
         const fetchedSenders = response.data.data.senders || [];
         setSenders(fetchedSenders);
+        const drafts: Record<string, string> = {};
+        fetchedSenders.forEach((s: EmailSender) => {
+          drafts[s.id] =
+            s.byoDailySendCap != null
+              ? String(s.byoDailySendCap)
+              : String(BYO_DEFAULT_DAILY_SEND_CAP);
+        });
+        setSenderCapDrafts(drafts);
 
         // Fetch quota for each verified sender
         fetchedSenders.forEach((sender: EmailSender) => {
@@ -152,16 +171,27 @@ export default function EmailSendersPage() {
 
     try {
       setCreating(true);
-      const response = await emailClient.post("/api/email-senders", {
+      const body: Record<string, unknown> = {
         email: newEmail,
         displayName: newDisplayName,
         domainId,
-      });
+      };
+      if (sesProvider === "custom" && newByoDailyCap.trim() !== "") {
+        const n = parseInt(newByoDailyCap, 10);
+        if (!Number.isFinite(n) || n < 1) {
+          toast.error("Daily send cap must be a positive number");
+          return;
+        }
+        body.byoDailySendCap = n;
+      }
+
+      const response = await emailClient.post("/api/email-senders", body);
 
       if (response.data.success) {
         toast.success(response.data.data.message);
         setNewEmail("");
         setNewDisplayName("");
+        setNewByoDailyCap("");
         await fetchSenders();
       }
     } catch (error: any) {
@@ -213,6 +243,26 @@ export default function EmailSendersPage() {
       const errorMessage =
         error.response?.data?.message || "Failed to delete email sender";
       toast.error(errorMessage);
+    }
+  };
+
+  const handleSaveByoDailyCap = async (senderId: string) => {
+    const raw = senderCapDrafts[senderId]?.trim() ?? "";
+    const n = parseInt(raw, 10);
+    if (!Number.isFinite(n) || n < 1) {
+      toast.error("Enter a daily send cap of at least 1.");
+      return;
+    }
+    try {
+      setSavingCapId(senderId);
+      await patchEmailSender(senderId, { byoDailySendCap: n });
+      toast.success("Daily send cap saved");
+      await fetchSenders();
+      await fetchSenderQuota(senderId);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to save daily send cap");
+    } finally {
+      setSavingCapId(null);
     }
   };
 
@@ -347,6 +397,28 @@ export default function EmailSendersPage() {
                 {creating ? "Adding..." : "Add Sender"}
               </Button>
             </div>
+            {sesProvider === "custom" && (
+              <div>
+                <label className="block text-xs font-medium text-text-200 mb-1">
+                  Target daily send cap (optional — defaults to{" "}
+                  {BYO_DEFAULT_DAILY_SEND_CAP} if empty)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  placeholder={`Default ${BYO_DEFAULT_DAILY_SEND_CAP}`}
+                  value={newByoDailyCap}
+                  onChange={(e) => setNewByoDailyCap(e.target.value)}
+                  className="w-full max-w-xs px-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:border-brand-main"
+                  disabled={creating}
+                />
+                <p className="text-text-200 text-xs mt-1">
+                  Paces sending in LeadSnipper. If a full UTC day hits this cap, the
+                  next day&apos;s cap increases by 20%. AWS SES limits still apply
+                  in your AWS account.
+                </p>
+              </div>
+            )}
           </form>
           <p className="text-text-200 text-sm mt-3">
             AWS SES will send a verification email to this address. You must
@@ -418,8 +490,49 @@ export default function EmailSendersPage() {
                     {isVerified && (
                       <div className="mt-4 pt-4 border-t border-brand-main/10">
                         <h4 className="text-sm font-semibold text-text-100 mb-3">
-                          Daily Sending Quota
+                          {sesProvider === "custom"
+                            ? "Daily send pacing (BYO SES)"
+                            : "Daily Sending Quota"}
                         </h4>
+                        {sesProvider === "custom" && (
+                          <div className="mb-4 p-3 rounded-lg bg-brand-main/5 border border-brand-main/15">
+                            <p className="text-xs text-text-200 mb-2">
+                              Set your target daily volume for this sender on the
+                              platform. This is not your AWS SES quota — it only
+                              paces queue sends here. After any UTC day where you
+                              reach the full cap, the next day&apos;s cap increases
+                              by 20%. If you don&apos;t hit the cap, it stays the
+                              same.
+                            </p>
+                            <div className="flex flex-wrap items-end gap-2">
+                              <div>
+                                <label className="block text-xs text-text-200 mb-1">
+                                  Target daily send cap
+                                </label>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  className="w-40 px-3 py-2 text-sm bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100"
+                                  value={senderCapDrafts[sender.id] ?? ""}
+                                  onChange={(e) =>
+                                    setSenderCapDrafts((prev) => ({
+                                      ...prev,
+                                      [sender.id]: e.target.value,
+                                    }))
+                                  }
+                                />
+                              </div>
+                              <Button
+                                type="button"
+                                onClick={() => handleSaveByoDailyCap(sender.id)}
+                                disabled={savingCapId === sender.id}
+                                className="bg-brand-main hover:bg-brand-main/80 text-text-100 px-4 py-2 rounded-lg text-sm"
+                              >
+                                {savingCapId === sender.id ? "Saving…" : "Save cap"}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                         {isLoadingQuota ? (
                           <div className="flex items-center gap-2 text-text-200 text-sm">
                             <div className="w-4 h-4 border-2 border-brand-main border-t-transparent rounded-full animate-spin"></div>
@@ -431,7 +544,11 @@ export default function EmailSendersPage() {
                             <div>
                               <div className="flex justify-between items-center mb-1">
                                 <span className="text-text-200 text-sm">
-                                  {quota.used} / {quota.dailyCap} emails sent
+                                  {quota.used} /{" "}
+                                  {quota.dailyCap > 0
+                                    ? quota.dailyCap
+                                    : "—"}{" "}
+                                  emails sent
                                   today
                                 </span>
                                 <span className="text-text-200 text-sm">
@@ -443,15 +560,13 @@ export default function EmailSendersPage() {
                                   className={`h-2.5 rounded-full transition-all ${
                                     quota.remaining === 0
                                       ? "bg-red-500"
-                                      : quota.remaining < quota.dailyCap * 0.2
+                                      : quota.dailyCap > 0 &&
+                                          quota.remaining < quota.dailyCap * 0.2
                                       ? "bg-yellow-500"
                                       : "bg-green-500"
                                   }`}
                                   style={{
-                                    width: `${Math.min(
-                                      (quota.used / quota.dailyCap) * 100,
-                                      100
-                                    )}%`,
+                                    width: `${quota.dailyCap > 0 ? Math.min((quota.used / quota.dailyCap) * 100, 100) : 0}%`,
                                   }}
                                 ></div>
                               </div>
@@ -461,7 +576,9 @@ export default function EmailSendersPage() {
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                               <div className="bg-brand-main/5 rounded-lg p-3">
                                 <p className="text-text-200 text-xs mb-1">
-                                  Daily Cap
+                                  {quota.quotaMode === "byo"
+                                    ? "Effective daily cap"
+                                    : "Daily Cap"}
                                 </p>
                                 <p className="text-text-100 font-semibold text-lg">
                                   {quota.dailyCap.toLocaleString()}
@@ -501,8 +618,9 @@ export default function EmailSendersPage() {
                               </div>
                             </div>
 
-                            {/* Domain Trust Level */}
-                            {(quota.domainTrustLevel || quota.healthScore !== undefined) && (
+                            {/* Domain Trust Level — managed SES reputation only */}
+                            {quota.quotaMode !== "byo" &&
+                            (quota.domainTrustLevel || quota.healthScore !== undefined) && (
                               <div className="bg-brand-main/5 rounded-lg p-3 mt-3">
                                 <p className="text-text-200 text-xs mb-2 font-medium">
                                   Reputation & Ramp-Up Status

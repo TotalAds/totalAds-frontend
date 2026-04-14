@@ -2,6 +2,8 @@
  * Managed vs BYO (Bring Your Own SES) pricing tiers.
  * Kept in sync with totalads-shared/src/utils/pricingTierSes.ts — do not import
  * totalads-shared from client components (its bundle pulls native bcrypt).
+ *
+ * Keep BYO_DEFAULT_DAILY_SEND_CAP in sync with totalads-shared/src/utils/pricingTierSes.ts
  */
 
 function isByoTierName(name: string | null | undefined): boolean {
@@ -33,3 +35,6 @@ export function tierAllowedForSesProvider(
 		tierName === "business"
 	);
 }
+
+/** Default per-sender daily pacing cap for BYO SES when not set in the UI */
+export const BYO_DEFAULT_DAILY_SEND_CAP = 100;

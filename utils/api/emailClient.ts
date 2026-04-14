@@ -328,30 +328,6 @@ export const verifyDomain = async (domainId: string): Promise<Domain> => {
   }
 };
 
-export interface ApplyCloudflareDnsResult {
-  message: string;
-  zoneName: string;
-  created: string[];
-  updated: string[];
-  unchanged: string[];
-}
-
-/** Apply SES DNS records via Cloudflare API (token is sent once; not stored). */
-export const applyCloudflareDns = async (
-  domainId: string,
-  apiToken: string,
-  spfChoice?: "merge" | "new"
-): Promise<ApplyCloudflareDnsResult> => {
-  const response = await emailClient.post(
-    `/api/domains/${domainId}/dns-integrations/cloudflare/apply`,
-    {
-      apiToken,
-      ...(spfChoice ? { spfChoice } : {}),
-    }
-  );
-  return response.data?.data || response.data;
-};
-
 export const deleteDomain = async (domainId: string): Promise<void> => {
   try {
     await emailClient.delete(`/api/domains/${domainId}`);
@@ -1153,6 +1129,22 @@ export const importSesIdentitiesFromAws = async (body: {
   return resp.data.data;
 };
 
+/** BYO SES: update per-sender daily send cap (platform pacing). */
+export const patchEmailSender = async (
+  senderId: string,
+  body: { byoDailySendCap: number }
+): Promise<{
+  id: string;
+  email: string;
+  byoDailySendCap: number | null;
+}> => {
+  const resp = await emailClient.patch(`/api/email-senders/${senderId}`, body);
+  if (!resp.data?.success) {
+    throw new Error(resp.data?.message || "Failed to update sender");
+  }
+  return resp.data.data;
+};
+
 /** Total senders for the current user (for settings checklist). */
 export const getEmailSendersTotalCount = async (): Promise<number> => {
   const resp = await emailClient.get("/api/email-senders", {
@@ -1562,6 +1554,9 @@ export const createBulkUploadJob = async (
   options?: {
     tags?: string[];
     categories?: string[];
+    /** Preferred for bulk upload — matches server-side assignment by ID (single-lead create) */
+    tagIds?: string[];
+    categoryIds?: string[];
     listIds?: string[];
   }
 ): Promise<{ jobId: string; status: string; totalRows: number }> => {
@@ -1578,6 +1573,8 @@ export const createBulkUploadJob = async (
       csvData,
       tags: options?.tags || [],
       categories: options?.categories || [],
+      tagIds: options?.tagIds || [],
+      categoryIds: options?.categoryIds || [],
       listIds: options?.listIds || [],
     });
     return response.data.data;
