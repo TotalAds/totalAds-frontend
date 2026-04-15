@@ -112,20 +112,32 @@ export default function CampaignDetailsPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [failedLeadIssues, setFailedLeadIssues] = useState<CampaignLeadIssue[]>([]);
   const chartRef = useRef<HTMLDivElement>(null);
+  const campaignStatusRef = useRef<string | null>(null);
+  const initialLoadedRef = useRef(false);
 
-  const fetchCampaignAnalytics = useCallback(async () => {
+  const fetchCampaignAnalytics = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
     try {
-      setLoading(true);
+      // Show fullscreen loader only on first load, not during background polling.
+      if (!silent && !initialLoadedRef.current) {
+        setLoading(true);
+      }
       const response = await emailClient.get(
         `/api/analytics/campaigns/${campaignId}/analytics`
       );
       if (response.data.success) {
         setAnalytics(response.data.data);
+        campaignStatusRef.current = response.data.data?.campaign?.status || null;
+        initialLoadedRef.current = true;
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to fetch campaign");
+      if (!silent) {
+        toast.error(error.response?.data?.message || "Failed to fetch campaign");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [campaignId]);
 
@@ -160,22 +172,23 @@ export default function CampaignDetailsPage() {
   }, [campaignId]);
 
   useEffect(() => {
-    fetchCampaignAnalytics();
+    fetchCampaignAnalytics({ silent: false });
     fetchEnhancedAnalytics();
     fetchLeadIssues();
-    // Auto-refresh every 5s while sending
+
+    // Poll only lightweight campaign/issue data while campaign is active.
+    // Avoid reloading enhanced charts every cycle to prevent UI flicker.
     const interval = setInterval(() => {
-      const st = analytics?.campaign.status;
+      const st = campaignStatusRef.current;
       if (st === "sending" || st === "verifying_leads") {
-        fetchCampaignAnalytics();
-        fetchEnhancedAnalytics();
+        fetchCampaignAnalytics({ silent: true });
         fetchLeadIssues();
       }
-    }, 5000);
+    }, 8000);
+
     return () => clearInterval(interval);
   }, [
     campaignId,
-    analytics?.campaign.status,
     fetchCampaignAnalytics,
     fetchEnhancedAnalytics,
     fetchLeadIssues,
