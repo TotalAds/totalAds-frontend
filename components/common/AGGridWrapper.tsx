@@ -75,7 +75,6 @@ export default function AGGridWrapper<TData = any>({
       sortable: true,
       resizable: true,
       filter: true,
-      filterParams: mergedFilterParams,
       floatingFilter: false,
       suppressHeaderMenuButton: false,
       cellStyle: { display: "flex", alignItems: "center" },
