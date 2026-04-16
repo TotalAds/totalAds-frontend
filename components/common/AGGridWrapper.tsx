@@ -2,6 +2,8 @@
 
 import {
   ClientSideRowModelModule,
+  ColDef,
+  ColGroupDef,
   DateFilterModule,
   ModuleRegistry,
   NumberFilterModule,
@@ -12,7 +14,7 @@ import {
 import { AgGridReact, AgGridReactProps } from "ag-grid-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 
-// Register AG Grid modules (SetFilterModule is Enterprise-only, using Community filters)
+// Register AG Grid Community modules
 ModuleRegistry.registerModules([
   ClientSideRowModelModule,
   TextFilterModule,
@@ -59,23 +61,60 @@ export default function AGGridWrapper<TData = any>({
   const gridRef = useRef<AgGridReact<TData>>(null);
   const [internalPageSize, setInternalPageSize] = useState(pageSize);
 
-  const defaultColDef = useMemo(
-    () => ({
+  const defaultColDef = useMemo(() => {
+    const mergedFilterParams = {
+      debounceMs: 250,
+      suppressAndOrCondition: true,
+      maxNumConditions: 1,
+      ...(userDefaultColDef?.filterParams || {}),
+    };
+
+    return {
       flex: 1,
       minWidth: 100,
       sortable: true,
       resizable: true,
       filter: true,
-      filterParams: {
-        buttons: ["reset", "apply"],
-        closeOnApply: true,
-      },
-      floatingFilter: false, // Disable floating filters, use header filters only
+      filterParams: mergedFilterParams,
+      floatingFilter: false,
+      suppressHeaderMenuButton: false,
       cellStyle: { display: "flex", alignItems: "center" },
       ...userDefaultColDef,
-    }),
-    [userDefaultColDef]
-  );
+      // Ensure shared behavior is preserved even when custom defaultColDef is passed.
+      filterParams: mergedFilterParams,
+    };
+  }, [userDefaultColDef]);
+
+  const normalizedColumnDefs = useMemo(() => {
+    const normalizeColDefs = (
+      defs: (ColDef<TData> | ColGroupDef<TData>)[] = []
+    ): (ColDef<TData> | ColGroupDef<TData>)[] =>
+      defs.map((def) => {
+        if ("children" in def && def.children) {
+          return {
+            ...def,
+            children: normalizeColDefs(def.children),
+          };
+        }
+
+        const colDef = def as ColDef<TData>;
+        if (!colDef.filter || colDef.filter === false) {
+          return colDef;
+        }
+
+        return {
+          ...colDef,
+          filterParams: {
+            debounceMs: 250,
+            suppressAndOrCondition: true,
+            maxNumConditions: 1,
+            ...(colDef.filterParams || {}),
+          },
+        };
+      });
+
+    return normalizeColDefs(columnDefs as (ColDef<TData> | ColGroupDef<TData>)[]);
+  }, [columnDefs]);
 
   const overlayNoRowsTemplate = useMemo(
     () => `<div class="ag-overlay-no-rows-custom">
@@ -123,7 +162,7 @@ export default function AGGridWrapper<TData = any>({
         <AgGridReact<TData>
           ref={gridRef}
           rowData={rowData}
-          columnDefs={columnDefs}
+          columnDefs={normalizedColumnDefs}
           defaultColDef={defaultColDef}
           animateRows={true}
           suppressCellFocus={true}

@@ -547,10 +547,32 @@ export default function LeadsPage() {
         sortable: true,
         filter: "agTextColumnFilter",
         filterParams: {
-          buttons: ["reset", "apply"],
-          closeOnApply: true,
-          filterOptions: ["equals", "notEqual", "contains"],
+          filterOptions: ["equals", "contains"],
           defaultOption: "equals",
+          suppressAndOrCondition: true,
+          maxNumConditions: 1,
+        },
+        valueGetter: (params: any) => {
+          const lead = params.data as Lead | undefined;
+          if (!lead) return "Unverified";
+
+          const status = (lead.verificationStatus || "").toLowerCase();
+          const riskyStatuses = [
+            "invalid",
+            "disposable",
+            "spamtrap",
+            "catch_all",
+            "role_account",
+          ];
+
+          if (lead.isSafeToSend === true) return "Safe to send";
+          if (lead.isSafeToSend === false || riskyStatuses.includes(status)) {
+            return "Risky";
+          }
+          if (!lead.verificationStatus && typeof lead.isSafeToSend !== "boolean") {
+            return "Unverified";
+          }
+          return "Pending";
         },
       },
       {
@@ -701,7 +723,6 @@ export default function LeadsPage() {
       ListsCellRenderer,
       CampaignCellRenderer,
       ActionsCellRenderer,
-      leads,
     ]
   );
 
