@@ -108,14 +108,18 @@ export default function CampaignsPage() {
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { bg: string; text: string }> = {
       draft: { bg: "bg-slate-100", text: "text-slate-600" },
+      scheduled: { bg: "bg-sky-100", text: "text-sky-800" },
       running: { bg: "bg-green-100", text: "text-green-700" },
       verifying_leads: { bg: "bg-violet-100", text: "text-violet-800" },
+      verification_failed: { bg: "bg-red-100", text: "text-red-800" },
       sending: { bg: "bg-blue-100", text: "text-blue-700" },
       paused: { bg: "bg-amber-100", text: "text-amber-700" },
       completed: { bg: "bg-emerald-100", text: "text-emerald-700" },
     };
     const label: Record<string, string> = {
       verifying_leads: "Verifying leads",
+      verification_failed: "Verification failed",
+      scheduled: "Ready to send",
     };
     const style = statusMap[status] || statusMap.draft;
     const text =
@@ -165,10 +169,14 @@ export default function CampaignsPage() {
               View
             </Button>
           </Link>
-          {campaign.status === "draft" ? (
-            <Link href={`/email/campaigns/builder?id=${campaign.id}`}>
+          {["draft", "scheduled", "verification_failed"].includes(
+            campaign.status
+          ) ? (
+            <Link
+              href={`/email/campaigns/builder?domainId=${campaign.domainId}&id=${campaign.id}`}
+            >
               <Button className="bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-md font-medium transition border border-slate-200">
-                Edit
+                {campaign.status === "scheduled" ? "Review & send" : "Edit"}
               </Button>
             </Link>
           ) : (
@@ -180,13 +188,17 @@ export default function CampaignsPage() {
               Edit
             </Button>
           )}
-          {/* <Button
-            onClick={() => handleDelete(campaign.id)}
-            disabled={deleting === campaign.id}
-            className="bg-red-50 hover:bg-red-100 text-red-600 text-xs px-3 py-1.5 rounded-md font-medium transition border border-red-200 disabled:opacity-50"
-          >
-            {deleting === campaign.id ? "..." : "Delete"}
-          </Button> */}
+          {["draft", "scheduled", "verification_failed", "paused"].includes(
+            campaign.status
+          ) && (
+            <Button
+              onClick={() => handleDelete(campaign.id)}
+              disabled={deleting === campaign.id}
+              className="bg-red-50 hover:bg-red-100 text-red-600 text-xs px-3 py-1.5 rounded-md font-medium transition border border-red-200 disabled:opacity-50"
+            >
+              {deleting === campaign.id ? "..." : "Delete"}
+            </Button>
+          )}
         </div>
       );
     },

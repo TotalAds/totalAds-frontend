@@ -351,9 +351,18 @@ export interface Campaign {
   subject?: string;
   status: string;
   domainId: string;
+  senderId?: string;
   createdAt: string;
   updatedAt: string;
   sequence?: CampaignSequenceStep[];
+  leadIds?: string[];
+  description?: string;
+  dailySendTime?: string;
+  replyTo?: string;
+  reoonVerificationSummary?: {
+    verificationJobFailed?: boolean;
+    errorMessage?: string;
+  };
   queuedForTodayCount?: number;
   scheduledForTomorrowCount?: number;
 }

@@ -11,6 +11,7 @@ function CampaignBuilderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialDomainId = searchParams.get("domainId") || "";
+  const existingCampaignId = searchParams.get("id") || undefined;
 
   const handleCancel = () => {
     if (
@@ -29,6 +30,7 @@ function CampaignBuilderContent() {
       onCancel={handleCancel}
       onSuccess={handleSuccess}
       initialDomainId={initialDomainId}
+      campaignId={existingCampaignId}
     />
   );
 }

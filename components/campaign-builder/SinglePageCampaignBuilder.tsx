@@ -21,8 +21,8 @@ import emailClient, {
   AIGeneratedCampaignEmailStep,
   AIGeneratedCampaignResponse,
   createList,
-  deleteCampaign,
   EmailList,
+  getCampaignById,
   getCampaignEligibility,
   getDomains,
   getEmailServiceErrorMessage,
@@ -31,9 +31,7 @@ import emailClient, {
   LeadTag,
 } from "@/utils/api/emailClient";
 import {
-  checkEmailsVerificationStatus,
   getReoonStatus,
-  queueCampaignLeadsVerification,
 } from "@/utils/api/reoonClient";
 
 import { useEmailProvider } from "@/hooks/useEmailProvider";
@@ -43,8 +41,6 @@ import AIGeneratedCampaignPanel from "./AIGeneratedCampaignPanel";
 import EmailTemplateEditor from "./EmailTemplateEditor";
 import RecipientSelectionModal from "./RecipientSelectionModal";
 
-const VERIFICATION_EMAIL_CHECK_BATCH = 5000;
-const LEAD_EMAIL_FETCH_BATCH = 1000;
 
 interface SinglePageCampaignBuilderProps {
   onCancel?: () => void;
@@ -136,6 +132,11 @@ export default function SinglePageCampaignBuilder({
   const [loadingDomains, setLoadingDomains] = useState(true);
   const [loadingSenders, setLoadingSenders] = useState(false);
   const [sending, setSending] = useState(false);
+  const [loadingExistingCampaign, setLoadingExistingCampaign] = useState(false);
+  /** When set, Send uses this campaign id instead of creating a new one */
+  const [resumeCampaignId, setResumeCampaignId] = useState<string | null>(null);
+  /** Skip Reoon pre-check / async verify when list is already verified (scheduled / legacy draft) */
+  const [resumeSkipVerification, setResumeSkipVerification] = useState(false);
   const [showRecipientModal, setShowRecipientModal] = useState(false);
   const [listOptions, setListOptions] = useState<EmailList[]>([]);
   const [loadingLists, setLoadingLists] = useState(false);
@@ -146,6 +147,9 @@ export default function SinglePageCampaignBuilder({
   const [aiGeneratedData, setAiGeneratedData] =
     useState<AIGeneratedCampaignResponse | null>(null);
   const prevDomainIdRef = useRef<string>(initialDomainId);
+
+  const idFromQuery = searchParams.get("id");
+  const effectiveCampaignId = campaignId || idFromQuery || undefined;
 
   const [state, setState] = useState<CampaignState>({
     campaignName: "",
@@ -276,6 +280,100 @@ export default function SinglePageCampaignBuilder({
       cancelled = true;
     };
   }, []);
+
+  // Resume a draft / scheduled / failed campaign from ?id= (same flow as new campaign, optional skip verify)
+  useEffect(() => {
+    if (!state.domainId || !effectiveCampaignId) return;
+    let cancelled = false;
+    const load = async () => {
+      setLoadingExistingCampaign(true);
+      try {
+        const c = await getCampaignById(state.domainId, effectiveCampaignId);
+        if (cancelled) return;
+
+        if (c.status === "verifying_leads") {
+          toast.error(
+            "This campaign is still verifying leads. Check the campaign page for status.",
+            { duration: 9000 }
+          );
+          return;
+        }
+
+        if (c.status === "verification_failed") {
+          const raw = c as unknown as {
+            reoonVerificationSummary?: { errorMessage?: string };
+          };
+          const errMsg = raw.reoonVerificationSummary?.errorMessage;
+          toast.error(
+            errMsg
+              ? `Lead verification failed: ${errMsg}`
+              : "Lead verification failed. You can edit recipients and try sending again, or retry verification from the campaign page.",
+            { duration: 14000 }
+          );
+        }
+
+        if (c.status === "sending" || c.status === "completed") {
+          toast.error(
+            "This campaign has already been sent or is sending. Open the campaign page to view progress.",
+            { duration: 8000 }
+          );
+          return;
+        }
+
+        const seq = c.sequence?.[0];
+        const rawC = c as unknown as {
+          description?: string;
+          dailySendTime?: string;
+          replyTo?: string;
+          leadIds?: string[];
+          reoonVerificationSummary?: { verificationJobFailed?: boolean };
+        };
+
+        setState((prev) => ({
+          ...prev,
+          campaignName: c.name || prev.campaignName,
+          campaignDescription: rawC.description || prev.campaignDescription,
+          emailTemplate: {
+            ...prev.emailTemplate,
+            subject: seq?.subject || prev.emailTemplate.subject,
+            previewText:
+              (seq as { previewText?: string })?.previewText ||
+              prev.emailTemplate.previewText,
+            htmlContent: seq?.body || prev.emailTemplate.htmlContent,
+          },
+          dailySendTime: rawC.dailySendTime || prev.dailySendTime,
+          replyTo: rawC.replyTo || prev.replyTo,
+          useReplyTo: Boolean(rawC.replyTo),
+          senderIds: c.senderId ? [String(c.senderId)] : prev.senderIds,
+          selectedRecipients: {
+            type: "individual",
+            ids: Array.isArray(rawC.leadIds) ? rawC.leadIds.map(String) : [],
+            count: Array.isArray(rawC.leadIds) ? rawC.leadIds.length : 0,
+          },
+        }));
+
+        setResumeCampaignId(effectiveCampaignId);
+        const summary = rawC.reoonVerificationSummary;
+        const skipVerify =
+          c.status === "scheduled" ||
+          (c.status === "draft" &&
+            Array.isArray(rawC.leadIds) &&
+            rawC.leadIds.length > 0 &&
+            summary &&
+            !summary.verificationJobFailed);
+        setResumeSkipVerification(Boolean(skipVerify));
+      } catch (e) {
+        console.error(e);
+        toast.error("Could not load this campaign for editing.");
+      } finally {
+        if (!cancelled) setLoadingExistingCampaign(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [state.domainId, effectiveCampaignId]);
 
   // Clear sender selections when domain changes
   useEffect(() => {
@@ -830,66 +928,19 @@ export default function SinglePageCampaignBuilder({
         leadIds = state.selectedRecipients.ids;
       }
 
-      const leadIdToEmail = new Map<string, string>();
+      const usingNewCsv =
+        state.selectedRecipients.type === "csv" && state.csvData.length > 0;
 
-      for (let i = 0; i < leadIds.length; i += LEAD_EMAIL_FETCH_BATCH) {
-        const batchIds = leadIds.slice(i, i + LEAD_EMAIL_FETCH_BATCH);
-        const response = await emailClient.post("/api/leads/batch-get", {
-          leadIds: batchIds,
-        });
-        const leads = response.data?.data?.leads || [];
-        for (const lead of leads) {
-          if (lead.id && lead.email) {
-            leadIdToEmail.set(
-              String(lead.id),
-              String(lead.email).toLowerCase().trim()
-            );
-          }
+      if (resumeCampaignId && resumeSkipVerification && !usingNewCsv) {
+        if (leadIds.length === 0) {
+          toast.error(
+            "No recipients on this campaign. Select recipients or add leads first."
+          );
+          return;
         }
+        await finalizeCampaignSend(resumeCampaignId, leadIds);
+        return;
       }
-
-      const uniqueEmails = [
-        ...new Set(Array.from(leadIdToEmail.values()).filter(Boolean)),
-      ];
-
-      const emailToDetail = new Map<
-        string,
-        { isVerified?: boolean; isSafeToSend?: boolean | null }
-      >();
-
-      for (let i = 0; i < uniqueEmails.length; i += VERIFICATION_EMAIL_CHECK_BATCH) {
-        const batch = uniqueEmails.slice(i, i + VERIFICATION_EMAIL_CHECK_BATCH);
-        const statusResult = await checkEmailsVerificationStatus(batch);
-        for (const d of statusResult.details || []) {
-          emailToDetail.set(d.email.toLowerCase().trim(), {
-            isVerified: d.isVerified,
-            isSafeToSend: d.isSafeToSend ?? null,
-          });
-        }
-      }
-
-      const unverifiedLeadIds: string[] = [];
-      const safeLeadIds: string[] = [];
-      let riskyCount = 0;
-
-      for (const [leadId, email] of leadIdToEmail.entries()) {
-        if (!email) continue;
-        const detail = emailToDetail.get(email);
-        if (!detail?.isVerified) {
-          unverifiedLeadIds.push(leadId);
-          continue;
-        }
-        if (detail.isSafeToSend === true) {
-          safeLeadIds.push(leadId);
-        } else {
-          riskyCount += 1;
-        }
-      }
-
-      toast(
-        `${safeLeadIds.length} leads verified and safe to send. ${unverifiedLeadIds.length} not verified yet — we will verify them with Reoon. ${riskyCount} excluded as risky.`,
-        { duration: 7000 }
-      );
 
       const createCampaignRecord = async (): Promise<string | null> => {
         toast.loading("Creating campaign...");
@@ -936,77 +987,22 @@ export default function SinglePageCampaignBuilder({
         }
       };
 
-      if (unverifiedLeadIds.length > 0) {
-        const refreshed = await getReoonStatus(true);
-        const daily = refreshed.lastBalanceDailyCredits ?? 0;
-        const instant = refreshed.lastBalanceInstantCredits ?? 0;
-        if (daily + instant < 1) {
-          toast.error(
-            "You ran out of credits on Reoon. Add credits or update your API key in Settings → Integrations, then refresh and try again.",
-            { duration: 10000 }
-          );
-          return;
-        }
-
-        const campaignId = await createCampaignRecord();
-        if (!campaignId) return;
-
-        toast.loading("Adding leads and starting verification with Reoon...");
-        try {
-          await emailClient.post(
-            `/api/domains/${state.domainId}/campaigns/${campaignId}/add-leads`,
-            { leadIds }
-          );
-        } catch (addErr: any) {
-          toast.dismiss();
-          toast.error(
-            addErr?.response?.data?.message ||
-              addErr?.message ||
-              "Failed to add leads to campaign"
-          );
-          try {
-            await deleteCampaign(state.domainId, campaignId);
-          } catch {
-            /* best effort */
-          }
-          return;
-        }
-
-        try {
-          await queueCampaignLeadsVerification({
-            domainId: state.domainId,
-            campaignId,
-            leadIds,
-            mode: "power",
-          });
-        } catch (queueErr: any) {
-          toast.dismiss();
-          const code = queueErr?.response?.data?.code;
-          const msg =
-            queueErr?.response?.data?.message ||
-            queueErr?.message ||
-            "Failed to queue verification.";
-          toast.error(msg, { duration: 10000 });
-          try {
-            await deleteCampaign(state.domainId, campaignId);
-          } catch {
-            /* best effort */
-          }
-          return;
-        }
-
-        toast.dismiss();
-        toast.success(
-          "We are verifying your list with Reoon. This campaign is in Verifying leads until it finishes. You will get an email when verification completes.",
-          { duration: 9000 }
+      if (leadIds.length === 0) {
+        toast.error(
+          "No recipients found to queue. Select recipients and try again."
         );
-        if (onSuccess) onSuccess();
         return;
       }
 
-      if (safeLeadIds.length === 0) {
+      // Keep the send-time Reoon check strict, but avoid bulk pre-verification.
+      // The worker verifies one lead at a time and naturally fills each day's sender quota.
+      const refreshed = await getReoonStatus(true);
+      const daily = refreshed.lastBalanceDailyCredits ?? 0;
+      const instant = refreshed.lastBalanceInstantCredits ?? 0;
+      if (daily + instant < 1) {
         toast.error(
-          "No leads are safe to send after verification. Add valid leads or wait for verification to finish."
+          "You ran out of credits on Reoon. Add credits or update your API key in Settings → Integrations, then refresh and try again.",
+          { duration: 10000 }
         );
         return;
       }
@@ -1014,7 +1010,7 @@ export default function SinglePageCampaignBuilder({
       const campaignId = await createCampaignRecord();
       if (!campaignId) return;
 
-      await finalizeCampaignSend(campaignId, safeLeadIds);
+      await finalizeCampaignSend(campaignId, leadIds);
     } catch (error: any) {
       toast.dismiss();
       toast.error(
@@ -1107,6 +1103,17 @@ export default function SinglePageCampaignBuilder({
     .filter((e) => e !== "__EMPTY")
     .filter((e) => !INTERNAL_FIELDS.includes(e.toLowerCase()))
     .map((e) => `{{${e.trim()}}}`);
+
+  if (loadingExistingCampaign && effectiveCampaignId) {
+    return (
+      <div className="min-h-screen bg-bg-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-main mx-auto mb-3" />
+          <p className="text-text-200 text-sm">Loading campaign…</p>
+        </div>
+      </div>
+    );
+  }
 
   if (eligibility && !eligibility.eligible) {
     return (
