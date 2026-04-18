@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  CalendarDays,
   CheckCircle2,
   ChevronRight,
   Clock,
@@ -85,6 +86,12 @@ interface CampaignAnalytics {
     verified: number;
     blocked: number;
     sent: number;
+  };
+  sendVolume?: {
+    calendar: "utc";
+    sentToday: number;
+    sentYesterday: number;
+    sendsByDay: Array<{ date: string; count: number }>;
   };
   reoon?: {
     used: boolean;
@@ -341,6 +348,7 @@ export default function CampaignDetailsPage() {
   const progress = analytics.progress;
   const reoon = analytics.reoon;
   const todayVerification = analytics.todayVerification;
+  const sendVolume = analytics.sendVolume;
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
@@ -533,6 +541,70 @@ export default function CampaignDetailsPage() {
                   compact
                 />
               </div>
+            </div>
+          )}
+
+          {sendVolume && (
+            <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3">
+                <CalendarDays className="w-4 h-4 text-slate-600" />
+                <h2 className="text-base font-semibold text-slate-900">
+                  Send activity
+                </h2>
+              </div>
+              <p className="text-xs text-slate-500 mb-3">
+                Emails sent per calendar day (UTC). Matches your daily send pacing
+                across time zones.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                <div className="rounded-lg border border-slate-100 bg-slate-50/80 p-3">
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                    Today (UTC)
+                  </p>
+                  <p className="text-2xl font-bold text-slate-900 tabular-nums mt-1">
+                    {sendVolume.sentToday.toLocaleString()}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-100 bg-slate-50/80 p-3">
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                    Yesterday (UTC)
+                  </p>
+                  <p className="text-2xl font-bold text-slate-900 tabular-nums mt-1">
+                    {sendVolume.sentYesterday.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+              {sendVolume.sendsByDay.length > 0 ? (
+                <div className="rounded-lg border border-slate-200 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 text-left text-xs font-semibold text-slate-600 border-b border-slate-200">
+                        <th className="py-2 px-3">Day (UTC)</th>
+                        <th className="py-2 px-3 text-right">Sent</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sendVolume.sendsByDay.map((row) => (
+                        <tr
+                          key={row.date}
+                          className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50"
+                        >
+                          <td className="py-2 px-3 font-mono text-slate-800">
+                            {row.date}
+                          </td>
+                          <td className="py-2 px-3 text-right font-semibold text-slate-900 tabular-nums">
+                            {row.count.toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  No sends recorded yet for this campaign.
+                </p>
+              )}
             </div>
           )}
 

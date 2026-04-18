@@ -92,6 +92,14 @@ interface Domain {
 
 type DomainTrustLevel = "new" | "warming" | "aged" | "agency";
 
+/** From GET /api/analytics/campaigns/:id/analytics — `sendVolume` */
+interface CampaignSendVolume {
+  calendar: "utc";
+  sentToday: number;
+  sentYesterday: number;
+  sendsByDay: Array<{ date: string; count: number }>;
+}
+
 interface EmailSender {
   id: string;
   email: string;
@@ -150,6 +158,9 @@ export default function SinglePageCampaignBuilder({
 
   const idFromQuery = searchParams.get("id");
   const effectiveCampaignId = campaignId || idFromQuery || undefined;
+
+  const [sendVolume, setSendVolume] = useState<CampaignSendVolume | null>(null);
+  const [sendVolumeLoading, setSendVolumeLoading] = useState(false);
 
   const [state, setState] = useState<CampaignState>({
     campaignName: "",
@@ -374,6 +385,39 @@ export default function SinglePageCampaignBuilder({
       cancelled = true;
     };
   }, [state.domainId, effectiveCampaignId]);
+
+  // Send activity (today / yesterday / by day) when editing or viewing a campaign by id
+  useEffect(() => {
+    if (!effectiveCampaignId) {
+      setSendVolume(null);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      setSendVolumeLoading(true);
+      try {
+        const res = await emailClient.get(
+          `/api/analytics/campaigns/${effectiveCampaignId}/analytics`
+        );
+        const vol = res.data?.data?.sendVolume as CampaignSendVolume | undefined;
+        if (!cancelled && vol && typeof vol.sentToday === "number") {
+          setSendVolume(vol);
+        } else if (!cancelled) {
+          setSendVolume(null);
+        }
+      } catch {
+        // Keep previous sendVolume on transient errors
+      } finally {
+        if (!cancelled) setSendVolumeLoading(false);
+      }
+    };
+    load();
+    const interval = setInterval(load, 20000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [effectiveCampaignId]);
 
   // Clear sender selections when domain changes
   useEffect(() => {
@@ -2187,6 +2231,72 @@ export default function SinglePageCampaignBuilder({
                         </div>
                       </div>
                     )}
+
+                  {effectiveCampaignId && (
+                    <div className="pt-3 mt-1 border-t border-brand-main/15">
+                      <p className="text-xs text-text-200 mb-2">Send activity</p>
+                      {sendVolumeLoading && !sendVolume ? (
+                        <p className="text-xs text-text-300">Loading…</p>
+                      ) : sendVolume ? (
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <p className="text-[10px] text-text-300 uppercase tracking-wide">
+                                Today (UTC)
+                              </p>
+                              <p className="text-sm font-semibold text-text-100 tabular-nums">
+                                {sendVolume.sentToday.toLocaleString()}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-text-300 uppercase tracking-wide">
+                                Yesterday (UTC)
+                              </p>
+                              <p className="text-sm font-semibold text-text-100 tabular-nums">
+                                {sendVolume.sentYesterday.toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+                          {sendVolume.sendsByDay.length > 0 && (
+                            <div className="max-h-36 overflow-y-auto rounded-md border border-bg-200/80 bg-bg-100/40">
+                              <table className="w-full text-[11px]">
+                                <thead>
+                                  <tr className="text-text-300 border-b border-bg-200/60">
+                                    <th className="text-left font-medium py-1.5 px-2">
+                                      Day (UTC)
+                                    </th>
+                                    <th className="text-right font-medium py-1.5 px-2">
+                                      Sent
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {sendVolume.sendsByDay.map((row) => (
+                                    <tr
+                                      key={row.date}
+                                      className="text-text-100 border-b border-bg-200/40 last:border-0"
+                                    >
+                                      <td className="py-1 px-2 font-mono">{row.date}</td>
+                                      <td className="py-1 px-2 text-right tabular-nums font-medium">
+                                        {row.count.toLocaleString()}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                          <p className="text-[10px] text-text-300 leading-snug">
+                            Counts use UTC calendar days so they line up with the table.
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-text-300">
+                          No send stats yet (or unavailable).
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2204,7 +2314,7 @@ export default function SinglePageCampaignBuilder({
                     {state.selectedRecipients.count.toLocaleString()}) exceeds today&apos;s
                     combined sender capacity (
                     {rotation?.totalCapacity?.toLocaleString() ?? "—"}). Remaining emails
-                    resume at this time on the next eligible day (your timezone).
+                    resume at this time on the next eligible day (UTC — same as daily send quota).
                   </p>
                   <div className="flex items-center gap-2">
                     <input
@@ -2238,7 +2348,7 @@ export default function SinglePageCampaignBuilder({
                     </div>
                   </div>
                   <p className="text-[10px] text-text-300">
-                    Recommended: 9 – 10 AM or 2 PM local time for best open rates.
+                    Recommended: 09:00–10:00 or 14:00 UTC for typical business open rates.
                   </p>
                 </div>
               )}
