@@ -1,9 +1,11 @@
 /** Highlight {{var}} tokens in HTML for preview (iframe or div). */
 export function highlightMergeVariablesInHtml(html: string): string {
-  return html.replace(
-    /\{\{(\w+)\}\}/g,
-    '<span style="background: linear-gradient(120deg, #fbbf24 0%, #f59e0b 100%); color: #000; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 0.9em; display: inline-block; margin: 0 2px;">{{$1}}</span>'
-  );
+  return html.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (match, token) => {
+    const raw = String(token || '').trim();
+    if (!raw) return match;
+    if (raw.startsWith('#if') || raw === 'else' || raw === '/if') return match;
+    return `<span style="background: linear-gradient(120deg, #fbbf24 0%, #f59e0b 100%); color: #000; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 0.9em; display: inline-block; margin: 0 2px;">{{${raw}}}</span>`;
+  });
 }
 
 export function wrapEmailPreviewDocument(html: string, highlighted: boolean) {

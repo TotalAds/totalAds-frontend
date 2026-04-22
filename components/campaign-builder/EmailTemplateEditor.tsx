@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 
 import CreateEmailModal from "./CreateEmailModal";
 import { wrapEmailPreviewDocument } from "./htmlPreviewUtils";
+import { type SpintaxPackId } from "./spintaxUtils";
 
 export interface EmailTemplateEditorProps {
   subject: string;
@@ -23,6 +24,12 @@ export interface EmailTemplateEditorProps {
   onHtmlContentChange: (content: string) => void;
   onBodyEditorChange: (mode: "simple" | "html") => void;
   onEmailBodyInitialized: (initialized: boolean) => void;
+  useSpintax: boolean;
+  onUseSpintaxChange: (enabled: boolean) => void;
+  spintaxPackId: SpintaxPackId;
+  onSpintaxPackChange: (packId: SpintaxPackId) => void;
+  strictGrammarMode: boolean;
+  onStrictGrammarModeChange: (enabled: boolean) => void;
 }
 
 export default function EmailTemplateEditor({
@@ -39,15 +46,31 @@ export default function EmailTemplateEditor({
   onHtmlContentChange,
   onBodyEditorChange,
   onEmailBodyInitialized,
+  useSpintax,
+  onUseSpintaxChange,
+  spintaxPackId,
+  onSpintaxPackChange,
+  strictGrammarMode,
+  onStrictGrammarModeChange,
 }: EmailTemplateEditorProps) {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [openDirectlyToEditor, setOpenDirectlyToEditor] = useState(false);
   const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
 
   const handleApplyFromModal = (payload: {
+    subject: string;
+    previewText: string;
     htmlContent: string;
     bodyEditor: "simple" | "html";
+    useSpintax: boolean;
+    spintaxPackId: SpintaxPackId;
+    strictGrammarMode: boolean;
   }) => {
+    onSubjectChange(payload.subject);
+    onPreviewTextChange && onPreviewTextChange(payload.previewText);
+    onUseSpintaxChange(payload.useSpintax);
+    onSpintaxPackChange(payload.spintaxPackId);
+    onStrictGrammarModeChange(payload.strictGrammarMode);
     onBodyEditorChange(payload.bodyEditor);
     onHtmlContentChange(payload.htmlContent);
     onEmailBodyInitialized(true);
@@ -70,59 +93,23 @@ export default function EmailTemplateEditor({
           '<p style="margin:0;font-size:15px;color:#94a3b8;">No body yet — open the editor to add content.</p>',
           false
         );
-
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-xl border border-border bg-bg-200 shadow-sm">
-        <div className="border-b border-border px-4 py-3">
-          <div className="flex items-center gap-3">
-            <span className="w-20 flex-shrink-0 text-sm font-medium text-text-200">
-              Subject
-            </span>
-            <input
-              type="text"
-              value={subject}
-              onChange={(e) => onSubjectChange(e.target.value)}
-              placeholder="Add a subject line"
-              className="flex-1 bg-transparent text-sm text-text-100 placeholder:text-text-300 focus:outline-none"
-            />
-          </div>
-        </div>
-        <div className="px-4 py-2.5">
-          <div className="flex items-start gap-3">
-            <span className="w-20 flex-shrink-0 pt-0.5 text-xs font-medium text-text-300">
-              Preview
-            </span>
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <input
-                type="text"
-                value={previewText || ""}
-                onChange={(e) =>
-                  onPreviewTextChange && onPreviewTextChange(e.target.value)
-                }
-                placeholder="Inbox preview text (optional)"
-                maxLength={100}
-                className="w-full bg-transparent text-xs text-text-200 placeholder:text-text-300 focus:outline-none"
-              />
-              {(previewText || "").length > 0 && (
-                <span className="text-[11px] text-text-300">
-                  {(previewText || "").length}/100
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
+      <div className="rounded-lg border border-border bg-bg-200 px-3 py-2">
+        <p className="truncate text-xs font-medium text-text-100">
+          {subject?.trim() ? subject : "No subject yet - add it in the email modal"}
+        </p>
+        {(previewText || "").trim() ? (
+          <p className="mt-0.5 truncate text-[11px] text-text-300">{previewText}</p>
+        ) : (
+          <p className="mt-0.5 text-[11px] text-text-300">No preview text</p>
+        )}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-bg-200 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+      <div className="overflow-hidden rounded-lg border border-border bg-bg-200 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-3 py-2.5">
           <div>
             <h3 className="text-sm font-semibold text-text-100">Email content</h3>
-            <p className="mt-0.5 text-xs text-text-200">
-              Preview of what recipients see. Use{" "}
-              <span className="font-medium text-text-100">Create email</span> to pick a template or
-              edit in the modal.
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {emailBodyInitialized ? (
@@ -148,7 +135,6 @@ export default function EmailTemplateEditor({
             </Button>
           </div>
         </div>
-
         {!emailBodyInitialized ? (
           <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
             <div className="mb-6 max-w-md rounded-2xl border border-dashed border-border bg-bg-300/40 px-8 py-10">
@@ -232,6 +218,11 @@ export default function EmailTemplateEditor({
         domainId={domainId}
         excludeCampaignId={excludeCampaignId}
         availableVariables={availableVariables}
+        seedSubject={subject}
+        seedPreviewText={previewText || ""}
+        seedUseSpintax={useSpintax}
+        seedSpintaxPackId={spintaxPackId}
+        seedStrictGrammarMode={strictGrammarMode}
         seedHtml={htmlContent}
         seedBodyEditor={bodyEditor}
         openDirectlyToEditor={openDirectlyToEditor}

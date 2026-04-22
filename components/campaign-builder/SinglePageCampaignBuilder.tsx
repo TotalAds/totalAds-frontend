@@ -40,6 +40,7 @@ import AICampaignGeneratorModal from "./AICampaignGeneratorModal";
 import AIGeneratedCampaignPanel from "./AIGeneratedCampaignPanel";
 import EmailTemplateEditor from "./EmailTemplateEditor";
 import RecipientSelectionModal from "./RecipientSelectionModal";
+import { type SpintaxPackId } from "./spintaxUtils";
 
 
 interface SinglePageCampaignBuilderProps {
@@ -61,6 +62,9 @@ interface CampaignState {
     textContent: string;
     /** Persisted on the sequence step for restoring the builder */
     bodyEditor: "simple" | "html";
+    useSpintax: boolean;
+    spintaxPackId: SpintaxPackId;
+    strictGrammarMode: boolean;
     /** False until the user picks an editor/template or loads existing / AI content */
     emailBodyInitialized: boolean;
     attachments?: Array<{
@@ -192,6 +196,9 @@ export default function SinglePageCampaignBuilder({
       htmlContent: "",
       textContent: "",
       bodyEditor: "simple",
+      useSpintax: false,
+      spintaxPackId: "general",
+      strictGrammarMode: false,
       emailBodyInitialized: false,
       attachments: [],
     },
@@ -357,6 +364,9 @@ export default function SinglePageCampaignBuilder({
           | {
               previewText?: string;
               bodyEditor?: string;
+              useSpintax?: boolean;
+              spintaxPackId?: SpintaxPackId;
+              strictGrammarMode?: boolean;
             }
           | undefined;
         const rawC = c as unknown as {
@@ -389,6 +399,9 @@ export default function SinglePageCampaignBuilder({
               seqEx?.previewText ?? prev.emailTemplate.previewText,
             htmlContent: loadedBody || prev.emailTemplate.htmlContent,
             bodyEditor: resolvedBodyEditor,
+            useSpintax: Boolean(seqEx?.useSpintax),
+            spintaxPackId: seqEx?.spintaxPackId || "general",
+            strictGrammarMode: Boolean(seqEx?.strictGrammarMode),
             emailBodyInitialized: hasBody,
           },
           dailySendTime: rawC.dailySendTime || prev.dailySendTime,
@@ -806,6 +819,9 @@ export default function SinglePageCampaignBuilder({
             replyTo:
               state.useReplyTo && state.replyTo ? state.replyTo : undefined,
             bodyEditor: state.emailTemplate.bodyEditor,
+            useSpintax: state.emailTemplate.useSpintax,
+            spintaxPackId: state.emailTemplate.spintaxPackId,
+            strictGrammarMode: state.emailTemplate.strictGrammarMode,
           },
         ],
       });
@@ -1070,6 +1086,9 @@ export default function SinglePageCampaignBuilder({
                       ? state.replyTo
                       : undefined,
                   bodyEditor: state.emailTemplate.bodyEditor,
+                  useSpintax: state.emailTemplate.useSpintax,
+                  spintaxPackId: state.emailTemplate.spintaxPackId,
+                  strictGrammarMode: state.emailTemplate.strictGrammarMode,
                 },
               ],
               replyTo:
@@ -1166,6 +1185,9 @@ export default function SinglePageCampaignBuilder({
         htmlContent: firstBodyHtml,
         textContent: firstEmail.body,
         bodyEditor: "simple",
+        useSpintax: false,
+        spintaxPackId: "general",
+        strictGrammarMode: false,
         emailBodyInitialized: true,
       },
     }));
@@ -1190,6 +1212,9 @@ export default function SinglePageCampaignBuilder({
         htmlContent: bodyHtml,
         textContent: step.body,
         bodyEditor: "simple",
+        useSpintax: false,
+        spintaxPackId: "general",
+        strictGrammarMode: false,
         emailBodyInitialized: true,
       },
     }));
@@ -1550,6 +1575,27 @@ export default function SinglePageCampaignBuilder({
                   setState((prev) => ({
                     ...prev,
                     emailTemplate: { ...prev.emailTemplate, bodyEditor },
+                  }))
+                }
+                useSpintax={state.emailTemplate.useSpintax}
+                onUseSpintaxChange={(useSpintax) =>
+                  setState((prev) => ({
+                    ...prev,
+                    emailTemplate: { ...prev.emailTemplate, useSpintax },
+                  }))
+                }
+                spintaxPackId={state.emailTemplate.spintaxPackId}
+                onSpintaxPackChange={(spintaxPackId) =>
+                  setState((prev) => ({
+                    ...prev,
+                    emailTemplate: { ...prev.emailTemplate, spintaxPackId },
+                  }))
+                }
+                strictGrammarMode={state.emailTemplate.strictGrammarMode}
+                onStrictGrammarModeChange={(strictGrammarMode) =>
+                  setState((prev) => ({
+                    ...prev,
+                    emailTemplate: { ...prev.emailTemplate, strictGrammarMode },
                   }))
                 }
                 onEmailBodyInitialized={(emailBodyInitialized) =>

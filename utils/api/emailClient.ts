@@ -346,6 +346,9 @@ export interface CampaignSequenceStep {
   previewText?: string;
   /** Campaign builder UI mode; optional for older campaigns */
   bodyEditor?: "simple" | "html";
+  useSpintax?: boolean;
+  spintaxPackId?: "general" | "saas" | "agency" | "ecommerce" | "recruitment" | "ai_ml" | "fintech" | "healthcare" | "real_estate";
+  strictGrammarMode?: boolean;
   replyTo?: string;
 }
 
