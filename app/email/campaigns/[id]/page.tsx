@@ -18,6 +18,7 @@ import {
   UserMinus,
   FileX,
   Loader2,
+  OctagonX,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -29,11 +30,21 @@ import KPICard from "@/components/campaign-analytics/KPICard";
 import { MetricsSummary } from "@/components/campaign-analytics/MetricsSummary";
 import { TrendChart } from "@/components/campaign-analytics/TrendChart";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import emailClient, {
   EnhancedAnalyticsFilters,
   EnhancedCampaignAnalytics,
+  getEmailServiceErrorMessage,
   getSubscriptionInfo,
   getEnhancedCampaignAnalytics,
+  stopCampaign,
 } from "@/utils/api/emailClient";
 import { exportCampaignAnalyticsToPDF } from "@/utils/pdfExport";
 
@@ -130,6 +141,8 @@ export default function CampaignDetailsPage() {
     dateRange: "30d",
   });
   const [isExporting, setIsExporting] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [stopDialogOpen, setStopDialogOpen] = useState(false);
   const [failedLeadIssues, setFailedLeadIssues] = useState<CampaignLeadIssue[]>([]);
   const chartRef = useRef<HTMLDivElement>(null);
   const campaignStatusRef = useRef<string | null>(null);
@@ -311,6 +324,34 @@ export default function CampaignDetailsPage() {
     setFilters({ dateRange: "30d" });
   };
 
+  const executeStopCampaign = async () => {
+    if (!analytics?.campaign?.domainId) {
+      toast.error("Missing domain for this campaign; cannot stop from here.");
+      setStopDialogOpen(false);
+      return;
+    }
+    setStopping(true);
+    try {
+      const result = await stopCampaign(analytics.campaign.domainId, campaignId);
+      const msg =
+        typeof result?.message === "string"
+          ? result.message
+          : "Campaign stopped. No further emails will be sent.";
+      toast.success(msg);
+      const nextStatus =
+        (result as { campaign?: { status?: string } })?.campaign?.status;
+      campaignStatusRef.current =
+        typeof nextStatus === "string" ? nextStatus : "cancelled";
+      setStopDialogOpen(false);
+      await fetchCampaignAnalytics({ silent: false });
+      await fetchLeadIssues();
+    } catch (error: unknown) {
+      toast.error(getEmailServiceErrorMessage(error, "Could not stop this campaign"));
+    } finally {
+      setStopping(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-bg-100 flex items-center justify-center">
@@ -350,6 +391,13 @@ export default function CampaignDetailsPage() {
   const todayVerification = analytics.todayVerification;
   const sendVolume = analytics.sendVolume;
 
+  const campaignStatusNorm = String(campaign.status || "").trim();
+  const canStopCampaign =
+    !!campaign.domainId &&
+    ["draft", "sending", "scheduled", "verifying_leads", "paused", "verification_failed"].includes(
+      campaignStatusNorm
+    );
+
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
       case "sending":
@@ -368,6 +416,8 @@ export default function CampaignDetailsPage() {
         return "bg-sky-100 border-sky-300 text-sky-800";
       case "verification_failed":
         return "bg-red-100 border-red-300 text-red-800";
+      case "cancelled":
+        return "bg-rose-100 border-rose-300 text-rose-800";
       default:
         return "bg-slate-100 border-slate-300 text-slate-600";
     }
@@ -376,6 +426,7 @@ export default function CampaignDetailsPage() {
   const campaignStatusLabel = (status: string) => {
     if (status === "verifying_leads") return "Verifying leads";
     if (status === "verification_failed") return "Verification failed";
+    if (status === "cancelled") return "Stopped";
     if (status === "scheduled") return "Ready to send";
     return (
       status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " ")
@@ -384,6 +435,71 @@ export default function CampaignDetailsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <Dialog
+        open={stopDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && stopping) return;
+          setStopDialogOpen(open);
+        }}
+      >
+        <DialogContent className="border-slate-200 bg-white sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100">
+                <OctagonX className="h-5 w-5 text-rose-700" aria-hidden />
+              </div>
+              <div className="min-w-0 flex-1 space-y-3 text-left">
+                <DialogTitle className="text-lg font-semibold leading-snug text-slate-900">
+                  Stop this campaign?
+                </DialogTitle>
+                <DialogDescription asChild>
+                  <div className="space-y-3 text-sm text-slate-600">
+                    <p>
+                      This ends the campaign for this audience. No further steps or emails will
+                      send, including any scheduled for later days.
+                    </p>
+                    <ul className="list-disc space-y-1.5 pl-5">
+                      <li>Queued and unsent messages are cancelled.</li>
+                      <li>Emails already delivered are not recalled.</li>
+                      <li>You can still view analytics for this campaign.</li>
+                    </ul>
+                  </div>
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              className="border-slate-200"
+              onClick={() => setStopDialogOpen(false)}
+              disabled={stopping}
+            >
+              Keep campaign
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void executeStopCampaign()}
+              disabled={stopping}
+            >
+              {stopping ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Stopping…
+                </>
+              ) : (
+                <>
+                  <OctagonX className="h-4 w-4 mr-2" />
+                  Stop campaign
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="max-w-7xl mx-auto p-4">
         {/* Ultra Compact Header */}
         <div className="mb-4">
@@ -420,6 +536,18 @@ export default function CampaignDetailsPage() {
                   onReset={handleResetFilters}
                 />
               )}
+              {canStopCampaign && (
+                <Button
+                  type="button"
+                  onClick={() => setStopDialogOpen(true)}
+                  variant="destructive"
+                  size="sm"
+                  title="Stop this campaign so no further emails are sent"
+                >
+                  <OctagonX className="h-4 w-4 mr-2" />
+                  Stop campaign
+                </Button>
+              )}
               <Button
                 onClick={handleExportPDF}
                 disabled={isExporting || !enhancedAnalytics || !detailedAnalyticsAllowed}
@@ -435,6 +563,15 @@ export default function CampaignDetailsPage() {
               </Button>
             </div>
           </div>
+
+          {campaign.status === "cancelled" && (
+            <div className="bg-rose-50 rounded-lg border border-rose-200 p-3 mb-4">
+              <p className="text-xs font-medium text-rose-950">
+                This campaign was stopped. No further emails will be sent for it;
+                messages already delivered are unchanged.
+              </p>
+            </div>
+          )}
 
           {campaign.status === "verifying_leads" && (
             <div className="bg-violet-50 rounded-lg border border-violet-200 p-3 mb-4">

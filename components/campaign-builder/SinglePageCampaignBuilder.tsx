@@ -59,6 +59,10 @@ interface CampaignState {
     previewText?: string;
     htmlContent: string;
     textContent: string;
+    /** Persisted on the sequence step for restoring the builder */
+    bodyEditor: "simple" | "html";
+    /** False until the user picks an editor/template or loads existing / AI content */
+    emailBodyInitialized: boolean;
     attachments?: Array<{
       name: string;
       size: number;
@@ -120,6 +124,21 @@ interface EmailSender {
   };
 }
 
+/** If the API never stored bodyEditor, avoid defaulting complex HTML to TipTap (it strips layout). */
+function inferBodyEditorFromHtml(html: string): "simple" | "html" {
+  const trimmed = html.trim();
+  if (!trimmed) return "simple";
+  const lower = trimmed.toLowerCase();
+  if (
+    /<table\b/.test(lower) ||
+    /<html\b/.test(lower) ||
+    /<!doctype\b/.test(lower)
+  ) {
+    return "html";
+  }
+  return "simple";
+}
+
 export default function SinglePageCampaignBuilder({
   onCancel,
   onSuccess,
@@ -172,6 +191,8 @@ export default function SinglePageCampaignBuilder({
       previewText: "",
       htmlContent: "",
       textContent: "",
+      bodyEditor: "simple",
+      emailBodyInitialized: false,
       attachments: [],
     },
     replyTo: "",
@@ -332,6 +353,12 @@ export default function SinglePageCampaignBuilder({
         }
 
         const seq = c.sequence?.[0];
+        const seqEx = seq as
+          | {
+              previewText?: string;
+              bodyEditor?: string;
+            }
+          | undefined;
         const rawC = c as unknown as {
           description?: string;
           dailySendTime?: string;
@@ -339,6 +366,17 @@ export default function SinglePageCampaignBuilder({
           leadIds?: string[];
           reoonVerificationSummary?: { verificationJobFailed?: boolean };
         };
+
+        const loadedBody = seq?.body != null ? String(seq.body) : "";
+        const hasBody = loadedBody.trim().length > 0;
+
+        const explicitEditor = seqEx?.bodyEditor;
+        const resolvedBodyEditor: "simple" | "html" =
+          explicitEditor === "html"
+            ? "html"
+            : explicitEditor === "simple"
+              ? "simple"
+              : inferBodyEditorFromHtml(loadedBody);
 
         setState((prev) => ({
           ...prev,
@@ -348,9 +386,10 @@ export default function SinglePageCampaignBuilder({
             ...prev.emailTemplate,
             subject: seq?.subject || prev.emailTemplate.subject,
             previewText:
-              (seq as { previewText?: string })?.previewText ||
-              prev.emailTemplate.previewText,
-            htmlContent: seq?.body || prev.emailTemplate.htmlContent,
+              seqEx?.previewText ?? prev.emailTemplate.previewText,
+            htmlContent: loadedBody || prev.emailTemplate.htmlContent,
+            bodyEditor: resolvedBodyEditor,
+            emailBodyInitialized: hasBody,
           },
           dailySendTime: rawC.dailySendTime || prev.dailySendTime,
           replyTo: rawC.replyTo || prev.replyTo,
@@ -755,6 +794,32 @@ export default function SinglePageCampaignBuilder({
 
   const finalizeCampaignSend = async (campaignId: string, idsToUse: string[]) => {
     const domainId = state.domainId;
+    toast.loading("Saving campaign…");
+    try {
+      await emailClient.patch(`/api/domains/${domainId}/campaigns/${campaignId}`, {
+        sequence: [
+          {
+            subject: state.emailTemplate.subject,
+            previewText: state.emailTemplate.previewText || "",
+            body: state.emailTemplate.htmlContent,
+            delayMinutes: 0,
+            replyTo:
+              state.useReplyTo && state.replyTo ? state.replyTo : undefined,
+            bodyEditor: state.emailTemplate.bodyEditor,
+          },
+        ],
+      });
+    } catch (patchErr: unknown) {
+      toast.dismiss();
+      const errorMsg = getEmailServiceErrorMessage(
+        patchErr,
+        "Could not save campaign content"
+      );
+      toast.error(errorMsg, { duration: 8000 });
+      throw patchErr;
+    }
+
+    toast.dismiss();
     toast.loading("Adding leads to campaign...");
 
     try {
@@ -1004,6 +1069,7 @@ export default function SinglePageCampaignBuilder({
                     state.useReplyTo && state.replyTo
                       ? state.replyTo
                       : undefined,
+                  bodyEditor: state.emailTemplate.bodyEditor,
                 },
               ],
               replyTo:
@@ -1099,6 +1165,8 @@ export default function SinglePageCampaignBuilder({
         previewText: firstPreview || prev.emailTemplate.previewText || "",
         htmlContent: firstBodyHtml,
         textContent: firstEmail.body,
+        bodyEditor: "simple",
+        emailBodyInitialized: true,
       },
     }));
   };
@@ -1121,6 +1189,8 @@ export default function SinglePageCampaignBuilder({
         previewText: preview || prev.emailTemplate.previewText || "",
         htmlContent: bodyHtml,
         textContent: step.body,
+        bodyEditor: "simple",
+        emailBodyInitialized: true,
       },
     }));
   };
@@ -1451,6 +1521,12 @@ export default function SinglePageCampaignBuilder({
                 subject={state.emailTemplate.subject}
                 previewText={state.emailTemplate.previewText || ""}
                 htmlContent={state.emailTemplate.htmlContent}
+                bodyEditor={state.emailTemplate.bodyEditor}
+                emailBodyInitialized={state.emailTemplate.emailBodyInitialized}
+                domainId={state.domainId}
+                excludeCampaignId={
+                  resumeCampaignId || effectiveCampaignId || null
+                }
                 availableVariables={availableVariables}
                 onSubjectChange={(subject) =>
                   setState((prev) => ({
@@ -1468,6 +1544,21 @@ export default function SinglePageCampaignBuilder({
                   setState((prev) => ({
                     ...prev,
                     emailTemplate: { ...prev.emailTemplate, htmlContent },
+                  }))
+                }
+                onBodyEditorChange={(bodyEditor) =>
+                  setState((prev) => ({
+                    ...prev,
+                    emailTemplate: { ...prev.emailTemplate, bodyEditor },
+                  }))
+                }
+                onEmailBodyInitialized={(emailBodyInitialized) =>
+                  setState((prev) => ({
+                    ...prev,
+                    emailTemplate: {
+                      ...prev.emailTemplate,
+                      emailBodyInitialized,
+                    },
                   }))
                 }
               />

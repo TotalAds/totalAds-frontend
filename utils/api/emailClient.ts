@@ -343,6 +343,10 @@ export interface CampaignSequenceStep {
   subject: string;
   body: string;
   delayMinutes?: number;
+  previewText?: string;
+  /** Campaign builder UI mode; optional for older campaigns */
+  bodyEditor?: "simple" | "html";
+  replyTo?: string;
 }
 
 export interface Campaign {
@@ -462,6 +466,23 @@ export const startCampaign = async (
     return response.data?.data || response.data;
   } catch (error: any) {
     console.error("Failed to start campaign:", error);
+    throw error;
+  }
+};
+
+/** Permanently stop a campaign: cancel remaining queue and set status to cancelled (no further sends). */
+export const stopCampaign = async (
+  domainId: string,
+  campaignId: string
+): Promise<{ success?: boolean; message?: string; campaign?: unknown }> => {
+  try {
+    const response = await emailClient.post(
+      `/api/domains/${domainId}/campaigns/${campaignId}/stop`,
+      {}
+    );
+    return response.data?.data ?? response.data;
+  } catch (error: unknown) {
+    console.error("Failed to stop campaign:", error);
     throw error;
   }
 };
