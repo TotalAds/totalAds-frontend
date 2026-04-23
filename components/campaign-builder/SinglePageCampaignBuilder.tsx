@@ -4,6 +4,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  Eye,
   Mail,
   Send,
   Settings,
@@ -38,7 +39,7 @@ import { useEmailProvider } from "@/hooks/useEmailProvider";
 import ReoonApiKeyRequiredModal from "./ReoonApiKeyRequiredModal";
 import AICampaignGeneratorModal from "./AICampaignGeneratorModal";
 import AIGeneratedCampaignPanel from "./AIGeneratedCampaignPanel";
-import EmailTemplateEditor from "./EmailTemplateEditor";
+import CreateEmailModal from "./CreateEmailModal";
 import RecipientSelectionModal from "./RecipientSelectionModal";
 import { type SpintaxPackId } from "./spintaxUtils";
 
@@ -48,6 +49,7 @@ interface SinglePageCampaignBuilderProps {
   onSuccess?: () => void;
   campaignId?: string;
   initialDomainId?: string;
+  campaignMode?: "single" | "sequence";
 }
 
 interface CampaignState {
@@ -91,6 +93,75 @@ interface CampaignState {
   emailColumn: string;
   csvUploadNote?: string;
   dailySendTime: string;
+  sequenceSteps: CampaignSequenceStep[];
+}
+
+interface CampaignSequenceStep {
+  id: string;
+  delayDays: number;
+  subject: string;
+  body: string;
+  previewText?: string;
+  condition?: "always" | "if_not_opened" | "if_not_replied";
+  bodyEditor: "simple" | "html";
+  useSpintax: boolean;
+  spintaxPackId: SpintaxPackId;
+  strictGrammarMode: boolean;
+}
+
+const DEFAULT_STEP_DELAYS = [0, 2, 5, 8];
+
+function createDefaultSequenceSteps(): CampaignSequenceStep[] {
+  return [
+    {
+      id: "step-1",
+      delayDays: 0,
+      subject: "Quick question about {{company}}",
+      body: "Hi {{first_name | there}},\n\nQuick question - are you the right person to discuss outbound growth at {{company}}?\n\nI have one idea that could help your team book more qualified meetings.\n\nWorth sharing?",
+      previewText: "A quick idea for {{company}}",
+      condition: "always",
+      bodyEditor: "simple",
+      useSpintax: false,
+      spintaxPackId: "general",
+      strictGrammarMode: false,
+    },
+    {
+      id: "step-2",
+      delayDays: 2,
+      subject: "Worth a look?",
+      body: "Hi {{first_name | there}},\n\nFollowing up in case this got buried.\n\nTeams similar to {{company}} usually reply once we tighten follow-ups and improve first-line hooks.\n\nShould I send a 2-minute breakdown?",
+      previewText: "Following up on my last note",
+      condition: "if_not_replied",
+      bodyEditor: "simple",
+      useSpintax: false,
+      spintaxPackId: "general",
+      strictGrammarMode: false,
+    },
+    {
+      id: "step-3",
+      delayDays: 5,
+      subject: "Last nudge",
+      body: "Hi {{first_name | there}},\n\nLast nudge from me.\n\nIf improving reply rates and booked meetings is a priority this quarter, I can share exactly what we'd test first for {{company}}.\n\nOpen to it?",
+      previewText: "Last nudge before I close this",
+      condition: "if_not_replied",
+      bodyEditor: "simple",
+      useSpintax: false,
+      spintaxPackId: "general",
+      strictGrammarMode: false,
+    },
+    {
+      id: "step-4",
+      delayDays: 8,
+      subject: "Should I close your file?",
+      body: "Hi {{first_name | there}},\n\nI haven't heard back, so I'll close this out for now.\n\nIf you'd like me to reopen it later, just reply with \"revisit\" and I'll send over a tailored plan for {{company}}.",
+      previewText: "Close the loop?",
+      condition: "if_not_replied",
+      bodyEditor: "simple",
+      useSpintax: false,
+      spintaxPackId: "general",
+      strictGrammarMode: false,
+    },
+  ];
 }
 
 interface Domain {
@@ -148,9 +219,11 @@ export default function SinglePageCampaignBuilder({
   onSuccess,
   campaignId,
   initialDomainId = "",
+  campaignMode = "single",
 }: SinglePageCampaignBuilderProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isSequenceMode = campaignMode === "sequence";
   const { sesProvider } = useEmailProvider();
   const [eligibility, setEligibility] = useState<null | {
     eligible: boolean;
@@ -177,10 +250,17 @@ export default function SinglePageCampaignBuilder({
   /** Full AI response; panel stays visible until user clears */
   const [aiGeneratedData, setAiGeneratedData] =
     useState<AIGeneratedCampaignResponse | null>(null);
+  const [selectedSequenceStepId, setSelectedSequenceStepId] = useState<string>("step-1");
+  const [showSequenceCanvasModal, setShowSequenceCanvasModal] = useState(false);
+  const [previewStepId, setPreviewStepId] = useState<string | null>(null);
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [sequenceEditorOpen, setSequenceEditorOpen] = useState(false);
   const prevDomainIdRef = useRef<string>(initialDomainId);
 
   const idFromQuery = searchParams.get("id");
   const effectiveCampaignId = campaignId || idFromQuery || undefined;
+  const liveSequenceEditMode = searchParams.get("liveSequenceEdit") === "1";
+  const canResumeSendingCampaign = liveSequenceEditMode && isSequenceMode;
 
   const [sendVolume, setSendVolume] = useState<CampaignSendVolume | null>(null);
   const [sendVolumeLoading, setSendVolumeLoading] = useState(false);
@@ -218,7 +298,49 @@ export default function SinglePageCampaignBuilder({
     emailColumn: "email",
     csvUploadNote: undefined,
     dailySendTime: "09:00",
+    sequenceSteps: createDefaultSequenceSteps(),
   });
+
+  const syncPrimaryTemplate = (
+    steps: CampaignSequenceStep[],
+    previous: CampaignState["emailTemplate"]
+  ) => {
+    const first = steps[0];
+    if (!first) return previous;
+    return {
+      ...previous,
+      subject: first.subject,
+      previewText: first.previewText || "",
+      htmlContent: first.body,
+      textContent: first.body,
+      bodyEditor: first.bodyEditor,
+      useSpintax: first.useSpintax,
+      spintaxPackId: first.spintaxPackId,
+      strictGrammarMode: first.strictGrammarMode,
+      emailBodyInitialized: first.body.trim().length > 0,
+    };
+  };
+
+  const updateSequenceSteps = (
+    updater: (steps: CampaignSequenceStep[]) => CampaignSequenceStep[]
+  ) => {
+    setState((prev) => {
+      const nextSteps = updater(prev.sequenceSteps);
+      return {
+        ...prev,
+        sequenceSteps: nextSteps,
+        emailTemplate: syncPrimaryTemplate(nextSteps, prev.emailTemplate),
+      };
+    });
+  };
+
+  useEffect(() => {
+    if (state.sequenceSteps.length === 0) return;
+    const exists = state.sequenceSteps.some((step) => step.id === selectedSequenceStepId);
+    if (!exists) {
+      setSelectedSequenceStepId(state.sequenceSteps[0].id);
+    }
+  }, [selectedSequenceStepId, state.sequenceSteps]);
 
   // Check eligibility and load domains
   useEffect(() => {
@@ -320,7 +442,8 @@ export default function SinglePageCampaignBuilder({
     };
   }, []);
 
-  // Resume a draft / scheduled / failed campaign from ?id= (same flow as new campaign, optional skip verify)
+  // Resume a draft / scheduled / failed campaign from ?id= (same flow as new campaign, optional skip verify).
+  // For sequence campaigns, ?liveSequenceEdit=1 also allows editing while status is "sending".
   useEffect(() => {
     if (!state.domainId || !effectiveCampaignId) return;
     let cancelled = false;
@@ -351,15 +474,58 @@ export default function SinglePageCampaignBuilder({
           );
         }
 
-        if (c.status === "sending" || c.status === "completed") {
+        if (c.status === "completed") {
           toast.error(
-            "This campaign has already been sent or is sending. Open the campaign page to view progress.",
+            "This campaign is completed. Open the campaign page to view progress.",
             { duration: 8000 }
           );
           return;
         }
+        if (c.status === "sending" && !canResumeSendingCampaign) {
+          toast.error(
+            "This campaign is currently sending. Use Edit sequence from the analytics page to modify pending recipients only.",
+            { duration: 9000 }
+          );
+          return;
+        }
+        if (c.status === "sending" && canResumeSendingCampaign) {
+          toast.success(
+            "Live sequence edit mode: sent recipients stay locked, only pending recipients/new leads are updated.",
+            { duration: 7000 }
+          );
+        }
 
         const seq = c.sequence?.[0];
+        const loadedSteps: CampaignSequenceStep[] =
+          (c.sequence || []).map((step, index) => {
+            const stepAny = step as {
+              delayMinutes?: number;
+              previewText?: string;
+              bodyEditor?: "simple" | "html";
+              useSpintax?: boolean;
+              spintaxPackId?: SpintaxPackId;
+              strictGrammarMode?: boolean;
+              body?: string;
+              subject?: string;
+            };
+            return {
+              id: `step-${index + 1}`,
+              delayDays: Math.max(
+                0,
+                Math.round(Number(stepAny.delayMinutes || 0) / 1440)
+              ),
+              subject: stepAny.subject || "",
+              body: stepAny.body || "",
+              previewText: stepAny.previewText || "",
+              condition: (stepAny as any).condition || "always",
+              bodyEditor: stepAny.bodyEditor === "html" ? "html" : "simple",
+              useSpintax: Boolean(stepAny.useSpintax),
+              spintaxPackId: stepAny.spintaxPackId || "general",
+              strictGrammarMode: Boolean(stepAny.strictGrammarMode),
+            };
+          }) || [];
+        const nextSteps = loadedSteps.length > 0 ? loadedSteps : createDefaultSequenceSteps();
+        const normalizedSteps = isSequenceMode ? nextSteps : nextSteps.slice(0, 1);
         const seqEx = seq as
           | {
               previewText?: string;
@@ -392,18 +558,18 @@ export default function SinglePageCampaignBuilder({
           ...prev,
           campaignName: c.name || prev.campaignName,
           campaignDescription: rawC.description || prev.campaignDescription,
-          emailTemplate: {
+          sequenceSteps: normalizedSteps,
+          emailTemplate: syncPrimaryTemplate(normalizedSteps, {
             ...prev.emailTemplate,
             subject: seq?.subject || prev.emailTemplate.subject,
-            previewText:
-              seqEx?.previewText ?? prev.emailTemplate.previewText,
+            previewText: seqEx?.previewText ?? prev.emailTemplate.previewText,
             htmlContent: loadedBody || prev.emailTemplate.htmlContent,
             bodyEditor: resolvedBodyEditor,
             useSpintax: Boolean(seqEx?.useSpintax),
             spintaxPackId: seqEx?.spintaxPackId || "general",
             strictGrammarMode: Boolean(seqEx?.strictGrammarMode),
             emailBodyInitialized: hasBody,
-          },
+          }),
           dailySendTime: rawC.dailySendTime || prev.dailySendTime,
           replyTo: rawC.replyTo || prev.replyTo,
           useReplyTo: Boolean(rawC.replyTo),
@@ -414,11 +580,13 @@ export default function SinglePageCampaignBuilder({
             count: Array.isArray(rawC.leadIds) ? rawC.leadIds.length : 0,
           },
         }));
+        setSelectedSequenceStepId(normalizedSteps[0]?.id || "step-1");
 
         setResumeCampaignId(effectiveCampaignId);
         const summary = rawC.reoonVerificationSummary;
         const skipVerify =
           c.status === "scheduled" ||
+          c.status === "sending" ||
           (c.status === "draft" &&
             Array.isArray(rawC.leadIds) &&
             rawC.leadIds.length > 0 &&
@@ -436,7 +604,7 @@ export default function SinglePageCampaignBuilder({
     return () => {
       cancelled = true;
     };
-  }, [state.domainId, effectiveCampaignId]);
+  }, [state.domainId, effectiveCampaignId, canResumeSendingCampaign]);
 
   // Send activity (today / yesterday / by day) when editing or viewing a campaign by id
   useEffect(() => {
@@ -763,10 +931,37 @@ export default function SinglePageCampaignBuilder({
   const scheduleEstimate = computeScheduleEstimate();
 
   // Validation helpers
+  const sequenceHasAllRequiredFields = isSequenceMode
+    ? state.sequenceSteps.length > 0 &&
+      state.sequenceSteps.every(
+        (step) => step.subject.trim().length > 0 && step.body.trim().length > 0
+      )
+    : (state.sequenceSteps[0]?.subject?.trim().length || 0) > 0 &&
+      (state.sequenceSteps[0]?.body?.trim().length || 0) > 0;
+
+  const buildSequencePayload = () =>
+    (isSequenceMode
+      ? state.sequenceSteps
+      : [state.sequenceSteps[0] || createDefaultSequenceSteps()[0]]
+    ).map((step) => ({
+      subject: step.subject,
+      previewText: step.previewText || "",
+      condition: step.condition || "always",
+      body: step.body,
+      delayMinutes: isSequenceMode
+        ? Math.max(0, Number(step.delayDays || 0)) * 1440
+        : 0,
+      replyTo: state.useReplyTo && state.replyTo ? state.replyTo : undefined,
+      bodyEditor: step.bodyEditor,
+      useSpintax: step.useSpintax,
+      spintaxPackId: step.spintaxPackId,
+      strictGrammarMode: step.strictGrammarMode,
+    }));
+
   const validation = {
     recipients: state.selectedRecipients.count > 0,
-    subject: state.emailTemplate.subject.trim().length > 0,
-    content: state.emailTemplate.htmlContent.trim().length > 0,
+    subject: sequenceHasAllRequiredFields,
+    content: sequenceHasAllRequiredFields,
     campaignName: state.campaignName.trim().length > 0,
     domain: state.domainId.length > 0,
     sender: state.senderIds.length > 0,
@@ -779,6 +974,7 @@ export default function SinglePageCampaignBuilder({
   };
 
   const isFormValid = Object.values(validation).every((v) => v === true);
+  const isLiveSequenceResume = Boolean(resumeCampaignId) && canResumeSendingCampaign;
 
   const handleRecipientsSelected = (data: {
     type: "list" | "filter" | "individual" | "csv";
@@ -810,20 +1006,7 @@ export default function SinglePageCampaignBuilder({
     toast.loading("Saving campaign…");
     try {
       await emailClient.patch(`/api/domains/${domainId}/campaigns/${campaignId}`, {
-        sequence: [
-          {
-            subject: state.emailTemplate.subject,
-            previewText: state.emailTemplate.previewText || "",
-            body: state.emailTemplate.htmlContent,
-            delayMinutes: 0,
-            replyTo:
-              state.useReplyTo && state.replyTo ? state.replyTo : undefined,
-            bodyEditor: state.emailTemplate.bodyEditor,
-            useSpintax: state.emailTemplate.useSpintax,
-            spintaxPackId: state.emailTemplate.spintaxPackId,
-            strictGrammarMode: state.emailTemplate.strictGrammarMode,
-          },
-        ],
+        sequence: buildSequencePayload(),
       });
     } catch (patchErr: unknown) {
       toast.dismiss();
@@ -955,11 +1138,11 @@ export default function SinglePageCampaignBuilder({
       return;
     }
     if (!validation.subject) {
-      toast.error("Please enter an email subject");
+      toast.error("Please fill subject for every sequence step");
       return;
     }
     if (!validation.content) {
-      toast.error("Please enter email content");
+      toast.error("Please fill email body for every sequence step");
       return;
     }
     if (!validation.campaignName) {
@@ -1076,20 +1259,7 @@ export default function SinglePageCampaignBuilder({
               name: state.campaignName,
               description: state.campaignDescription,
               sequence: [
-                {
-                  subject: state.emailTemplate.subject,
-                  previewText: state.emailTemplate.previewText || "",
-                  body: state.emailTemplate.htmlContent,
-                  delayMinutes: 0,
-                  replyTo:
-                    state.useReplyTo && state.replyTo
-                      ? state.replyTo
-                      : undefined,
-                  bodyEditor: state.emailTemplate.bodyEditor,
-                  useSpintax: state.emailTemplate.useSpintax,
-                  spintaxPackId: state.emailTemplate.spintaxPackId,
-                  strictGrammarMode: state.emailTemplate.strictGrammarMode,
-                },
+                ...buildSequencePayload(),
               ],
               replyTo:
                 state.useReplyTo && state.replyTo ? state.replyTo : undefined,
@@ -1159,14 +1329,32 @@ export default function SinglePageCampaignBuilder({
       return;
     }
 
-    const firstPreview =
-      data.preview_lines?.[0]?.trim() ||
-      firstEmail.preview_line?.trim() ||
-      "";
-    const firstBodyHtml = firstEmail.body
-      .split(/\n{2,}/)
-      .map((block) => `<p>${block.replace(/\n/g, "<br>")}</p>`)
-      .join("");
+    const aiSteps: CampaignSequenceStep[] = isSequenceMode
+      ? sorted.map((email, index) => ({
+          id: `step-${index + 1}`,
+          delayDays: DEFAULT_STEP_DELAYS[index] ?? index * 2,
+          subject: email.subject || "",
+          body: email.body || "",
+          previewText: email.preview_line || data.preview_lines?.[index] || "",
+          condition: index === 0 ? "always" : "if_not_replied",
+          bodyEditor: "simple",
+          useSpintax: false,
+          spintaxPackId: "general",
+          strictGrammarMode: false,
+        }))
+      : [{
+          id: "step-1",
+          delayDays: 0,
+          subject: firstEmail.subject || "",
+          body: firstEmail.body || "",
+          previewText: firstEmail.preview_line || data.preview_lines?.[0] || "",
+          condition: "always",
+          bodyEditor: "simple",
+          useSpintax: false,
+          spintaxPackId: "general",
+          strictGrammarMode: false,
+        }];
+    const nextSteps = aiSteps.length > 0 ? aiSteps : createDefaultSequenceSteps().slice(0, isSequenceMode ? 4 : 1);
 
     setAiGeneratedData(data);
 
@@ -1175,22 +1363,10 @@ export default function SinglePageCampaignBuilder({
       campaignName: data.campaign_name || prev.campaignName,
       campaignDescription:
         data.campaign_description?.trim() || prev.campaignDescription,
-      emailTemplate: {
-        ...prev.emailTemplate,
-        subject:
-          data.subject_lines?.[0] ||
-          firstEmail.subject ||
-          prev.emailTemplate.subject,
-        previewText: firstPreview || prev.emailTemplate.previewText || "",
-        htmlContent: firstBodyHtml,
-        textContent: firstEmail.body,
-        bodyEditor: "simple",
-        useSpintax: false,
-        spintaxPackId: "general",
-        strictGrammarMode: false,
-        emailBodyInitialized: true,
-      },
+      sequenceSteps: nextSteps,
+      emailTemplate: syncPrimaryTemplate(nextSteps, prev.emailTemplate),
     }));
+    setSelectedSequenceStepId(nextSteps[0]?.id || "step-1");
   };
 
   const handleClearAIGenerated = () => {
@@ -1198,26 +1374,24 @@ export default function SinglePageCampaignBuilder({
   };
 
   const handleSelectAIEmailStep = (step: AIGeneratedCampaignEmailStep) => {
-    const preview = step.preview_line?.trim() || "";
-    const bodyHtml = step.body
-      .split(/\n{2,}/)
-      .map((block) => `<p>${block.replace(/\n/g, "<br>")}</p>`)
-      .join("");
-    setState((prev) => ({
-      ...prev,
-      emailTemplate: {
-        ...prev.emailTemplate,
-        subject: step.subject,
-        previewText: preview || prev.emailTemplate.previewText || "",
-        htmlContent: bodyHtml,
-        textContent: step.body,
-        bodyEditor: "simple",
-        useSpintax: false,
-        spintaxPackId: "general",
-        strictGrammarMode: false,
-        emailBodyInitialized: true,
-      },
-    }));
+    updateSequenceSteps((steps) => {
+      const targetId = isSequenceMode ? (selectedSequenceStepId || steps[0]?.id) : "step-1";
+      return steps.map((current) =>
+        current.id === targetId
+          ? {
+              ...current,
+              subject: step.subject,
+              body: step.body,
+              previewText: step.preview_line?.trim() || "",
+              condition: current.condition || "always",
+              bodyEditor: "simple",
+              useSpintax: false,
+              spintaxPackId: "general",
+              strictGrammarMode: false,
+            }
+          : current
+      );
+    });
   };
 
   // Extract variables from CSV columns
@@ -1243,6 +1417,43 @@ export default function SinglePageCampaignBuilder({
     .filter((e) => !INTERNAL_FIELDS.includes(e.toLowerCase()))
     .map((e) => `{{${e.trim()}}}`);
 
+  const selectedStep =
+    state.sequenceSteps.find((step) => step.id === selectedSequenceStepId) ??
+    state.sequenceSteps[0] ??
+    null;
+  const previewStep = previewStepId
+    ? state.sequenceSteps.find((step) => step.id === previewStepId) ?? null
+    : null;
+
+  const applySelectedStepFromModal = (payload: {
+    subject: string;
+    previewText: string;
+    htmlContent: string;
+    bodyEditor: "simple" | "html";
+    useSpintax: boolean;
+    spintaxPackId: SpintaxPackId;
+    strictGrammarMode: boolean;
+  }) => {
+    const targetStepId = selectedStep?.id;
+    if (!targetStepId) return;
+    updateSequenceSteps((steps) =>
+      steps.map((step) =>
+        step.id === targetStepId
+          ? {
+              ...step,
+              subject: payload.subject,
+              previewText: payload.previewText,
+              body: payload.htmlContent,
+              bodyEditor: payload.bodyEditor,
+              useSpintax: payload.useSpintax,
+              spintaxPackId: payload.spintaxPackId,
+              strictGrammarMode: payload.strictGrammarMode,
+            }
+          : step
+      )
+    );
+  };
+
   if (loadingExistingCampaign && effectiveCampaignId) {
     return (
       <div className="min-h-screen bg-bg-100 flex items-center justify-center">
@@ -1260,12 +1471,12 @@ export default function SinglePageCampaignBuilder({
         <div className="max-w-3xl w-full">
           <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-8 text-center">
             <h2 className="text-2xl font-bold text-text-100 mb-2">
-              You're almost ready to send
+              You&apos;re almost ready to send
             </h2>
             <p className="text-text-200 mb-6">
               {eligibility.ineligibleReason
                 ? eligibility.ineligibleReason
-                : "To build a campaign, you'll need at least one verified domain with DKIM and one verified sender."}
+                : "To build a campaign, you&apos;ll need at least one verified domain with DKIM and one verified sender."}
             </p>
             <div className="space-y-2 text-left max-w-md mx-auto mb-6">
               {eligibility.ineligibleReason && (
@@ -1317,25 +1528,46 @@ export default function SinglePageCampaignBuilder({
   }
 
   return (
-    <div className="min-h-screen bg-bg-100">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_right,_rgba(59,130,246,0.08),_transparent_45%),radial-gradient(circle_at_top_left,_rgba(34,197,94,0.06),_transparent_35%)] bg-slate-50">
       {/* Header */}
-      <header className="backdrop-blur-xl bg-brand-main/5 border-b border-brand-main/10 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-xl font-bold text-text-100">
-                Create Campaign
-              </h1>
-              <p className="text-xs text-text-200 mt-0.5">
-                Build your email campaign - all in one place
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl">
+        <div className="mx-auto max-w-[1400px] px-4 py-2.5 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="space-y-1">
+              <button
+                type="button"
+                onClick={() => setShowDiscardModal(true)}
+                className="inline-flex items-center rounded-md px-1 text-[11px] font-medium text-text-200 transition hover:text-text-100"
+              >
+                Campaigns / Create Campaign
+              </button>
+              <p className="inline-flex w-fit items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-blue-700">
+                {isSequenceMode ? "Sequence Builder" : "Single Campaign Builder"}
               </p>
+              <h1 className="text-lg font-bold leading-tight text-text-100 sm:text-[22px]">
+                Create New Campaign
+              </h1>
+              <p className="text-xs text-text-200 sm:text-[13px]">
+                Simple flow, clear value, and launch-ready outreach in one place.
+              </p>
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700">
+                  1. Pick recipients
+                </span>
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700">
+                  2. Write message
+                </span>
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700">
+                  3. Configure senders
+                </span>
+              </div>
             </div>
             {onCancel && (
               <button
-                onClick={onCancel}
-                className="text-text-200 hover:text-text-100 transition p-2 rounded-lg hover:bg-brand-main/10"
+                onClick={() => setShowDiscardModal(true)}
+                className="rounded-xl border border-slate-200 p-1.5 text-text-200 transition hover:bg-slate-100 hover:text-text-100"
               >
-                <X size={24} />
+                <X size={20} />
               </button>
             )}
           </div>
@@ -1343,12 +1575,58 @@ export default function SinglePageCampaignBuilder({
       </header>
 
       {/* Main Content - All sections visible */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <main className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
+        {isLiveSequenceResume && (
+          <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+              Live Sequence Edit
+            </p>
+            <p className="mt-1 text-sm text-blue-900">
+              Sent emails stay immutable. Your updates apply to pending recipients and any newly
+              added leads only.
+            </p>
+          </div>
+        )}
+        <div className="mb-6 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/90 p-3 shadow-sm">
+          <span
+            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
+              validation.recipients ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
+            }`}
+          >
+            Recipients
+          </span>
+          <span
+            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
+              validation.subject && validation.content
+                ? "bg-emerald-100 text-emerald-700"
+                : "bg-slate-100 text-slate-600"
+            }`}
+          >
+            Content
+          </span>
+          <span
+            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
+              validation.campaignName && validation.sender
+                ? "bg-emerald-100 text-emerald-700"
+                : "bg-slate-100 text-slate-600"
+            }`}
+          >
+            Settings
+          </span>
+          <span
+            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+              isFormValid ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+            }`}
+          >
+            {isFormValid ? "Ready to launch" : "Action required"}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Left Column - Main Form */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className="space-y-6 lg:col-span-2">
             {/* Section 1: Recipients */}
-            <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-xl p-4">
+            <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)] sm:p-7">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div
@@ -1369,7 +1647,7 @@ export default function SinglePageCampaignBuilder({
                       Recipients
                     </h2>
                     <p className="text-xs text-text-200">
-                      Select who will receive your campaign
+                      Choose exactly who should receive this campaign.
                     </p>
                   </div>
                 </div>
@@ -1470,7 +1748,7 @@ export default function SinglePageCampaignBuilder({
               )}
 
             {/* Section 2: Email Content */}
-            <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-xl p-4">
+            <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)] sm:p-7">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div
@@ -1491,7 +1769,7 @@ export default function SinglePageCampaignBuilder({
                       Email Content
                     </h2>
                     <p className="text-xs text-text-200">
-                      Create your email subject and content
+                      Keep your message clear, personalized, and conversion-focused.
                     </p>
                   </div>
                 </div>
@@ -1508,27 +1786,32 @@ export default function SinglePageCampaignBuilder({
                   type="button"
                   onClick={() => setShowAIModal(true)}
                   variant="secondary"
-                  className="group inline-flex h-auto items-center gap-2 rounded-xl border border-[#3b82f6]/35  px-4 py-2.5 text-sm font-semibold text-text-100 shadow-sm transition-all hover:border-[#3b82f6]/55 hover:!text-text-100 hover:shadow-md"
+                  className="group inline-flex h-auto w-full items-center justify-between gap-3 rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 text-sm font-semibold text-text-100 shadow-sm transition-all hover:border-blue-300 hover:from-blue-100 hover:to-indigo-100 hover:shadow-md"
                 >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#3b82f6]/20 text-[#3b82f6] transition ">
+                  <span className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600/15 text-blue-700 transition">
                     <Sparkles size={18} strokeWidth={2} />
+                    </span>
+                    <span className="text-left leading-tight">
+                      {aiGeneratedData ? (
+                        <>
+                          <span className="block text-sm text-text-100">Generate new AI variation</span>
+                          <span className="block pt-0.5 text-[11px] font-normal text-text-200">
+                            Replace subject, preview, and body draft
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="block text-sm text-text-100">Generate with AI</span>
+                          <span className="block pt-0.5 text-[11px] font-normal text-text-200">
+                            Draft subject line, preview text, and full email
+                          </span>
+                        </>
+                      )}
+                    </span>
                   </span>
-                  <span className="text-left leading-tight">
-                    {aiGeneratedData ? (
-                      <>
-                        <span className="block">Generate again</span>
-                        <span className="block text-[11px] font-normal text-text-200">
-                          New email variations
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="block">Generate with AI</span>
-                        <span className="block text-[11px] font-normal text-text-200">
-                          Draft subject, preview, and body
-                        </span>
-                      </>
-                    )}
+                  <span className="rounded-md border border-blue-200 bg-white/80 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-blue-700">
+                    {aiGeneratedData ? "Regenerate" : "AI Draft"}
                   </span>
                 </Button>
               </div>
@@ -1536,82 +1819,437 @@ export default function SinglePageCampaignBuilder({
               {aiGeneratedData ? (
                 <AIGeneratedCampaignPanel
                   data={aiGeneratedData}
-                  editorBody={state.emailTemplate.htmlContent}
+                  editorBody={
+                    state.sequenceSteps[0]?.body || ""
+                  }
                   onSelectEmailStep={handleSelectAIEmailStep}
                   onClear={handleClearAIGenerated}
                 />
               ) : null}
 
-              <EmailTemplateEditor
-                subject={state.emailTemplate.subject}
-                previewText={state.emailTemplate.previewText || ""}
-                htmlContent={state.emailTemplate.htmlContent}
-                bodyEditor={state.emailTemplate.bodyEditor}
-                emailBodyInitialized={state.emailTemplate.emailBodyInitialized}
-                domainId={state.domainId}
-                excludeCampaignId={
-                  resumeCampaignId || effectiveCampaignId || null
-                }
-                availableVariables={availableVariables}
-                onSubjectChange={(subject) =>
-                  setState((prev) => ({
-                    ...prev,
-                    emailTemplate: { ...prev.emailTemplate, subject },
-                  }))
-                }
-                onPreviewTextChange={(previewText) =>
-                  setState((prev) => ({
-                    ...prev,
-                    emailTemplate: { ...prev.emailTemplate, previewText },
-                  }))
-                }
-                onHtmlContentChange={(htmlContent) =>
-                  setState((prev) => ({
-                    ...prev,
-                    emailTemplate: { ...prev.emailTemplate, htmlContent },
-                  }))
-                }
-                onBodyEditorChange={(bodyEditor) =>
-                  setState((prev) => ({
-                    ...prev,
-                    emailTemplate: { ...prev.emailTemplate, bodyEditor },
-                  }))
-                }
-                useSpintax={state.emailTemplate.useSpintax}
-                onUseSpintaxChange={(useSpintax) =>
-                  setState((prev) => ({
-                    ...prev,
-                    emailTemplate: { ...prev.emailTemplate, useSpintax },
-                  }))
-                }
-                spintaxPackId={state.emailTemplate.spintaxPackId}
-                onSpintaxPackChange={(spintaxPackId) =>
-                  setState((prev) => ({
-                    ...prev,
-                    emailTemplate: { ...prev.emailTemplate, spintaxPackId },
-                  }))
-                }
-                strictGrammarMode={state.emailTemplate.strictGrammarMode}
-                onStrictGrammarModeChange={(strictGrammarMode) =>
-                  setState((prev) => ({
-                    ...prev,
-                    emailTemplate: { ...prev.emailTemplate, strictGrammarMode },
-                  }))
-                }
-                onEmailBodyInitialized={(emailBodyInitialized) =>
-                  setState((prev) => ({
-                    ...prev,
-                    emailTemplate: {
-                      ...prev.emailTemplate,
-                      emailBodyInitialized,
-                    },
-                  }))
-                }
-              />
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                <div className="flex flex-1 flex-wrap items-center justify-between gap-2 rounded-lg border border-brand-main/15 bg-brand-main/5 px-3 py-2">
+                  <p className="text-xs text-text-200">
+                    Personalization preview:{" "}
+                    <span className="font-medium text-text-100">Hi John</span> (from{" "}
+                    <span className="font-mono text-brand-main">{"{{first_name}}"}</span>)
+                  </p>
+                </div>
+
+                {!isSequenceMode && (
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedSequenceStepId("step-1");
+                        setSequenceEditorOpen(true);
+                      }}
+                    >
+                      {state.sequenceSteps[0]?.body?.trim() || state.sequenceSteps[0]?.subject?.trim()
+                        ? "Edit email"
+                        : "Open editor"}
+                    </Button>
+                  </div>
+                )}
+</div>
+                {isSequenceMode ? (
+                  <>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-text-100">Sequence canvas</p>
+                          <p className="text-xs text-text-200">
+                            Open the canvas modal to manage steps and template previews.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          onClick={() => setShowSequenceCanvasModal(true)}
+                        >
+                          Open sequence canvas
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                      {state.sequenceSteps.map((step, index) => (
+                        <button
+                          key={`summary-${step.id}`}
+                          type="button"
+                          onClick={() => {
+                            setSelectedSequenceStepId(step.id);
+                            setShowSequenceCanvasModal(true);
+                          }}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-blue-300 hover:bg-blue-50/40"
+                        >
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-500">
+                            Step {index + 1}
+                          </p>
+                          <p className="mt-1 truncate text-sm font-semibold text-text-100">
+                            {step.subject || "Untitled subject"}
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-text-200">
+                            Day {step.delayDays}
+                          </p>
+                          <p className="mt-1 line-clamp-2 text-xs text-text-200">
+                            {step.previewText || step.body?.replace(/<[^>]+>/g, " ").trim() || "No content yet"}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+
+                    {showSequenceCanvasModal && (
+                      <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/45 p-4">
+                        <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+                            <div>
+                              <h3 className="text-base font-semibold text-text-100">Sequence Canvas</h3>
+                              <p className="text-xs text-text-200">
+                                Manage sequence flow and open template editor from here.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setShowSequenceCanvasModal(false)}
+                              className="rounded-lg p-2 text-text-200 transition hover:bg-slate-100 hover:text-text-100"
+                              aria-label="Close sequence canvas modal"
+                            >
+                              <X size={18} />
+                            </button>
+                          </div>
+
+                          <div className="overflow-y-auto p-4">
+                            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_270px]">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/75 p-4">
+                      <div className="mb-4 flex items-center justify-between">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-600">
+                          <span className="inline-flex h-1.5 w-1.5 rounded-full bg-brand-main" />
+                          Sequence canvas
+                        </div>
+                        <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-500">
+                          Sequence flow
+                        </span>
+                      </div>
+
+                      <div className="mb-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-600">
+                          Start
+                        </span>
+                        <div className="h-px flex-1 bg-slate-200" />
+                      </div>
+
+                      <div className="space-y-4">
+                        {state.sequenceSteps.map((step, index) => {
+                          const isActive = selectedSequenceStepId === step.id;
+                          const conditionLabel =
+                            step.condition === "if_not_opened"
+                              ? "If not opened"
+                              : step.condition === "if_not_replied"
+                              ? "If not replied"
+                              : "Always continue";
+
+                          return (
+                            <div key={step.id} className="relative pl-12">
+                              {index < state.sequenceSteps.length - 1 ? (
+                                <div className="absolute left-[15px] top-9 h-[calc(100%+12px)] w-px bg-slate-300" />
+                              ) : null}
+
+                              <button
+                                type="button"
+                                onClick={() => setSelectedSequenceStepId(step.id)}
+                                className={`absolute left-0 top-3 flex h-8 w-8 items-center justify-center rounded-full border text-[11px] font-semibold transition ${
+                                  isActive
+                                    ? "border-blue-300 bg-blue-100 text-blue-700"
+                                    : "border-slate-300 bg-white text-slate-600 hover:border-blue-200"
+                                }`}
+                                aria-label={`Select sequence step ${index + 1}`}
+                              >
+                                {String(index + 1).padStart(2, "0")}
+                              </button>
+
+                              <div
+                                className={`overflow-hidden rounded-xl border bg-white transition ${
+                                  isActive
+                                    ? "border-blue-300 shadow-[0_10px_25px_-20px_rgba(37,99,235,0.8)]"
+                                    : "border-slate-200"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-semibold text-text-100">
+                                      {step.subject || `Step ${index + 1} email`}
+                                    </p>
+                                    <p className="mt-0.5 text-[11px] text-text-200">
+                                      Day {step.delayDays} • {conditionLabel}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewStepId(step.id)}
+                                      className="rounded-md border border-slate-200 p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                                      aria-label={`Preview step ${index + 1}`}
+                                    >
+                                      <Eye size={14} />
+                                    </button>
+                                    <span
+                                      className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.06em] ${
+                                        isActive
+                                          ? "bg-emerald-100 text-emerald-700"
+                                          : "bg-slate-100 text-slate-600"
+                                      }`}
+                                    >
+                                      {isActive ? "Active" : "Draft"}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {isActive ? (
+                                  <div className="space-y-3 px-4 py-3">
+                                    <div className="grid gap-2 sm:grid-cols-2">
+                                      <div>
+                                        <label className="mb-1 block text-[11px] font-medium text-text-200">
+                                          Delay (days)
+                                        </label>
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          value={step.delayDays}
+                                          onChange={(e) =>
+                                            updateSequenceSteps((steps) =>
+                                              steps.map((s) =>
+                                                s.id === step.id
+                                                  ? { ...s, delayDays: Number(e.target.value || 0) }
+                                                  : s
+                                              )
+                                            )
+                                          }
+                                          className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-text-100 focus:outline-none focus:ring-2 focus:ring-brand-main/30"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="mb-1 block text-[11px] font-medium text-text-200">
+                                          Condition
+                                        </label>
+                                        <select
+                                          value={step.condition || "always"}
+                                          onChange={(e) =>
+                                            updateSequenceSteps((steps) =>
+                                              steps.map((s) =>
+                                                s.id === step.id
+                                                  ? {
+                                                      ...s,
+                                                      condition: e.target
+                                                        .value as "always" | "if_not_opened" | "if_not_replied",
+                                                    }
+                                                  : s
+                                              )
+                                            )
+                                          }
+                                          className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-text-100 focus:outline-none focus:ring-2 focus:ring-brand-main/30"
+                                        >
+                                          <option value="always">Always continue</option>
+                                          <option value="if_not_opened">Only if not opened</option>
+                                          <option value="if_not_replied">Only if not replied</option>
+                                        </select>
+                                      </div>
+                                    </div>
+
+                                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                                        Template preview
+                                      </p>
+                                      <p className="mt-2 truncate text-sm font-semibold text-text-100">
+                                        Subject: {step.subject || "Untitled"}
+                                      </p>
+                                      <p className="mt-1 truncate text-xs text-text-200">
+                                        {step.previewText || "No preview text set yet."}
+                                      </p>
+                                      <div className="mt-2 rounded-md border border-slate-200 bg-white p-2.5">
+                                        {step.body?.trim() ? (
+                                          step.bodyEditor === "html" || /<\/?[a-z][\s\S]*>/i.test(step.body) ? (
+                                            <div
+                                              className="max-h-44 overflow-hidden text-xs leading-relaxed text-text-100"
+                                              dangerouslySetInnerHTML={{ __html: step.body }}
+                                            />
+                                          ) : (
+                                            <p className="line-clamp-6 whitespace-pre-wrap text-xs leading-relaxed text-text-100">
+                                              {step.body}
+                                            </p>
+                                          )
+                                        ) : (
+                                          <p className="line-clamp-6 whitespace-pre-wrap text-xs leading-relaxed text-text-100">
+                                            No body yet. Open email editor to create this template.
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <p className="text-[11px] text-text-200">
+                                      Edit email content from the sequence email editor modal.
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-between gap-3 px-4 py-3">
+                                    <p className="truncate text-xs text-text-200">
+                                      {step.previewText || "No preview text added yet."}
+                                    </p>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setSelectedSequenceStepId(step.id)}
+                                    >
+                                      Edit
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-5 pl-12">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateSequenceSteps((steps) => [
+                              ...steps,
+                              {
+                                id: `step-${Date.now()}`,
+                                delayDays: (steps[steps.length - 1]?.delayDays || 0) + 2,
+                                subject: "",
+                                previewText: "",
+                                body: "",
+                                condition: "if_not_replied",
+                                bodyEditor: "simple",
+                                useSpintax: false,
+                                spintaxPackId: "general",
+                                strictGrammarMode: false,
+                              },
+                            ])
+                          }
+                          className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-white py-4 text-sm font-medium text-slate-500 transition hover:border-blue-300 hover:bg-blue-50/60 hover:text-blue-700"
+                        >
+                          + Add sequence step
+                        </button>
+                      </div>
+                    </div>
+
+                    <aside className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <h4 className="mb-3 text-sm font-semibold text-text-100">Canvas Settings</h4>
+                      <div className="space-y-4">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">
+                            Status
+                          </p>
+                          <p className="mt-1 text-sm font-medium text-text-100">
+                            {state.sequenceSteps.length} step{state.sequenceSteps.length > 1 ? "s" : ""} in sequence
+                          </p>
+                        </div>
+
+                        <div className="rounded-lg border border-slate-200 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">
+                            Audience
+                          </p>
+                          <p className="mt-1 text-2xl font-bold text-text-100">
+                            {state.selectedRecipients.count.toLocaleString()}
+                          </p>
+                          <p className="text-xs text-text-200">Total recipients selected</p>
+                        </div>
+
+                        <div className="rounded-lg border border-slate-200 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">
+                            Sending time
+                          </p>
+                          <input
+                            type="time"
+                            value={state.dailySendTime}
+                            onChange={(e) =>
+                              setState((prev) => ({
+                                ...prev,
+                                dailySendTime: e.target.value,
+                              }))
+                            }
+                            className="mt-2 w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-text-100"
+                          />
+                          <p className="mt-2 text-[11px] text-text-200">
+                            Campaign resumes at this time when daily limits are reached.
+                          </p>
+                        </div>
+
+                        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-text-200">
+                          Template editing is managed through the sequence email editor modal.
+                        </p>
+                        <Button
+                          type="button"
+                          className="w-full"
+                          onClick={() => setShowSequenceCanvasModal(false)}
+                        >
+                          Save and close
+                        </Button>
+                      </div>
+                    </aside>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+      </>
+                ) : (
+                  <div className="rounded-xl border border-brand-main/25 bg-bg-100/40 p-3">
+                    <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium text-text-200">Subject</label>
+                        <input
+                          type="text"
+                          value={state.sequenceSteps[0]?.subject || ""}
+                          onChange={(e) =>
+                            updateSequenceSteps((steps) =>
+                              steps.map((s) =>
+                                s.id === "step-1" ? { ...s, subject: e.target.value } : s
+                              )
+                            )
+                          }
+                          placeholder="Quick question about {{company}}"
+                          className="w-full rounded-lg border border-brand-main/20 bg-brand-main/5 px-3 py-1.5 text-sm text-text-100 placeholder-text-200/60 focus:outline-none focus:ring-2 focus:ring-brand-main"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium text-text-200">Preview text</label>
+                        <input
+                          type="text"
+                          value={state.sequenceSteps[0]?.previewText || ""}
+                          onChange={(e) =>
+                            updateSequenceSteps((steps) =>
+                              steps.map((s) =>
+                                s.id === "step-1" ? { ...s, previewText: e.target.value } : s
+                              )
+                            )
+                          }
+                          placeholder="Inbox preheader text"
+                          className="w-full rounded-lg border border-brand-main/20 bg-brand-main/5 px-3 py-1.5 text-sm text-text-100 placeholder-text-200/60 focus:outline-none focus:ring-2 focus:ring-brand-main"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-2 rounded-lg border border-brand-main/15 bg-bg-100/70 p-3">
+                      <p className="mb-1 text-[11px] font-medium text-text-200">Body preview</p>
+                      <p className="line-clamp-4 whitespace-pre-wrap text-xs leading-relaxed text-text-100">
+                        {state.sequenceSteps[0]?.body?.trim() || "No body yet. Open email editor to create your message."}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Section 3: Campaign Settings */}
-            <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-xl p-4">
+            <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)] sm:p-7">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div
@@ -1636,7 +2274,7 @@ export default function SinglePageCampaignBuilder({
                       Campaign Settings
                     </h2>
                     <p className="text-xs text-text-200">
-                      Configure campaign details and sending options
+                      Final delivery configuration before launch.
                     </p>
                   </div>
                 </div>
@@ -2234,10 +2872,27 @@ export default function SinglePageCampaignBuilder({
 
           {/* Right Column - Summary & Send */}
           <div className="lg:col-span-1">
-            <div className="sticky top-20 space-y-4">
+            <div className="sticky top-24 space-y-4">
+              <div className="rounded-3xl border border-blue-200/80 bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-600 p-6 text-white shadow-[0_22px_50px_-24px_rgba(37,99,235,0.7)]">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-100/90">
+                  Why this builder
+                </p>
+                <h3 className="mt-2 text-xl font-bold leading-tight">
+                  Build clear campaigns that convert without extra complexity.
+                </h3>
+                <p className="mt-2 text-sm text-blue-100">
+                  One streamlined workflow for targeting, writing, sender rotation, and launch.
+                </p>
+                <div className="mt-4 space-y-2 text-xs text-blue-100/95">
+                  <p className="rounded-lg bg-white/10 px-3 py-2">No tab-hopping between tools</p>
+                  <p className="rounded-lg bg-white/10 px-3 py-2">Built-in lead and capacity validation</p>
+                  <p className="rounded-lg bg-white/10 px-3 py-2">Faster time to first campaign launch</p>
+                </div>
+              </div>
+
               {/* Summary Card */}
-              <div className="backdrop-blur-xl bg-brand-main/5 border border-brand-main/20 rounded-xl p-4">
-                <h3 className="text-base font-semibold text-text-100 mb-3">
+              <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)]">
+                <h3 className="text-base font-semibold text-text-100 mb-4">
                   Campaign Summary
                 </h3>
                 <div className="space-y-3">
@@ -2262,7 +2917,9 @@ export default function SinglePageCampaignBuilder({
 
                   {/* Subject */}
                   <div>
-                    <p className="text-xs text-text-200 mb-1">Subject</p>
+                    <p className="text-xs text-text-200 mb-1">
+                      {isSequenceMode ? "Step 1 Subject" : "Subject"}
+                    </p>
                     <div className="flex items-center gap-2">
                       {validation.subject ? (
                         <CheckCircle2 size={14} className="text-success" />
@@ -2274,14 +2931,16 @@ export default function SinglePageCampaignBuilder({
                           validation.subject ? "text-text-100" : "text-error"
                         }`}
                       >
-                        {state.emailTemplate.subject || "Not set"}
+                        {state.sequenceSteps[0]?.subject || "Not set"}
                       </p>
                     </div>
                   </div>
 
                   {/* Content */}
                   <div>
-                    <p className="text-xs text-text-200 mb-1">Content</p>
+                    <p className="text-xs text-text-200 mb-1">
+                      {isSequenceMode ? "Sequence" : "Content"}
+                    </p>
                     <div className="flex items-center gap-2">
                       {validation.content ? (
                         <CheckCircle2 size={14} className="text-success" />
@@ -2293,7 +2952,11 @@ export default function SinglePageCampaignBuilder({
                           validation.content ? "text-success" : "text-error"
                         }`}
                       >
-                        {validation.content ? "Ready" : "Not set"}
+                        {validation.content
+                          ? isSequenceMode
+                            ? `${state.sequenceSteps.length} steps ready`
+                            : "Ready"
+                          : "Incomplete"}
                       </p>
                     </div>
                   </div>
@@ -2437,9 +3100,11 @@ export default function SinglePageCampaignBuilder({
                 </div>
               </div>
 
+       
+
               {/* Daily send window — only when some sends spill past today's combined sender quota */}
               {showDailySendWindow && (
-                <div className="bg-bg-300/50 border border-bg-200 rounded-lg p-3 space-y-2">
+                <div className="rounded-2xl border border-bg-200 bg-bg-300/50 p-4 space-y-2">
                   <div className="flex items-center gap-2">
                     <Clock size={14} className="text-text-200" />
                     <p className="text-xs font-medium text-text-100">
@@ -2494,20 +3159,24 @@ export default function SinglePageCampaignBuilder({
               <Button
                 onClick={handleSend}
                 disabled={sending || !isFormValid}
-                className="w-full bg-success hover:bg-success/90 disabled:bg-success/50 text-white py-3 text-base font-semibold shadow-lg"
+                className="h-12 w-full rounded-xl bg-success text-base font-semibold text-white shadow-lg transition hover:bg-success/90 disabled:bg-success/50"
               >
                 {sending ? (
-                  "Sending Campaign..."
+                  isLiveSequenceResume ? "Applying Updates..." : "Launching Campaign..."
                 ) : (
                   <>
                     <Send size={18} className="mr-2" />
-                    Send Campaign
+                    {isLiveSequenceResume
+                      ? "Apply sequence updates"
+                      : resumeCampaignId
+                        ? "Continue campaign"
+                        : "Launch Campaign"}
                   </>
                 )}
               </Button>
 
               {!isFormValid && (
-                <div className="bg-error/10 border border-error/30 rounded-lg p-3">
+                <div className="rounded-xl border border-error/30 bg-error/10 p-3">
                   <p className="text-xs text-error text-center">
                     Please complete all required fields to send
                   </p>
@@ -2517,6 +3186,89 @@ export default function SinglePageCampaignBuilder({
           </div>
         </div>
       </main>
+
+      {previewStep && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/55 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+              <div>
+                <p className="text-sm font-semibold text-text-100">
+                  Email preview - {previewStep.subject || "Untitled step"}
+                </p>
+                <p className="text-xs text-text-200">
+                  Day {previewStep.delayDays} - {previewStep.condition || "always"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewStepId(null)}
+                className="rounded-lg p-2 text-text-200 transition hover:bg-slate-100 hover:text-text-100"
+                aria-label="Close preview modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="overflow-y-auto bg-slate-50 p-5">
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="mb-2 text-xs text-text-200">
+                  Subject:{" "}
+                  <span className="font-medium text-text-100">
+                    {previewStep.subject || "Untitled"}
+                  </span>
+                </p>
+                {previewStep.previewText ? (
+                  <p className="mb-3 text-xs text-text-200">{previewStep.previewText}</p>
+                ) : null}
+                {previewStep.body?.trim() ? (
+                  previewStep.bodyEditor === "html" ||
+                  /<\/?[a-z][\s\S]*>/i.test(previewStep.body) ? (
+                    <div
+                      className="overflow-auto rounded-md border border-slate-200 bg-white p-3 text-sm text-text-100"
+                      dangerouslySetInnerHTML={{ __html: previewStep.body }}
+                    />
+                  ) : (
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-text-100">
+                      {previewStep.body}
+                    </p>
+                  )
+                ) : (
+                  <p className="text-sm text-text-200">No template content yet.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDiscardModal && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/55 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <h3 className="text-base font-semibold text-text-100">Leave campaign builder?</h3>
+            <p className="mt-2 text-sm text-text-200">
+              If you leave now, unsaved changes in this draft can be lost.
+            </p>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowDiscardModal(false)}
+              >
+                Continue editing
+              </Button>
+              <Button
+                type="button"
+                className="bg-error text-white hover:bg-error/90"
+                onClick={() => {
+                  setShowDiscardModal(false);
+                  onCancel?.();
+                }}
+              >
+                Discard and leave
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ReoonApiKeyRequiredModal
         open={showReoonKeyRequiredModal}
@@ -2545,6 +3297,23 @@ export default function SinglePageCampaignBuilder({
         open={showAIModal}
         onClose={() => setShowAIModal(false)}
         onGenerated={handleAIGenerated}
+      />
+
+      <CreateEmailModal
+        open={sequenceEditorOpen}
+        onOpenChange={setSequenceEditorOpen}
+        domainId={state.domainId}
+        excludeCampaignId={resumeCampaignId || effectiveCampaignId || null}
+        availableVariables={availableVariables}
+        seedSubject={selectedStep?.subject || ""}
+        seedPreviewText={selectedStep?.previewText || ""}
+        seedUseSpintax={selectedStep?.useSpintax || false}
+        seedSpintaxPackId={selectedStep?.spintaxPackId || "general"}
+        seedStrictGrammarMode={selectedStep?.strictGrammarMode || false}
+        seedHtml={selectedStep?.body || ""}
+        seedBodyEditor={selectedStep?.bodyEditor || "simple"}
+        openDirectlyToEditor
+        onApply={applySelectedStepFromModal}
       />
     </div>
   );

@@ -524,6 +524,97 @@ export const getCampaignAnalytics = async (
   }
 };
 
+export interface CampaignLeadSequenceRow {
+  id: string;
+  toEmail: string;
+  status: string;
+  sequenceStepIndex: number;
+  leadId?: string;
+  sentAt?: string | null;
+  deliveredAt?: string | null;
+  openedAt?: string | null;
+  readAt?: string | null;
+  repliedAt?: string | null;
+  failedAt?: string | null;
+  nextRetryAt?: string | null;
+  error?: string | null;
+  errorDetails?: string | null;
+  engagementStatus?: string;
+}
+
+export interface CampaignLeadSequenceResponse {
+  leads: CampaignLeadSequenceRow[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
+}
+
+export const getCampaignLeadSequence = async (
+  campaignId: string,
+  page: number = 1,
+  limit: number = 100
+): Promise<CampaignLeadSequenceResponse> => {
+  const response = await emailClient.get(
+    `/api/analytics/campaigns/${campaignId}/leads?page=${page}&limit=${limit}`
+  );
+  return response.data?.data || { leads: [], pagination: { page, limit, total: 0, pages: 0 } };
+};
+
+export const markLeadRepliedInCampaign = async (
+  domainId: string,
+  campaignId: string,
+  leadId: string
+): Promise<{ success: boolean }> => {
+  const response = await emailClient.post(
+    `/api/domains/${domainId}/campaigns/${campaignId}/leads/${leadId}/mark-replied`,
+    {}
+  );
+  return response.data?.data || { success: true };
+};
+
+export type AnalyticsReportType =
+  | "overall_summary"
+  | "whole_email"
+  | "email_activity"
+  | "each_email"
+  | "recent_lead_activity"
+  | "lead_reports";
+
+export const downloadCampaignAnalyticsReport = async (
+  campaignId: string,
+  reportType: AnalyticsReportType,
+  format: "csv" | "json" = "csv"
+): Promise<void> => {
+  const response = await emailClient.get(
+    `/api/analytics/campaigns/${campaignId}/export`,
+    {
+      params: { format, reportType },
+      responseType: "blob",
+    }
+  );
+
+  const blob = new Blob([response.data], {
+    type:
+      format === "csv"
+        ? "text/csv;charset=utf-8;"
+        : "application/json;charset=utf-8;",
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+
+  const header = response.headers?.["content-disposition"] as string | undefined;
+  const headerName = header?.match(/filename="?([^"]+)"?/)?.[1];
+  link.setAttribute("download", headerName || `campaign-${campaignId}-${reportType}.${format}`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 // ============ LEADS API ============
 
 export interface Lead {

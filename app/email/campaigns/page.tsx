@@ -27,6 +27,7 @@ export default function CampaignsPage() {
   const [selectedDomain, setSelectedDomain] = useState<string>("");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [campaignTypeFilter, setCampaignTypeFilter] = useState<"all" | "single" | "sequence">("all");
   const limit = 10;
 
   useEffect(() => {
@@ -235,6 +236,16 @@ export default function CampaignsPage() {
   };
 
   // AG Grid Column Definitions
+  const getCampaignType = (campaign: Campaign): "single" | "sequence" => {
+    const sequenceLength = Array.isArray(campaign.sequence) ? campaign.sequence.length : 0;
+    return sequenceLength > 1 ? "sequence" : "single";
+  };
+
+  const filteredCampaigns = campaigns.filter((campaign) => {
+    if (campaignTypeFilter === "all") return true;
+    return getCampaignType(campaign) === campaignTypeFilter;
+  });
+
   const columnDefs = useMemo<ColDef<Campaign>[]>(
     () => [
       {
@@ -269,6 +280,29 @@ export default function CampaignsPage() {
           buttons: ["reset", "apply"],
           closeOnApply: true,
         },
+      },
+      {
+        headerName: "Type",
+        field: "id",
+        flex: 1,
+        minWidth: 130,
+        valueGetter: (params) => getCampaignType(params.data!),
+        cellRenderer: (params: ICellRendererParams<Campaign>) => {
+          const type = params.value as "single" | "sequence";
+          return (
+            <span
+              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
+                type === "sequence"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-slate-100 text-slate-700"
+              }`}
+            >
+              {type === "sequence" ? "Sequence" : "Single"}
+            </span>
+          );
+        },
+        sortable: true,
+        filter: "agTextColumnFilter",
       },
       {
         headerName: "Status",
@@ -335,25 +369,58 @@ export default function CampaignsPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Domain Selector */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-text-200 mb-2">
-            Select Domain
-          </label>
-          <select
-            value={selectedDomain}
-            onChange={(e) => {
-              setSelectedDomain(e.target.value);
-              setPage(1);
-            }}
-            className="w-full px-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 backdrop-blur-xl focus:outline-none focus:ring-2 focus:ring-brand-main"
-          >
-            <option value="">Choose a domain...</option>
-            {domains?.map((domain) => (
-              <option key={domain.id} value={domain.id}>
-                {domain.domain}
-              </option>
-            ))}
-          </select>
+        <div className="mb-6 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+          <div>
+            <label className="block text-sm font-medium text-text-200 mb-2">
+              Select Domain
+            </label>
+            <select
+              value={selectedDomain}
+              onChange={(e) => {
+                setSelectedDomain(e.target.value);
+                setPage(1);
+              }}
+              className="w-full px-4 py-2 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 backdrop-blur-xl focus:outline-none focus:ring-2 focus:ring-brand-main"
+            >
+              <option value="">Choose a domain...</option>
+              {domains?.map((domain) => (
+                <option key={domain.id} value={domain.id}>
+                  {domain.domain}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="md:self-end">
+            <div className="flex rounded-lg border border-brand-main/20 bg-brand-main/5 p-1">
+              <button
+                type="button"
+                onClick={() => setCampaignTypeFilter("all")}
+                className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+                  campaignTypeFilter === "all" ? "bg-brand-main text-white" : "text-text-200"
+                }`}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setCampaignTypeFilter("single")}
+                className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+                  campaignTypeFilter === "single" ? "bg-brand-main text-white" : "text-text-200"
+                }`}
+              >
+                Single
+              </button>
+              <button
+                type="button"
+                onClick={() => setCampaignTypeFilter("sequence")}
+                className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+                  campaignTypeFilter === "sequence" ? "bg-brand-main text-white" : "text-text-200"
+                }`}
+              >
+                Sequence
+              </button>
+            </div>
+          </div>
         </div>
 
         {domainsLoading || loading ? (
@@ -394,7 +461,7 @@ export default function CampaignsPage() {
               </Button>
             </Link>
           </div>
-        ) : campaigns?.length === 0 ? (
+        ) : filteredCampaigns?.length === 0 ? (
           <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-12 text-center">
             <div className="w-16 h-16 bg-brand-main rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
@@ -427,7 +494,7 @@ export default function CampaignsPage() {
           <>
             {/* Campaigns AG Grid Table */}
             <AGGridWrapper<Campaign>
-              rowData={campaigns}
+              rowData={filteredCampaigns}
               columnDefs={columnDefs}
               loading={loading}
               height={500}

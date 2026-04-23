@@ -10,7 +10,6 @@ import {
   Eye,
   Mail,
   MousePointerClick,
-  RefreshCw,
   Send,
   TrendingUp,
   XCircle,
@@ -27,7 +26,9 @@ import toast from "react-hot-toast";
 
 import { FilterPanel } from "@/components/campaign-analytics/FilterPanel";
 import KPICard from "@/components/campaign-analytics/KPICard";
+import { LeadSequenceTable } from "@/components/campaign-analytics/LeadSequenceTable";
 import { MetricsSummary } from "@/components/campaign-analytics/MetricsSummary";
+import { SequenceTreeOverview } from "@/components/campaign-analytics/SequenceTreeOverview";
 import { TrendChart } from "@/components/campaign-analytics/TrendChart";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,14 +40,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import emailClient, {
+  AnalyticsReportType,
+  CampaignLeadSequenceRow,
   EnhancedAnalyticsFilters,
   EnhancedCampaignAnalytics,
+  downloadCampaignAnalyticsReport,
   getEmailServiceErrorMessage,
+  getCampaignLeadSequence,
   getSubscriptionInfo,
   getEnhancedCampaignAnalytics,
+  markLeadRepliedInCampaign,
   stopCampaign,
 } from "@/utils/api/emailClient";
-import { exportCampaignAnalyticsToPDF } from "@/utils/pdfExport";
 
 interface CampaignAnalytics {
   campaign: {
@@ -71,6 +76,8 @@ interface CampaignAnalytics {
     totalBounced: number;
     totalFailed: number;
     totalComplained: number;
+    totalRead?: number;
+    totalReplied?: number;
     totalRejected: number;
     totalRenderingFailures: number;
     totalDeliveryDelays: number;
@@ -104,6 +111,24 @@ interface CampaignAnalytics {
     sentYesterday: number;
     sendsByDay: Array<{ date: string; count: number }>;
   };
+  sequenceSteps?: Array<{
+    stepIndex: number;
+    delayMinutes: number;
+    subject: string;
+    total: number;
+    sent: number;
+    delivered: number;
+    opened: number;
+    read: number;
+    replied: number;
+    failed: number;
+    pending?: number;
+    processing?: number;
+    remaining?: number;
+    scheduledToday?: number;
+    scheduledTomorrow?: number;
+    nextPlannedSendAt?: string | null;
+  }>;
   reoon?: {
     used: boolean;
     mode: string | null;
@@ -118,6 +143,7 @@ interface CampaignAnalytics {
 
 interface CampaignLeadIssue {
   id: string;
+  leadId?: string;
   toEmail: string;
   status: string;
   error?: string | null;
@@ -136,14 +162,19 @@ export default function CampaignDetailsPage() {
   const [enhancedLoading, setEnhancedLoading] = useState(false);
   const [detailedAnalyticsAllowed, setDetailedAnalyticsAllowed] = useState(false);
   const [subscriptionLoading, setSubscriptionLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"trends">("trends");
+  const [activeTab, setActiveTab] = useState<"trends" | "email_table" | "sequence">("trends");
   const [filters, setFilters] = useState<EnhancedAnalyticsFilters>({
     dateRange: "30d",
   });
-  const [isExporting, setIsExporting] = useState(false);
+  const [activeReportDownload, setActiveReportDownload] = useState<AnalyticsReportType | null>(
+    null
+  );
+  const [downloadingAllReports, setDownloadingAllReports] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
   const [failedLeadIssues, setFailedLeadIssues] = useState<CampaignLeadIssue[]>([]);
+  const [sequenceRows, setSequenceRows] = useState<CampaignLeadSequenceRow[]>([]);
+  const [markingReplied, setMarkingReplied] = useState<string | null>(null);
   const chartRef = useRef<HTMLDivElement>(null);
   const campaignStatusRef = useRef<string | null>(null);
   const initialLoadedRef = useRef(false);
@@ -232,6 +263,15 @@ export default function CampaignDetailsPage() {
     }
   }, [campaignId]);
 
+  const fetchSequenceRows = useCallback(async () => {
+    try {
+      const response = await getCampaignLeadSequence(campaignId, 1, 200);
+      setSequenceRows(response.leads || []);
+    } catch {
+      setSequenceRows([]);
+    }
+  }, [campaignId]);
+
   useEffect(() => {
     fetchAnalyticsAccess();
   }, [fetchAnalyticsAccess]);
@@ -244,6 +284,7 @@ export default function CampaignDetailsPage() {
       setEnhancedAnalytics(null);
     }
     fetchLeadIssues();
+    fetchSequenceRows();
 
     // Poll only lightweight campaign/issue data while campaign is active.
     // Avoid reloading enhanced charts every cycle to prevent UI flicker.
@@ -257,6 +298,7 @@ export default function CampaignDetailsPage() {
       ) {
         fetchCampaignAnalytics({ silent: true });
         fetchLeadIssues();
+        fetchSequenceRows();
         if (detailedAnalyticsAllowed) {
           fetchEnhancedAnalytics();
         }
@@ -271,48 +313,21 @@ export default function CampaignDetailsPage() {
     fetchAnalyticsAccess,
     fetchEnhancedAnalytics,
     fetchLeadIssues,
+    fetchSequenceRows,
   ]);
 
-  const handleExportPDF = async () => {
-    if (!enhancedAnalytics || !analytics) {
-      toast.error("Analytics data not available");
-      return;
-    }
-    
-    setIsExporting(true);
+  const handleMarkReplied = async (leadId: string) => {
+    if (!analytics?.campaign?.domainId) return;
+    setMarkingReplied(leadId);
     try {
-      // Ensure trends tab is active to show charts
-      if (activeTab !== "trends") {
-        setActiveTab("trends");
-        // Wait for charts to render
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-      
-      // Get all chart elements from the trends section
-      const chartContainer = chartRef.current;
-      if (!chartContainer) {
-        toast.error("No chart data available to export");
-        setIsExporting(false);
-        return;
-      }
-      
-      // Wait a bit more for any animations
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      await exportCampaignAnalyticsToPDF(
-        enhancedAnalytics,
-        chartContainer,
-        {
-          filename: `campaign-${enhancedAnalytics.campaign.name}-analytics`,
-          campaignData: analytics,
-        }
-      );
-      toast.success("PDF exported successfully!");
-    } catch (error) {
-      console.error("PDF export failed:", error);
-      toast.error("Failed to export PDF. Please try again.");
+      await markLeadRepliedInCampaign(analytics.campaign.domainId, campaignId, leadId);
+      toast.success("Lead marked as replied. Sequence stopped for this lead.");
+      await fetchCampaignAnalytics({ silent: true });
+      await fetchSequenceRows();
+    } catch (error: unknown) {
+      toast.error(getEmailServiceErrorMessage(error, "Failed to mark lead as replied"));
     } finally {
-      setIsExporting(false);
+      setMarkingReplied(null);
     }
   };
 
@@ -322,6 +337,20 @@ export default function CampaignDetailsPage() {
 
   const handleResetFilters = () => {
     setFilters({ dateRange: "30d" });
+  };
+
+  const handleDownloadFullReport = async () => {
+    setDownloadingAllReports(true);
+    try {
+      setActiveReportDownload("overall_summary");
+      await downloadCampaignAnalyticsReport(campaignId, "overall_summary", "csv");
+      toast.success("Summary report downloaded");
+    } catch (error: unknown) {
+      toast.error(getEmailServiceErrorMessage(error, "Failed to download full report"));
+    } finally {
+      setActiveReportDownload(null);
+      setDownloadingAllReports(false);
+    }
   };
 
   const executeStopCampaign = async () => {
@@ -390,6 +419,7 @@ export default function CampaignDetailsPage() {
   const reoon = analytics.reoon;
   const todayVerification = analytics.todayVerification;
   const sendVolume = analytics.sendVolume;
+  const isSequenceCampaign = (analytics.sequenceSteps?.length || 0) > 1;
 
   const campaignStatusNorm = String(campaign.status || "").trim();
   const canStopCampaign =
@@ -397,6 +427,10 @@ export default function CampaignDetailsPage() {
     ["draft", "sending", "scheduled", "verifying_leads", "paused", "verification_failed"].includes(
       campaignStatusNorm
     );
+  const sequenceEditHref =
+    isSequenceCampaign && campaign.domainId
+      ? `/email/campaigns/builder?domainId=${campaign.domainId}&id=${campaign.id}&liveSequenceEdit=1`
+      : null;
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
@@ -548,20 +582,38 @@ export default function CampaignDetailsPage() {
                   Stop campaign
                 </Button>
               )}
+              {isSequenceCampaign && sequenceEditHref && (
+                <Link href={sequenceEditHref}>
+                  <Button variant="outline" size="sm">
+                    Edit sequence
+                  </Button>
+                </Link>
+              )}
               <Button
-                onClick={handleExportPDF}
-                disabled={isExporting || !enhancedAnalytics || !detailedAnalyticsAllowed}
+                onClick={() => void handleDownloadFullReport()}
+                disabled={downloadingAllReports || !!activeReportDownload}
                 variant="outline"
                 size="sm"
               >
-                {isExporting ? (
-                  <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <Download className="h-4 w-4 mr-2" />
-                )}
-                Export PDF
+                <Download className="h-4 w-4 mr-2" />
+                {downloadingAllReports ? "Downloading..." : "Download summary report"}
               </Button>
             </div>
+          </div>
+
+          <div className="mb-4 rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Analytics Mode
+            </p>
+            <p className="mt-1 text-sm font-medium text-slate-900">
+              {isSequenceCampaign
+                ? "Sequence detail view with step-level progression and lead timeline."
+                : "Single-email view with direct performance and engagement focus."}
+            </p>
+            <p className="mt-1 text-xs text-slate-600">
+              A/B copy value: identify which message variation drives more opens, clicks, and
+              replies before scaling the next campaign.
+            </p>
           </div>
 
           {campaign.status === "cancelled" && (
@@ -963,7 +1015,7 @@ export default function CampaignDetailsPage() {
             </div>
           </div>
 
-          {/* Trends Tab Only */}
+          {/* Trends and sequence analytics */}
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
             <div className="flex gap-1 border-b border-slate-200 px-4 pt-3">
               <button
@@ -976,6 +1028,28 @@ export default function CampaignDetailsPage() {
               >
                 Trends & Detailed Charts
               </button>
+              <button
+                onClick={() => setActiveTab("email_table")}
+                className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
+                  activeTab === "email_table"
+                    ? "text-blue-600 border-blue-600"
+                    : "text-slate-500 border-transparent hover:text-slate-700"
+                }`}
+              >
+                Email Analytics Table
+              </button>
+              {isSequenceCampaign && (
+                <button
+                  onClick={() => setActiveTab("sequence")}
+                  className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
+                    activeTab === "sequence"
+                      ? "text-blue-600 border-blue-600"
+                      : "text-slate-500 border-transparent hover:text-slate-700"
+                  }`}
+                >
+                  Sequence Tree
+                </button>
+              )}
             </div>
 
             {/* Trends Tab - Enhanced with More Charts */}
@@ -1137,8 +1211,46 @@ export default function CampaignDetailsPage() {
                 )}
               </div>
             )}
+
+            {activeTab === "email_table" && (
+              <div className="p-4 space-y-4">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm font-semibold text-slate-900">Email analytics table</p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    Tabular email-level analytics for quick review and A/B message comparison.
+                  </p>
+                </div>
+                <LeadSequenceTable
+                  title={isSequenceCampaign ? "All sequence emails" : "Single email analytics"}
+                  rows={sequenceRows}
+                  markingReplied={markingReplied}
+                  onMarkReplied={(leadId) => void handleMarkReplied(leadId)}
+                />
+              </div>
+            )}
+
+            {isSequenceCampaign && activeTab === "sequence" && (
+              <div className="p-4">
+                <SequenceTreeOverview
+                  steps={analytics.sequenceSteps || []}
+                  rows={sequenceRows}
+                  markingReplied={markingReplied}
+                  onMarkReplied={(leadId) => void handleMarkReplied(leadId)}
+                />
+              </div>
+            )}
           </div>
         </div>
+      </div>
+      <div className="fixed bottom-4 left-4 right-4 z-40 sm:hidden">
+        <Button
+          onClick={() => void handleDownloadFullReport()}
+          disabled={downloadingAllReports || !!activeReportDownload}
+          className="h-11 w-full bg-slate-900 text-white hover:bg-slate-800"
+        >
+          <Download className="mr-2 h-4 w-4" />
+          {downloadingAllReports ? "Downloading report..." : "Download summary report"}
+        </Button>
       </div>
     </div>
   );
