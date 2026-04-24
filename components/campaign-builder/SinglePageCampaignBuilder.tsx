@@ -1250,42 +1250,6 @@ export default function SinglePageCampaignBuilder({
         return;
       }
 
-      const createCampaignRecord = async (): Promise<string | null> => {
-        toast.loading("Creating campaign...");
-        try {
-          const campaignResponse = await emailClient.post(
-            `/api/domains/${state.domainId}/campaigns`,
-            {
-              name: state.campaignName,
-              description: state.campaignDescription,
-              sequence: [
-                ...buildSequencePayload(),
-              ],
-              replyTo:
-                state.useReplyTo && state.replyTo ? state.replyTo : undefined,
-              tags: state.selectedTags?.map((t: any) => t.name) || [],
-            }
-          );
-
-          const id = campaignResponse.data?.data?.id;
-          toast.dismiss();
-          if (!id) {
-            toast.error("Failed to create campaign");
-            return null;
-          }
-          return String(id);
-        } catch (campaignError: any) {
-          toast.dismiss();
-          const errorMsg = getEmailServiceErrorMessage(
-            campaignError,
-            "Failed to create campaign"
-          );
-          toast.error(errorMsg);
-          console.error("Campaign creation error:", campaignError);
-          return null;
-        }
-      };
-
       if (leadIds.length === 0) {
         toast.error(
           "No recipients found to queue. Select recipients and try again."
@@ -1306,10 +1270,53 @@ export default function SinglePageCampaignBuilder({
         return;
       }
 
-      const campaignId = await createCampaignRecord();
-      if (!campaignId) return;
+      toast.loading("Creating and queueing campaign...");
+      try {
+        const primarySenderId = state.senderIds[0];
+        if (!primarySenderId) {
+          toast.dismiss();
+          toast.error("No sender selected");
+          return;
+        }
 
-      await finalizeCampaignSend(campaignId, leadIds);
+        const response = await emailClient.post(
+          `/api/domains/${state.domainId}/campaigns/send`,
+          {
+            campaignType: isSequenceMode ? "sequence" : "single",
+            name: state.campaignName,
+            description: state.campaignDescription,
+            sequence: buildSequencePayload(),
+            leadIds,
+            tags: state.selectedTags?.map((t: any) => t.name) || [],
+            send: {
+              senderId: primarySenderId,
+              senderIds: state.senderIds,
+              rotationDistribution: rotation?.distribution.map((d) => ({
+                senderId: d.sender.id,
+                leadCount: d.leads,
+              })),
+              dailySendTime: state.dailySendTime || undefined,
+            },
+          }
+        );
+
+        toast.dismiss();
+        if (response.data?.success) {
+          const queuedCount = response.data?.data?.queuedCount || leadIds.length;
+          toast.success(`Campaign queued successfully for ${queuedCount} emails!`);
+          if (onSuccess) onSuccess();
+          return;
+        }
+        toast.error("Failed to create and send campaign");
+      } catch (campaignError: any) {
+        toast.dismiss();
+        const errorMsg = getEmailServiceErrorMessage(
+          campaignError,
+          "Failed to create and send campaign"
+        );
+        toast.error(errorMsg, { duration: 8000 });
+        throw campaignError;
+      }
     } catch (error: any) {
       toast.dismiss();
       toast.error(

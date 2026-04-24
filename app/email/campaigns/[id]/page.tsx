@@ -1,35 +1,14 @@
 "use client";
 
 import {
-  ArrowLeft,
-  CalendarDays,
-  CheckCircle2,
-  ChevronRight,
-  Clock,
-  Download,
-  Eye,
-  Mail,
-  MousePointerClick,
-  Send,
-  TrendingUp,
-  XCircle,
-  AlertTriangle,
-  UserMinus,
-  FileX,
   Loader2,
   OctagonX,
 } from "lucide-react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
-import { FilterPanel } from "@/components/campaign-analytics/FilterPanel";
-import KPICard from "@/components/campaign-analytics/KPICard";
-import { LeadSequenceTable } from "@/components/campaign-analytics/LeadSequenceTable";
-import { MetricsSummary } from "@/components/campaign-analytics/MetricsSummary";
-import { SequenceTreeOverview } from "@/components/campaign-analytics/SequenceTreeOverview";
-import { TrendChart } from "@/components/campaign-analytics/TrendChart";
+import { CampaignAnalytics } from "@/components/analytics/CampaignAnalytics";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -42,9 +21,7 @@ import {
 import emailClient, {
   AnalyticsReportType,
   CampaignLeadSequenceRow,
-  EnhancedAnalyticsFilters,
   EnhancedCampaignAnalytics,
-  downloadCampaignAnalyticsReport,
   getEmailServiceErrorMessage,
   getCampaignLeadSequence,
   getSubscriptionInfo,
@@ -52,6 +29,7 @@ import emailClient, {
   markLeadRepliedInCampaign,
   stopCampaign,
 } from "@/utils/api/emailClient";
+import { exportLeadsnipperCampaignReportPDF } from "@/utils/pdfExport";
 
 interface CampaignAnalytics {
   campaign: {
@@ -159,13 +137,8 @@ export default function CampaignDetailsPage() {
   const [enhancedAnalytics, setEnhancedAnalytics] =
     useState<EnhancedCampaignAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
-  const [enhancedLoading, setEnhancedLoading] = useState(false);
   const [detailedAnalyticsAllowed, setDetailedAnalyticsAllowed] = useState(false);
   const [subscriptionLoading, setSubscriptionLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"trends" | "email_table" | "sequence">("trends");
-  const [filters, setFilters] = useState<EnhancedAnalyticsFilters>({
-    dateRange: "30d",
-  });
   const [activeReportDownload, setActiveReportDownload] = useState<AnalyticsReportType | null>(
     null
   );
@@ -174,8 +147,7 @@ export default function CampaignDetailsPage() {
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
   const [failedLeadIssues, setFailedLeadIssues] = useState<CampaignLeadIssue[]>([]);
   const [sequenceRows, setSequenceRows] = useState<CampaignLeadSequenceRow[]>([]);
-  const [markingReplied, setMarkingReplied] = useState<string | null>(null);
-  const chartRef = useRef<HTMLDivElement>(null);
+  const [, setMarkingReplied] = useState<string | null>(null);
   const campaignStatusRef = useRef<string | null>(null);
   const initialLoadedRef = useRef(false);
 
@@ -208,8 +180,7 @@ export default function CampaignDetailsPage() {
   const fetchEnhancedAnalytics = useCallback(async () => {
     if (!detailedAnalyticsAllowed) return;
     try {
-      setEnhancedLoading(true);
-      const data = await getEnhancedCampaignAnalytics(campaignId, filters);
+      const data = await getEnhancedCampaignAnalytics(campaignId, { dateRange: "30d" });
       setEnhancedAnalytics(data);
     } catch (error: any) {
       console.error("Failed to fetch enhanced analytics:", error);
@@ -217,10 +188,8 @@ export default function CampaignDetailsPage() {
         toast.error("Failed to fetch trend data");
       }
       setEnhancedAnalytics(null);
-    } finally {
-      setEnhancedLoading(false);
     }
-  }, [campaignId, detailedAnalyticsAllowed, filters]);
+  }, [campaignId, detailedAnalyticsAllowed]);
 
   const fetchAnalyticsAccess = useCallback(async () => {
     try {
@@ -331,22 +300,65 @@ export default function CampaignDetailsPage() {
     }
   };
 
-  const handleApplyFilters = () => {
-    fetchEnhancedAnalytics();
-  };
-
-  const handleResetFilters = () => {
-    setFilters({ dateRange: "30d" });
-  };
-
   const handleDownloadFullReport = async () => {
     setDownloadingAllReports(true);
     try {
       setActiveReportDownload("overall_summary");
-      await downloadCampaignAnalyticsReport(campaignId, "overall_summary", "csv");
-      toast.success("Summary report downloaded");
+      if (!analytics) {
+        throw new Error("Campaign analytics not loaded");
+      }
+
+      const reportSteps =
+        analytics.sequenceSteps?.map((step) => ({
+          stepNumber: Number(step.stepIndex || 0) + 1,
+          subject: step.subject || "Untitled step",
+          sent: step.sent || 0,
+          opened: step.opened || 0,
+          replied: step.replied || 0,
+        })) || [];
+
+      const reportLeads =
+        sequenceRows?.map((row) => ({
+          email: row.toEmail,
+          stepLabel: `Email ${Number(row.sequenceStepIndex || 0) + 1}`,
+          status: String(row.status || "unknown"),
+          nextSend: row.nextRetryAt ? new Date(row.nextRetryAt).toLocaleString() : undefined,
+        })) || [];
+
+      exportLeadsnipperCampaignReportPDF(
+        {
+          campaign: {
+            name: analytics.campaign.name,
+            subject: analytics.campaign.subject,
+            sender: analytics.campaign.fromName || analytics.campaign.fromEmail,
+            fromEmail: analytics.campaign.fromEmail,
+            status: analytics.campaign.status,
+            createdAt: new Date(analytics.campaign.createdAt).toLocaleString(),
+            startedAt: analytics.campaign.startedAt
+              ? new Date(analytics.campaign.startedAt).toLocaleString()
+              : undefined,
+          },
+          metrics: {
+            sent: analytics.metrics.totalSent || 0,
+            delivered: analytics.metrics.totalDelivered || 0,
+            opened: analytics.metrics.totalOpened || 0,
+            clicked: analytics.metrics.totalClicked || 0,
+            replied: analytics.metrics.totalReplied || 0,
+            bounced: analytics.metrics.totalBounced || 0,
+            complained: analytics.metrics.totalComplained || 0,
+            unsubscribed: analytics.metrics.totalUnsubscribed || 0,
+            pending: analytics.metrics.pending || 0,
+            failed: analytics.metrics.totalFailed || 0,
+            rejected: analytics.metrics.totalRejected || 0,
+          },
+          steps: reportSteps,
+          leads: reportLeads,
+        },
+        `${analytics.campaign.name.replace(/\s+/g, "-").toLowerCase()}-report`
+      );
+      toast.success("Styled PDF report downloaded");
     } catch (error: unknown) {
-      toast.error(getEmailServiceErrorMessage(error, "Failed to download full report"));
+      toast.error(getEmailServiceErrorMessage(error, "Failed to download PDF report"));
     } finally {
       setActiveReportDownload(null);
       setDownloadingAllReports(false);
@@ -414,10 +426,6 @@ export default function CampaignDetailsPage() {
 
   const campaign = analytics.campaign;
   const metrics = analytics.metrics;
-  const rates = analytics.rates;
-  const progress = analytics.progress;
-  const reoon = analytics.reoon;
-  const todayVerification = analytics.todayVerification;
   const sendVolume = analytics.sendVolume;
   const isSequenceCampaign = (analytics.sequenceSteps?.length || 0) > 1;
 
@@ -431,44 +439,111 @@ export default function CampaignDetailsPage() {
     isSequenceCampaign && campaign.domainId
       ? `/email/campaigns/builder?domainId=${campaign.domainId}&id=${campaign.id}&liveSequenceEdit=1`
       : null;
+  const mappedSteps =
+    analytics.sequenceSteps?.map((step) => {
+      const hasSent = (step.sent || 0) > 0;
+      const hasPending = (step.pending || 0) > 0 || (step.remaining || 0) > 0;
+      return {
+        stepNumber: Number(step.stepIndex || 0) + 1,
+        dayOffset: Math.max(0, Math.round((step.delayMinutes || 0) / 1440)),
+        subject: step.subject || "Untitled step",
+        totalInStep: step.total || 0,
+        sent: step.sent || 0,
+        delivered: step.delivered || 0,
+        opened: step.opened || 0,
+        replied: step.replied || 0,
+        nextSendAt: step.nextPlannedSendAt
+          ? new Date(step.nextPlannedSendAt).toLocaleString()
+          : undefined,
+        status: hasSent ? "done" : hasPending ? "pending" : "waiting",
+      } as const;
+    }) || [];
 
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case "sending":
-        return "bg-blue-100 border-blue-300 text-blue-700";
-      case "verifying_leads":
-        return "bg-violet-100 border-violet-300 text-violet-800";
-      case "completed":
-        return "bg-emerald-100 border-emerald-300 text-emerald-700";
-      case "failed":
-        return "bg-red-100 border-red-300 text-red-700";
-      case "paused":
-        return "bg-amber-100 border-amber-300 text-amber-700";
-      case "draft":
-        return "bg-slate-100 border-slate-300 text-slate-700";
-      case "scheduled":
-        return "bg-sky-100 border-sky-300 text-sky-800";
-      case "verification_failed":
-        return "bg-red-100 border-red-300 text-red-800";
-      case "cancelled":
-        return "bg-rose-100 border-rose-300 text-rose-800";
-      default:
-        return "bg-slate-100 border-slate-300 text-slate-600";
+  const mappedLeads = sequenceRows.map((row) => {
+    const normalizedStatus = String(row.status || "").toLowerCase();
+    const status =
+      normalizedStatus === "opened" || normalizedStatus === "read"
+        ? "opened"
+        : normalizedStatus === "pending" ||
+          normalizedStatus === "queued" ||
+          normalizedStatus === "processing"
+        ? "pending"
+        : normalizedStatus === "failed" ||
+          normalizedStatus === "rejected" ||
+          normalizedStatus === "bounced"
+        ? "failed"
+        : "delivered";
+
+    return {
+      email: row.toEmail,
+      stepLabel: `Email ${Number(row.sequenceStepIndex || 0) + 1}`,
+      stepNumber: Number(row.sequenceStepIndex || 0) + 1,
+      status: status as "delivered" | "opened" | "pending" | "failed",
+      nextSend: row.nextRetryAt ? new Date(row.nextRetryAt).toLocaleString() : undefined,
+      sent: Boolean(row.sentAt),
+      read: Boolean(row.readAt || row.openedAt),
+      replied: Boolean(row.repliedAt),
+      onMarkReplied: () => {
+        if (!row.leadId || !campaign.domainId) return;
+        void handleMarkReplied(row.leadId);
+      },
+    };
+  });
+
+  const groupedStepTrends = sequenceRows.reduce<
+    Record<string, { date: string; stepNumber: number; sent: number; opened: number; clicked: number }>
+  >((acc, row) => {
+    const stepNumber = Number(row.sequenceStepIndex || 0) + 1;
+    const sentDate = row.sentAt ? new Date(row.sentAt).toISOString().split("T")[0] : null;
+    const openDate = row.openedAt ? new Date(row.openedAt).toISOString().split("T")[0] : null;
+    const clickDate = row.engagementStatus === "clicked" && row.openedAt
+      ? new Date(row.openedAt).toISOString().split("T")[0]
+      : null;
+
+    if (sentDate) {
+      const key = `${sentDate}-${stepNumber}`;
+      if (!acc[key]) {
+        acc[key] = { date: sentDate, stepNumber, sent: 0, opened: 0, clicked: 0 };
+      }
+      acc[key].sent += 1;
     }
-  };
+    if (openDate) {
+      const key = `${openDate}-${stepNumber}`;
+      if (!acc[key]) {
+        acc[key] = { date: openDate, stepNumber, sent: 0, opened: 0, clicked: 0 };
+      }
+      acc[key].opened += 1;
+    }
+    if (clickDate) {
+      const key = `${clickDate}-${stepNumber}`;
+      if (!acc[key]) {
+        acc[key] = { date: clickDate, stepNumber, sent: 0, opened: 0, clicked: 0 };
+      }
+      acc[key].clicked += 1;
+    }
+    return acc;
+  }, {});
 
-  const campaignStatusLabel = (status: string) => {
-    if (status === "verifying_leads") return "Verifying leads";
-    if (status === "verification_failed") return "Verification failed";
-    if (status === "cancelled") return "Stopped";
-    if (status === "scheduled") return "Ready to send";
-    return (
-      status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " ")
-    );
-  };
+  const trendData = Object.values(groupedStepTrends).length
+    ? Object.values(groupedStepTrends).sort((a, b) => a.date.localeCompare(b.date))
+    : enhancedAnalytics?.timeSeries?.map((point) => ({
+        date: point.date,
+        sent: point.sent || 0,
+        opened: point.opened || 0,
+        clicked: point.clicked || 0,
+      })) ||
+      sendVolume?.sendsByDay?.map((day) => ({
+        date: day.date,
+        sent: day.count || 0,
+        opened: 0,
+        clicked: 0,
+      })) ||
+      [];
+
+  const campaignMode = isSequenceCampaign ? "sequence" : "single";
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <>
       <Dialog
         open={stopDialogOpen}
         onOpenChange={(open) => {
@@ -533,725 +608,89 @@ export default function CampaignDetailsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <div className="max-w-7xl mx-auto p-4">
-        {/* Ultra Compact Header */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => router.back()}
-                className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4 text-slate-600" />
-              </button>
-              <div>
-                <h1 className="text-xl font-bold text-slate-900">
-                  {campaign.name}
-                </h1>
-                <p className="text-xs text-slate-500">
-                  {campaign.subject}
-                </p>
-              </div>
-              <span
-                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${getStatusBadgeColor(
-                  campaign.status
-                )}`}
-              >
-                {campaignStatusLabel(campaign.status)}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              {detailedAnalyticsAllowed && (
-                <FilterPanel
-                  filters={filters}
-                  onFiltersChange={setFilters}
-                  onApply={handleApplyFilters}
-                  onReset={handleResetFilters}
-                />
-              )}
-              {canStopCampaign && (
-                <Button
-                  type="button"
-                  onClick={() => setStopDialogOpen(true)}
-                  variant="destructive"
-                  size="sm"
-                  title="Stop this campaign so no further emails are sent"
-                >
-                  <OctagonX className="h-4 w-4 mr-2" />
-                  Stop campaign
-                </Button>
-              )}
-              {isSequenceCampaign && sequenceEditHref && (
-                <Link href={sequenceEditHref}>
-                  <Button variant="outline" size="sm">
-                    Edit sequence
-                  </Button>
-                </Link>
-              )}
-              <Button
-                onClick={() => void handleDownloadFullReport()}
-                disabled={downloadingAllReports || !!activeReportDownload}
-                variant="outline"
-                size="sm"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                {downloadingAllReports ? "Downloading..." : "Download summary report"}
-              </Button>
-            </div>
-          </div>
-
-          <div className="mb-4 rounded-lg border border-slate-200 bg-white px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Analytics Mode
-            </p>
-            <p className="mt-1 text-sm font-medium text-slate-900">
-              {isSequenceCampaign
-                ? "Sequence detail view with step-level progression and lead timeline."
-                : "Single-email view with direct performance and engagement focus."}
-            </p>
-            <p className="mt-1 text-xs text-slate-600">
-              A/B copy value: identify which message variation drives more opens, clicks, and
-              replies before scaling the next campaign.
-            </p>
-          </div>
-
-          {campaign.status === "cancelled" && (
-            <div className="bg-rose-50 rounded-lg border border-rose-200 p-3 mb-4">
-              <p className="text-xs font-medium text-rose-950">
-                This campaign was stopped. No further emails will be sent for it;
-                messages already delivered are unchanged.
-              </p>
-            </div>
-          )}
-
-          {campaign.status === "verifying_leads" && (
-            <div className="bg-violet-50 rounded-lg border border-violet-200 p-3 mb-4">
-              <p className="text-xs text-violet-900">
-                We are verifying your recipient list with Reoon. Sending stays
-                disabled until this finishes. You will get an email when
-                verification completes.
-              </p>
-            </div>
-          )}
-
-          {campaign.status === "scheduled" && campaign.domainId && (
-            <div className="bg-sky-50 rounded-lg border border-sky-200 p-3 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <p className="text-xs text-sky-950">
-                Verification finished. Your list is ready — open the builder to
-                review and send (same flow as a new campaign).
-              </p>
-              <Link
-                href={`/email/campaigns/builder?domainId=${campaign.domainId}&id=${campaign.id}`}
-                className="inline-flex items-center justify-center rounded-md bg-sky-600 text-white text-xs font-semibold px-3 py-2 hover:bg-sky-700 shrink-0"
-              >
-                Review &amp; send
-              </Link>
-            </div>
-          )}
-
-          {campaign.status === "verification_failed" && (
-            <div className="bg-red-50 rounded-lg border border-red-200 p-3 mb-4">
-              <p className="text-xs font-semibold text-red-900 mb-1">
-                Lead verification failed
-              </p>
-              <p className="text-xs text-red-900">
-                {reoon?.errorMessage ||
-                  "Something went wrong while verifying with Reoon. You can try again from the builder or contact support if this persists."}
-              </p>
-              {campaign.domainId && (
-                <Link
-                  href={`/email/campaigns/builder?domainId=${campaign.domainId}&id=${campaign.id}`}
-                  className="inline-block mt-2 text-xs font-semibold text-red-800 underline"
-                >
-                  Open in builder to retry or adjust recipients
-                </Link>
-              )}
-            </div>
-          )}
-
-          {/* Progress Bar - Ultra Compact */}
-          {campaign.status === "sending" && (
-            <div className="bg-blue-50 rounded-lg border border-blue-200 p-3 mb-4">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-medium text-slate-700">
-                  Sending in progress
-                </span>
-                <span className="text-base font-bold text-blue-600">
-                  {progress.percentage}%
-                </span>
-              </div>
-              <div className="w-full bg-blue-100 rounded-full h-1.5">
-                <div
-                  className="bg-blue-600 h-1.5 rounded-full transition-all duration-500"
-                  style={{ width: `${progress.percentage}%` }}
-                ></div>
-              </div>
-              <p className="text-xs text-slate-600 mt-1.5">
-                {progress.completed.toLocaleString()} of {progress.total.toLocaleString()} emails sent
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Main Metrics - All in First View - Ultra Compact */}
-        <div className="space-y-4">
-          {todayVerification && (
-            <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-4">
-                <Clock className="w-4 h-4 text-slate-600" />
-                <h2 className="text-base font-semibold text-slate-900">
-                  Today: Verification Pipeline
-                </h2>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <KPICard
-                  label="Verified"
-                  value={todayVerification.verified}
-                  icon={CheckCircle2}
-                  color="blue"
-                  description="Reached verify decision today"
-                  compact
-                />
-                <KPICard
-                  label="Blocked"
-                  value={todayVerification.blocked}
-                  icon={FileX}
-                  color="red"
-                  description="Failed verification (invalid/risky)"
-                  compact
-                />
-                <KPICard
-                  label="Sent"
-                  value={todayVerification.sent}
-                  icon={Send}
-                  color="green"
-                  description="Successfully sent today"
-                  compact
-                />
-              </div>
-            </div>
-          )}
-
-          {sendVolume && (
-            <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <CalendarDays className="w-4 h-4 text-slate-600" />
-                <h2 className="text-base font-semibold text-slate-900">
-                  Send activity
-                </h2>
-              </div>
-              <p className="text-xs text-slate-500 mb-3">
-                Emails sent per calendar day (UTC). Matches your daily send pacing
-                across time zones.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                <div className="rounded-lg border border-slate-100 bg-slate-50/80 p-3">
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                    Today (UTC)
-                  </p>
-                  <p className="text-2xl font-bold text-slate-900 tabular-nums mt-1">
-                    {sendVolume.sentToday.toLocaleString()}
-                  </p>
+      <CampaignAnalytics
+        mode={campaignMode}
+        campaign={{
+          id: campaign.id,
+          name: campaign.name,
+          status:
+            campaign.status === "paused" ||
+            campaign.status === "completed" ||
+            campaign.status === "sending" ||
+            campaign.status === "scheduled" ||
+            campaign.status === "draft" ||
+            campaign.status === "cancelled"
+              ? campaign.status
+              : "live",
+          sender: campaign.fromName || campaign.fromEmail,
+          subject: campaign.subject,
+          fromEmail: campaign.fromEmail,
+          replyTo: campaign.fromEmail,
+          createdAt: new Date(campaign.createdAt).toLocaleString(),
+          startedAt: campaign.startedAt
+            ? new Date(campaign.startedAt).toLocaleString()
+            : "Not started yet",
+          totalEmails: Math.max(metrics.totalLeads || 0, analytics.progress?.total || 0),
+          sentEmails: metrics.totalSent || 0,
+        }}
+        metrics={{
+          sent: metrics.totalSent || 0,
+          delivered: metrics.totalDelivered || 0,
+          opened: metrics.totalOpened || 0,
+          clicked: metrics.totalClicked || 0,
+          replied: metrics.totalReplied || 0,
+          bounced: metrics.totalBounced || 0,
+          complained: metrics.totalComplained || 0,
+          unsubscribed: metrics.totalUnsubscribed || 0,
+          pending: metrics.pending || 0,
+          failed: (metrics.totalFailed || 0) + (metrics.totalRejected || 0),
+          rejected: metrics.totalRejected || 0,
+        }}
+        steps={mappedSteps}
+        leads={mappedLeads}
+        trendData={trendData}
+        onStopCampaign={canStopCampaign ? () => setStopDialogOpen(true) : undefined}
+        onEditCampaign={
+          sequenceEditHref
+            ? () => router.push(sequenceEditHref)
+            : campaign.domainId
+            ? () =>
+                router.push(
+                  `/email/campaigns/builder?domainId=${campaign.domainId}&id=${campaign.id}`
+                )
+            : undefined
+        }
+        onDownloadReport={() => void handleDownloadFullReport()}
+        onBack={() => router.push("/email/campaigns")}
+        showDownload
+        downloading={downloadingAllReports || !!activeReportDownload}
+        stopping={stopping}
+      />
+      {failedLeadIssues.length > 0 && (
+        <div className="mx-auto max-w-[1000px] px-4 pb-10">
+          <div className="rounded-xl border border-red-100 bg-red-50 p-4">
+            <p className="text-xs font-semibold text-red-800 mb-2">Recent failed deliveries</p>
+            <div className="space-y-2">
+              {failedLeadIssues.slice(0, 3).map((lead) => (
+                <div key={lead.id} className="text-xs text-red-700">
+                  <span className="font-medium">{lead.toEmail}</span> -{" "}
+                  {(lead.errorDetails || lead.error || "Send failed").toString().slice(0, 120)}
                 </div>
-                <div className="rounded-lg border border-slate-100 bg-slate-50/80 p-3">
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                    Yesterday (UTC)
-                  </p>
-                  <p className="text-2xl font-bold text-slate-900 tabular-nums mt-1">
-                    {sendVolume.sentYesterday.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-              {sendVolume.sendsByDay.length > 0 ? (
-                <div className="rounded-lg border border-slate-200 overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-slate-50 text-left text-xs font-semibold text-slate-600 border-b border-slate-200">
-                        <th className="py-2 px-3">Day (UTC)</th>
-                        <th className="py-2 px-3 text-right">Sent</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sendVolume.sendsByDay.map((row) => (
-                        <tr
-                          key={row.date}
-                          className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50"
-                        >
-                          <td className="py-2 px-3 font-mono text-slate-800">
-                            {row.date}
-                          </td>
-                          <td className="py-2 px-3 text-right font-semibold text-slate-900 tabular-nums">
-                            {row.count.toLocaleString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-xs text-slate-500">
-                  No sends recorded yet for this campaign.
-                </p>
-              )}
+              ))}
             </div>
-          )}
-
-          {/* Primary Performance Metrics - Single Row */}
-          <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="w-4 h-4 text-slate-600" />
-              <h2 className="text-base font-semibold text-slate-900">
-                Performance Metrics
-              </h2>
-            </div>
-            
-            <div className="grid grid-cols-4 md:grid-cols-8 gap-3">
-              <KPICard
-                label="Recipients"
-                value={metrics.totalLeads}
-                icon={Mail}
-                color="blue"
-                description={`${rates.deliveryRate.toFixed(1)}% delivered`}
-                compact
-              />
-              <KPICard
-                label="Delivered"
-                value={metrics.totalDelivered}
-                icon={CheckCircle2}
-                color="green"
-                description={`${rates.deliveryRate.toFixed(1)}%`}
-                compact
-              />
-              <KPICard
-                label="Opened"
-                value={metrics.totalOpened}
-                icon={Eye}
-                color="purple"
-                description={`${rates.openRate.toFixed(1)}%`}
-                compact
-              />
-              <KPICard
-                label="Clicked"
-                value={metrics.totalClicked}
-                icon={MousePointerClick}
-                color="pink"
-                description={`${rates.clickRate.toFixed(1)}%`}
-                compact
-              />
-              <KPICard
-                label="Sent"
-                value={metrics.totalSent}
-                icon={Send}
-                color="blue"
-                compact
-              />
-              <KPICard
-                label="Bounced"
-                value={metrics.totalBounced ?? 0}
-                icon={FileX}
-                color="orange"
-                description={metrics.totalBounced > 0 ? `${rates.bounceRate.toFixed(1)}%` : undefined}
-                compact
-              />
-              <KPICard
-                label="Complaints"
-                value={metrics.totalComplained ?? 0}
-                icon={AlertTriangle}
-                color="red"
-                description={metrics.totalComplained > 0 ? `${rates.complaintRate.toFixed(1)}%` : undefined}
-                compact
-              />
-              <KPICard
-                label="Unsubscribed"
-                value={metrics.totalUnsubscribed ?? 0}
-                icon={UserMinus}
-                color="yellow"
-                description={metrics.totalUnsubscribed > 0 ? `${rates.unsubscribeRate?.toFixed(1) ?? 0}%` : undefined}
-                compact
-              />
-            </div>
-
-            {/* Key Rates - Compact Row */}
-            <div className="grid grid-cols-4 gap-4 pt-3 mt-3 border-t border-slate-100">
-              <div className="text-center">
-                <p className="text-xs text-slate-500 mb-0.5">Open Rate</p>
-                <p className="text-lg font-bold text-slate-900">
-                  {rates.openRate.toFixed(1)}%
-                </p>
-              </div>
-              <div className="text-center">
-                <p className="text-xs text-slate-500 mb-0.5">Click Rate</p>
-                <p className="text-lg font-bold text-slate-900">
-                  {rates.clickRate.toFixed(1)}%
-                </p>
-              </div>
-              <div className="text-center">
-                <p className="text-xs text-slate-500 mb-0.5">CTR</p>
-                <p className="text-lg font-bold text-slate-900">
-                  {rates.ctrRate?.toFixed(1) ?? 0}%
-                </p>
-              </div>
-              <div className="text-center">
-                <p className="text-xs text-slate-500 mb-0.5">Delivery Rate</p>
-                <p className="text-lg font-bold text-slate-900">
-                  {rates.deliveryRate.toFixed(1)}%
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Delivery Status & Issues - Single Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <Send className="w-4 h-4 text-slate-600" />
-                <h3 className="text-sm font-semibold text-slate-900">
-                  Delivery Status
-                </h3>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <KPICard
-                  label="Pending"
-                  value={metrics.pending}
-                  icon={Clock}
-                  color="yellow"
-                  compact
-                />
-                <KPICard
-                  label="Processing"
-                  value={metrics.processing}
-                  icon={Loader2}
-                  color="slate"
-                  compact
-                />
-                <KPICard
-                  label="Failed"
-                  value={metrics.totalFailed}
-                  icon={XCircle}
-                  color="red"
-                  compact
-                />
-                <KPICard
-                  label="Rejected"
-                  value={metrics.totalRejected ?? 0}
-                  icon={XCircle}
-                  color="red"
-                  compact
-                />
-              </div>
-              {failedLeadIssues.length > 0 && (
-                <div className="mt-3 border-t border-slate-100 pt-3">
-                  <p className="text-xs font-semibold text-slate-700 mb-2">
-                    Recent Failed Deliveries
-                  </p>
-                  <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                    {failedLeadIssues.map((lead) => (
-                      <div
-                        key={lead.id}
-                        className="rounded border border-red-200 bg-red-50 p-2"
-                      >
-                        <p className="text-xs font-medium text-red-900 truncate">
-                          {lead.toEmail}
-                        </p>
-                        <p className="text-xs text-red-700">
-                          {(lead.errorDetails || lead.error || "Send failed")
-                            .toString()
-                            .slice(0, 160)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Campaign Info - Compact */}
-            <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <Mail className="w-4 h-4 text-slate-600" />
-                <h3 className="text-sm font-semibold text-slate-900">
-                  Campaign Info
-                </h3>
-              </div>
-              <div className="space-y-2 text-xs">
-                <div>
-                  <p className="text-slate-500">From</p>
-                  <p className="text-slate-900 font-medium">
-                    {campaign.fromName || campaign.fromEmail}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-slate-500">Email</p>
-                  <p className="text-slate-900 font-medium text-xs truncate">
-                    {campaign.fromEmail}
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <p className="text-slate-500">Created</p>
-                    <p className="text-slate-900 font-medium">
-                      {new Date(campaign.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                  {campaign.startedAt && (
-                    <div>
-                      <p className="text-slate-500">Started</p>
-                      <p className="text-slate-900 font-medium">
-                        {new Date(campaign.startedAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                  )}
-                </div>
-                {reoon?.excludedAsRisky != null && reoon.excludedAsRisky > 0 && (
-                  <div className="pt-2 mt-2 border-t border-slate-100">
-                    <p className="text-slate-500">Risky leads excluded</p>
-                    <p className="text-slate-900 font-medium">
-                      {reoon.excludedAsRisky.toLocaleString()} before send
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Trends and sequence analytics */}
-          <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
-            <div className="flex gap-1 border-b border-slate-200 px-4 pt-3">
-              <button
-                onClick={() => setActiveTab("trends")}
-                className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
-                  activeTab === "trends"
-                    ? "text-blue-600 border-blue-600"
-                    : "text-slate-500 border-transparent hover:text-slate-700"
-                }`}
-              >
-                Trends & Detailed Charts
-              </button>
-              <button
-                onClick={() => setActiveTab("email_table")}
-                className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
-                  activeTab === "email_table"
-                    ? "text-blue-600 border-blue-600"
-                    : "text-slate-500 border-transparent hover:text-slate-700"
-                }`}
-              >
-                Email Analytics Table
-              </button>
-              {isSequenceCampaign && (
-                <button
-                  onClick={() => setActiveTab("sequence")}
-                  className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
-                    activeTab === "sequence"
-                      ? "text-blue-600 border-blue-600"
-                      : "text-slate-500 border-transparent hover:text-slate-700"
-                  }`}
-                >
-                  Sequence Tree
-                </button>
-              )}
-            </div>
-
-            {/* Trends Tab - Enhanced with More Charts */}
-            {activeTab === "trends" && (
-              <div className="p-4 space-y-4">
-                {/* Filter Panel - Compact */}
-                <div className="flex justify-between items-center">
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    Performance Trends & Analytics
-                  </h3>
-                  {detailedAnalyticsAllowed && (
-                    <FilterPanel
-                      filters={filters}
-                      onFiltersChange={setFilters}
-                      onApply={handleApplyFilters}
-                      onReset={handleResetFilters}
-                    />
-                  )}
-                </div>
-
-                {!subscriptionLoading && !detailedAnalyticsAllowed && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-                    <p className="text-sm font-semibold text-amber-900">
-                      Detailed analytics is locked
-                    </p>
-                    <p className="text-xs text-amber-800 mt-1">
-                      Trial plans (including BYO trial) get basic analytics
-                      only. Upgrade to any paid plan to unlock advanced trend
-                      charts, filters, and detailed analytics.
-                    </p>
-                  </div>
-                )}
-
-                {/* Enhanced Metrics Summary */}
-                {detailedAnalyticsAllowed && enhancedAnalytics && (
-                  <>
-                    <MetricsSummary
-                      summary={enhancedAnalytics.summary}
-                      rates={enhancedAnalytics.rates}
-                    />
-
-                    {/* Main Performance Chart */}
-                    <div ref={chartRef} className="space-y-4">
-                      <TrendChart
-                        data={enhancedAnalytics.timeSeries}
-                        title="Overall Performance Trends"
-                        height={280}
-                        metrics={["sent", "opened", "clicked"]}
-                      />
-
-                      {/* Multiple Detailed Charts Grid */}
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <TrendChart
-                          data={enhancedAnalytics.timeSeries}
-                          title="Delivery Performance"
-                          height={220}
-                          metrics={["sent", "bounced"]}
-                          showLegend={true}
-                        />
-                        <TrendChart
-                          data={enhancedAnalytics.timeSeries}
-                          title="Engagement Trends"
-                          height={220}
-                          metrics={["opened", "clicked"]}
-                          showLegend={true}
-                        />
-                        <TrendChart
-                          data={enhancedAnalytics.timeSeries}
-                          title="Issue Tracking"
-                          height={220}
-                          metrics={["bounced", "complained", "unsubscribed"]}
-                          showLegend={true}
-                        />
-                        <TrendChart
-                          data={enhancedAnalytics.timeSeries}
-                          title="Conversion Funnel"
-                          height={220}
-                          metrics={["sent", "opened", "clicked"]}
-                          showLegend={true}
-                        />
-                      </div>
-
-                      {/* Rate Trends Chart */}
-                      <div className="bg-slate-50 rounded-lg border border-slate-200 p-4">
-                        <h4 className="text-sm font-semibold text-slate-900 mb-3">
-                          Rate Trends Over Time
-                        </h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          <div className="text-center">
-                            <p className="text-xs text-slate-500 mb-1">Open Rate Trend</p>
-                            <p className="text-lg font-bold text-purple-600">
-                              {enhancedAnalytics.rates.openRate.toFixed(1)}%
-                            </p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-xs text-slate-500 mb-1">Click Rate Trend</p>
-                            <p className="text-lg font-bold text-pink-600">
-                              {enhancedAnalytics.rates.clickRate.toFixed(1)}%
-                            </p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-xs text-slate-500 mb-1">CTR Trend</p>
-                            <p className="text-lg font-bold text-blue-600">
-                              {enhancedAnalytics.rates.ctrRate?.toFixed(1) ?? 0}%
-                            </p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-xs text-slate-500 mb-1">Delivery Rate Trend</p>
-                            <p className="text-lg font-bold text-emerald-600">
-                              {enhancedAnalytics.rates.deliveryRate.toFixed(1)}%
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Applied Filters Info */}
-                      {enhancedAnalytics.appliedFilters && (
-                        <div className="bg-blue-50 rounded-lg border border-blue-200 p-3">
-                          <p className="text-xs text-blue-800">
-                            <span className="font-semibold">Date Range:</span>{" "}
-                            {enhancedAnalytics.appliedFilters.dateRange === "7d"
-                              ? "Last 7 days"
-                              : enhancedAnalytics.appliedFilters.dateRange ===
-                                "30d"
-                              ? "Last 30 days"
-                              : `${
-                                  enhancedAnalytics.appliedFilters.startDate?.split(
-                                    "T"
-                                  )[0]
-                                } to ${
-                                  enhancedAnalytics.appliedFilters.endDate?.split(
-                                    "T"
-                                  )[0]
-                                }`}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {detailedAnalyticsAllowed && enhancedLoading && (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="text-center">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                      <p className="text-slate-500 text-xs font-medium">
-                        Loading trend data...
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {detailedAnalyticsAllowed && !enhancedLoading && !enhancedAnalytics && (
-                  <div className="text-center py-8 bg-slate-50 rounded-lg border border-slate-200">
-                    <p className="text-slate-500 text-xs font-medium">
-                      No trend data available for this campaign.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === "email_table" && (
-              <div className="p-4 space-y-4">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-sm font-semibold text-slate-900">Email analytics table</p>
-                  <p className="mt-1 text-xs text-slate-600">
-                    Tabular email-level analytics for quick review and A/B message comparison.
-                  </p>
-                </div>
-                <LeadSequenceTable
-                  title={isSequenceCampaign ? "All sequence emails" : "Single email analytics"}
-                  rows={sequenceRows}
-                  markingReplied={markingReplied}
-                  onMarkReplied={(leadId) => void handleMarkReplied(leadId)}
-                />
-              </div>
-            )}
-
-            {isSequenceCampaign && activeTab === "sequence" && (
-              <div className="p-4">
-                <SequenceTreeOverview
-                  steps={analytics.sequenceSteps || []}
-                  rows={sequenceRows}
-                  markingReplied={markingReplied}
-                  onMarkReplied={(leadId) => void handleMarkReplied(leadId)}
-                />
-              </div>
-            )}
           </div>
         </div>
-      </div>
-      <div className="fixed bottom-4 left-4 right-4 z-40 sm:hidden">
-        <Button
-          onClick={() => void handleDownloadFullReport()}
-          disabled={downloadingAllReports || !!activeReportDownload}
-          className="h-11 w-full bg-slate-900 text-white hover:bg-slate-800"
-        >
-          <Download className="mr-2 h-4 w-4" />
-          {downloadingAllReports ? "Downloading report..." : "Download summary report"}
-        </Button>
-      </div>
-    </div>
+      )}
+      {!subscriptionLoading && !detailedAnalyticsAllowed && (
+        <div className="mx-auto max-w-[1000px] px-4 pb-10">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm font-semibold text-amber-900">Detailed analytics is locked</p>
+            <p className="text-xs text-amber-800 mt-1">
+              Trial plans include core analytics. Upgrade to unlock advanced filtered trends.
+            </p>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
