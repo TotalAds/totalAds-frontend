@@ -7,10 +7,11 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import { useAuthContext } from "@/context/AuthContext";
 import { getSubscriptionInfo, SubscriptionInfo } from "@/utils/api/emailClient";
+import { getSocialAccess } from "@/utils/api/socialClient";
 import { cn } from "@/utils/cn";
 import {
   IconBrain,
-  IconChartBar,
+  IconBrandLinkedin,
   IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
@@ -58,6 +59,9 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [subscriptionInfo, setSubscriptionInfo] =
     useState<SubscriptionInfo | null>(null);
+  const [linkedinExternalUrl, setLinkedinExternalUrl] = useState<string>(
+    "https://www.linkedin.com/feed/"
+  );
 
   // Load collapsed state from localStorage on mount
   useEffect(() => {
@@ -82,6 +86,21 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
       fetchSubscription();
     }
   }, [state.isAuthenticated]);
+
+  useEffect(() => {
+    const loadSocial = async () => {
+      if (!state.isAuthenticated || !user?.socialLinkedinConnected) return;
+      try {
+        const access = await getSocialAccess();
+        if (access.linkedinExternalUrl) {
+          setLinkedinExternalUrl(access.linkedinExternalUrl);
+        }
+      } catch {
+        // Keep default external URL fallback
+      }
+    };
+    loadSocial();
+  }, [state.isAuthenticated, user?.socialLinkedinConnected]);
 
   // Toggle collapsed state and persist to localStorage
   const toggleCollapse = () => {
@@ -123,65 +142,45 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
         badgeColor: "blue",
       });
     }
+    if (user?.socialLinkedinConnected) {
+      emailItems.push({
+        name: "LinkedIn",
+        href: linkedinExternalUrl,
+        icon: <IconBrandLinkedin className="w-5 h-5" />,
+        badge: "LIVE",
+        badgeColor: "green",
+      });
+    }
+
     return [
       {
         title: "EMAIL",
         items: emailItems,
       },
-    // {
-   //   title: "WHATSAPP",
-    //   items: [
-    //     {
-    //       name: "Dashboard",
-    //       href: "/whatsapp/dashboard",
-    //       icon: <IconLayoutDashboard className="w-5 h-5" />,
-    //     },
-    //     {
-    //       name: "Campaigns",
-    //       href: "/whatsapp/campaigns",
-    //       icon: <IconMail className="w-5 h-5" />,
-    //     },
-    //     {
-    //       name: "Templates",
-    //       href: "/whatsapp/templates",
-    //       icon: <IconMail className="w-5 h-5" />,
-    //     },
-    //     {
-    //       name: "Contacts",
-    //       href: "/whatsapp/contacts",
-    //       icon: <IconUsers className="w-5 h-5" />,
-    //     },
-    //     {
-    //       name: "Chat",
-    //       href: "/whatsapp/chat",
-    //       icon: <IconUsers className="w-5 h-5" />,
-    //     },
-    //   ],
-    // },
-    {
-      title: "SUPPORT",
-      items: [
-        {
-          name: "Settings",
-          href: "/email/settings",
-          icon: <IconSettings className="w-5 h-5" />,
-        },
-        {
-          name: "Affiliate",
-          href: "/email/affiliate",
-          icon: <IconGift className="w-5 h-5" />,
-          badge: "NEW",
-          badgeColor: "green",
-        },
-        {
-          name: "Pricing & Plans",
-          href: "/email/pricing",
-          icon: <IconCreditCard className="w-5 h-5" />,
-        },
-      ],
-    },
-  ];
-  }, [user?.userType]);
+      {
+        title: "SUPPORT",
+        items: [
+          {
+            name: "Settings",
+            href: "/email/settings",
+            icon: <IconSettings className="w-5 h-5" />,
+          },
+          {
+            name: "Affiliate",
+            href: "/email/affiliate",
+            icon: <IconGift className="w-5 h-5" />,
+            badge: "NEW",
+            badgeColor: "green",
+          },
+          {
+            name: "Pricing & Plans",
+            href: "/email/pricing",
+            icon: <IconCreditCard className="w-5 h-5" />,
+          },
+        ],
+      },
+    ];
+  }, [user?.userType, user?.socialLinkedinConnected, linkedinExternalUrl]);
 
   const handleLogout = async () => {
     await logoutUser();
@@ -321,25 +320,30 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
                       (item.href !== "/email/dashboard" &&
                         pathname.startsWith(item.href));
 
-                    return (
-                      <Link
+                    const isExternal = item.href.startsWith("http");
+                    const commonClass = cn(
+                      "flex items-center py-2.5 text-sm font-medium transition-all duration-200 group relative",
+                      isCollapsed
+                        ? "px-0 justify-center rounded-lg"
+                        : "px-3 rounded-lg",
+                      isActive
+                        ? "bg-brand-main text-white shadow-md"
+                        : "text-sidebar-text hover:bg-sidebar-hover"
+                    );
+
+                    return isExternal ? (
+                      <a
                         key={item.name}
                         href={item.href}
+                        target="_blank"
+                        rel="noreferrer"
                         onClick={() => {
                           if (window.innerWidth < 768) {
                             onClose();
                           }
                         }}
                         title={isCollapsed ? item.name : undefined}
-                        className={cn(
-                          "flex items-center py-2.5 text-sm font-medium transition-all duration-200 group relative",
-                          isCollapsed
-                            ? "px-0 justify-center rounded-lg"
-                            : "px-3 rounded-lg",
-                          isActive
-                            ? "bg-brand-main text-white shadow-md"
-                            : "text-sidebar-text hover:bg-sidebar-hover"
-                        )}
+                        className={commonClass}
                       >
                         <span
                           className={cn(
@@ -370,6 +374,59 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
                           </>
                         )}
                         {/* Badge indicator dot when collapsed */}
+                        {isCollapsed && item.badge && (
+                          <span
+                            className={cn(
+                              "absolute top-1 right-1 w-2 h-2 rounded-full",
+                              item.badgeColor === "green"
+                                ? "bg-green-400"
+                                : item.badgeColor === "yellow"
+                                ? "bg-yellow-400"
+                                : "bg-blue-400"
+                            )}
+                          />
+                        )}
+                      </a>
+                    ) : (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        onClick={() => {
+                          if (window.innerWidth < 768) {
+                            onClose();
+                          }
+                        }}
+                        title={isCollapsed ? item.name : undefined}
+                        className={commonClass}
+                      >
+                        <span
+                          className={cn(
+                            "transition-colors flex-shrink-0",
+                            !isCollapsed && "mr-3",
+                            isActive
+                              ? "text-white"
+                              : "text-sidebar-muted group-hover:text-sidebar-text"
+                          )}
+                        >
+                          {item.icon}
+                        </span>
+                        {!isCollapsed && (
+                          <>
+                            <span className="flex-1 whitespace-nowrap overflow-hidden">
+                              {item.name}
+                            </span>
+                            {item.badge && (
+                              <span
+                                className={cn(
+                                  "px-2 py-0.5 text-xs font-semibold rounded-full",
+                                  getBadgeClasses(item.badgeColor)
+                                )}
+                              >
+                                {item.badge}
+                              </span>
+                            )}
+                          </>
+                        )}
                         {isCollapsed && item.badge && (
                           <span
                             className={cn(

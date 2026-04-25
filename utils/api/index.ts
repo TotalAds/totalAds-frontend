@@ -25,6 +25,7 @@ export * from "./emailClient";
 
 // WhatsApp Service API (namespaced — many symbols overlap with emailClient)
 export * as whatsappApi from "./whatsappClient";
+export * as socialApi from "./socialClient";
 
 // Affiliate API
 export * from "./affiliateClient";

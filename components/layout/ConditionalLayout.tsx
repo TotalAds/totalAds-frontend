@@ -13,6 +13,10 @@ const MainSidebar = dynamic(
   () => import("@/components/navigation/MainSidebar"),
   { ssr: false }
 );
+const SocialSidebar = dynamic(
+  () => import("@/components/navigation/SocialSidebar"),
+  { ssr: false }
+);
 
 interface ConditionalLayoutProps {
   children: React.ReactNode;
@@ -37,6 +41,7 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
   ];
 
   const isAuthPage = authPaths.some((path) => pathname.startsWith(path));
+  const isSocialRoute = pathname.startsWith("/social");
 
   // Handle responsive sidebar behavior
   useEffect(() => {
@@ -71,11 +76,15 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
     <div className="h-screen flex bg-bg-100">
       {/* Sidebar */}
       {isAuthenticated && (
-        <MainSidebar
-          isOpen={isSidebarOpen}
-          onClose={closeSidebar}
-          onToggle={toggleSidebar}
-        />
+        isSocialRoute ? (
+          <SocialSidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
+        ) : (
+          <MainSidebar
+            isOpen={isSidebarOpen}
+            onClose={closeSidebar}
+            onToggle={toggleSidebar}
+          />
+        )
       )}
 
       {/* Main Content Area */}
@@ -90,7 +99,7 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
               <IconMenu2 className="h-6 w-6" />
             </button>
             <span className="ml-3 font-semibold text-text-100">
-              Leadsnipper
+              {isSocialRoute ? "SocialSniper" : "Leadsnipper"}
             </span>
           </div>
         )}

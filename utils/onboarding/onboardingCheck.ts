@@ -1,4 +1,5 @@
 import { getCurrentUser } from '@/utils/api/authClient';
+import { getMemoryOnboardingStatus, getSocialAccess } from "@/utils/api/socialClient";
 
 export interface OnboardingStatus {
   isCompleted: boolean;
@@ -144,6 +145,31 @@ export const protectRoute = async (
 
   // If onboarding is completed, allow access
   if (status.isCompleted) {
+    if (pathname.startsWith("/social")) {
+      const socialAllowedWhileLocked = [
+        "/social/memory/onboarding",
+        "/social/linkedin/callback",
+      ];
+      const isAllowed = socialAllowedWhileLocked.some(
+        (path) => pathname === path || pathname.startsWith(path + "/")
+      );
+      if (!isAllowed) {
+        try {
+          await getSocialAccess();
+          const socialStatus = await getMemoryOnboardingStatus();
+          if (!socialStatus?.isComplete) {
+            return {
+              isCompleted: false,
+              currentStep: status.currentStep,
+              shouldRedirect: true,
+              redirectPath: "/social/memory/onboarding",
+            };
+          }
+        } catch (error) {
+          console.error("Error checking social memory onboarding:", error);
+        }
+      }
+    }
     return null;
   }
 

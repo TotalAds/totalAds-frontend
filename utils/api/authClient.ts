@@ -35,6 +35,11 @@ export interface UserProfile {
   userType?: "regular" | "admin";
   phoneVerified?: boolean | null;
   sesProvider?: "leadsnipper_managed" | "custom" | null;
+  socialServiceEnabled?: boolean;
+  socialDesktopAgentEnabled?: boolean;
+  socialLinkedinConnected?: boolean;
+  socialCommentsApprovalMode?: boolean;
+  socialLinkedinExternalUrl?: string | null;
   // Early signup bonus (formerly founding member)
   foundingMember?: boolean; // Kept for backward compatibility
   foundingTierLockedPrice?: number; // Kept for backward compatibility
