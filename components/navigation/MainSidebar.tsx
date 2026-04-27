@@ -133,19 +133,19 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
         icon: <IconWorld className="w-5 h-5" />,
       },
     ];
-    if (user?.userType === "admin") {
-      emailItems.push({
-        name: "AI Knowledge",
-        href: "/email/admin/knowledge",
-        icon: <IconBrain className="w-5 h-5" />,
-        badge: "Admin",
-        badgeColor: "blue",
-      });
-    }
+    // if (user?.userType === "admin") {
+    //   emailItems.push({
+    //     name: "AI Knowledge",
+    //     href: "/email/admin/knowledge",
+    //     icon: <IconBrain className="w-5 h-5" />,
+    //     badge: "Admin",
+    //     badgeColor: "blue",
+    //   });
+    // }
     if (user?.socialLinkedinConnected) {
       emailItems.push({
         name: "LinkedIn",
-        href: linkedinExternalUrl,
+        href: "/social/dashboard",
         icon: <IconBrandLinkedin className="w-5 h-5" />,
         badge: "LIVE",
         badgeColor: "green",

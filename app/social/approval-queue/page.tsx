@@ -29,6 +29,7 @@ import {
 	SocialPostRun,
 	updatePostDraft,
 } from "@/utils/api/socialClient";
+import { formatSocialDateTime } from "@/utils/socialDate";
 import {
 	IconBolt,
 	IconCalendarPlus,
@@ -350,6 +351,14 @@ export default function SocialApprovalQueuePage() {
 	);
 }
 
+function hasCompletedScheduling(post: SocialPostRun) {
+	return post.status === "scheduled" || !!post.scheduledFor;
+}
+
+function hasCompletedApproval(post: SocialPostRun) {
+	return post.status === "approved" || !!post.approvedAt || hasCompletedScheduling(post);
+}
+
 function Bucket({
 	title,
 	description,
@@ -400,6 +409,19 @@ function QueueItem({
 	onEdit: () => void;
 	onSchedulePicker: () => void;
 }) {
+	const approvalDone = hasCompletedApproval(post);
+	const scheduleDone = hasCompletedScheduling(post);
+	const terminal =
+		post.status === "published" ||
+		post.status === "publishing" ||
+		post.status === "rejected" ||
+		post.status === "cancelled";
+	const canApprove = !approvalDone && !terminal;
+	const canSchedule = !scheduleDone && !terminal;
+	const canPublishNow = !scheduleDone && !terminal && post.status !== "approved";
+	const canEdit = !approvalDone && !terminal;
+	const canReject = !approvalDone && !terminal;
+
 	return (
 		<SurfaceCard>
 			<div className="flex flex-col gap-4 lg:flex-row">
@@ -417,12 +439,18 @@ function QueueItem({
 									},
 									{
 										label: "Created",
-										value: new Date(post.createdAt).toLocaleString(),
+										value: formatSocialDateTime(post.createdAt),
 									},
 									post.scheduledFor
 										? {
 												label: "Scheduled",
-												value: new Date(post.scheduledFor).toLocaleString(),
+												value: formatSocialDateTime(post.scheduledFor),
+											}
+										: null,
+									post.approvedAt
+										? {
+												label: "Approved",
+												value: formatSocialDateTime(post.approvedAt),
 											}
 										: null,
 									post.userEditedBody
@@ -446,26 +474,50 @@ function QueueItem({
 
 				<div className="shrink-0 lg:w-52">
 					<div className="flex flex-wrap gap-2 lg:flex-col">
-						<PrimaryButton onClick={onApproveSchedule} disabled={busy}>
-							<IconCheck className="h-4 w-4" />
-							Approve
-						</PrimaryButton>
-						<SecondaryButton onClick={onSchedulePicker} disabled={busy}>
-							<IconCalendarPlus className="h-4 w-4" />
-							Schedule at…
-						</SecondaryButton>
-						<SecondaryButton onClick={onApproveNow} disabled={busy}>
-							<IconBolt className="h-4 w-4" />
-							Publish now
-						</SecondaryButton>
-						<SecondaryButton onClick={onEdit} disabled={busy}>
-							<IconEdit className="h-4 w-4" />
-							Edit draft
-						</SecondaryButton>
-						<DangerButton onClick={onReject} disabled={busy}>
-							<IconX className="h-4 w-4" />
-							Reject
-						</DangerButton>
+						{approvalDone && (
+							<QueueStatusNotice
+								title={
+									scheduleDone ? "Already scheduled" : "Already approved"
+								}
+								description={
+									scheduleDone
+										? `Scheduled for ${formatSocialDateTime(post.scheduledFor)}.`
+										: post.approvedAt
+											? `Approved on ${formatSocialDateTime(post.approvedAt)}.`
+											: "Approval is complete."
+								}
+							/>
+						)}
+						{canApprove && (
+							<PrimaryButton onClick={onApproveSchedule} disabled={busy}>
+								<IconCheck className="h-4 w-4" />
+								Approve
+							</PrimaryButton>
+						)}
+						{canSchedule && (
+							<SecondaryButton onClick={onSchedulePicker} disabled={busy}>
+								<IconCalendarPlus className="h-4 w-4" />
+								Schedule at…
+							</SecondaryButton>
+						)}
+						{canPublishNow && (
+							<SecondaryButton onClick={onApproveNow} disabled={busy}>
+								<IconBolt className="h-4 w-4" />
+								Publish now
+							</SecondaryButton>
+						)}
+						{canEdit && (
+							<SecondaryButton onClick={onEdit} disabled={busy}>
+								<IconEdit className="h-4 w-4" />
+								Edit draft
+							</SecondaryButton>
+						)}
+						{canReject && (
+							<DangerButton onClick={onReject} disabled={busy}>
+								<IconX className="h-4 w-4" />
+								Reject
+							</DangerButton>
+						)}
 						<Link href={`/social/posts/${post.id}`}>
 							<SecondaryButton className="w-full">
 								Open post →
@@ -475,6 +527,23 @@ function QueueItem({
 				</div>
 			</div>
 		</SurfaceCard>
+	);
+}
+
+function QueueStatusNotice({
+	title,
+	description,
+}: {
+	title: string;
+	description: string;
+}) {
+	return (
+		<div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+			<p className="text-xs font-semibold text-emerald-800">{title}</p>
+			<p className="mt-0.5 text-xs leading-relaxed text-emerald-700">
+				{description}
+			</p>
+		</div>
 	);
 }
 

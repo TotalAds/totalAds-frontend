@@ -34,6 +34,15 @@ import {
 	IconSparkles,
 } from "@tabler/icons-react";
 
+type TextBriefField =
+	| "topic"
+	| "angle"
+	| "audience"
+	| "proofPoint"
+	| "cta"
+	| "seriesName"
+	| "extraInstructions";
+
 export default function SocialPostStudioPage() {
 	const [form, setForm] = useState({
 		topic: "",
@@ -43,6 +52,8 @@ export default function SocialPostStudioPage() {
 		cta: "",
 		seriesName: "",
 		extraInstructions: "",
+		createImage: false,
+		createCarousel: false,
 	});
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [latestRun, setLatestRun] = useState<AgentRunOutput | null>(null);
@@ -67,7 +78,11 @@ export default function SocialPostStudioPage() {
 		loadDrafts();
 	}, []);
 
-	const set = (field: keyof typeof form, value: string) => {
+	const set = (field: TextBriefField, value: string) => {
+		setForm((prev) => ({ ...prev, [field]: value }));
+	};
+
+	const setMedia = (field: "createImage" | "createCarousel", value: boolean) => {
 		setForm((prev) => ({ ...prev, [field]: value }));
 	};
 
@@ -87,6 +102,8 @@ export default function SocialPostStudioPage() {
 				cta: form.cta || undefined,
 				seriesName: form.seriesName || undefined,
 				extraInstructions: form.extraInstructions || undefined,
+				createImage: form.createImage,
+				createCarousel: form.createCarousel,
 			});
 			setLatestRun(run);
 			toast.success("Draft generated");
@@ -213,6 +230,30 @@ export default function SocialPostStudioPage() {
 							onChange={(v) => set("extraInstructions", v)}
 							placeholder="Anything else the agent should bear in mind — tone, references, forbidden words."
 						/>
+						<div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+							<div className="mb-3">
+								<p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+									Creative assets
+								</p>
+								<p className="mt-1 text-xs text-slate-500">
+									Optional. Create media while this draft is being generated.
+								</p>
+							</div>
+							<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+								<MediaOption
+									title="Create LinkedIn image"
+									description="Generate a professional feed image with the draft."
+									checked={form.createImage}
+									onChange={(checked) => setMedia("createImage", checked)}
+								/>
+								<MediaOption
+									title="Create carousel"
+									description="Prepare a carousel deck asset for this draft."
+									checked={form.createCarousel}
+									onChange={(checked) => setMedia("createCarousel", checked)}
+								/>
+							</div>
+						</div>
 					</div>
 					<div className="mt-5 flex flex-wrap items-center gap-2">
 						<PrimaryButton onClick={onGenerate} disabled={isGenerating}>
@@ -403,6 +444,41 @@ function Field({
 	);
 }
 
+function MediaOption({
+	title,
+	description,
+	checked,
+	onChange,
+}: {
+	title: string;
+	description: string;
+	checked: boolean;
+	onChange: (checked: boolean) => void;
+}) {
+	return (
+		<label
+			className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${
+				checked
+					? "border-blue-300 bg-blue-50 ring-2 ring-blue-100"
+					: "border-slate-200 bg-white hover:border-blue-200"
+			}`}
+		>
+			<input
+				type="checkbox"
+				checked={checked}
+				onChange={(event) => onChange(event.target.checked)}
+				className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+			/>
+			<span>
+				<span className="block text-sm font-semibold text-slate-800">{title}</span>
+				<span className="mt-1 block text-xs leading-relaxed text-slate-500">
+					{description}
+				</span>
+			</span>
+		</label>
+	);
+}
+
 function ChecklistItem({ href, label }: { href: string; label: string }) {
 	return (
 		<li>
@@ -431,6 +507,8 @@ function LatestRunPanel({
 	onReject: () => void;
 }) {
 	const { draft, approvalChannel, memoryUsed, status } = run;
+	const approvalDone = status === "approved";
+	const terminal = status === "approved" || status === "failed";
 	return (
 		<div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
 			<SurfaceCard className="lg:col-span-3">
@@ -445,18 +523,46 @@ function LatestRunPanel({
 						Why this will work: {draft.rationale}
 					</p>
 				)}
+				{run.mediaAssets && run.mediaAssets.length > 0 && (
+					<div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-3">
+						<p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+							Media created with this draft
+						</p>
+						<div className="mt-2 flex flex-wrap gap-2">
+							{run.mediaAssets.map((asset) => (
+								<span
+									key={asset.id}
+									className="rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-700"
+								>
+									{asset.assetType === "single_image" ? "Image" : "Carousel"} ·{" "}
+									{asset.status}
+								</span>
+							))}
+						</div>
+					</div>
+				)}
 
 				<div className="mt-5 flex flex-wrap gap-2">
-					<PrimaryButton onClick={onApproveSchedule} disabled={busy}>
-						<IconBrandLinkedin className="h-4 w-4" />
-						Approve · schedule
-					</PrimaryButton>
-					<SecondaryButton onClick={onApproveNow} disabled={busy}>
-						Publish now
-					</SecondaryButton>
-					<SecondaryButton onClick={onReject} disabled={busy}>
-						Reject
-					</SecondaryButton>
+					{approvalDone && (
+						<div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+							This draft is already approved. Check the approval queue or calendar for
+							the scheduled publish time.
+						</div>
+					)}
+					{!terminal && (
+						<>
+							<PrimaryButton onClick={onApproveSchedule} disabled={busy}>
+								<IconBrandLinkedin className="h-4 w-4" />
+								Approve · schedule
+							</PrimaryButton>
+							<SecondaryButton onClick={onApproveNow} disabled={busy}>
+								Publish now
+							</SecondaryButton>
+							<SecondaryButton onClick={onReject} disabled={busy}>
+								Reject
+							</SecondaryButton>
+						</>
+					)}
 					<Link href={`/social/posts/${run.postRunId}`}>
 						<SecondaryButton>Open post →</SecondaryButton>
 					</Link>

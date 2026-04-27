@@ -10,7 +10,6 @@ import {
 	DangerButton,
 	InlineAlert,
 	LoadingCardGrid,
-	MetaRow,
 	PageHeader,
 	PageShell,
 	PrimaryButton,
@@ -29,9 +28,9 @@ import {
 	schedulePost,
 	SocialEvent,
 	SocialPostRun,
-	PerformanceSnapshot,
 	updatePostDraft,
 } from "@/utils/api/socialClient";
+import { formatSocialDateTime } from "@/utils/socialDate";
 import {
 	IconArrowLeft,
 	IconBolt,
@@ -50,7 +49,6 @@ export default function SocialPostDetailPage() {
 
 	const [loading, setLoading] = useState(true);
 	const [post, setPost] = useState<SocialPostRun | null>(null);
-	const [snapshots, setSnapshots] = useState<PerformanceSnapshot[]>([]);
 	const [events, setEvents] = useState<SocialEvent[]>([]);
 	const [editing, setEditing] = useState(false);
 	const [body, setBody] = useState("");
@@ -63,7 +61,6 @@ export default function SocialPostDetailPage() {
 			const data = await getPost(id);
 			setPost(data.post);
 			setBody(data.post.contentBody);
-			setSnapshots(data.snapshots);
 			const ev = await listEntityEvents("post", id);
 			setEvents(ev);
 		} catch (err) {
@@ -168,7 +165,19 @@ export default function SocialPostDetailPage() {
 		}
 	};
 
-	const latestSnapshot = snapshots[0];
+	const isPublished = post?.status === "published";
+	const isPublishing = post?.status === "publishing";
+	const isScheduled = post?.status === "scheduled" || !!post?.scheduledFor;
+	const isRejected = post?.status === "rejected" || post?.status === "cancelled";
+	const isApproved = post?.status === "approved" || !!post?.approvedAt || isScheduled;
+	const canTakeDraftAction =
+		!!post &&
+		!isPublished &&
+		!isPublishing &&
+		!isScheduled &&
+		!isRejected &&
+		post.status !== "approved";
+	const canSchedule = !!post && !isScheduled && !isPublished && !isRejected;
 
 	return (
 		<PageShell>
@@ -181,9 +190,9 @@ export default function SocialPostDetailPage() {
 				title={post?.hookText || post?.topic || `Post #${id}`}
 				description={
 					post?.publishedAt
-						? `Published ${new Date(post.publishedAt).toLocaleString()}`
+						? `Published ${formatSocialDateTime(post.publishedAt)}`
 						: post?.scheduledFor
-							? `Scheduled for ${new Date(post.scheduledFor).toLocaleString()}`
+							? `Scheduled for ${formatSocialDateTime(post.scheduledFor)}`
 							: "Draft"
 				}
 				actions={
@@ -252,7 +261,7 @@ export default function SocialPostDetailPage() {
 										hashtags={post.hashtags || undefined}
 									/>
 									<div className="mt-4 flex flex-wrap gap-2">
-										{post.status !== "published" && (
+										{canTakeDraftAction && (
 											<>
 												<PrimaryButton
 													onClick={() => approve(false)}
@@ -274,6 +283,22 @@ export default function SocialPostDetailPage() {
 												</SecondaryButton>
 											</>
 										)}
+										{isApproved && !isPublished && (
+											<StatusNotice
+												title={
+													isScheduled
+														? "Scheduling is already done"
+														: "Approval is already done"
+												}
+												description={
+													isScheduled
+														? `This post is scheduled for ${formatSocialDateTime(post.scheduledFor)}.`
+														: post.approvedAt
+															? `Approved on ${formatSocialDateTime(post.approvedAt)}.`
+															: "This post has already been approved."
+												}
+											/>
+										)}
 										{post.linkedinPostUrn && (
 											<DangerButton
 												onClick={removeFromLinkedin}
@@ -283,7 +308,7 @@ export default function SocialPostDetailPage() {
 												Delete from LinkedIn
 											</DangerButton>
 										)}
-										{post.status !== "published" && post.status !== "rejected" && (
+										{canTakeDraftAction && (
 											<DangerButton onClick={reject} disabled={busy}>
 												<IconX className="h-4 w-4" />
 												Reject
@@ -306,36 +331,37 @@ export default function SocialPostDetailPage() {
 						</SurfaceCard>
 
 						<div className="space-y-5 lg:col-span-2">
-							<SurfaceCard>
-								<SectionTitle title="Schedule" />
-								{post.scheduledFor ? (
-									<MetaRow
-										items={[
-											{
-												label: "At",
-												value: new Date(post.scheduledFor).toLocaleString(),
-											},
-										]}
+							{post.scheduledFor && (
+								<SurfaceCard>
+									<SectionTitle title="Schedule" />
+									<StatusNotice
+										title="Already scheduled"
+										description={`This post will publish on ${formatSocialDateTime(post.scheduledFor)}.`}
 									/>
-								) : (
+								</SurfaceCard>
+							)}
+
+							{canSchedule && (
+								<SurfaceCard>
+									<SectionTitle title="Schedule" />
 									<p className="text-xs text-slate-500">Not scheduled.</p>
-								)}
-								<div className="mt-3 flex flex-wrap items-center gap-2">
-									<input
-										type="datetime-local"
-										value={pickerValue}
-										onChange={(e) => setPickerValue(e.target.value)}
-										className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-									/>
-									<PrimaryButton
-										onClick={scheduleAt}
-										disabled={busy || !pickerValue}
-									>
-										<IconClock className="h-4 w-4" />
-										Save
-									</PrimaryButton>
-								</div>
-							</SurfaceCard>
+									<div className="mt-3 flex flex-wrap items-center gap-2">
+										<input
+											type="datetime-local"
+											value={pickerValue}
+											onChange={(e) => setPickerValue(e.target.value)}
+											className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+										/>
+										<PrimaryButton
+											onClick={scheduleAt}
+											disabled={busy || !pickerValue}
+										>
+											<IconClock className="h-4 w-4" />
+											Save
+										</PrimaryButton>
+									</div>
+								</SurfaceCard>
+							)}
 
 							<SurfaceCard>
 								<SectionTitle title="LinkedIn" />
@@ -344,7 +370,7 @@ export default function SocialPostDetailPage() {
 										<p className="text-sm text-slate-700">
 											Published{" "}
 											{post.publishedAt
-												? new Date(post.publishedAt).toLocaleString()
+												? formatSocialDateTime(post.publishedAt)
 												: ""}
 										</p>
 										<p className="mt-2 break-all text-xs text-slate-500">
@@ -366,49 +392,17 @@ export default function SocialPostDetailPage() {
 							</SurfaceCard>
 
 							<SurfaceCard>
-								<SectionTitle title="Engagement" />
-								{!post.linkedinPostUrn ? (
-									<p className="text-sm text-slate-500">
-										Engagement will appear after publishing.
+								<SectionTitle
+									title="Engagement metrics"
+									description="LinkedIn requires additional access for member post engagement metrics."
+								/>
+								<div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center">
+									<p className="text-sm font-semibold text-slate-800">Coming soon</p>
+									<p className="mt-1 text-xs leading-relaxed text-slate-500">
+										Snapshots and engagement metrics will be enabled once the LinkedIn
+										engagement API access is approved.
 									</p>
-								) : snapshots.length === 0 ? (
-									<p className="text-sm text-slate-500">
-										Waiting on the first snapshot (taken hourly).
-									</p>
-								) : (
-									<>
-										{latestSnapshot && (
-											<div className="grid grid-cols-3 gap-2 text-center">
-												<SnapshotStat label="Likes" value={latestSnapshot.likes} />
-												<SnapshotStat
-													label="Comments"
-													value={latestSnapshot.comments}
-												/>
-												<SnapshotStat
-													label="Reposts"
-													value={latestSnapshot.reposts}
-												/>
-											</div>
-										)}
-										<div className="mt-4 space-y-1 text-xs text-slate-500">
-											<p className="font-semibold text-slate-600">
-												Snapshot history
-											</p>
-											{snapshots.map((s) => (
-												<div
-													key={s.id}
-													className="flex items-center justify-between rounded-md border border-slate-100 px-2 py-1"
-												>
-													<span>+{s.snapshotHour}h</span>
-													<span>
-														{s.likes} likes · {s.comments} comments ·{" "}
-														{s.reposts} reposts
-													</span>
-												</div>
-											))}
-										</div>
-									</>
-								)}
+								</div>
 							</SurfaceCard>
 						</div>
 					</div>
@@ -469,7 +463,7 @@ export default function SocialPostDetailPage() {
 													<StatusPill tone="neutral" label={event.actor} />
 												</div>
 												<p className="text-xs text-slate-500">
-													{new Date(event.occurredAt).toLocaleString()}
+													{formatSocialDateTime(event.occurredAt)}
 												</p>
 											</div>
 										</li>
@@ -481,23 +475,6 @@ export default function SocialPostDetailPage() {
 				</>
 			)}
 		</PageShell>
-	);
-}
-
-function SnapshotStat({
-	label,
-	value,
-}: {
-	label: string;
-	value: number;
-}) {
-	return (
-		<div className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-3">
-			<p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-				{label}
-			</p>
-			<p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
-		</div>
 	);
 }
 
@@ -534,6 +511,23 @@ function MemorySnapshotBlock({
 					</li>
 				))}
 			</ul>
+		</div>
+	);
+}
+
+function StatusNotice({
+	title,
+	description,
+}: {
+	title: string;
+	description: string;
+}) {
+	return (
+		<div className="inline-flex max-w-full flex-col rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-left">
+			<span className="text-xs font-semibold text-emerald-800">{title}</span>
+			<span className="mt-0.5 text-xs leading-relaxed text-emerald-700">
+				{description}
+			</span>
 		</div>
 	);
 }

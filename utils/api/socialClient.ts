@@ -155,6 +155,13 @@ export interface AgentRunOutput {
 		workKeyCount: number;
 		learningRuleCount: number;
 	};
+	mediaAssets?: Array<{
+		id: number;
+		assetType: "single_image" | "carousel_pdf";
+		provider: string;
+		publicUrl: string | null;
+		status: "pending" | "processing" | "ready" | "failed";
+	}>;
 }
 
 export interface SocialPostRun {
@@ -188,6 +195,140 @@ export interface SocialPostRun {
 	learningRulesApplied: number[] | null;
 	createdAt: string;
 	updatedAt: string;
+}
+
+export type LinkedinCalendarDurationDays = 1 | 7 | 15 | 30;
+export type LinkedinCalendarFocus =
+	| "awareness"
+	| "authority"
+	| "conversion"
+	| "balanced";
+
+export interface GenerateLinkedinCalendarInput {
+	chatId?: string;
+	durationDays: LinkedinCalendarDurationDays;
+	startDate?: string;
+	postsPerWeek?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+	focus?: LinkedinCalendarFocus;
+	brief?: string;
+	audience?: string;
+	proofPoint?: string;
+	cta?: string;
+	approvalBehavior?: "draft" | "review";
+	userPrompt?: string;
+	selectedFramework?: string;
+	answers?: Record<string, string>;
+	approvedArchitecture?: Record<string, unknown>;
+	attachments?: CopilotAttachment[];
+	mediaMode?: "none" | "image" | "carousel" | "auto";
+	imageStyle?: "professional" | "classic" | "modern" | "minimal" | "bold";
+	aspectRatio?: "1:1" | "16:9" | "4:5";
+	messages?: Array<{ role: "user" | "assistant"; content: string; createdAt?: string }>;
+	selectedFrameworkId?: string | null;
+	briefSnapshot?: CopilotBriefResponse | null;
+}
+
+export interface CopilotAttachment {
+	name: string;
+	type?: string;
+	description?: string;
+	url?: string;
+}
+
+export interface CopilotBriefResponse {
+	chatId?: string;
+	session?: CopilotSessionSnapshot;
+	reply: string;
+	intent: {
+		durationDays: LinkedinCalendarDurationDays;
+		postsPerWeek: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+		focus: LinkedinCalendarFocus;
+		mediaMode: "none" | "image" | "carousel" | "auto";
+	};
+	recommendedFrameworks: Array<{
+		id: string;
+		label: string;
+		reason: string;
+		durationDays: LinkedinCalendarDurationDays;
+		postsPerWeek: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+		focus: LinkedinCalendarFocus;
+		mediaMode: "none" | "image" | "carousel" | "auto";
+	}>;
+	questions: string[];
+	architecture: {
+		title: string;
+		summary: string;
+		days: Array<{
+			day: number;
+			theme: string;
+			framework: string;
+			kltStage: "Know" | "Like" | "Trust";
+			creativeDirection: string;
+			mediaSuggestion: "none" | "image" | "carousel";
+		}>;
+	};
+	canGenerate: boolean;
+	memoryUsed: {
+		profileKeyCount: number;
+		workKeyCount: number;
+		learningRuleCount: number;
+	};
+}
+
+export interface CopilotSessionSnapshot {
+	chatId: string;
+	title: string;
+	status: "drafting" | "briefed" | "generated";
+	messages: Array<{ role: "user" | "assistant"; content: string; createdAt?: string }>;
+	attachments: CopilotAttachment[];
+	brief: CopilotBriefResponse | null;
+	selectedFrameworkId: string | null;
+	answers: Record<string, string>;
+	calendar: GeneratedLinkedinCalendar | null;
+	updatedAt: string;
+}
+
+export interface GeneratedLinkedinCalendarPost {
+	calendarPlanId: number;
+	postRunId: number;
+	date: string;
+	scheduledFor: string;
+	kltStage: "Know" | "Like" | "Trust";
+	pillar: string;
+	format: string;
+	hookType: string;
+	hook: string;
+	topic: string;
+	angle: string;
+	postBody: string;
+	hashtags: string[];
+	ctaType: string;
+	notes: string;
+	status: "draft" | "in_review";
+	mediaAssets?: Array<{
+		id: number;
+		assetType: string;
+		publicUrl: string | null;
+		status: string;
+	}>;
+}
+
+export interface GeneratedLinkedinCalendar {
+	calendarBatchId: string;
+	durationDays: LinkedinCalendarDurationDays;
+	totalPosts: number;
+	startDate: string;
+	posts: GeneratedLinkedinCalendarPost[];
+	kltDistribution: {
+		know: number;
+		like: number;
+		trust: number;
+	};
+	memoryUsed: {
+		profileKeyCount: number;
+		workKeyCount: number;
+		learningRuleCount: number;
+	};
 }
 
 export interface PerformanceSnapshot {
@@ -297,6 +438,21 @@ export interface AccountPreferences {
 	similarityThreshold: number;
 }
 
+export interface SocialMediaAsset {
+	id: number;
+	userId: number;
+	postRunId: number | null;
+	assetType: "single_image" | "carousel_pdf";
+	provider: string;
+	providerAssetId: string | null;
+	sourcePrompt: string | null;
+	publicUrl: string | null;
+	status: "pending" | "processing" | "ready" | "failed";
+	failureReason: string | null;
+	createdAt: string;
+	updatedAt: string;
+}
+
 // -----------------------------------------------------------------------
 // Access / session (via totalads-api apiClient)
 // -----------------------------------------------------------------------
@@ -396,6 +552,8 @@ export const runAgent = async (input: {
 	extraInstructions?: string;
 	scheduledFor?: string;
 	campaignId?: number | null;
+	createImage?: boolean;
+	createCarousel?: boolean;
 }): Promise<AgentRunOutput> => {
 	const response = await socialClient.post("/api/v1/agent/run", input);
 	return response.data?.data;
@@ -535,8 +693,53 @@ export const getMorningBriefing = async () => {
 };
 
 export const generateSevenDayCalendar = async () => {
-	const response = await socialClient.post("/api/v1/calendar/generate");
-	return response.data?.data as { created: number; ids: number[] };
+	const response = await socialClient.post("/api/v1/calendar/generate", {
+		durationDays: 7,
+	});
+	return response.data?.data as GeneratedLinkedinCalendar;
+};
+
+export const listCopilotSessions = async (): Promise<CopilotSessionSnapshot[]> => {
+	const response = await socialClient.get("/api/v1/calendar/copilot/sessions", {
+		params: { t: Date.now() },
+	});
+	return response.data?.data || [];
+};
+
+export const getCopilotSession = async (
+	chatId: string
+): Promise<CopilotSessionSnapshot> => {
+	const response = await socialClient.get(
+		`/api/v1/calendar/copilot/sessions/${chatId}`
+	);
+	return response.data?.data;
+};
+
+export const saveCopilotSession = async (input: Partial<CopilotSessionSnapshot> & {
+	messages: CopilotSessionSnapshot["messages"];
+}): Promise<CopilotSessionSnapshot> => {
+	const response = await socialClient.post(
+		"/api/v1/calendar/copilot/sessions",
+		input
+	);
+	return response.data?.data;
+};
+
+export const briefLinkedinCopilot = async (input: {
+	chatId?: string;
+	prompt: string;
+	conversation?: Array<{ role: "user" | "assistant"; content: string }>;
+	attachments?: CopilotAttachment[];
+}): Promise<CopilotBriefResponse> => {
+	const response = await socialClient.post("/api/v1/calendar/copilot/brief", input);
+	return response.data?.data;
+};
+
+export const generateLinkedinCalendar = async (
+	input: GenerateLinkedinCalendarInput
+): Promise<GeneratedLinkedinCalendar> => {
+	const response = await socialClient.post("/api/v1/calendar/generate", input);
+	return response.data?.data;
 };
 
 export const getUpcomingCalendarPlan = async () => {
@@ -546,7 +749,11 @@ export const getUpcomingCalendarPlan = async () => {
 
 export const generateSocialImage = async (payload: {
 	postRunId?: number;
-	prompt: string;
+	prompt?: string;
+	imageStyle?: "professional" | "classic" | "modern" | "minimal" | "bold";
+	aspectRatio?: "1:1" | "16:9" | "4:5";
+	autoPrompt?: boolean;
+	provider?: "nano_banana" | "bannerbear";
 }) => {
 	const response = await socialClient.post("/api/v1/media/image", payload);
 	return response.data?.data;
@@ -562,7 +769,12 @@ export const generateSocialCarousel = async (payload: {
 
 export const listMediaAssets = async () => {
 	const response = await socialClient.get("/api/v1/media/assets");
-	return response.data?.data || [];
+	return (response.data?.data || []) as SocialMediaAsset[];
+};
+
+export const listPostMediaAssets = async (postRunId: number) => {
+	const response = await socialClient.get(`/api/v1/media/assets/${postRunId}`);
+	return (response.data?.data || []) as SocialMediaAsset[];
 };
 
 // -----------------------------------------------------------------------

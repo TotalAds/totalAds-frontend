@@ -95,13 +95,13 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
+          {/* <button
             onClick={onEditCampaign}
             disabled={!onEditCampaign}
             className="px-4 py-2 text-xs font-medium bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-60"
           >
             Edit {mode === 'sequence' ? 'sequence' : 'email'}
-          </button>
+          </button> */}
           {!isCancelled && onStopCampaign && (
             <button
               onClick={onStopCampaign}

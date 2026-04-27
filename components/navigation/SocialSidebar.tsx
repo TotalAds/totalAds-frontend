@@ -52,6 +52,11 @@ const buildSections = (): Array<{ label: string; items: NavItem[] }> => [
 				icon: IconPencilPlus,
 			},
 			{
+				name: "Copilot",
+				href: "/social/copilot",
+				icon: IconSparkles,
+			},
+			{
 				name: "Approvals",
 				href: "/social/approval-queue",
 				icon: IconInbox,

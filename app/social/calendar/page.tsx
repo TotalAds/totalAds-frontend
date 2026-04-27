@@ -6,14 +6,11 @@ import toast from "react-hot-toast";
 
 import {
 	EmptyState,
-	InlineAlert,
 	LoadingCardGrid,
-	MetaRow,
 	PageHeader,
 	PageShell,
 	PrimaryButton,
 	SecondaryButton,
-	SectionTitle,
 	StatusPill,
 	SurfaceCard,
 } from "@/components/social/SocialUi";
@@ -22,13 +19,39 @@ import {
 	runSchedulerNow,
 	SocialPostRun,
 } from "@/utils/api/socialClient";
-import { IconBolt, IconCalendarEvent } from "@tabler/icons-react";
+import {
+	IconBolt,
+	IconCalendarEvent,
+	IconChevronLeft,
+	IconChevronRight,
+	IconRefresh,
+} from "@tabler/icons-react";
+
+type CalendarItem = {
+	post: SocialPostRun;
+	date: Date;
+	kind: "scheduled" | "published";
+};
+
+const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const startOfMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
+const endOfMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+const dateKey = (date: Date) =>
+	`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+		date.getDate()
+	).padStart(2, "0")}`;
+
+const timeLabel = (date: Date) =>
+	date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 export default function SocialCalendarPage() {
 	const [loading, setLoading] = useState(true);
 	const [scheduled, setScheduled] = useState<SocialPostRun[]>([]);
 	const [recent, setRecent] = useState<SocialPostRun[]>([]);
 	const [running, setRunning] = useState(false);
+	const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
 
 	const load = async () => {
 		try {
@@ -51,9 +74,7 @@ export default function SocialCalendarPage() {
 		try {
 			setRunning(true);
 			const result = await runSchedulerNow();
-			toast.success(
-				`Published ${result.published} · failed ${result.failed}`
-			);
+			toast.success(`Published ${result.published} · failed ${result.failed}`);
 			await load();
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : "Run failed");
@@ -62,19 +83,63 @@ export default function SocialCalendarPage() {
 		}
 	};
 
-	const groupedScheduled = useMemo(() => groupByDate(scheduled, "scheduledFor"), [scheduled]);
+	const itemsByDate = useMemo(() => {
+		const map = new Map<string, CalendarItem[]>();
+		const push = (item: CalendarItem) => {
+			const key = dateKey(item.date);
+			map.set(key, [...(map.get(key) || []), item]);
+		};
+		for (const post of scheduled) {
+			if (!post.scheduledFor) continue;
+			push({ post, date: new Date(post.scheduledFor), kind: "scheduled" });
+		}
+		for (const post of recent) {
+			if (!post.publishedAt) continue;
+			push({ post, date: new Date(post.publishedAt), kind: "published" });
+		}
+		for (const [key, value] of map.entries()) {
+			map.set(
+				key,
+				value.sort((a, b) => a.date.getTime() - b.date.getTime())
+			);
+		}
+		return map;
+	}, [recent, scheduled]);
+
+	const monthCells = useMemo(() => {
+		const first = startOfMonth(currentMonth);
+		const last = endOfMonth(currentMonth);
+		const cells: Date[] = [];
+		const cursor = new Date(first);
+		cursor.setDate(cursor.getDate() - cursor.getDay());
+		while (cursor <= last || cursor.getDay() !== 0) {
+			cells.push(new Date(cursor));
+			cursor.setDate(cursor.getDate() + 1);
+		}
+		return cells;
+	}, [currentMonth]);
+
+	const monthLabel = currentMonth.toLocaleDateString(undefined, {
+		month: "long",
+		year: "numeric",
+	});
+
+	const upcomingCount = scheduled.filter((post) => post.scheduledFor).length;
 
 	return (
-		<PageShell>
+		<PageShell maxWidth="7xl">
 			<PageHeader
 				eyebrow="Calendar"
-				title="What ships this week"
-				description="Every scheduled post, grouped by day, plus the last things the agent shipped."
+				title="LinkedIn publishing calendar"
+				description="A Google Calendar style month view for scheduled and recently published posts. Click any post to open its detail page."
 				actions={
 					<>
-						<SecondaryButton onClick={load}>Refresh</SecondaryButton>
+						<SecondaryButton onClick={load}>
+							<IconRefresh className="h-4 w-4" />
+							Refresh
+						</SecondaryButton>
 						<PrimaryButton onClick={runScheduler} disabled={running}>
-							{running ? "Running…" : "Run scheduler now"}
+							{running ? "Running..." : "Run scheduler now"}
 						</PrimaryButton>
 					</>
 				}
@@ -83,139 +148,140 @@ export default function SocialCalendarPage() {
 			{loading ? (
 				<LoadingCardGrid cards={3} />
 			) : (
-				<>
-					<SurfaceCard>
-						<SectionTitle
-							title="Scheduled"
-							description="Approved posts waiting for their publish time."
-						/>
-						{scheduled.length === 0 ? (
-							<EmptyState
-								icon={<IconCalendarEvent className="h-5 w-5" />}
-								title="Nothing scheduled yet"
-								description="Approve a draft to put it on the calendar."
-								action={
-									<Link href="/social/approval-queue">
-										<PrimaryButton>Open approval queue</PrimaryButton>
-									</Link>
-								}
-							/>
-						) : (
-							<div className="space-y-6">
-								{groupedScheduled.map((group) => (
-									<div key={group.key}>
-										<p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-											{group.label}
-										</p>
-										<ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
-											{group.items.map((post) => (
-												<li key={post.id}>
-													<Link
-														href={`/social/posts/${post.id}`}
-														className="flex items-start justify-between gap-3 px-4 py-3 transition hover:bg-slate-50"
-													>
-														<div className="min-w-0 flex-1">
-															<p className="line-clamp-1 text-sm font-medium text-slate-800">
-																{post.hookText ||
-																	post.topic ||
-																	post.contentBody.slice(0, 100)}
-															</p>
-															<MetaRow
-																items={[
-																	{
-																		label: "At",
-																		value: post.scheduledFor
-																			? new Date(
-																					post.scheduledFor
-																				).toLocaleTimeString([], {
-																					hour: "2-digit",
-																					minute: "2-digit",
-																				})
-																			: "—",
-																	},
-																	{
-																		label: "Status",
-																		value: (
-																			<StatusPill status={post.status} />
-																		),
-																	},
-																	post.approvalChannel
-																		? {
-																				label: "Channel",
-																				value: post.approvalChannel,
-																			}
-																		: null,
-																].filter(Boolean) as any}
-															/>
-														</div>
-														<span className="text-slate-400">→</span>
-													</Link>
-												</li>
-											))}
-										</ul>
-									</div>
-								))}
-							</div>
-						)}
-					</SurfaceCard>
-
-					<SurfaceCard>
-						<SectionTitle
-							title="Recently published"
-							description="The last 10 LinkedIn posts the agent shipped on your behalf."
-						/>
-						{recent.length === 0 ? (
-							<p className="text-sm text-slate-500">
-								Nothing published yet. Your first shipped post will appear here.
+				<div className="space-y-5">
+					<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+						<SurfaceCard>
+							<p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+								Upcoming
 							</p>
-						) : (
-							<ul className="divide-y divide-slate-100">
-								{recent.map((post) => (
-									<li key={post.id}>
-										<Link
-											href={`/social/posts/${post.id}`}
-											className="flex items-start justify-between gap-3 py-3 transition hover:bg-slate-50"
-										>
-											<div className="min-w-0 flex-1">
-												<p className="line-clamp-1 text-sm font-medium text-slate-800">
-													{post.hookText ||
-														post.topic ||
-														post.contentBody.slice(0, 100)}
+							<p className="mt-2 text-3xl font-semibold text-slate-950">{upcomingCount}</p>
+							<p className="mt-1 text-xs text-slate-500">Scheduled posts</p>
+						</SurfaceCard>
+						<SurfaceCard>
+							<p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+								Published
+							</p>
+							<p className="mt-2 text-3xl font-semibold text-slate-950">{recent.length}</p>
+							<p className="mt-1 text-xs text-slate-500">Recent posts shown</p>
+						</SurfaceCard>
+						<SurfaceCard>
+							<p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+								Today
+							</p>
+							<p className="mt-2 text-lg font-semibold text-slate-950">
+								{new Date().toLocaleDateString(undefined, {
+									weekday: "long",
+									month: "short",
+									day: "numeric",
+								})}
+							</p>
+							<p className="mt-1 text-xs text-slate-500">Current local date</p>
+						</SurfaceCard>
+					</div>
+
+					<SurfaceCard padded={false} className="overflow-hidden">
+						<div className="flex flex-col gap-3 border-b border-slate-200 bg-white px-4 py-3 md:flex-row md:items-center md:justify-between">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+									<IconCalendarEvent className="h-5 w-5" />
+								</div>
+								<div>
+									<h2 className="text-lg font-semibold text-slate-950">{monthLabel}</h2>
+									<p className="text-xs text-slate-500">
+										Scheduled posts are blue. Published posts are green.
+									</p>
+								</div>
+							</div>
+							<div className="flex items-center gap-2">
+								<SecondaryButton
+									onClick={() =>
+										setCurrentMonth(
+											new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1)
+										)
+									}
+								>
+									<IconChevronLeft className="h-4 w-4" />
+									Prev
+								</SecondaryButton>
+								<SecondaryButton onClick={() => setCurrentMonth(startOfMonth(new Date()))}>
+									Today
+								</SecondaryButton>
+								<SecondaryButton
+									onClick={() =>
+										setCurrentMonth(
+											new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
+										)
+									}
+								>
+									Next
+									<IconChevronRight className="h-4 w-4" />
+								</SecondaryButton>
+							</div>
+						</div>
+
+						<div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+							{weekdays.map((day) => (
+								<div
+									key={day}
+									className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-500"
+								>
+									{day}
+								</div>
+							))}
+						</div>
+
+						<div className="grid grid-cols-1 md:grid-cols-7">
+							{monthCells.map((day) => {
+								const key = dateKey(day);
+								const items = itemsByDate.get(key) || [];
+								const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
+								const isToday = key === dateKey(new Date());
+								return (
+									<div
+										key={key}
+										className={`min-h-[150px] border-b border-r border-slate-100 p-2 ${
+											isCurrentMonth ? "bg-white" : "bg-slate-50/70"
+										}`}
+									>
+										<div className="mb-2 flex items-center justify-between">
+											<span
+												className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
+													isToday
+														? "bg-blue-600 text-white"
+														: isCurrentMonth
+															? "text-slate-700"
+															: "text-slate-400"
+												}`}
+											>
+												{day.getDate()}
+											</span>
+											{items.length > 0 && (
+												<span className="text-[10px] font-medium text-slate-400">
+													{items.length}
+												</span>
+											)}
+										</div>
+										<div className="space-y-1.5">
+											{items.slice(0, 4).map((item) => (
+												<CalendarPostPill key={`${item.kind}-${item.post.id}`} item={item} />
+											))}
+											{items.length > 4 && (
+												<p className="px-1 text-[11px] font-medium text-slate-500">
+													+{items.length - 4} more
 												</p>
-												<MetaRow
-													items={[
-														{
-															label: "Published",
-															value: post.publishedAt
-																? new Date(post.publishedAt).toLocaleString()
-																: "—",
-														},
-														{
-															label: "Status",
-															value: <StatusPill status={post.status} />,
-														},
-														post.linkedinPostUrn
-															? {
-																	label: "URN",
-																	value: post.linkedinPostUrn.slice(-10),
-																}
-															: null,
-													].filter(Boolean) as any}
-												/>
-											</div>
-											<span className="text-slate-400">→</span>
-										</Link>
-									</li>
-								))}
-							</ul>
-						)}
+											)}
+										</div>
+									</div>
+								);
+							})}
+						</div>
 					</SurfaceCard>
 
-					{scheduled.length === 0 && recent.length > 0 && (
-						<InlineAlert
-							tone="info"
-							title="Your posting cadence looks empty"
-							description="No upcoming posts are scheduled. Draft your next piece in Post Studio."
+					{upcomingCount === 0 && recent.length === 0 && (
+						<EmptyState
+							icon={<IconCalendarEvent className="h-5 w-5" />}
+							title="No posts on the calendar yet"
+							description="Generate a draft in Post Studio, approve it, and it will appear here by date."
 							action={
 								<Link href="/social/post-studio">
 									<PrimaryButton>
@@ -226,31 +292,34 @@ export default function SocialCalendarPage() {
 							}
 						/>
 					)}
-				</>
+				</div>
 			)}
 		</PageShell>
 	);
 }
 
-function groupByDate(
-	posts: SocialPostRun[],
-	field: "scheduledFor" | "publishedAt"
-) {
-	const groups = new Map<string, { key: string; label: string; items: SocialPostRun[] }>();
-	for (const post of posts) {
-		const raw = post[field];
-		if (!raw) continue;
-		const date = new Date(raw);
-		const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-		const label = date.toLocaleDateString(undefined, {
-			weekday: "long",
-			month: "short",
-			day: "numeric",
-		});
-		if (!groups.has(key)) {
-			groups.set(key, { key, label, items: [] });
-		}
-		groups.get(key)!.items.push(post);
-	}
-	return Array.from(groups.values()).sort((a, b) => (a.key < b.key ? -1 : 1));
+function CalendarPostPill({ item }: { item: CalendarItem }) {
+	const title =
+		item.post.hookText || item.post.topic || item.post.contentBody.slice(0, 80);
+	const tone = item.kind === "published" ? "positive" : "info";
+	return (
+		<Link
+			href={`/social/posts/${item.post.id}`}
+			className={`block rounded-lg border px-2 py-1.5 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+				item.kind === "published"
+					? "border-emerald-200 bg-emerald-50"
+					: "border-blue-200 bg-blue-50"
+			}`}
+		>
+			<div className="flex items-center justify-between gap-2">
+				<span className="text-[11px] font-semibold text-slate-700">
+					{timeLabel(item.date)}
+				</span>
+				<StatusPill status={item.post.status} tone={tone} />
+			</div>
+			<p className="mt-1 line-clamp-2 text-xs font-medium leading-4 text-slate-800">
+				{title}
+			</p>
+		</Link>
+	);
 }
