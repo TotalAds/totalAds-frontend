@@ -590,9 +590,19 @@ export const getPost = async (
 	return response.data?.data;
 };
 
+export const createManualPost = async (payload: {
+	contentBody: string;
+	topic?: string;
+	hashtags?: string[];
+	mediaUrls?: string[];
+}): Promise<{ postRunId: number }> => {
+	const response = await socialClient.post("/api/v1/posts", payload);
+	return response.data?.data;
+};
+
 export const updatePostDraft = async (
 	id: number,
-	payload: { contentBody: string; hashtags?: string[] }
+	payload: { contentBody: string; hashtags?: string[]; mediaUrls?: string[] }
 ) => {
 	const response = await socialClient.patch(`/api/v1/posts/${id}`, payload);
 	return response.data;
@@ -765,6 +775,16 @@ export const generateSocialCarousel = async (payload: {
 }) => {
 	const response = await socialClient.post("/api/v1/media/carousel", payload);
 	return response.data?.data;
+};
+
+export const uploadSocialEditorImage = async (payload: {
+	postRunId?: number;
+	fileName: string;
+	mimeType: "image/png" | "image/jpeg" | "image/jpg" | "image/webp" | "image/gif";
+	dataBase64: string;
+}) => {
+	const response = await socialClient.post("/api/v1/media/upload", payload);
+	return response.data?.data as SocialMediaAsset;
 };
 
 export const listMediaAssets = async () => {

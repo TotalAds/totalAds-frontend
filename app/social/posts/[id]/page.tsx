@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
+import { LinkedinTextEditor } from "@/components/social/LinkedinTextEditor";
 import { PostPreview } from "@/components/social/PostPreview";
 import {
 	DangerButton,
@@ -22,12 +23,15 @@ import {
 	approvePost,
 	deleteLinkedinPost,
 	getPost,
+	listPostMediaAssets,
 	listEntityEvents,
 	publishPostNow,
 	rejectPost,
 	schedulePost,
 	SocialEvent,
+	SocialMediaAsset,
 	SocialPostRun,
+	uploadSocialEditorImage,
 	updatePostDraft,
 } from "@/utils/api/socialClient";
 import { formatSocialDateTime } from "@/utils/socialDate";
@@ -50,6 +54,7 @@ export default function SocialPostDetailPage() {
 	const [loading, setLoading] = useState(true);
 	const [post, setPost] = useState<SocialPostRun | null>(null);
 	const [events, setEvents] = useState<SocialEvent[]>([]);
+	const [postMediaAssets, setPostMediaAssets] = useState<SocialMediaAsset[]>([]);
 	const [editing, setEditing] = useState(false);
 	const [body, setBody] = useState("");
 	const [busy, setBusy] = useState(false);
@@ -61,8 +66,12 @@ export default function SocialPostDetailPage() {
 			const data = await getPost(id);
 			setPost(data.post);
 			setBody(data.post.contentBody);
-			const ev = await listEntityEvents("post", id);
+			const [ev, media] = await Promise.all([
+				listEntityEvents("post", id),
+				listPostMediaAssets(id),
+			]);
 			setEvents(ev);
+			setPostMediaAssets(media);
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : "Failed to load post");
 		} finally {
@@ -140,8 +149,15 @@ export default function SocialPostDetailPage() {
 		if (!pickerValue) return;
 		try {
 			setBusy(true);
-			await schedulePost(id, new Date(pickerValue).toISOString());
-			toast.success("Scheduled");
+			const response = await schedulePost(id, new Date(pickerValue).toISOString());
+			const payload = response?.data;
+			if (payload?.rescheduled) {
+				toast.success(
+					`Rescheduled to ${formatSocialDateTime(payload.scheduledFor)} (daily limit reached on selected day)`
+				);
+			} else {
+				toast.success("Scheduled");
+			}
 			setPickerValue("");
 			await load();
 		} catch (err) {
@@ -177,7 +193,7 @@ export default function SocialPostDetailPage() {
 		!isScheduled &&
 		!isRejected &&
 		post.status !== "approved";
-	const canSchedule = !!post && !isScheduled && !isPublished && !isRejected;
+	const canSchedule = !!post && !isPublished && !isRejected;
 
 	return (
 		<PageShell>
@@ -234,11 +250,20 @@ export default function SocialPostDetailPage() {
 
 							{editing ? (
 								<>
-									<textarea
+									<LinkedinTextEditor
 										value={body}
-										onChange={(e) => setBody(e.target.value)}
+										onChange={setBody}
 										rows={14}
-										className="w-full whitespace-pre-line rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm text-slate-800 shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+										placeholder="Edit your LinkedIn post..."
+										onUploadImage={async (file) => {
+											const uploaded = await uploadSocialEditorImage({
+												postRunId: id,
+												fileName: file.name || "linkedin-editor-upload",
+												mimeType: file.type as any,
+												dataBase64: await fileToBase64(file),
+											});
+											return uploaded.publicUrl || "";
+										}}
 									/>
 									<div className="mt-4 flex justify-end gap-2">
 										<SecondaryButton
@@ -259,6 +284,8 @@ export default function SocialPostDetailPage() {
 									<PostPreview
 										body={post.contentBody}
 										hashtags={post.hashtags || undefined}
+										mediaUrls={post.mediaUrls || undefined}
+										mediaAssets={postMediaAssets}
 									/>
 									<div className="mt-4 flex flex-wrap gap-2">
 										{canTakeDraftAction && (
@@ -331,20 +358,16 @@ export default function SocialPostDetailPage() {
 						</SurfaceCard>
 
 						<div className="space-y-5 lg:col-span-2">
-							{post.scheduledFor && (
-								<SurfaceCard>
-									<SectionTitle title="Schedule" />
-									<StatusNotice
-										title="Already scheduled"
-										description={`This post will publish on ${formatSocialDateTime(post.scheduledFor)}.`}
-									/>
-								</SurfaceCard>
-							)}
-
 							{canSchedule && (
 								<SurfaceCard>
-									<SectionTitle title="Schedule" />
-									<p className="text-xs text-slate-500">Not scheduled.</p>
+									<SectionTitle
+										title={post.scheduledFor ? "Reschedule" : "Schedule"}
+									/>
+									<p className="text-xs text-slate-500">
+										{post.scheduledFor
+											? `Currently scheduled for ${formatSocialDateTime(post.scheduledFor)}`
+											: "Not scheduled."}
+									</p>
 									<div className="mt-3 flex flex-wrap items-center gap-2">
 										<input
 											type="datetime-local"
@@ -357,7 +380,7 @@ export default function SocialPostDetailPage() {
 											disabled={busy || !pickerValue}
 										>
 											<IconClock className="h-4 w-4" />
-											Save
+											{post.scheduledFor ? "Reschedule" : "Save"}
 										</PrimaryButton>
 									</div>
 								</SurfaceCard>
@@ -477,6 +500,18 @@ export default function SocialPostDetailPage() {
 		</PageShell>
 	);
 }
+
+const fileToBase64 = (file: File): Promise<string> =>
+	new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => {
+			const out = String(reader.result || "");
+			const base64 = out.includes(",") ? out.split(",")[1] : out;
+			resolve(base64);
+		};
+		reader.onerror = () => reject(reader.error);
+		reader.readAsDataURL(file);
+	});
 
 function MemorySnapshotBlock({
 	label,

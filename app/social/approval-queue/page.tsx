@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 import { PostPreview } from "@/components/social/PostPreview";
+import { LinkedinTextEditor } from "@/components/social/LinkedinTextEditor";
 import {
 	DangerButton,
 	EmptyState,
@@ -27,6 +28,7 @@ import {
 	runSchedulerNow,
 	schedulePost,
 	SocialPostRun,
+	uploadSocialEditorImage,
 	updatePostDraft,
 } from "@/utils/api/socialClient";
 import { formatSocialDateTime } from "@/utils/socialDate";
@@ -47,6 +49,7 @@ export default function SocialApprovalQueuePage() {
 	const [editor, setEditor] = useState<{ id: number; body: string } | null>(null);
 	const [busyId, setBusyId] = useState<number | null>(null);
 	const [runningScheduler, setRunningScheduler] = useState(false);
+	const scheduleTargetPost = queue.find((item) => item.id === schedulePickerFor) || null;
 
 	const load = async () => {
 		try {
@@ -97,8 +100,15 @@ export default function SocialApprovalQueuePage() {
 		try {
 			setBusyId(schedulePickerFor);
 			const isoString = new Date(pickerValue).toISOString();
-			await schedulePost(schedulePickerFor, isoString);
-			toast.success("Scheduled");
+			const response = await schedulePost(schedulePickerFor, isoString);
+			const payload = response?.data;
+			if (payload?.rescheduled) {
+				toast.success(
+					`Rescheduled to ${formatSocialDateTime(payload.scheduledFor)} (daily limit reached on selected day)`
+				);
+			} else {
+				toast.success("Scheduled");
+			}
 			setSchedulePickerFor(null);
 			setPickerValue("");
 			await load();
@@ -291,6 +301,14 @@ export default function SocialApprovalQueuePage() {
 							title="Schedule post"
 							description="Pick the local date/time when this post should publish."
 						/>
+						{scheduleTargetPost?.scheduledFor && (
+							<p className="mb-2 text-xs text-slate-500">
+								Current schedule:{" "}
+								<span className="font-medium text-slate-700">
+									{formatSocialDateTime(scheduleTargetPost.scheduledFor)}
+								</span>
+							</p>
+						)}
 						<input
 							type="datetime-local"
 							value={pickerValue}
@@ -323,15 +341,24 @@ export default function SocialApprovalQueuePage() {
 							title="Edit draft"
 							description="Your edits are tracked — the learning pass uses them to improve future drafts."
 						/>
-						<textarea
+						<LinkedinTextEditor
 							value={editor.body}
 							rows={14}
-							onChange={(e) =>
+							onChange={(next) =>
 								setEditor((prev) =>
-									prev ? { ...prev, body: e.target.value } : prev
+									prev ? { ...prev, body: next } : prev
 								)
 							}
-							className="w-full whitespace-pre-line rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm text-slate-800 shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+							placeholder="Edit your LinkedIn draft..."
+							onUploadImage={async (file) => {
+								const uploaded = await uploadSocialEditorImage({
+									postRunId: editor.id,
+									fileName: file.name || "linkedin-editor-upload",
+									mimeType: file.type as any,
+									dataBase64: await fileToBase64(file),
+								});
+								return uploaded.publicUrl || "";
+							}}
 						/>
 						<div className="mt-4 flex justify-end gap-2">
 							<SecondaryButton onClick={() => setEditor(null)}>
@@ -350,6 +377,18 @@ export default function SocialApprovalQueuePage() {
 		</PageShell>
 	);
 }
+
+const fileToBase64 = (file: File): Promise<string> =>
+	new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => {
+			const out = String(reader.result || "");
+			const base64 = out.includes(",") ? out.split(",")[1] : out;
+			resolve(base64);
+		};
+		reader.onerror = () => reject(reader.error);
+		reader.readAsDataURL(file);
+	});
 
 function hasCompletedScheduling(post: SocialPostRun) {
 	return post.status === "scheduled" || !!post.scheduledFor;
@@ -417,7 +456,7 @@ function QueueItem({
 		post.status === "rejected" ||
 		post.status === "cancelled";
 	const canApprove = !approvalDone && !terminal;
-	const canSchedule = !scheduleDone && !terminal;
+	const canSchedule = !terminal;
 	const canPublishNow = !scheduleDone && !terminal && post.status !== "approved";
 	const canEdit = !approvalDone && !terminal;
 	const canReject = !approvalDone && !terminal;
@@ -469,6 +508,7 @@ function QueueItem({
 					<PostPreview
 						body={post.contentBody}
 						hashtags={post.hashtags || undefined}
+						mediaUrls={post.mediaUrls || undefined}
 					/>
 				</div>
 
@@ -497,7 +537,7 @@ function QueueItem({
 						{canSchedule && (
 							<SecondaryButton onClick={onSchedulePicker} disabled={busy}>
 								<IconCalendarPlus className="h-4 w-4" />
-								Schedule at…
+								{scheduleDone ? "Reschedule at…" : "Schedule at…"}
 							</SecondaryButton>
 						)}
 						{canPublishNow && (

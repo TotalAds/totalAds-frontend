@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 import { PostPreview } from "@/components/social/PostPreview";
+import { LinkedinTextEditor } from "@/components/social/LinkedinTextEditor";
 import {
 	EmptyState,
 	InlineAlert,
@@ -21,16 +22,24 @@ import {
 	AgentDraft,
 	AgentRunOutput,
 	approvePost,
+	createManualPost,
 	listPosts,
+	publishPostNow,
 	rejectPost,
 	runAgent,
+	schedulePost,
 	SocialPostRun,
+	uploadSocialEditorImage,
 } from "@/utils/api/socialClient";
 import {
+	IconCalendarTime,
 	IconBrandLinkedin,
 	IconBulb,
 	IconChevronRight,
+	IconDeviceLaptop,
+	IconPlayerPlay,
 	IconRotateClockwise,
+	IconSend,
 	IconSparkles,
 } from "@tabler/icons-react";
 
@@ -43,7 +52,25 @@ type TextBriefField =
 	| "seriesName"
 	| "extraInstructions";
 
+const ANGLE_OPTIONS = [
+	"Contrarian",
+	"Story",
+	"Breakdown",
+	"How-to",
+	"Listicle",
+	"Case Study",
+] as const;
+
+const AUDIENCE_OPTIONS = [
+	"Founders",
+	"VPs",
+	"Marketers",
+	"Operators",
+	"Investors",
+] as const;
+
 export default function SocialPostStudioPage() {
+	const [flow, setFlow] = useState<"ai" | "manual">("ai");
 	const [form, setForm] = useState({
 		topic: "",
 		angle: "",
@@ -56,9 +83,21 @@ export default function SocialPostStudioPage() {
 		createCarousel: false,
 	});
 	const [isGenerating, setIsGenerating] = useState(false);
+	const [showAdvanced, setShowAdvanced] = useState(false);
+	const [angleMode, setAngleMode] = useState<"preset" | "custom">("preset");
+	const [audienceMode, setAudienceMode] = useState<"preset" | "custom">("preset");
+	const [customAngle, setCustomAngle] = useState("");
+	const [customAudience, setCustomAudience] = useState("");
 	const [latestRun, setLatestRun] = useState<AgentRunOutput | null>(null);
 	const [drafts, setDrafts] = useState<SocialPostRun[]>([]);
 	const [isBusy, setIsBusy] = useState<number | null>(null);
+	const [manualBody, setManualBody] = useState("");
+	const [manualMediaUrls, setManualMediaUrls] = useState<string[]>([]);
+	const [manualTopic, setManualTopic] = useState("");
+	const [manualScheduleFor, setManualScheduleFor] = useState("");
+	const [manualBusy, setManualBusy] = useState<"save" | "schedule" | "post_now" | null>(
+		null
+	);
 
 	const loadDrafts = async () => {
 		try {
@@ -153,12 +192,86 @@ export default function SocialPostStudioPage() {
 		}
 	};
 
+	const createManualDraft = async () => {
+		if (manualBody.trim().length < 10) {
+			toast.error("Write at least 10 characters");
+			return null;
+		}
+		const created = await createManualPost({
+			contentBody: manualBody.trim(),
+			topic: manualTopic.trim() || undefined,
+			hashtags: extractHashtags(manualBody),
+			mediaUrls: manualMediaUrls,
+		});
+		await loadDrafts();
+		return created.postRunId;
+	};
+
+	const onManualSave = async () => {
+		try {
+			setManualBusy("save");
+			const id = await createManualDraft();
+			if (!id) return;
+			toast.success("Draft saved");
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Failed to save draft");
+		} finally {
+			setManualBusy(null);
+		}
+	};
+
+	const onManualSchedule = async () => {
+		if (!manualScheduleFor) {
+			toast.error("Select date and time first");
+			return;
+		}
+		try {
+			setManualBusy("schedule");
+			const id = await createManualDraft();
+			if (!id) return;
+			const response = await schedulePost(id, new Date(manualScheduleFor).toISOString());
+			const payload = response?.data;
+			if (payload?.rescheduled) {
+				toast.success(
+					`Post rescheduled to ${new Date(payload.scheduledFor).toLocaleString()} due to daily limit`
+				);
+			} else {
+				toast.success("Post scheduled");
+			}
+			setManualBody("");
+			setManualMediaUrls([]);
+			setManualTopic("");
+			setManualScheduleFor("");
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Failed to schedule");
+		} finally {
+			setManualBusy(null);
+		}
+	};
+
+	const onManualPostNow = async () => {
+		try {
+			setManualBusy("post_now");
+			const id = await createManualDraft();
+			if (!id) return;
+			await publishPostNow(id);
+			toast.success("Posting now");
+			setManualBody("");
+			setManualMediaUrls([]);
+			setManualTopic("");
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Failed to post now");
+		} finally {
+			setManualBusy(null);
+		}
+	};
+
 	return (
 		<PageShell>
 			<PageHeader
 				eyebrow="Post Studio"
-				title="Draft a new LinkedIn post"
-				description="Give the agent a brief. It reads your profile memory + proven learning rules and drafts a single, ready-to-ship post."
+				title="Create your LinkedIn post"
+				description="Use AI Post Builder or write your own post in a LinkedIn-style studio and schedule directly."
 				actions={
 					<Link href="/social/memory">
 						<SecondaryButton>
@@ -169,166 +282,275 @@ export default function SocialPostStudioPage() {
 				}
 			/>
 
-			<div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
-				<SurfaceCard className="lg:col-span-3">
-					<SectionTitle
-						title="Brief"
-						description="Fields marked optional are used only when provided. Topic is the only required input."
-					/>
-					<div className="grid grid-cols-1 gap-4">
-						<Field
-							label="Topic"
-							required
-							value={form.topic}
-							onChange={(v) => set("topic", v)}
-							placeholder="e.g. Why CPM is a vanity metric in D2C Meta ads"
-						/>
-						<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-							<Field
-								label="Angle"
-								optional
-								value={form.angle}
-								onChange={(v) => set("angle", v)}
-								placeholder="Contrarian · Story · Breakdown"
-							/>
-							<Field
-								label="Audience"
-								optional
-								value={form.audience}
-								onChange={(v) => set("audience", v)}
-								placeholder="Who is this for?"
-							/>
-						</div>
-						<Field
-							label="Proof point"
-							optional
-							value={form.proofPoint}
-							onChange={(v) => set("proofPoint", v)}
-							placeholder="A concrete datapoint, number, or case study"
-						/>
-						<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-							<Field
-								label="CTA style"
-								optional
-								value={form.cta}
-								onChange={(v) => set("cta", v)}
-								placeholder="DM me · Reply below · No CTA"
-							/>
-							<Field
-								label="Series / campaign"
-								optional
-								value={form.seriesName}
-								onChange={(v) => set("seriesName", v)}
-								placeholder="Ad Spend Myths — 5-post series"
-							/>
-						</div>
-						<Field
-							label="Extra instructions"
-							optional
-							multiline
-							value={form.extraInstructions}
-							onChange={(v) => set("extraInstructions", v)}
-							placeholder="Anything else the agent should bear in mind — tone, references, forbidden words."
-						/>
-						<div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-							<div className="mb-3">
-								<p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-									Creative assets
-								</p>
-								<p className="mt-1 text-xs text-slate-500">
-									Optional. Create media while this draft is being generated.
-								</p>
-							</div>
-							<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-								<MediaOption
-									title="Create LinkedIn image"
-									description="Generate a professional feed image with the draft."
-									checked={form.createImage}
-									onChange={(checked) => setMedia("createImage", checked)}
-								/>
-								<MediaOption
-									title="Create carousel"
-									description="Prepare a carousel deck asset for this draft."
-									checked={form.createCarousel}
-									onChange={(checked) => setMedia("createCarousel", checked)}
-								/>
-							</div>
-						</div>
-					</div>
-					<div className="mt-5 flex flex-wrap items-center gap-2">
-						<PrimaryButton onClick={onGenerate} disabled={isGenerating}>
-							{isGenerating ? (
-								<>
-									<IconRotateClockwise className="h-4 w-4 animate-spin" />
-									Drafting…
-								</>
-							) : (
-								<>
-									<IconSparkles className="h-4 w-4" />
-									Draft post
-								</>
-							)}
-						</PrimaryButton>
-						{latestRun && (
-							<SecondaryButton onClick={() => setLatestRun(null)}>
-								Clear preview
-							</SecondaryButton>
-						)}
-					</div>
-				</SurfaceCard>
+			<div className="mb-5 inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+				<button
+					type="button"
+					onClick={() => setFlow("ai")}
+					className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+						flow === "ai"
+							? "bg-blue-600 text-white shadow-sm"
+							: "text-slate-600 hover:bg-slate-100"
+					}`}
+				>
+					<IconSparkles className="h-4 w-4" />
+					AI Post Builder
+				</button>
+				<button
+					type="button"
+					onClick={() => setFlow("manual")}
+					className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+						flow === "manual"
+							? "bg-blue-600 text-white shadow-sm"
+							: "text-slate-600 hover:bg-slate-100"
+					}`}
+				>
+					<IconDeviceLaptop className="h-4 w-4" />
+					Write Your Own Post
+				</button>
+			</div>
 
-				<div className="space-y-5 lg:col-span-2">
-					<SurfaceCard>
+			<div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
+				{flow === "ai" ? (
+					<SurfaceCard className="lg:col-span-5">
+						<SectionTitle
+							title="Brief"
+							description="Fields marked optional are used only when provided. Topic is the only required input."
+						/>
+						<div className="grid grid-cols-1 gap-4">
+							<Field
+								label="Topic"
+								required
+								value={form.topic}
+								onChange={(v) => set("topic", v)}
+								placeholder="e.g. Why CPM is a vanity metric in D2C Meta ads"
+							/>
+							<div>
+								<label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-600">
+									Angle
+								</label>
+								<div className="flex flex-wrap gap-2">
+									{ANGLE_OPTIONS.map((option) => (
+										<Chip
+											key={option}
+											active={angleMode === "preset" && form.angle === option}
+											onClick={() => {
+												setAngleMode("preset");
+												set("angle", option);
+											}}
+										>
+											{option}
+										</Chip>
+									))}
+									<Chip
+										active={angleMode === "custom"}
+										onClick={() => {
+											setAngleMode("custom");
+											set("angle", customAngle);
+										}}
+									>
+										+ Custom
+									</Chip>
+								</div>
+								{angleMode === "custom" && (
+									<input
+										value={customAngle}
+										onChange={(event) => {
+											const next = event.target.value;
+											setCustomAngle(next);
+											set("angle", next);
+										}}
+										placeholder="Enter custom angle"
+										className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+									/>
+								)}
+							</div>
+
+							<div>
+								<label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-600">
+									Audience
+								</label>
+								<div className="flex flex-wrap gap-2">
+									{AUDIENCE_OPTIONS.map((option) => (
+										<Chip
+											key={option}
+											active={audienceMode === "preset" && form.audience === option}
+											onClick={() => {
+												setAudienceMode("preset");
+												set("audience", option);
+											}}
+										>
+											{option}
+										</Chip>
+									))}
+									<Chip
+										active={audienceMode === "custom"}
+										onClick={() => {
+											setAudienceMode("custom");
+											set("audience", customAudience);
+										}}
+									>
+										+ Custom
+									</Chip>
+								</div>
+								{audienceMode === "custom" && (
+									<input
+										value={customAudience}
+										onChange={(event) => {
+											const next = event.target.value;
+											setCustomAudience(next);
+											set("audience", next);
+										}}
+										placeholder="Enter custom audience"
+										className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+									/>
+								)}
+							</div>
+
+							<div className="max-w-md">
+								<label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-600">
+									CTA style
+								</label>
+								<div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
+									<SegmentButton
+										active={!form.cta || form.cta === "None"}
+										onClick={() => set("cta", "None")}
+									>
+										None
+									</SegmentButton>
+									<SegmentButton
+										active={form.cta === "Soft"}
+										onClick={() => set("cta", "Soft")}
+									>
+										Soft
+									</SegmentButton>
+									<SegmentButton
+										active={form.cta === "Direct"}
+										onClick={() => set("cta", "Direct")}
+									>
+										Direct
+									</SegmentButton>
+								</div>
+							</div>
+
+							<div>
+								<button
+									type="button"
+									onClick={() => setShowAdvanced((prev) => !prev)}
+									className="text-sm font-medium text-blue-600 hover:text-blue-700"
+								>
+									{showAdvanced ? "Hide advanced" : "+ Advanced"}
+								</button>
+								{showAdvanced && (
+									<Field
+										label="Extra instructions"
+										optional
+										multiline
+										value={form.extraInstructions}
+										onChange={(v) => set("extraInstructions", v)}
+										placeholder="Tone, references, forbidden words, series name, proof points..."
+									/>
+								)}
+							</div>
+
+							<div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+								<div className="mb-3">
+									<p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+										Creative assets
+									</p>
+									<p className="mt-1 text-xs text-slate-500">
+										Optional. Create media while this draft is being generated.
+									</p>
+								</div>
+								<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+									<MediaOption
+										title="Create LinkedIn image"
+										description="Generate a professional feed image with the draft."
+										checked={form.createImage}
+										onChange={(checked) => setMedia("createImage", checked)}
+									/>
+									<MediaOption
+										title="Create carousel"
+										description="Prepare a carousel deck asset for this draft."
+										checked={form.createCarousel}
+										onChange={(checked) => setMedia("createCarousel", checked)}
+									/>
+								</div>
+							</div>
+						</div>
+						<div className="mt-5 flex flex-wrap items-center justify-end gap-2">
+							<PrimaryButton onClick={onGenerate} disabled={isGenerating}>
+								{isGenerating ? (
+									<>
+										<IconRotateClockwise className="h-4 w-4 animate-spin" />
+										Drafting…
+									</>
+								) : (
+									<>
+										<IconSparkles className="h-4 w-4" />
+										Draft post
+									</>
+								)}
+							</PrimaryButton>
+							{latestRun && (
+								<SecondaryButton onClick={() => setLatestRun(null)}>
+									Clear preview
+								</SecondaryButton>
+							)}
+						</div>
+					</SurfaceCard>
+				) : (
+					<SurfaceCard className="lg:col-span-5">
+						<SectionTitle
+							title="LinkedIn-style composer"
+							description="Write your own post, preview it in real-time, then save, schedule, or post now."
+						/>
+						<LinkedinStudioEditor
+							body={manualBody}
+							onBodyChange={setManualBody}
+							mediaUrls={manualMediaUrls}
+							onMediaUrlsChange={setManualMediaUrls}
+							topic={manualTopic}
+							onTopicChange={setManualTopic}
+							scheduleFor={manualScheduleFor}
+							onScheduleForChange={setManualScheduleFor}
+							onSave={onManualSave}
+							onSchedule={onManualSchedule}
+							onPostNow={onManualPostNow}
+							busy={manualBusy}
+							onUploadImage={async (file) => {
+								const uploaded = await uploadSocialEditorImage({
+									fileName: file.name || "linkedin-editor-upload",
+									mimeType: file.type as any,
+									dataBase64: await fileToBase64(file),
+								});
+								return uploaded.publicUrl || "";
+							}}
+						/>
+					</SurfaceCard>
+				)}
+
+				{flow === "ai" && (
+					<SurfaceCard className="lg:col-span-5">
 						<SectionTitle
 							title="How the agent writes"
-							description="Every draft is generated against your memory stack."
+							description="Quick context used for each AI-generated draft."
 						/>
-						<ul className="space-y-3 text-sm text-slate-600">
-							<li className="flex items-start gap-2">
-								<span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
-								<p>
-									<span className="font-medium text-slate-800">Profile memory</span>{" "}
-									— founder name, tone keywords, forbidden phrases, CTA style.
-								</p>
-							</li>
-							<li className="flex items-start gap-2">
-								<span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
-								<p>
-									<span className="font-medium text-slate-800">Work memory</span>{" "}
-									— what campaign or series you&apos;re running right now.
-								</p>
-							</li>
-							<li className="flex items-start gap-2">
-								<span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
-								<p>
-									<span className="font-medium text-slate-800">Learning rules</span>{" "}
-									— hook / CTA / format patterns proven by your past posts.
-								</p>
-							</li>
-						</ul>
+						<div className="grid grid-cols-1 gap-2 text-sm text-slate-600 md:grid-cols-3">
+							<p>
+								<span className="font-medium text-slate-800">Profile memory</span>:
+								founder voice, tone, and forbidden phrases.
+							</p>
+							<p>
+								<span className="font-medium text-slate-800">Work memory</span>:
+								current campaign and active narrative.
+							</p>
+							<p>
+								<span className="font-medium text-slate-800">Learning rules</span>:
+								patterns from your best-performing posts.
+							</p>
+						</div>
 					</SurfaceCard>
-
-					<SurfaceCard>
-						<SectionTitle
-							title="Hygiene checklist"
-							description="Check these once before kicking off."
-						/>
-						<ul className="space-y-3 text-sm">
-							<ChecklistItem
-								href="/social/memory"
-								label="Profile memory has a founder name + tone + forbidden phrases"
-							/>
-							<ChecklistItem
-								href="/social/linkedin"
-								label="LinkedIn session is healthy (so publish-now works)"
-							/>
-							<ChecklistItem
-								href="/social/telegram"
-								label="Telegram bot is linked (so you can approve from your phone)"
-							/>
-						</ul>
-					</SurfaceCard>
-				</div>
+				)}
 			</div>
 
 			{latestRun && <LatestRunPanel
@@ -399,6 +621,204 @@ export default function SocialPostStudioPage() {
 		</PageShell>
 	);
 }
+
+function Chip({
+	children,
+	active,
+	onClick,
+}: {
+	children: string;
+	active: boolean;
+	onClick: () => void;
+}) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+				active
+					? "border-blue-600 bg-blue-600 text-white"
+					: "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-700"
+			}`}
+		>
+			{children}
+		</button>
+	);
+}
+
+function SegmentButton({
+	children,
+	active,
+	onClick,
+}: {
+	children: string;
+	active: boolean;
+	onClick: () => void;
+}) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+				active
+					? "bg-blue-600 text-white"
+					: "text-slate-600 hover:bg-slate-100"
+			}`}
+		>
+			{children}
+		</button>
+	);
+}
+
+function LinkedinStudioEditor({
+	body,
+	onBodyChange,
+	mediaUrls,
+	onMediaUrlsChange,
+	topic,
+	onTopicChange,
+	scheduleFor,
+	onScheduleForChange,
+	onSave,
+	onSchedule,
+	onPostNow,
+	busy,
+	onUploadImage,
+}: {
+	body: string;
+	onBodyChange: (v: string) => void;
+	mediaUrls: string[];
+	onMediaUrlsChange: (urls: string[]) => void;
+	topic: string;
+	onTopicChange: (v: string) => void;
+	scheduleFor: string;
+	onScheduleForChange: (v: string) => void;
+	onSave: () => void;
+	onSchedule: () => void;
+	onPostNow: () => void;
+	busy: "save" | "schedule" | "post_now" | null;
+	onUploadImage: (file: File) => Promise<string>;
+}) {
+	return (
+		<div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+			<div className="grid grid-cols-1 lg:grid-cols-2">
+				<div className="border-r border-slate-200">
+					<div className="space-y-3 p-4">
+						<input
+							value={topic}
+							onChange={(event) => onTopicChange(event.target.value)}
+							placeholder="Post topic (optional)"
+							className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+						/>
+						<LinkedinTextEditor
+							value={body}
+							onChange={onBodyChange}
+							placeholder="Write here..."
+							rows={12}
+							onUploadImage={onUploadImage}
+							insertUploadedImageUrl={false}
+							onImageUploaded={(url) => {
+								onMediaUrlsChange(
+									mediaUrls.includes(url) ? mediaUrls : [...mediaUrls, url]
+								);
+							}}
+						/>
+						{mediaUrls.length > 0 && (
+							<div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+								<p className="mb-2 text-xs font-medium text-slate-500">
+									Attached media ({mediaUrls.length})
+								</p>
+								<div className="grid grid-cols-3 gap-2">
+									{mediaUrls.map((url) => (
+										<div key={url} className="relative">
+											<img
+												src={url}
+												alt="Attached media"
+												className="h-20 w-full rounded-md border border-slate-200 object-cover"
+											/>
+											<button
+												type="button"
+												onClick={() =>
+													onMediaUrlsChange(mediaUrls.filter((item) => item !== url))
+												}
+												className="absolute right-1 top-1 rounded bg-slate-900/70 px-1.5 py-0.5 text-[10px] font-medium text-white"
+											>
+												Remove
+											</button>
+										</div>
+									))}
+								</div>
+							</div>
+						)}
+						<div className="flex items-center justify-between text-xs text-slate-500">
+							<span>{body.length} characters</span>
+							<span>LinkedIn sweet spot: 900-1300</span>
+						</div>
+					</div>
+					<div className="flex flex-wrap items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
+						<SecondaryButton onClick={onSave} disabled={busy !== null}>
+							{busy === "save" ? (
+								<IconRotateClockwise className="h-4 w-4 animate-spin" />
+							) : null}
+							Save draft
+						</SecondaryButton>
+						<input
+							type="datetime-local"
+							value={scheduleFor}
+							onChange={(event) => onScheduleForChange(event.target.value)}
+							className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+						/>
+						<PrimaryButton onClick={onSchedule} disabled={busy !== null}>
+							{busy === "schedule" ? (
+								<IconRotateClockwise className="h-4 w-4 animate-spin" />
+							) : (
+								<IconCalendarTime className="h-4 w-4" />
+							)}
+							Schedule
+						</PrimaryButton>
+						<SecondaryButton onClick={onPostNow} disabled={busy !== null}>
+							{busy === "post_now" ? (
+								<IconRotateClockwise className="h-4 w-4 animate-spin" />
+							) : (
+								<IconSend className="h-4 w-4" />
+							)}
+							Post now
+						</SecondaryButton>
+					</div>
+				</div>
+				<div className="bg-slate-50 p-4">
+					<div className="mb-3 flex items-center justify-between">
+						<p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+							Post Preview
+						</p>
+						<IconPlayerPlay className="h-4 w-4 text-slate-400" />
+					</div>
+					<PostPreview
+						body={body || "Start writing and your post will appear here..."}
+						mediaUrls={mediaUrls}
+					/>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+const fileToBase64 = (file: File): Promise<string> =>
+	new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => {
+			const out = String(reader.result || "");
+			const base64 = out.includes(",") ? out.split(",")[1] : out;
+			resolve(base64);
+		};
+		reader.onerror = () => reject(reader.error);
+		reader.readAsDataURL(file);
+	});
+
+const extractHashtags = (input: string) =>
+	Array.from(input.matchAll(/(^|\s)#([\p{L}\p{N}_]+)/gu)).map((match) =>
+		match[2].trim()
+	);
 
 function Field({
 	label,
@@ -479,20 +899,6 @@ function MediaOption({
 	);
 }
 
-function ChecklistItem({ href, label }: { href: string; label: string }) {
-	return (
-		<li>
-			<Link
-				href={href}
-				className="flex items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2 text-slate-700 hover:border-blue-200 hover:bg-blue-50/40"
-			>
-				<span className="text-xs">{label}</span>
-				<IconChevronRight className="h-4 w-4 text-slate-400" />
-			</Link>
-		</li>
-	);
-}
-
 function LatestRunPanel({
 	run,
 	busy,
@@ -517,7 +923,11 @@ function LatestRunPanel({
 					description={`Agent confidence ${Math.round(draft.confidence * 100)}% · memory used: ${memoryUsed.profileKeyCount} profile, ${memoryUsed.workKeyCount} work, ${memoryUsed.learningRuleCount} rules`}
 					action={<StatusPill status={status} />}
 				/>
-				<PostPreview body={draft.body} hashtags={draft.hashtags} />
+				<PostPreview
+					body={draft.body}
+					hashtags={draft.hashtags}
+					mediaAssets={run.mediaAssets || []}
+				/>
 				{draft.rationale && (
 					<p className="mt-4 text-xs italic text-slate-500">
 						Why this will work: {draft.rationale}
