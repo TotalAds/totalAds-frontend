@@ -816,9 +816,12 @@ const fileToBase64 = (file: File): Promise<string> =>
 	});
 
 const extractHashtags = (input: string) =>
-	Array.from(input.matchAll(/(^|\s)#([\p{L}\p{N}_]+)/gu)).map((match) =>
-		match[2].trim()
-	);
+	input
+		.split(/\s+/)
+		.filter((token) => token.startsWith("#") && token.length > 1)
+		.map((token) => token.slice(1).trim())
+		.map((tag) => tag.replace(/[^A-Za-z0-9_]/g, ""))
+		.filter(Boolean);
 
 function Field({
 	label,

@@ -33,15 +33,22 @@ export function PostPreview({
 	const { state } = useAuthContext();
 	const name = state.user?.name || "You";
 	const headline = "LinkedIn · Preview";
-	const bodyTags = Array.from(body.matchAll(/(^|\s)#([\p{L}\p{N}_]+)/gu)).map(
-		(match) => match[2]
-	);
+	const bodyTags = body
+		.split(/\s+/)
+		.filter((token) => token.startsWith("#") && token.length > 1)
+		.map((token) => token.slice(1).trim().replace(/[^A-Za-z0-9_]/g, ""))
+		.filter(Boolean);
 	const mergedHashtags = Array.from(
 		new Set([...(hashtags || []), ...bodyTags].map((tag) => String(tag || "").trim().replace(/^#/, "")).filter(Boolean))
 	);
 	const bodyWithoutHashtags = body
 		.split(/\r?\n/)
-		.map((line) => line.replace(/(^|\s)#[\p{L}\p{N}_]+/gu, " ").replace(/\s{2,}/g, " ").trim())
+		.map((line) =>
+			line
+				.replace(/(^|\s)#[A-Za-z0-9_]+/g, " ")
+				.replace(/\s{2,}/g, " ")
+				.trim()
+		)
 		.join("\n")
 		.replace(/\n{3,}/g, "\n\n")
 		.trim();
