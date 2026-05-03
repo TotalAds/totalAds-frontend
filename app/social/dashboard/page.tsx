@@ -97,7 +97,7 @@ export default function SocialDashboardPage() {
 
 	const onEnable = async () => {
 		try {
-			await enableSocialAccess(false);
+			await enableSocialAccess();
 			toast.success("SocialSniper enabled for your account");
 			await load();
 		} catch (err) {
@@ -176,7 +176,8 @@ export default function SocialDashboardPage() {
 								Enable SocialSniper for your account
 							</p>
 							<p className="text-xs text-slate-500">
-								We&apos;ll generate an access key and unlock the full agent stack.
+								Unlocks drafting, approvals, scheduling, and LinkedIn publishing for
+								this account.
 							</p>
 						</div>
 						<PrimaryButton onClick={onEnable}>Enable SocialSniper</PrimaryButton>

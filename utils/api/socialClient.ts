@@ -8,7 +8,6 @@ import apiClient from "./apiClient";
 
 const SOCIAL_SERVICE_URL =
 	process.env.NEXT_PUBLIC_SOCIAL_SERVICE_URL || "http://localhost:3005";
-const SOCIAL_ACCESS_KEY_STORAGE_KEY = "social-service-access-key";
 
 const socialClient = axios.create({
 	baseURL: SOCIAL_SERVICE_URL,
@@ -31,25 +30,10 @@ const processQueue = (error: unknown, token: string | null = null) => {
 	failedQueue = [];
 };
 
-const getSocialAccessKey = () => {
-	if (typeof window === "undefined") return null;
-	return window.localStorage.getItem(SOCIAL_ACCESS_KEY_STORAGE_KEY);
-};
-
-const setSocialAccessKey = (value: string | null) => {
-	if (typeof window === "undefined") return;
-	if (value) window.localStorage.setItem(SOCIAL_ACCESS_KEY_STORAGE_KEY, value);
-	else window.localStorage.removeItem(SOCIAL_ACCESS_KEY_STORAGE_KEY);
-};
-
 socialClient.interceptors.request.use(
 	(config) => {
 		const accessToken = tokenStorage.getAccessToken();
-		const socialAccessKey = getSocialAccessKey();
 		if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`;
-		if (socialAccessKey) {
-			config.headers["X-Social-Access-Key"] = socialAccessKey;
-		}
 		return config;
 	},
 	(error) => Promise.reject(error)
@@ -111,10 +95,8 @@ export type MemoryLayer = "profile" | "work" | "learning";
 
 export interface SocialAccessResponse {
 	enabled: boolean;
-	desktopAgentEnabled: boolean;
 	linkedinConnected: boolean;
 	commentsApprovalMode: boolean;
-	accessKey: string | null;
 	linkedinExternalUrl: string;
 }
 
@@ -460,16 +442,12 @@ export interface SocialMediaAsset {
 export const getSocialAccess = async (): Promise<SocialAccessResponse> => {
 	const response = await apiClient.get("/social/access");
 	const payload = response.data?.payload || response.data;
-	if (payload?.accessKey) setSocialAccessKey(payload.accessKey);
 	return payload;
 };
 
-export const enableSocialAccess = async (enableDesktopAgent = false) => {
-	const response = await apiClient.post("/social/access/enable", {
-		enableDesktopAgent,
-	});
+export const enableSocialAccess = async () => {
+	const response = await apiClient.post("/social/access/enable", {});
 	const payload = response.data?.payload || response.data;
-	if (payload?.accessKey) setSocialAccessKey(payload.accessKey);
 	return payload;
 };
 
@@ -478,15 +456,7 @@ export const disableSocialAccess = async () => {
 	return response.data?.payload || response.data;
 };
 
-export const rotateSocialAccessKey = async () => {
-	const response = await apiClient.post("/social/access/rotate-key");
-	const payload = response.data?.payload || response.data;
-	if (payload?.accessKey) setSocialAccessKey(payload.accessKey);
-	return payload;
-};
-
 export const updateSocialSettings = async (settings: {
-	desktopAgentEnabled?: boolean;
 	commentsApprovalMode?: boolean;
 	linkedinExternalUrl?: string;
 }) => {

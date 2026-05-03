@@ -36,7 +36,6 @@ export interface UserProfile {
   phoneVerified?: boolean | null;
   sesProvider?: "leadsnipper_managed" | "custom" | null;
   socialServiceEnabled?: boolean;
-  socialDesktopAgentEnabled?: boolean;
   socialLinkedinConnected?: boolean;
   socialCommentsApprovalMode?: boolean;
   socialLinkedinExternalUrl?: string | null;

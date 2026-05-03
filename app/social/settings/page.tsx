@@ -11,7 +11,6 @@ import {
 	PageHeader,
 	PageShell,
 	PrimaryButton,
-	SecondaryButton,
 	SectionTitle,
 	StatusPill,
 	SurfaceCard,
@@ -22,16 +21,11 @@ import {
 	enableSocialAccess,
 	getAccountPreferences,
 	getSocialAccess,
-	rotateSocialAccessKey,
 	SocialAccessResponse,
 	updateAccountPreferences,
 	updateSocialSettings,
 } from "@/utils/api/socialClient";
-import {
-	IconCopy,
-	IconKey,
-	IconShieldCheck,
-} from "@tabler/icons-react";
+import { IconShieldCheck } from "@tabler/icons-react";
 
 export default function SocialSettingsPage() {
 	const [loading, setLoading] = useState(true);
@@ -42,7 +36,6 @@ export default function SocialSettingsPage() {
 		"https://www.linkedin.com/feed/"
 	);
 	const [commentsApprovalMode, setCommentsApprovalMode] = useState(false);
-	const [desktopAgentEnabled, setDesktopAgentEnabled] = useState(false);
 
 	const load = async () => {
 		try {
@@ -56,7 +49,6 @@ export default function SocialSettingsPage() {
 				accessData.linkedinExternalUrl || "https://www.linkedin.com/feed/"
 			);
 			setCommentsApprovalMode(!!accessData.commentsApprovalMode);
-			setDesktopAgentEnabled(!!accessData.desktopAgentEnabled);
 			if (prefsData) setPrefs(prefsData);
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : "Failed to load");
@@ -73,7 +65,6 @@ export default function SocialSettingsPage() {
 		try {
 			setBusy(true);
 			await updateSocialSettings({
-				desktopAgentEnabled,
 				commentsApprovalMode,
 				linkedinExternalUrl,
 			});
@@ -99,21 +90,6 @@ export default function SocialSettingsPage() {
 		}
 	};
 
-	const rotate = async () => {
-		try {
-			setBusy(true);
-			const data = await rotateSocialAccessKey();
-			toast.success("Access key rotated");
-			setAccess((prev) =>
-				prev ? { ...prev, accessKey: data.accessKey } : prev
-			);
-		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Rotate failed");
-		} finally {
-			setBusy(false);
-		}
-	};
-
 	const toggleAccess = async () => {
 		try {
 			setBusy(true);
@@ -121,7 +97,7 @@ export default function SocialSettingsPage() {
 				await disableSocialAccess();
 				toast.success("Social service disabled");
 			} else {
-				await enableSocialAccess(desktopAgentEnabled);
+				await enableSocialAccess();
 				toast.success("Social service enabled");
 			}
 			await load();
@@ -129,16 +105,6 @@ export default function SocialSettingsPage() {
 			toast.error(err instanceof Error ? err.message : "Toggle failed");
 		} finally {
 			setBusy(false);
-		}
-	};
-
-	const copyKey = () => {
-		if (!access?.accessKey) return;
-		try {
-			navigator.clipboard.writeText(access.accessKey);
-			toast.success("Copied access key");
-		} catch {
-			toast.error("Copy failed");
 		}
 	};
 
@@ -384,12 +350,6 @@ export default function SocialSettingsPage() {
 						/>
 						<div className="space-y-4">
 							<ToggleCard
-								title="Desktop agent access"
-								description="Allow the SocialSniper desktop companion to call the service using this account&apos;s access key."
-								checked={desktopAgentEnabled}
-								onChange={setDesktopAgentEnabled}
-							/>
-							<ToggleCard
 								title="Comments approval mode"
 								description="When on, outbound comments also route through approvals (Telegram or dashboard)."
 								checked={commentsApprovalMode}
@@ -419,33 +379,6 @@ export default function SocialSettingsPage() {
 								</PrimaryButton>
 							</div>
 						</div>
-					</SurfaceCard>
-
-					<SurfaceCard>
-						<SectionTitle
-							title="Service access key"
-							description="Used by the background services and desktop agent to call this account&apos;s social endpoints."
-							action={
-								<div className="flex gap-2">
-									<SecondaryButton onClick={copyKey}>
-										<IconCopy className="h-4 w-4" />
-										Copy
-									</SecondaryButton>
-									<DangerButton onClick={rotate} disabled={busy}>
-										<IconKey className="h-4 w-4" />
-										Rotate
-									</DangerButton>
-								</div>
-							}
-						/>
-						<code className="block break-all rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-							{access?.accessKey || "Not generated yet"}
-						</code>
-						<InlineAlert
-							tone="warning"
-							title="Treat this like a password"
-							description="Rotating invalidates any tool that was calling the service with the old key."
-						/>
 					</SurfaceCard>
 				</>
 			)}
