@@ -394,8 +394,15 @@ function hasCompletedScheduling(post: SocialPostRun) {
 	return post.status === "scheduled" || !!post.scheduledFor;
 }
 
-function hasCompletedApproval(post: SocialPostRun) {
-	return post.status === "approved" || !!post.approvedAt || hasCompletedScheduling(post);
+/** True once the post has been approved or has moved past approval in the pipeline. */
+function hasUserApproved(post: SocialPostRun) {
+	return (
+		post.status === "approved" ||
+		!!post.approvedAt ||
+		post.status === "scheduled" ||
+		post.status === "publishing" ||
+		post.status === "published"
+	);
 }
 
 function Bucket({
@@ -448,7 +455,7 @@ function QueueItem({
 	onEdit: () => void;
 	onSchedulePicker: () => void;
 }) {
-	const approvalDone = hasCompletedApproval(post);
+	const approvalDone = hasUserApproved(post);
 	const scheduleDone = hasCompletedScheduling(post);
 	const terminal =
 		post.status === "published" ||
@@ -456,7 +463,8 @@ function QueueItem({
 		post.status === "rejected" ||
 		post.status === "cancelled";
 	const canApprove = !approvalDone && !terminal;
-	const canSchedule = !terminal;
+	// Only offer schedule/reschedule after approval so the flow is: approve → then pick time.
+	const canSchedule = approvalDone && !terminal;
 	const canPublishNow = !scheduleDone && !terminal && post.status !== "approved";
 	const canEdit = !approvalDone && !terminal;
 	const canReject = !approvalDone && !terminal;

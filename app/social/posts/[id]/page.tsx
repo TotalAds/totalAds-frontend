@@ -187,15 +187,22 @@ export default function SocialPostDetailPage() {
 	const isPublishing = post?.status === "publishing";
 	const isScheduled = post?.status === "scheduled" || !!post?.scheduledFor;
 	const isRejected = post?.status === "rejected" || post?.status === "cancelled";
-	const isApproved = post?.status === "approved" || !!post?.approvedAt || isScheduled;
+	const hasUserApproved =
+		!!post &&
+		(!!post.approvedAt ||
+			post.status === "approved" ||
+			post.status === "scheduled" ||
+			post.status === "publishing" ||
+			post.status === "published" ||
+			(post.status === "failed" && !!post.approvedAt));
 	const canTakeDraftAction =
+		!!post && !isPublished && !isPublishing && !isRejected && !hasUserApproved;
+	const canSchedule =
 		!!post &&
 		!isPublished &&
-		!isPublishing &&
-		!isScheduled &&
 		!isRejected &&
-		post.status !== "approved";
-	const canSchedule = !!post && !isPublished && !isRejected;
+		!isPublishing &&
+		hasUserApproved;
 	const canRetryFailedMedia =
 		!!post &&
 		!post.linkedinPostUrn &&
@@ -391,7 +398,7 @@ export default function SocialPostDetailPage() {
 												</SecondaryButton>
 											</>
 										)}
-										{isApproved && !isPublished && (
+										{hasUserApproved && !isPublished && (
 											<StatusNotice
 												title={
 													isScheduled
