@@ -217,7 +217,7 @@ export default function SocialCopilotPage() {
 			const questionAnswers = Object.fromEntries(
 				Object.entries(answers).filter(([, value]) => value.trim())
 			);
-			const generationDoneMessage = `Done. I created the approved ${selectedFramework.label} plan and saved the drafts into your pipeline.`;
+			const generationDoneMessage = `Done. I created the approved ${selectedFramework.label} plan and queued the posts for approval (suggested times are on the calendar plan, not live-scheduled yet).`;
 			const result = await generateLinkedinCalendar({
 				chatId: chatId || undefined,
 				durationDays:
@@ -227,7 +227,7 @@ export default function SocialCopilotPage() {
 				startDate: todayIso(),
 				postsPerWeek: selectedFramework.postsPerWeek || brief.intent.postsPerWeek,
 				focus: selectedFramework.focus || brief.intent.focus,
-				approvalBehavior: "draft",
+				approvalBehavior: "review",
 				userPrompt: messages.filter((msg) => msg.role === "user").at(-1)?.content,
 				selectedFramework: selectedFramework.label,
 				answers: questionAnswers,
@@ -246,11 +246,11 @@ export default function SocialCopilotPage() {
 				...prev,
 				{
 					role: "assistant",
-					content: `Done. I created ${result.totalPosts} LinkedIn draft(s), saved them into your draft pipeline, and attached media tasks where the plan called for images or carousels.`,
+					content: `Done. I created ${result.totalPosts} LinkedIn post(s) in your approval queue. When you approve (without picking a new time), each post is scheduled automatically for its planned slot. Use Publish now if you want it live immediately. Media was generated where the plan called for images or carousels.`,
 				},
 			]);
 			setDetailsOpen(true);
-			toast.success(`Generated ${result.totalPosts} LinkedIn draft(s)`);
+			toast.success(`Generated ${result.totalPosts} post(s) — open Approval queue to review`);
 			await loadSessions();
 		} catch (err) {
 			toast.error(

@@ -27,6 +27,7 @@ import {
 	listEntityEvents,
 	publishPostNow,
 	rejectPost,
+	retrySocialMediaAsset,
 	schedulePost,
 	SocialEvent,
 	SocialMediaAsset,
@@ -58,6 +59,7 @@ export default function SocialPostDetailPage() {
 	const [editing, setEditing] = useState(false);
 	const [body, setBody] = useState("");
 	const [busy, setBusy] = useState(false);
+	const [retryingAssetId, setRetryingAssetId] = useState<number | null>(null);
 	const [pickerValue, setPickerValue] = useState("");
 
 	const load = async () => {
@@ -194,6 +196,24 @@ export default function SocialPostDetailPage() {
 		!isRejected &&
 		post.status !== "approved";
 	const canSchedule = !!post && !isPublished && !isRejected;
+	const canRetryFailedMedia =
+		!!post &&
+		!post.linkedinPostUrn &&
+		post.status !== "published" &&
+		post.status !== "publishing";
+
+	const retryMediaAsset = async (assetId: number) => {
+		try {
+			setRetryingAssetId(assetId);
+			await retrySocialMediaAsset(assetId);
+			toast.success("Media regeneration finished");
+			await load();
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Media retry failed");
+		} finally {
+			setRetryingAssetId(null);
+		}
+	};
 
 	return (
 		<PageShell>
@@ -287,6 +307,67 @@ export default function SocialPostDetailPage() {
 										mediaUrls={post.mediaUrls || undefined}
 										mediaAssets={postMediaAssets}
 									/>
+									{canRetryFailedMedia &&
+										postMediaAssets.some(
+											(a) =>
+												(a.status === "failed" || a.status === "pending") &&
+												!(
+													a.assetType === "single_image" &&
+													a.provider === "user_upload"
+												)
+										) && (
+											<div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3">
+												<p className="text-xs font-semibold text-amber-900">
+													Generated media needs attention
+												</p>
+												<p className="mt-1 text-xs leading-relaxed text-amber-800/90">
+													If image or carousel generation failed before this post went
+													live, retry below. This is only available until the post is on
+													LinkedIn.
+												</p>
+												<ul className="mt-3 space-y-2">
+													{postMediaAssets
+														.filter(
+															(a) =>
+																(a.status === "failed" || a.status === "pending") &&
+																!(
+																	a.assetType === "single_image" &&
+																	a.provider === "user_upload"
+																)
+														)
+														.map((asset) => (
+															<li
+																key={asset.id}
+																className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-100 bg-white/90 px-3 py-2"
+															>
+																<div className="min-w-0 flex-1">
+																	<p className="text-xs font-medium text-slate-800">
+																		{asset.assetType === "single_image"
+																			? "Image"
+																			: "Carousel"}{" "}
+																		· #{asset.id}
+																	</p>
+																	<p className="text-[11px] text-slate-500">
+																		Status: {asset.status}
+																		{asset.failureReason
+																			? ` — ${asset.failureReason}`
+																			: ""}
+																	</p>
+																</div>
+																<SecondaryButton
+																	onClick={() => retryMediaAsset(asset.id)}
+																	disabled={busy || retryingAssetId !== null}
+																	className="shrink-0"
+																>
+																	{retryingAssetId === asset.id
+																		? "Retrying…"
+																		: "Retry generation"}
+																</SecondaryButton>
+															</li>
+														))}
+												</ul>
+											</div>
+										)}
 									<div className="mt-4 flex flex-wrap gap-2">
 										{canTakeDraftAction && (
 											<>

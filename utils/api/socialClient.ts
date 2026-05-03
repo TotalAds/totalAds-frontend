@@ -745,11 +745,62 @@ export const briefLinkedinCopilot = async (input: {
 	return response.data?.data;
 };
 
+/**
+ * Starts generation on the server and polls until completion so production proxies
+ * (short HTTP timeouts) do not abort while drafts are still being created.
+ */
 export const generateLinkedinCalendar = async (
 	input: GenerateLinkedinCalendarInput
 ): Promise<GeneratedLinkedinCalendar> => {
-	const response = await socialClient.post("/api/v1/calendar/generate", input);
-	return response.data?.data;
+	const startResponse = await socialClient.post("/api/v1/calendar/generate/async", input, {
+		timeout: 60000,
+	});
+	const batchId = startResponse.data?.data?.calendarBatchId as string | undefined;
+	if (!batchId) {
+		throw new Error(
+			startResponse.data?.message ||
+				"Calendar generation did not return a batch id. Try again."
+		);
+	}
+
+	const deadline = Date.now() + 25 * 60 * 1000;
+	let delayMs = 2500;
+
+	while (Date.now() < deadline) {
+		const poll = await socialClient.get(
+			`/api/v1/calendar/generate/status/${batchId}`,
+			{ timeout: 60000 }
+		);
+		const payload = poll.data?.data as
+			| {
+					status: "pending" | "completed" | "failed";
+					data?: GeneratedLinkedinCalendar;
+					error?: string;
+			  }
+			| undefined;
+
+		if (!payload?.status) {
+			throw new Error("Invalid calendar status response from server.");
+		}
+
+		if (payload.status === "completed" && payload.data) {
+			return payload.data;
+		}
+
+		if (payload.status === "failed") {
+			throw new Error(
+				payload.error ||
+					"Calendar generation failed. Check Posts — drafts may still have been created."
+			);
+		}
+
+		await new Promise((resolve) => setTimeout(resolve, Math.min(delayMs, 12000)));
+		delayMs = Math.min(Math.floor(delayMs * 1.2), 12000);
+	}
+
+	throw new Error(
+		"Calendar generation timed out waiting for the server. Open Posts — your drafts may already be there."
+	);
 };
 
 export const getUpcomingCalendarPlan = async () => {
@@ -795,6 +846,26 @@ export const listMediaAssets = async () => {
 export const listPostMediaAssets = async (postRunId: number) => {
 	const response = await socialClient.get(`/api/v1/media/assets/${postRunId}`);
 	return (response.data?.data || []) as SocialMediaAsset[];
+};
+
+export const retrySocialMediaAsset = async (
+	assetId: number
+): Promise<SocialMediaAsset> => {
+	try {
+		const response = await socialClient.post(
+			`/api/v1/media/assets/${assetId}/retry`
+		);
+		const data = response.data?.data;
+		if (!data) {
+			throw new Error(response.data?.message || "Retry failed");
+		}
+		return data as SocialMediaAsset;
+	} catch (err) {
+		if (err instanceof AxiosError && err.response?.data?.message) {
+			throw new Error(String(err.response.data.message));
+		}
+		throw err;
+	}
 };
 
 // -----------------------------------------------------------------------
