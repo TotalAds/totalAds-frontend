@@ -1,5 +1,5 @@
 "use client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useState } from "react";
 
 import GetLogo from "@/components/common/getLogo";
@@ -7,8 +7,20 @@ import { useAuthContext } from "@/context/AuthContext";
 import { appendUtmToPath } from "@/utils/analytics/utm";
 import { IconUserCircle } from "@tabler/icons-react";
 
+function onboardingPathFromProduct(searchParams: URLSearchParams): string {
+  const product = searchParams.get("product") || searchParams.get("app");
+  if (
+    product &&
+    ["social", "socialsnipper", "socialsniper"].includes(product.toLowerCase())
+  ) {
+    return `/onboarding?product=${encodeURIComponent(product)}`;
+  }
+  return "/onboarding";
+}
+
 export function LoginComponent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { state, loginUser, clearError } = useAuthContext();
   const { isLoading, error, isAuthenticated } = state;
 
@@ -22,12 +34,12 @@ export function LoginComponent() {
       if (!state.user.emailVerified) {
         router.push("/verify-email");
       } else if (!state.user.onboardingCompleted) {
-        router.push("/onboarding");
+        router.push(onboardingPathFromProduct(searchParams));
       } else {
         router.push("/email/dashboard");
       }
     }
-  }, [isAuthenticated, state.user, router]);
+  }, [isAuthenticated, state.user, router, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

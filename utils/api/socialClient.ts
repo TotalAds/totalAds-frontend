@@ -445,17 +445,6 @@ export const getSocialAccess = async (): Promise<SocialAccessResponse> => {
 	return payload;
 };
 
-export const enableSocialAccess = async () => {
-	const response = await apiClient.post("/social/access/enable", {});
-	const payload = response.data?.payload || response.data;
-	return payload;
-};
-
-export const disableSocialAccess = async () => {
-	const response = await apiClient.post("/social/access/disable");
-	return response.data?.payload || response.data;
-};
-
 export const updateSocialSettings = async (settings: {
 	commentsApprovalMode?: boolean;
 	linkedinExternalUrl?: string;

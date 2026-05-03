@@ -13,7 +13,11 @@ import {
 	SectionTitle,
 	SurfaceCard,
 } from "@/components/social/SocialUi";
-import { getProfileMemory, saveMemoryOnboarding } from "@/utils/api/socialClient";
+import {
+	getProfileMemory,
+	getSocialAccess,
+	saveMemoryOnboarding,
+} from "@/utils/api/socialClient";
 
 const STEPS = [
 	"Identity",
@@ -109,11 +113,20 @@ export default function MemoryOnboardingPage() {
 	};
 
 	useEffect(() => {
-		const loadExistingMemory = async () => {
+		let cancelled = false;
+		const load = async () => {
 			try {
 				setLoadingExisting(true);
+				const a = await getSocialAccess();
+				if (!a.enabled) {
+					if (!cancelled) {
+						toast.error("SocialSnipper is not enabled for your account yet.");
+						router.replace("/social/dashboard");
+					}
+					return;
+				}
 				const profileItems = await getProfileMemory();
-				if (!profileItems.length) return;
+				if (cancelled || !profileItems.length) return;
 				const asMap = new Map(profileItems.map((item) => [item.key, item.value]));
 				const toLineList = (value: unknown): string => {
 					if (Array.isArray(value)) {
@@ -139,15 +152,20 @@ export default function MemoryOnboardingPage() {
 					),
 				});
 			} catch (err) {
-				toast.error(
-					err instanceof Error ? err.message : "Failed to load saved memory"
-				);
+				if (!cancelled) {
+					toast.error(
+						err instanceof Error ? err.message : "Failed to load saved memory"
+					);
+				}
 			} finally {
-				setLoadingExisting(false);
+				if (!cancelled) setLoadingExisting(false);
 			}
 		};
-		loadExistingMemory();
-	}, []);
+		load();
+		return () => {
+			cancelled = true;
+		};
+	}, [router]);
 
 	return (
 		<PageShell maxWidth="5xl">

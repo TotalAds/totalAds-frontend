@@ -67,10 +67,19 @@ export function SignupComponent() {
 
       // Check if email verification is required
       if (!user.emailVerified) {
-        router.push("/verify-email");
+        const product = searchParams.get("product") || searchParams.get("app");
+        const verifyHref =
+          product && ["social", "socialsnipper", "socialsniper"].includes(product.toLowerCase())
+            ? `/verify-email?product=${encodeURIComponent(product)}`
+            : "/verify-email";
+        router.push(verifyHref);
       } else if (!user.onboardingCompleted) {
-        // After email verification, redirect to onboarding
-        router.push("/onboarding");
+        const product = searchParams.get("product") || searchParams.get("app");
+        const onboardingHref =
+          product && ["social", "socialsnipper", "socialsniper"].includes(product.toLowerCase())
+            ? `/onboarding?product=${encodeURIComponent(product)}`
+            : "/onboarding";
+        router.push(onboardingHref);
       } else {
         // If both email and onboarding are complete, go to dashboard
         router.push("/email/dashboard");

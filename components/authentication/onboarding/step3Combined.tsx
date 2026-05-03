@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import React, { useState } from "react";
 import toast from "react-hot-toast";
 
@@ -12,8 +12,14 @@ interface Step3CombinedProps {
   isLoading: boolean;
 }
 
+function isSocialProductOnboardingIntent(raw: string | null | undefined): boolean {
+  const t = (raw || "").toLowerCase();
+  return t === "socialsnipper" || t === "socialsniper" || t === "social";
+}
+
 export function OnboardingStep3Combined({ onBack, isLoading }: Step3CombinedProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { refreshUser, state } = useAuthContext();
 
   const [stage, setStage] = useState<"phone" | "otp" | "email">("phone");
@@ -114,7 +120,13 @@ export function OnboardingStep3Combined({ onBack, isLoading }: Step3CombinedProp
       await setEmailProviderStep5(selected);
       await refreshUser();
       toast.success("Setup complete! Welcome to LeadSnipper.");
-      router.push("/email/dashboard");
+      const product =
+        searchParams.get("product") || searchParams.get("app") || undefined;
+      if (isSocialProductOnboardingIntent(product)) {
+        router.push("/social/dashboard");
+      } else {
+        router.push("/email/dashboard");
+      }
     } catch (error: any) {
       console.error("Set email provider error:", error);
       toast.error(error.response?.data?.message || "Failed to save. Please try again.");

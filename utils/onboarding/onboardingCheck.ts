@@ -146,28 +146,50 @@ export const protectRoute = async (
   // If onboarding is completed, allow access
   if (status.isCompleted) {
     if (pathname.startsWith("/social")) {
-      const socialAllowedWhileLocked = [
-        "/social/memory/onboarding",
-        "/social/linkedin/callback",
-      ];
-      const isAllowed = socialAllowedWhileLocked.some(
-        (path) => pathname === path || pathname.startsWith(path + "/")
-      );
-      if (!isAllowed) {
-        try {
-          await getSocialAccess();
+      try {
+        const access = await getSocialAccess();
+
+        const pathAllowedWithoutProductAccess = (p: string) =>
+          p === "/social/dashboard" ||
+          p.startsWith("/social/dashboard/") ||
+          p === "/social/settings" ||
+          p.startsWith("/social/settings/");
+
+        if (!access.enabled) {
+          if (pathname.startsWith("/social/linkedin/callback")) {
+            return null;
+          }
+          if (!pathAllowedWithoutProductAccess(pathname)) {
+            return {
+              isCompleted: true,
+              currentStep: status.currentStep,
+              shouldRedirect: true,
+              redirectPath: "/social/dashboard",
+            };
+          }
+          return null;
+        }
+
+        const socialAllowedWhileMemoryIncomplete = [
+          "/social/memory/onboarding",
+          "/social/linkedin/callback",
+        ];
+        const isMemoryExempt = socialAllowedWhileMemoryIncomplete.some(
+          (path) => pathname === path || pathname.startsWith(path + "/")
+        );
+        if (!isMemoryExempt) {
           const socialStatus = await getMemoryOnboardingStatus();
           if (!socialStatus?.isComplete) {
             return {
-              isCompleted: false,
+              isCompleted: true,
               currentStep: status.currentStep,
               shouldRedirect: true,
               redirectPath: "/social/memory/onboarding",
             };
           }
-        } catch (error) {
-          console.error("Error checking social memory onboarding:", error);
         }
+      } catch (error) {
+        console.error("Error checking social access / memory onboarding:", error);
       }
     }
     return null;

@@ -148,7 +148,7 @@ const SocialSidebar: React.FC<SocialSidebarProps> = ({ isOpen, onClose }) => {
 							</div>
 							<div className="overflow-hidden">
 								<h1 className="whitespace-nowrap text-base font-bold text-sidebar-text">
-									SocialSniper
+									SocialSnipper
 								</h1>
 								<p className="whitespace-nowrap text-xs text-sidebar-muted">
 									LinkedIn ghost-writer agent

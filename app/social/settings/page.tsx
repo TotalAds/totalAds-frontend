@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 import {
-	DangerButton,
 	InlineAlert,
 	LoadingCardGrid,
 	PageHeader,
@@ -17,8 +16,6 @@ import {
 } from "@/components/social/SocialUi";
 import {
 	AccountPreferences,
-	disableSocialAccess,
-	enableSocialAccess,
 	getAccountPreferences,
 	getSocialAccess,
 	SocialAccessResponse,
@@ -90,24 +87,6 @@ export default function SocialSettingsPage() {
 		}
 	};
 
-	const toggleAccess = async () => {
-		try {
-			setBusy(true);
-			if (access?.enabled) {
-				await disableSocialAccess();
-				toast.success("Social service disabled");
-			} else {
-				await enableSocialAccess();
-				toast.success("Social service enabled");
-			}
-			await load();
-		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Toggle failed");
-		} finally {
-			setBusy(false);
-		}
-	};
-
 	return (
 		<PageShell>
 			<PageHeader
@@ -122,8 +101,8 @@ export default function SocialSettingsPage() {
 				<>
 					<SurfaceCard>
 						<SectionTitle
-							title="Social service status"
-							description="Turn the whole SocialSniper subsystem on/off for this account."
+							title="SocialSnipper access"
+							description="Only a TotalAds administrator can enable or disable SocialSnipper for your account."
 							action={
 								<StatusPill
 									status={access?.enabled ? "connected" : "disconnected"}
@@ -131,20 +110,21 @@ export default function SocialSettingsPage() {
 								/>
 							}
 						/>
-						<div className="flex flex-wrap items-center gap-2">
-							{access?.enabled ? (
-								<DangerButton onClick={toggleAccess} disabled={busy}>
-									Disable SocialSniper
-								</DangerButton>
-							) : (
-								<PrimaryButton onClick={toggleAccess} disabled={busy}>
-									Enable SocialSniper
-								</PrimaryButton>
-							)}
-						</div>
+						{!access?.enabled ? (
+							<InlineAlert
+								tone="warning"
+								title="No product access yet"
+								description="Ask an admin to enable SocialSnipper for your user in Admin → Users & moderation. You can open the dashboard to see the same status."
+							/>
+						) : (
+							<p className="text-xs text-slate-500">
+								To revoke access, an administrator must disable it in the admin
+								panel.
+							</p>
+						)}
 					</SurfaceCard>
 
-					{prefs && (
+					{access?.enabled && prefs && (
 						<SurfaceCard>
 							<SectionTitle
 								title="Approval routing"
@@ -251,7 +231,7 @@ export default function SocialSettingsPage() {
 						</SurfaceCard>
 					)}
 
-					{prefs && (
+					{access?.enabled && prefs && (
 						<SurfaceCard>
 							<SectionTitle
 								title="Agent posting window"
@@ -343,10 +323,11 @@ export default function SocialSettingsPage() {
 						</SurfaceCard>
 					)}
 
+					{access?.enabled && (
 					<SurfaceCard>
 						<SectionTitle
 							title="Other account settings"
-							description="Legacy flags from earlier SocialSniper builds."
+							description="Legacy flags from earlier SocialSnipper builds."
 						/>
 						<div className="space-y-4">
 							<ToggleCard
@@ -380,6 +361,7 @@ export default function SocialSettingsPage() {
 							</div>
 						</div>
 					</SurfaceCard>
+					)}
 				</>
 			)}
 		</PageShell>

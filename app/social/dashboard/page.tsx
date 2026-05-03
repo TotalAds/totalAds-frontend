@@ -20,7 +20,6 @@ import {
 } from "@/components/social/SocialUi";
 import {
 	AgentBriefing,
-	enableSocialAccess,
 	getAccountPreferences,
 	getAgentBriefing,
 	getLinkedinStatus,
@@ -95,18 +94,6 @@ export default function SocialDashboardPage() {
 		load();
 	}, []);
 
-	const onEnable = async () => {
-		try {
-			await enableSocialAccess();
-			toast.success("SocialSniper enabled for your account");
-			await load();
-		} catch (err) {
-			toast.error(
-				err instanceof Error ? err.message : "Failed to enable social access"
-			);
-		}
-	};
-
 	const onRunScheduler = async () => {
 		try {
 			setRunningScheduler(true);
@@ -149,8 +136,8 @@ export default function SocialDashboardPage() {
 			<PageShell>
 				<PageHeader
 					eyebrow="Welcome"
-					title="Turn on the LinkedIn agent"
-					description="SocialSniper ghost-writes posts in your voice, gets them approved via Telegram, then schedules and publishes them."
+					title="SocialSnipper access"
+					description="When your account is enabled, the agent ghost-writes posts in your voice, routes approvals through Telegram or the dashboard, then schedules and publishes to LinkedIn."
 				/>
 				<SurfaceCard className="border-dashed">
 					<div className="grid gap-6 md:grid-cols-3">
@@ -170,17 +157,23 @@ export default function SocialDashboardPage() {
 							description="Hourly snapshots + weekly learning pass surface which hooks, CTAs and formats actually work."
 						/>
 					</div>
-					<div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+					<div className="mt-6 space-y-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
 						<div>
 							<p className="text-sm font-semibold text-slate-800">
-								Enable SocialSniper for your account
+								Access is assigned by your administrator
 							</p>
 							<p className="text-xs text-slate-500">
-								Unlocks drafting, approvals, scheduling, and LinkedIn publishing for
-								this account.
+								SocialSnipper is not enabled for this account yet. Ask your TotalAds
+								admin to turn it on for your email in the admin panel, or contact
+								support. Once enabled, complete profile memory onboarding and connect
+								LinkedIn from here.
 							</p>
 						</div>
-						<PrimaryButton onClick={onEnable}>Enable SocialSniper</PrimaryButton>
+						<InlineAlert
+							tone="info"
+							title="After you are enabled"
+							description="You will be guided through the memory wizard (voice, ICP, tone) and can connect LinkedIn OAuth from the dashboard."
+						/>
 					</div>
 				</SurfaceCard>
 			</PageShell>

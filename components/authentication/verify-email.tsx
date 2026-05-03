@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
@@ -12,8 +12,20 @@ import {
 } from "@/utils/api/authClient";
 import { IconMail, IconRefresh, IconShieldCheck } from "@tabler/icons-react";
 
+function onboardingPathAfterVerify(searchParams: URLSearchParams): string {
+  const product = searchParams.get("product") || searchParams.get("app");
+  if (
+    product &&
+    ["social", "socialsnipper", "socialsniper"].includes(product.toLowerCase())
+  ) {
+    return `/onboarding?product=${encodeURIComponent(product)}`;
+  }
+  return "/onboarding";
+}
+
 const VerifyEmailComponent: React.FC = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { state, refreshUser, logoutUser } = useAuthContext();
   const { user } = state;
 
@@ -26,9 +38,9 @@ const VerifyEmailComponent: React.FC = () => {
   useEffect(() => {
     // If already verified, go to onboarding or dashboard
     if (user?.emailVerified) {
-      router.replace("/onboarding");
+      router.replace(onboardingPathAfterVerify(searchParams));
     }
-  }, [user?.emailVerified, router]);
+  }, [user?.emailVerified, router, searchParams]);
 
   // Session timeout for verification pending state (5 minutes)
   useEffect(() => {
@@ -83,7 +95,7 @@ const VerifyEmailComponent: React.FC = () => {
       await verifyEmailApi(code.trim().toUpperCase());
       await refreshUser();
       toast.success("Email verified successfully!");
-      router.replace("/onboarding");
+      router.replace(onboardingPathAfterVerify(searchParams));
     } catch (err) {
       console.error(err);
       setError(
