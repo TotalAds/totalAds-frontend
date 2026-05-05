@@ -45,8 +45,6 @@ import {
 
 type TextBriefField =
 	| "topic"
-	| "angle"
-	| "audience"
 	| "proofPoint"
 	| "cta"
 	| "seriesName"
@@ -69,12 +67,24 @@ const AUDIENCE_OPTIONS = [
 	"Investors",
 ] as const;
 
+const splitBriefTokens = (raw: string): string[] =>
+	raw
+		.split(/[,;\n]+/)
+		.map((s) => s.trim())
+		.filter((s) => s.length > 0);
+
+const dedupeBrief = (items: string[]): string[] => {
+	const out: string[] = [];
+	for (const item of items) {
+		if (!out.includes(item)) out.push(item);
+	}
+	return out;
+};
+
 export default function SocialPostStudioPage() {
 	const [flow, setFlow] = useState<"ai" | "manual">("ai");
 	const [form, setForm] = useState({
 		topic: "",
-		angle: "",
-		audience: "",
 		proofPoint: "",
 		cta: "",
 		seriesName: "",
@@ -82,12 +92,14 @@ export default function SocialPostStudioPage() {
 		createImage: false,
 		createCarousel: false,
 	});
+	const [selectedAngles, setSelectedAngles] = useState<string[]>([]);
+	const [selectedAudiences, setSelectedAudiences] = useState<string[]>([]);
+	const [showCustomAngle, setShowCustomAngle] = useState(false);
+	const [showCustomAudience, setShowCustomAudience] = useState(false);
+	const [customAngleText, setCustomAngleText] = useState("");
+	const [customAudienceText, setCustomAudienceText] = useState("");
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [showAdvanced, setShowAdvanced] = useState(false);
-	const [angleMode, setAngleMode] = useState<"preset" | "custom">("preset");
-	const [audienceMode, setAudienceMode] = useState<"preset" | "custom">("preset");
-	const [customAngle, setCustomAngle] = useState("");
-	const [customAudience, setCustomAudience] = useState("");
 	const [latestRun, setLatestRun] = useState<AgentRunOutput | null>(null);
 	const [drafts, setDrafts] = useState<SocialPostRun[]>([]);
 	const [isBusy, setIsBusy] = useState<number | null>(null);
@@ -130,13 +142,23 @@ export default function SocialPostStudioPage() {
 			toast.error("Topic must be at least 3 characters");
 			return;
 		}
+		const customAngles = splitBriefTokens(customAngleText);
+		const customAudiences = splitBriefTokens(customAudienceText);
+		const angles = dedupeBrief([
+			...selectedAngles,
+			...customAngles,
+		]);
+		const audiences = dedupeBrief([
+			...selectedAudiences,
+			...customAudiences,
+		]);
 		try {
 			setIsGenerating(true);
 			setLatestRun(null);
 			const run = await runAgent({
 				topic: form.topic.trim(),
-				angle: form.angle || undefined,
-				audience: form.audience || undefined,
+				angles: angles.length ? angles : undefined,
+				audiences: audiences.length ? audiences : undefined,
 				proofPoint: form.proofPoint || undefined,
 				cta: form.cta || undefined,
 				seriesName: form.seriesName || undefined,
@@ -328,38 +350,37 @@ export default function SocialPostStudioPage() {
 								<label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-600">
 									Angle
 								</label>
+								<p className="mb-2 text-xs text-slate-500">
+									Select one or more angles. Custom entries can be comma-separated.
+								</p>
 								<div className="flex flex-wrap gap-2">
 									{ANGLE_OPTIONS.map((option) => (
 										<Chip
 											key={option}
-											active={angleMode === "preset" && form.angle === option}
+											active={selectedAngles.includes(option)}
 											onClick={() => {
-												setAngleMode("preset");
-												set("angle", option);
+												setSelectedAngles((prev) =>
+													prev.includes(option)
+														? prev.filter((item) => item !== option)
+														: [...prev, option]
+												);
 											}}
 										>
 											{option}
 										</Chip>
 									))}
 									<Chip
-										active={angleMode === "custom"}
-										onClick={() => {
-											setAngleMode("custom");
-											set("angle", customAngle);
-										}}
+										active={showCustomAngle}
+										onClick={() => setShowCustomAngle((v) => !v)}
 									>
 										+ Custom
 									</Chip>
 								</div>
-								{angleMode === "custom" && (
+								{showCustomAngle && (
 									<input
-										value={customAngle}
-										onChange={(event) => {
-											const next = event.target.value;
-											setCustomAngle(next);
-											set("angle", next);
-										}}
-										placeholder="Enter custom angle"
+										value={customAngleText}
+										onChange={(event) => setCustomAngleText(event.target.value)}
+										placeholder="e.g. Lessons from a failed launch, or comma-separated list"
 										className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
 									/>
 								)}
@@ -369,38 +390,37 @@ export default function SocialPostStudioPage() {
 								<label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-600">
 									Audience
 								</label>
+								<p className="mb-2 text-xs text-slate-500">
+									Select one or more audiences. Custom entries can be comma-separated.
+								</p>
 								<div className="flex flex-wrap gap-2">
 									{AUDIENCE_OPTIONS.map((option) => (
 										<Chip
 											key={option}
-											active={audienceMode === "preset" && form.audience === option}
+											active={selectedAudiences.includes(option)}
 											onClick={() => {
-												setAudienceMode("preset");
-												set("audience", option);
+												setSelectedAudiences((prev) =>
+													prev.includes(option)
+														? prev.filter((item) => item !== option)
+														: [...prev, option]
+												);
 											}}
 										>
 											{option}
 										</Chip>
 									))}
 									<Chip
-										active={audienceMode === "custom"}
-										onClick={() => {
-											setAudienceMode("custom");
-											set("audience", customAudience);
-										}}
+										active={showCustomAudience}
+										onClick={() => setShowCustomAudience((v) => !v)}
 									>
 										+ Custom
 									</Chip>
 								</div>
-								{audienceMode === "custom" && (
+								{showCustomAudience && (
 									<input
-										value={customAudience}
-										onChange={(event) => {
-											const next = event.target.value;
-											setCustomAudience(next);
-											set("audience", next);
-										}}
-										placeholder="Enter custom audience"
+										value={customAudienceText}
+										onChange={(event) => setCustomAudienceText(event.target.value)}
+										placeholder="e.g. RevOps leaders, or comma-separated list"
 										className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
 									/>
 								)}

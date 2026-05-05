@@ -171,6 +171,7 @@ export interface SocialPostRun {
 	userEditedBody: boolean;
 	topic: string | null;
 	angle: string | null;
+	audience: string | null;
 	agentRunId: string | null;
 	profileMemorySnapshot: Record<string, unknown> | null;
 	workMemorySnapshot: Record<string, unknown> | null;
@@ -503,8 +504,12 @@ export const getLinkedinConfigCheck = async () => {
 
 export const runAgent = async (input: {
 	topic: string;
+	/** @deprecated prefer `angles` */
 	angle?: string;
+	/** @deprecated prefer `audiences` */
 	audience?: string;
+	angles?: string[];
+	audiences?: string[];
 	proofPoint?: string;
 	cta?: string;
 	seriesName?: string;
@@ -607,6 +612,8 @@ export const generateSocialDrafts = async (input: {
 	topic: string;
 	angle?: string;
 	audience?: string;
+	angles?: string[];
+	audiences?: string[];
 	proofPoint?: string;
 	cta?: string;
 	scheduledFor?: string;
