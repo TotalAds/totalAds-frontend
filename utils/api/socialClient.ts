@@ -425,7 +425,7 @@ export interface SocialMediaAsset {
 	id: number;
 	userId: number;
 	postRunId: number | null;
-	assetType: "single_image" | "carousel_pdf";
+	assetType: "single_image" | "single_video" | "carousel_pdf";
 	provider: string;
 	providerAssetId: string | null;
 	sourcePrompt: string | null;
@@ -797,7 +797,16 @@ export const generateSocialCarousel = async (payload: {
 export const uploadSocialEditorImage = async (payload: {
 	postRunId?: number;
 	fileName: string;
-	mimeType: "image/png" | "image/jpeg" | "image/jpg" | "image/webp" | "image/gif";
+	mimeType:
+		| "image/png"
+		| "image/jpeg"
+		| "image/jpg"
+		| "image/webp"
+		| "image/gif"
+		| "video/mp4"
+		| "video/quicktime"
+		| "video/webm"
+		| "application/pdf";
 	dataBase64: string;
 }) => {
 	const response = await socialClient.post("/api/v1/media/upload", payload);
@@ -832,6 +841,11 @@ export const retrySocialMediaAsset = async (
 		}
 		throw err;
 	}
+};
+
+export const deleteSocialMediaAsset = async (assetId: number) => {
+	const response = await socialClient.delete(`/api/v1/media/assets/${assetId}`);
+	return response.data?.data as { id: number };
 };
 
 // -----------------------------------------------------------------------

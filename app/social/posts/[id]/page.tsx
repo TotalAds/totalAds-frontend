@@ -21,6 +21,7 @@ import {
 } from "@/components/social/SocialUi";
 import {
 	approvePost,
+	deleteSocialMediaAsset,
 	deleteLinkedinPost,
 	getPost,
 	listPostMediaAssets,
@@ -58,6 +59,10 @@ export default function SocialPostDetailPage() {
 	const [postMediaAssets, setPostMediaAssets] = useState<SocialMediaAsset[]>([]);
 	const [editing, setEditing] = useState(false);
 	const [body, setBody] = useState("");
+	const [hashtagInput, setHashtagInput] = useState("");
+	const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+	const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+	const [assetToRemoveUrl, setAssetToRemoveUrl] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
 	const [retryingAssetId, setRetryingAssetId] = useState<number | null>(null);
 	const [pickerValue, setPickerValue] = useState("");
@@ -66,12 +71,18 @@ export default function SocialPostDetailPage() {
 		try {
 			setLoading(true);
 			const data = await getPost(id);
-			setPost(data.post);
-			setBody(data.post.contentBody);
 			const [ev, media] = await Promise.all([
 				listEntityEvents("post", id),
 				listPostMediaAssets(id),
 			]);
+			const mergedMediaUrls = mergeUniqueMediaUrls(
+				data.post.mediaUrls || [],
+				media.map((asset) => asset.publicUrl).filter(Boolean) as string[]
+			);
+			setPost(data.post);
+			setBody(data.post.contentBody);
+			setHashtagInput((data.post.hashtags || []).join(", "));
+			setMediaUrls(mergedMediaUrls);
 			setEvents(ev);
 			setPostMediaAssets(media);
 		} catch (err) {
@@ -97,7 +108,11 @@ export default function SocialPostDetailPage() {
 	const saveEdit = async () => {
 		try {
 			setBusy(true);
-			await updatePostDraft(id, { contentBody: body });
+			await updatePostDraft(id, {
+				contentBody: body,
+				hashtags: parseHashtagInput(hashtagInput),
+				mediaUrls,
+			});
 			toast.success("Draft saved");
 			setEditing(false);
 			await load();
@@ -197,6 +212,8 @@ export default function SocialPostDetailPage() {
 			(post.status === "failed" && !!post.approvedAt));
 	const canTakeDraftAction =
 		!!post && !isPublished && !isPublishing && !isRejected && !hasUserApproved;
+	const canCustomizePrePublish =
+		!!post && !isPublished && !isPublishing && !isRejected;
 	const canSchedule =
 		!!post &&
 		!isPublished &&
@@ -208,6 +225,7 @@ export default function SocialPostDetailPage() {
 		!post.linkedinPostUrn &&
 		post.status !== "published" &&
 		post.status !== "publishing";
+	const mediaPolicy = getLinkedinMediaPolicy(mediaUrls);
 
 	const retryMediaAsset = async (assetId: number) => {
 		try {
@@ -219,6 +237,54 @@ export default function SocialPostDetailPage() {
 			toast.error(err instanceof Error ? err.message : "Media retry failed");
 		} finally {
 			setRetryingAssetId(null);
+		}
+	};
+
+	const uploadCustomAssets = async (files: FileList | null) => {
+		if (!files || files.length === 0) return;
+		try {
+			setBusy(true);
+			for (const file of Array.from(files)) {
+				const supportedMime = normalizeUploadMime(file);
+				if (!supportedMime) {
+					toast.error(`${file.name}: unsupported file type`);
+					continue;
+				}
+				const uploaded = await uploadSocialEditorImage({
+					postRunId: id,
+					fileName: file.name || "linkedin-asset-upload",
+					mimeType: supportedMime,
+					dataBase64: await fileToBase64(file),
+				});
+				if (uploaded.publicUrl) {
+					setMediaUrls((prev) =>
+						prev.includes(uploaded.publicUrl as string)
+							? prev
+							: [...prev, uploaded.publicUrl as string]
+					);
+				}
+			}
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Asset upload failed");
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	const removeAsset = async (url: string) => {
+		try {
+			setBusy(true);
+			const matched = postMediaAssets.find((asset) => asset.publicUrl === url);
+			if (matched?.id) {
+				await deleteSocialMediaAsset(matched.id);
+				setPostMediaAssets((prev) => prev.filter((asset) => asset.id !== matched.id));
+			}
+			setMediaUrls((prev) => prev.filter((item) => item !== url));
+			toast.success("Asset removed");
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Failed to remove asset");
+		} finally {
+			setBusy(false);
 		}
 	};
 
@@ -291,12 +357,123 @@ export default function SocialPostDetailPage() {
 											});
 											return uploaded.publicUrl || "";
 										}}
+										insertUploadedImageUrl={false}
+										onImageUploaded={(url) => {
+											setMediaUrls((prev) =>
+												prev.includes(url) ? prev : [...prev, url]
+											);
+										}}
 									/>
+									<div className="mt-4 space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+										<label className="block">
+											<span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+												LinkedIn tags
+											</span>
+											<input
+												value={hashtagInput}
+												onChange={(e) => setHashtagInput(e.target.value)}
+												placeholder="growth, saas, founderjourney"
+												className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+											/>
+											<p className="mt-1 text-[11px] text-slate-500">
+												Use comma, space, or newline separated tags. We will publish
+												them as hashtags.
+											</p>
+										</label>
+										<div>
+											<p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
+												Assets (image, video, carousel)
+											</p>
+											<input
+												type="file"
+												accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,video/mp4,video/quicktime,video/webm,application/pdf"
+												multiple
+												onChange={(e) => void uploadCustomAssets(e.target.files)}
+												disabled={busy}
+												className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-700"
+											/>
+											<p className="mt-1 text-[11px] text-slate-500">
+												Upload files directly for LinkedIn publishing (image, video, or PDF carousel).
+											</p>
+											{mediaPolicy.message && (
+												<InlineAlert
+													tone={mediaPolicy.tone}
+													title="LinkedIn publish behavior"
+													description={mediaPolicy.message}
+												/>
+											)}
+											{mediaUrls.length > 0 && (
+												<div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-3">
+													{mediaUrls.map((url) => {
+														const kind = getAssetKind(url);
+														return (
+															<div
+																key={url}
+																className="relative overflow-hidden rounded-lg border border-slate-200 bg-white"
+															>
+																<button
+																	type="button"
+																	onClick={() => {
+																		if (kind === "image") setPreviewImageUrl(url);
+																	}}
+																	className="block h-full w-full text-left"
+																>
+																	{kind === "image" ? (
+																		<img
+																			src={url}
+																			alt="Uploaded asset"
+																			className="h-28 w-full object-cover"
+																		/>
+																	) : kind === "video" ? (
+																		<video
+																			src={url}
+																			className="h-28 w-full object-cover"
+																			muted
+																			playsInline
+																			controls
+																		/>
+																	) : kind === "pdf" ? (
+																		<iframe
+																			title="Uploaded carousel pdf"
+																			src={`${url}#page=1&view=FitH`}
+																			className="h-28 w-full border-0"
+																		/>
+																	) : (
+																		<div className="flex h-28 w-full items-center justify-center bg-slate-50 px-2 text-center text-xs font-medium text-slate-600">
+																			{getAssetLabel(url)}
+																		</div>
+																	)}
+																</button>
+																<button
+																	type="button"
+																	aria-label="Remove asset"
+																	onClick={() => setAssetToRemoveUrl(url)}
+																	disabled={busy}
+																	className="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-900/70 text-white transition hover:bg-slate-900"
+																>
+																	<IconX className="h-3.5 w-3.5" />
+																</button>
+															</div>
+														);
+													})}
+												</div>
+											)}
+										</div>
+									</div>
 									<div className="mt-4 flex justify-end gap-2">
 										<SecondaryButton
 											onClick={() => {
 												setEditing(false);
 												setBody(post.contentBody);
+												setHashtagInput((post.hashtags || []).join(", "));
+												setMediaUrls(
+													mergeUniqueMediaUrls(
+														post.mediaUrls || [],
+														postMediaAssets
+															.map((asset) => asset.publicUrl)
+															.filter(Boolean) as string[]
+													)
+												);
 											}}
 										>
 											Cancel
@@ -308,6 +485,15 @@ export default function SocialPostDetailPage() {
 								</>
 							) : (
 								<>
+									{mediaPolicy.message && (
+										<div className="mb-4">
+											<InlineAlert
+												tone={mediaPolicy.tone}
+												title="LinkedIn publish behavior"
+												description={mediaPolicy.message}
+											/>
+										</div>
+									)}
 									<PostPreview
 										body={post.contentBody}
 										hashtags={post.hashtags || undefined}
@@ -397,6 +583,12 @@ export default function SocialPostDetailPage() {
 													Edit body
 												</SecondaryButton>
 											</>
+										)}
+										{canCustomizePrePublish && !canTakeDraftAction && (
+											<SecondaryButton onClick={() => setEditing(true)}>
+												<IconEdit className="h-4 w-4" />
+												Customize for LinkedIn
+											</SecondaryButton>
 										)}
 										{hasUserApproved && !isPublished && (
 											<StatusNotice
@@ -585,8 +777,135 @@ export default function SocialPostDetailPage() {
 					</div>
 				</>
 			)}
+
+			{previewImageUrl && (
+				<div
+					className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/75 p-4"
+					onClick={() => setPreviewImageUrl(null)}
+				>
+					<div className="relative max-h-[90vh] max-w-5xl" onClick={(e) => e.stopPropagation()}>
+						<img
+							src={previewImageUrl}
+							alt="Image preview"
+							className="max-h-[90vh] max-w-full rounded-lg border border-slate-200 bg-white object-contain"
+						/>
+						<button
+							type="button"
+							aria-label="Close image preview"
+							onClick={() => setPreviewImageUrl(null)}
+							className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-900/75 text-white"
+						>
+							<IconX className="h-4 w-4" />
+						</button>
+					</div>
+				</div>
+			)}
+
+			{assetToRemoveUrl && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4">
+					<div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-xl">
+						<h3 className="text-sm font-semibold text-slate-900">Remove asset?</h3>
+						<p className="mt-2 text-sm text-slate-600">
+							This removes the asset from this post and deletes the uploaded file from storage.
+						</p>
+						<div className="mt-4 flex justify-end gap-2">
+							<SecondaryButton onClick={() => setAssetToRemoveUrl(null)} disabled={busy}>
+								Cancel
+							</SecondaryButton>
+							<DangerButton
+								onClick={async () => {
+									const target = assetToRemoveUrl;
+									setAssetToRemoveUrl(null);
+									if (target) await removeAsset(target);
+								}}
+								disabled={busy}
+							>
+								Delete asset
+							</DangerButton>
+						</div>
+					</div>
+				</div>
+			)}
 		</PageShell>
 	);
+}
+
+function getAssetKind(url: string): "image" | "video" | "pdf" | "other" {
+	const clean = String(url || "").split("?")[0].toLowerCase();
+	if (/\.(png|jpe?g|webp|gif)$/i.test(clean)) return "image";
+	if (/\.(mp4|mov|webm|m4v)$/i.test(clean)) return "video";
+	if (/\.pdf$/i.test(clean)) return "pdf";
+	return "other";
+}
+
+function getAssetLabel(url: string): string {
+	const kind = getAssetKind(url);
+	if (kind === "pdf") return "PDF carousel";
+	if (kind === "video") return "Video asset";
+	return "Asset";
+}
+
+function mergeUniqueMediaUrls(primary: string[], secondary: string[]): string[] {
+	return Array.from(
+		new Set(
+			[...primary, ...secondary]
+				.map((url) => String(url || "").trim())
+				.filter(Boolean)
+		)
+	);
+}
+
+function getLinkedinMediaPolicy(mediaUrls: string[]): {
+	tone: "info" | "warning";
+	message: string | null;
+} {
+	const kinds = mediaUrls.map(getAssetKind);
+	const imageCount = kinds.filter((k) => k === "image").length;
+	const videoCount = kinds.filter((k) => k === "video").length;
+	const pdfCount = kinds.filter((k) => k === "pdf").length;
+	const total = mediaUrls.length;
+
+	if (total === 0) return { tone: "info", message: null };
+	if (total > 20) {
+		return {
+			tone: "warning",
+			message:
+				`You attached ${total} assets. LinkedIn allows max 20; only the first 20 eligible assets are published.`,
+		};
+	}
+	if (pdfCount > 0 && (imageCount > 0 || videoCount > 0)) {
+		return {
+			tone: "warning",
+			message:
+				"PDF carousel + other media detected. System publishes the PDF carousel post and ignores other media.",
+		};
+	}
+	if (videoCount > 0 && imageCount > 0) {
+		return {
+			tone: "warning",
+			message:
+				"Video + image combination detected. System publishes videos only; images are ignored in that publish.",
+		};
+	}
+	if (videoCount > 0) {
+		return {
+			tone: "info",
+			message: `This post will publish ${Math.min(videoCount, 20)} video asset(s).`,
+		};
+	}
+	if (imageCount > 0) {
+		return {
+			tone: "info",
+			message: `This post will publish ${Math.min(imageCount, 20)} image asset(s).`,
+		};
+	}
+	if (pdfCount > 0) {
+		return {
+			tone: "info",
+			message: "This post will publish as a PDF carousel.",
+		};
+	}
+	return { tone: "info", message: null };
 }
 
 const fileToBase64 = (file: File): Promise<string> =>
@@ -600,6 +919,57 @@ const fileToBase64 = (file: File): Promise<string> =>
 		reader.onerror = () => reject(reader.error);
 		reader.readAsDataURL(file);
 	});
+
+const parseHashtagInput = (input: string): string[] =>
+	Array.from(
+		new Set(
+			input
+				.split(/[,\s\n]+/)
+				.map((token) => token.trim().replace(/^#/, ""))
+				.map((token) => token.replace(/[^A-Za-z0-9_]/g, ""))
+				.filter(Boolean)
+		)
+	);
+
+const normalizeUploadMime = (
+	file: File
+):
+	| "image/png"
+	| "image/jpeg"
+	| "image/jpg"
+	| "image/webp"
+	| "image/gif"
+	| "video/mp4"
+	| "video/quicktime"
+	| "video/webm"
+	| "application/pdf"
+	| null => {
+	const mime = String(file.type || "").toLowerCase();
+	if (
+		mime === "image/png" ||
+		mime === "image/jpeg" ||
+		mime === "image/jpg" ||
+		mime === "image/webp" ||
+		mime === "image/gif" ||
+		mime === "video/mp4" ||
+		mime === "video/quicktime" ||
+		mime === "video/webm" ||
+		mime === "application/pdf"
+	) {
+		return mime;
+	}
+	const lowerName = file.name.toLowerCase();
+	if (lowerName.endsWith(".jpg")) return "image/jpg";
+	if (lowerName.endsWith(".jpeg")) return "image/jpeg";
+	if (lowerName.endsWith(".png")) return "image/png";
+	if (lowerName.endsWith(".webp")) return "image/webp";
+	if (lowerName.endsWith(".gif")) return "image/gif";
+	if (lowerName.endsWith(".mp4")) return "video/mp4";
+	if (lowerName.endsWith(".mov")) return "video/quicktime";
+	if (lowerName.endsWith(".webm")) return "video/webm";
+	if (lowerName.endsWith(".pdf")) return "application/pdf";
+	return null;
+};
 
 function MemorySnapshotBlock({
 	label,

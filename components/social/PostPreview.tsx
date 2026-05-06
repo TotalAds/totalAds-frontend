@@ -53,14 +53,20 @@ export function PostPreview({
 		.replace(/\n{3,}/g, "\n\n")
 		.trim();
 	const previewBody = bodyWithoutHashtags || body;
-	const mergedMediaAssets = [
-		...(mediaAssets || []),
-		...(mediaUrls || []).map((url) => ({
-			assetType: "single_image",
-			publicUrl: url,
-			status: "ready",
-		})),
-	].filter((asset) => !!asset.publicUrl);
+	const mergedMediaAssets = Array.from(
+		new Map(
+			[
+				...(mediaAssets || []),
+				...(mediaUrls || []).map((url) => ({
+					assetType: inferAssetType(url),
+					publicUrl: url,
+					status: "ready",
+				})),
+			]
+				.filter((asset) => !!asset.publicUrl)
+				.map((asset) => [`${asset.assetType}::${asset.publicUrl}`, asset])
+		).values()
+	);
 	const imageAssets = mergedMediaAssets.filter(
 		(asset) =>
 			asset.assetType === "single_image" &&
@@ -69,6 +75,10 @@ export function PostPreview({
 	);
 	const carouselAssets = mergedMediaAssets.filter(
 		(asset) => asset.assetType === "carousel_pdf" && asset.publicUrl
+	);
+	const videoAssets = mergedMediaAssets.filter(
+		(asset) =>
+			asset.assetType === "single_video" && asset.publicUrl
 	);
 	const [carouselPages, setCarouselPages] = useState<Record<number, number>>({});
 
@@ -106,7 +116,9 @@ export function PostPreview({
 				) : (
 					<div className="whitespace-pre-line">{previewBody}</div>
 				)}
-				{(imageAssets.length > 0 || carouselAssets.length > 0) && (
+				{(imageAssets.length > 0 ||
+					carouselAssets.length > 0 ||
+					videoAssets.length > 0) && (
 					<div className="mt-4 space-y-3">
 						{imageAssets.map((asset, idx) => (
 							<img
@@ -114,6 +126,15 @@ export function PostPreview({
 								src={asset.publicUrl || ""}
 								alt={`Post media ${idx + 1}`}
 								className="max-h-72 w-full rounded-lg border border-slate-200 object-cover"
+							/>
+						))}
+						{videoAssets.map((asset, idx) => (
+							<video
+								key={`${asset.publicUrl}-${idx}`}
+								src={asset.publicUrl || ""}
+								className="max-h-80 w-full rounded-lg border border-slate-200 bg-black"
+								controls
+								preload="metadata"
 							/>
 						))}
 						{carouselAssets.map((asset, idx) => (
@@ -166,4 +187,11 @@ export function PostPreview({
 			</div>
 		</div>
 	);
+}
+
+function inferAssetType(url: string): string {
+	const cleanUrl = String(url || "").split("?")[0].toLowerCase();
+	if (/\.(pdf)$/.test(cleanUrl)) return "carousel_pdf";
+	if (/\.(mp4|mov|webm|m4v)$/.test(cleanUrl)) return "single_video";
+	return "single_image";
 }
