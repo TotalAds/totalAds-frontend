@@ -14,6 +14,7 @@ import {
 	GeneratedLinkedinCalendar,
 	GeneratedLinkedinCalendarPost,
 	generateLinkedinCalendar,
+	getSocialAccess,
 	getCopilotSession,
 	LinkedinCalendarDurationDays,
 	listCopilotSessions,
@@ -67,6 +68,7 @@ export default function SocialCopilotPage() {
 	const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
 	const [isThinking, setIsThinking] = useState(false);
 	const [isGenerating, setIsGenerating] = useState(false);
+	const [imageGenerationEnabled, setImageGenerationEnabled] = useState(true);
 
 	const selectedFramework =
 		brief?.recommendedFrameworks.find((item) => item.id === selectedFrameworkId) ||
@@ -111,6 +113,16 @@ export default function SocialCopilotPage() {
 
 	useEffect(() => {
 		loadSessions();
+		(async () => {
+			try {
+				const access = await getSocialAccess();
+				setImageGenerationEnabled(
+					access.linkedinImageGenerationEnabled !== false
+				);
+			} catch {
+				setImageGenerationEnabled(true);
+			}
+		})();
 	}, []);
 
 	const handleFiles = (event: ChangeEvent<HTMLInputElement>) => {
@@ -233,7 +245,10 @@ export default function SocialCopilotPage() {
 				answers: questionAnswers,
 				approvedArchitecture: brief.architecture as unknown as Record<string, unknown>,
 				attachments,
-				mediaMode: selectedFramework.mediaMode || brief.intent.mediaMode || "auto",
+				mediaMode: sanitizeMediaMode(
+					selectedFramework.mediaMode || brief.intent.mediaMode || "auto",
+					imageGenerationEnabled
+				),
 				imageStyle: "professional",
 				aspectRatio: "1:1",
 				messages: [...messages, { role: "assistant", content: generationDoneMessage }],
@@ -246,7 +261,7 @@ export default function SocialCopilotPage() {
 				...prev,
 				{
 					role: "assistant",
-					content: `Done. I created ${result.totalPosts} LinkedIn post(s) in your approval queue. When you approve (without picking a new time), each post is scheduled automatically for its planned slot. Use Publish now if you want it live immediately. Media was generated where the plan called for images or carousels.`,
+				content: `Done. I created ${result.totalPosts} LinkedIn post(s) in your approval queue. When you approve (without picking a new time), each post is scheduled automatically for its planned slot. Use Publish now if you want it live immediately. Media was generated where your account permissions allowed it.`,
 				},
 			]);
 			setDetailsOpen(true);
@@ -396,6 +411,7 @@ export default function SocialCopilotPage() {
 						<WorkspacePanel
 							brief={brief}
 							calendar={calendar}
+							imageGenerationEnabled={imageGenerationEnabled}
 							selectedFrameworkId={selectedFramework?.id || null}
 							onSelectFramework={setSelectedFrameworkId}
 							answers={answers}
@@ -427,6 +443,7 @@ export default function SocialCopilotPage() {
 				<WorkspacePanel
 					brief={brief}
 					calendar={calendar}
+					imageGenerationEnabled={imageGenerationEnabled}
 					selectedFrameworkId={selectedFramework?.id || null}
 					onSelectFramework={setSelectedFrameworkId}
 					answers={answers}
@@ -464,6 +481,7 @@ function ChatBubble({ message }: { message: ChatMessage }) {
 function WorkspacePanel({
 	brief,
 	calendar,
+	imageGenerationEnabled,
 	selectedFrameworkId,
 	onSelectFramework,
 	answers,
@@ -476,6 +494,7 @@ function WorkspacePanel({
 }: {
 	brief: CopilotBriefResponse | null;
 	calendar: GeneratedLinkedinCalendar | null;
+	imageGenerationEnabled: boolean;
 	selectedFrameworkId: string | null;
 	onSelectFramework: (id: string) => void;
 	answers: Record<string, string>;
@@ -496,6 +515,7 @@ function WorkspacePanel({
 				{brief ? (
 					<BriefingPanel
 						brief={brief}
+						imageGenerationEnabled={imageGenerationEnabled}
 						selectedFrameworkId={selectedFrameworkId}
 						onSelectFramework={onSelectFramework}
 						answers={answers}
@@ -535,6 +555,7 @@ function PromptActionCard() {
 
 function BriefingPanel({
 	brief,
+	imageGenerationEnabled,
 	selectedFrameworkId,
 	onSelectFramework,
 	answers,
@@ -543,6 +564,7 @@ function BriefingPanel({
 	isGenerating,
 }: {
 	brief: CopilotBriefResponse;
+	imageGenerationEnabled: boolean;
 	selectedFrameworkId: string | null;
 	onSelectFramework: (id: string) => void;
 	answers: Record<string, string>;
@@ -594,7 +616,9 @@ function BriefingPanel({
 							<div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
 								<span>{framework.durationDays} days</span>
 								<span>{framework.postsPerWeek}/week</span>
-								<span>{framework.mediaMode}</span>
+								<span>
+									{sanitizeMediaMode(framework.mediaMode, imageGenerationEnabled)}
+								</span>
 							</div>
 						</button>
 					))}
@@ -903,4 +927,13 @@ function DetailsDrawer({
 			</aside>
 		</div>
 	);
+}
+
+function sanitizeMediaMode(
+	mode: "none" | "image" | "carousel" | "auto",
+	imageGenerationEnabled: boolean
+): "none" | "image" | "carousel" | "auto" {
+	if (imageGenerationEnabled) return mode;
+	if (mode === "image" || mode === "auto") return "carousel";
+	return mode;
 }

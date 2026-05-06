@@ -97,6 +97,7 @@ export interface SocialAccessResponse {
 	enabled: boolean;
 	linkedinConnected: boolean;
 	commentsApprovalMode: boolean;
+	linkedinImageGenerationEnabled: boolean;
 	linkedinExternalUrl: string;
 }
 

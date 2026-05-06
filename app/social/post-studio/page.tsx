@@ -23,6 +23,7 @@ import {
 	AgentRunOutput,
 	approvePost,
 	createManualPost,
+	getSocialAccess,
 	listPosts,
 	publishPostNow,
 	rejectPost,
@@ -107,6 +108,7 @@ export default function SocialPostStudioPage() {
 	const [manualMediaUrls, setManualMediaUrls] = useState<string[]>([]);
 	const [manualTopic, setManualTopic] = useState("");
 	const [manualScheduleFor, setManualScheduleFor] = useState("");
+	const [imageGenerationEnabled, setImageGenerationEnabled] = useState(true);
 	const [manualBusy, setManualBusy] = useState<"save" | "schedule" | "post_now" | null>(
 		null
 	);
@@ -127,7 +129,23 @@ export default function SocialPostStudioPage() {
 
 	useEffect(() => {
 		loadDrafts();
+		(async () => {
+			try {
+				const access = await getSocialAccess();
+				setImageGenerationEnabled(
+					access.linkedinImageGenerationEnabled !== false
+				);
+			} catch {
+				setImageGenerationEnabled(true);
+			}
+		})();
 	}, []);
+
+	useEffect(() => {
+		if (!imageGenerationEnabled && form.createImage) {
+			setForm((prev) => ({ ...prev, createImage: false }));
+		}
+	}, [imageGenerationEnabled, form.createImage]);
 
 	const set = (field: TextBriefField, value: string) => {
 		setForm((prev) => ({ ...prev, [field]: value }));
@@ -163,7 +181,7 @@ export default function SocialPostStudioPage() {
 				cta: form.cta || undefined,
 				seriesName: form.seriesName || undefined,
 				extraInstructions: form.extraInstructions || undefined,
-				createImage: form.createImage,
+				createImage: imageGenerationEnabled ? form.createImage : false,
 				createCarousel: form.createCarousel,
 			});
 			setLatestRun(run);
@@ -482,12 +500,14 @@ export default function SocialPostStudioPage() {
 									</p>
 								</div>
 								<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-									<MediaOption
-										title="Create LinkedIn image"
-										description="Generate a professional feed image with the draft."
-										checked={form.createImage}
-										onChange={(checked) => setMedia("createImage", checked)}
-									/>
+									{imageGenerationEnabled && (
+										<MediaOption
+											title="Create LinkedIn image"
+											description="Generate a professional feed image with the draft."
+											checked={form.createImage}
+											onChange={(checked) => setMedia("createImage", checked)}
+										/>
+									)}
 									<MediaOption
 										title="Create carousel"
 										description="Prepare a carousel deck asset for this draft."
@@ -892,24 +912,29 @@ function MediaOption({
 	description,
 	checked,
 	onChange,
+	disabled,
 }: {
 	title: string;
 	description: string;
 	checked: boolean;
 	onChange: (checked: boolean) => void;
+	disabled?: boolean;
 }) {
 	return (
 		<label
 			className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${
 				checked
 					? "border-blue-300 bg-blue-50 ring-2 ring-blue-100"
-					: "border-slate-200 bg-white hover:border-blue-200"
+					: disabled
+						? "border-slate-200 bg-slate-100 opacity-70"
+						: "border-slate-200 bg-white hover:border-blue-200"
 			}`}
 		>
 			<input
 				type="checkbox"
 				checked={checked}
 				onChange={(event) => onChange(event.target.checked)}
+				disabled={disabled}
 				className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
 			/>
 			<span>

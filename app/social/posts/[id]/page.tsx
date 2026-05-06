@@ -43,6 +43,7 @@ import {
 	IconBrandLinkedin,
 	IconCheck,
 	IconClock,
+	IconCopy,
 	IconEdit,
 	IconTrash,
 	IconX,
@@ -226,6 +227,20 @@ export default function SocialPostDetailPage() {
 		post.status !== "published" &&
 		post.status !== "publishing";
 	const mediaPolicy = getLinkedinMediaPolicy(mediaUrls);
+	const imagePromptAssets = postMediaAssets.filter(
+		(asset) =>
+			asset.assetType === "single_image" &&
+			asset.provider !== "user_upload" &&
+			typeof asset.sourcePrompt === "string" &&
+			asset.sourcePrompt.trim().length > 0
+	);
+	const generationPromptAssets = postMediaAssets.filter(
+		(asset) =>
+			(asset.assetType === "single_image" || asset.assetType === "carousel_pdf") &&
+			asset.provider !== "user_upload" &&
+			typeof asset.sourcePrompt === "string" &&
+			asset.sourcePrompt.trim().length > 0
+	);
 
 	const retryMediaAsset = async (assetId: number) => {
 		try {
@@ -285,6 +300,16 @@ export default function SocialPostDetailPage() {
 			toast.error(err instanceof Error ? err.message : "Failed to remove asset");
 		} finally {
 			setBusy(false);
+		}
+	};
+
+	const copyPromptBundle = async (asset: SocialMediaAsset) => {
+		const text = buildHumanReadablePrompt(asset.sourcePrompt || "");
+		try {
+			await navigator.clipboard.writeText(text);
+			toast.success("Prompt copied");
+		} catch {
+			toast.error("Unable to copy prompt");
 		}
 	};
 
@@ -638,6 +663,56 @@ export default function SocialPostDetailPage() {
 						</SurfaceCard>
 
 						<div className="space-y-5 lg:col-span-2">
+							{canCustomizePrePublish && (
+								<SurfaceCard>
+									<SectionTitle title="Generation prompts" />
+									{generationPromptAssets.length === 0 ? (
+										<p className="text-xs leading-relaxed text-slate-500">
+											No generated prompts available yet for this post.
+										</p>
+									) : (
+										<>
+											<p className="text-xs leading-relaxed text-slate-600">
+												Use these prompts in GPT, Claude, Gemini, or another tool to
+												generate your own asset, then upload it back here for posting.
+											</p>
+											<ul className="mt-3 space-y-3">
+												{generationPromptAssets.map((asset) => {
+													const promptText = buildHumanReadablePrompt(
+														asset.sourcePrompt || ""
+													);
+													return (
+														<li
+															key={asset.id}
+															className="rounded-lg border border-slate-200 bg-slate-50/70 p-3"
+														>
+															<div className="flex flex-wrap items-center justify-between gap-2">
+																<p className="text-xs font-medium text-slate-800">
+																	{asset.assetType === "carousel_pdf"
+																		? "Carousel prompt"
+																		: "Image prompt"}{" "}
+																	· Asset #{asset.id}
+																</p>
+																<SecondaryButton
+																	onClick={() => void copyPromptBundle(asset)}
+																	className="px-2 py-1 text-xs"
+																>
+																	<IconCopy className="h-3.5 w-3.5" />
+																	Copy prompt
+																</SecondaryButton>
+															</div>
+															<pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-[11px] leading-relaxed text-slate-700">
+																{promptText}
+															</pre>
+														</li>
+													);
+												})}
+											</ul>
+										</>
+									)}
+								</SurfaceCard>
+							)}
+
 							{canSchedule && (
 								<SurfaceCard>
 									<SectionTitle
@@ -906,6 +981,23 @@ function getLinkedinMediaPolicy(mediaUrls: string[]): {
 		};
 	}
 	return { tone: "info", message: null };
+}
+
+function buildHumanReadablePrompt(rawPrompt: string): string {
+	const prompt = String(rawPrompt || "").trim();
+	const systemPrompt = [
+		"You are generating a LinkedIn-ready visual for a B2B post.",
+		"Use a professional style suitable for founders/operators.",
+		"Avoid unrelated people/faces unless explicitly required.",
+		"Keep composition clean and posting-ready for LinkedIn feed.",
+	].join("\n");
+	return [
+		"System prompt:",
+		systemPrompt,
+		"",
+		"User prompt:",
+		prompt || "(No user prompt captured)",
+	].join("\n");
 }
 
 const fileToBase64 = (file: File): Promise<string> =>
