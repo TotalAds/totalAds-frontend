@@ -105,6 +105,7 @@ export default function SocialPostStudioPage() {
 	const [drafts, setDrafts] = useState<SocialPostRun[]>([]);
 	const [isBusy, setIsBusy] = useState<number | null>(null);
 	const [manualBody, setManualBody] = useState("");
+	const [manualHashtagInput, setManualHashtagInput] = useState("");
 	const [manualMediaUrls, setManualMediaUrls] = useState<string[]>([]);
 	const [manualTopic, setManualTopic] = useState("");
 	const [manualScheduleFor, setManualScheduleFor] = useState("");
@@ -240,7 +241,7 @@ export default function SocialPostStudioPage() {
 		const created = await createManualPost({
 			contentBody: manualBody.trim(),
 			topic: manualTopic.trim() || undefined,
-			hashtags: extractHashtags(manualBody),
+			hashtags: parseHashtagInput(manualHashtagInput || manualBody),
 			mediaUrls: manualMediaUrls,
 		});
 		await loadDrafts();
@@ -279,6 +280,7 @@ export default function SocialPostStudioPage() {
 				toast.success("Post scheduled");
 			}
 			setManualBody("");
+			setManualHashtagInput("");
 			setManualMediaUrls([]);
 			setManualTopic("");
 			setManualScheduleFor("");
@@ -297,6 +299,7 @@ export default function SocialPostStudioPage() {
 			await publishPostNow(id);
 			toast.success("Posting now");
 			setManualBody("");
+			setManualHashtagInput("");
 			setManualMediaUrls([]);
 			setManualTopic("");
 		} catch (err) {
@@ -547,6 +550,8 @@ export default function SocialPostStudioPage() {
 						<LinkedinStudioEditor
 							body={manualBody}
 							onBodyChange={setManualBody}
+							hashtagInput={manualHashtagInput}
+							onHashtagInputChange={setManualHashtagInput}
 							mediaUrls={manualMediaUrls}
 							onMediaUrlsChange={setManualMediaUrls}
 							topic={manualTopic}
@@ -713,6 +718,8 @@ function SegmentButton({
 function LinkedinStudioEditor({
 	body,
 	onBodyChange,
+	hashtagInput,
+	onHashtagInputChange,
 	mediaUrls,
 	onMediaUrlsChange,
 	topic,
@@ -727,6 +734,8 @@ function LinkedinStudioEditor({
 }: {
 	body: string;
 	onBodyChange: (v: string) => void;
+	hashtagInput: string;
+	onHashtagInputChange: (v: string) => void;
 	mediaUrls: string[];
 	onMediaUrlsChange: (urls: string[]) => void;
 	topic: string;
@@ -756,6 +765,7 @@ function LinkedinStudioEditor({
 							placeholder="Write here..."
 							rows={12}
 							onUploadImage={onUploadImage}
+							showImageTool={false}
 							insertUploadedImageUrl={false}
 							onImageUploaded={(url) => {
 								onMediaUrlsChange(
@@ -763,6 +773,55 @@ function LinkedinStudioEditor({
 								);
 							}}
 						/>
+						<label className="block">
+							<span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+								LinkedIn tags
+							</span>
+							<input
+								value={hashtagInput}
+								onChange={(e) => onHashtagInputChange(e.target.value)}
+								placeholder="growth, saas, founderjourney"
+								className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+							/>
+						</label>
+						<div>
+							<p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
+								Assets (image, video, carousel)
+							</p>
+							<input
+								type="file"
+								accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,video/mp4,video/quicktime,video/webm,application/pdf"
+								multiple
+								onChange={async (e) => {
+									const files = Array.from(e.target.files || []);
+									for (const file of files) {
+										const supportedMime = normalizeUploadMime(file);
+										if (!supportedMime) {
+											toast.error(`${file.name}: unsupported file type`);
+											continue;
+										}
+										try {
+											const uploaded = await onUploadImage(file);
+											if (uploaded) {
+												onMediaUrlsChange(
+													mediaUrls.includes(uploaded)
+														? mediaUrls
+														: [...mediaUrls, uploaded]
+												);
+											}
+										} catch (err) {
+											toast.error(
+												err instanceof Error
+													? err.message
+													: `Failed to upload ${file.name}`
+											);
+										}
+									}
+									e.currentTarget.value = "";
+								}}
+								className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-700"
+							/>
+						</div>
 						{mediaUrls.length > 0 && (
 							<div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
 								<p className="mb-2 text-xs font-medium text-slate-500">
@@ -771,11 +830,29 @@ function LinkedinStudioEditor({
 								<div className="grid grid-cols-3 gap-2">
 									{mediaUrls.map((url) => (
 										<div key={url} className="relative">
-											<img
-												src={url}
-												alt="Attached media"
-												className="h-20 w-full rounded-md border border-slate-200 object-cover"
-											/>
+											{getAssetKind(url) === "image" ? (
+												<img
+													src={url}
+													alt="Attached media"
+													className="h-20 w-full rounded-md border border-slate-200 object-cover"
+												/>
+											) : getAssetKind(url) === "video" ? (
+												<video
+													src={url}
+													className="h-20 w-full rounded-md border border-slate-200 object-cover"
+													controls
+												/>
+											) : getAssetKind(url) === "pdf" ? (
+												<iframe
+													title="Attached pdf"
+													src={`${url}#page=1&view=FitH`}
+													className="h-20 w-full rounded-md border border-slate-200"
+												/>
+											) : (
+												<div className="flex h-20 w-full items-center justify-center rounded-md border border-slate-200 bg-white text-[10px] text-slate-500">
+													Asset
+												</div>
+											)}
 											<button
 												type="button"
 												onClick={() =>
@@ -862,6 +939,65 @@ const extractHashtags = (input: string) =>
 		.map((token) => token.slice(1).trim())
 		.map((tag) => tag.replace(/[^A-Za-z0-9_]/g, ""))
 		.filter(Boolean);
+
+const parseHashtagInput = (input: string): string[] =>
+	Array.from(
+		new Set(
+			input
+				.split(/[,\s\n]+/)
+				.map((token) => token.trim().replace(/^#/, ""))
+				.map((tag) => tag.replace(/[^A-Za-z0-9_]/g, ""))
+				.filter(Boolean)
+		)
+	);
+
+const normalizeUploadMime = (
+	file: File
+):
+	| "image/png"
+	| "image/jpeg"
+	| "image/jpg"
+	| "image/webp"
+	| "image/gif"
+	| "video/mp4"
+	| "video/quicktime"
+	| "video/webm"
+	| "application/pdf"
+	| null => {
+	const mime = String(file.type || "").toLowerCase();
+	if (
+		mime === "image/png" ||
+		mime === "image/jpeg" ||
+		mime === "image/jpg" ||
+		mime === "image/webp" ||
+		mime === "image/gif" ||
+		mime === "video/mp4" ||
+		mime === "video/quicktime" ||
+		mime === "video/webm" ||
+		mime === "application/pdf"
+	) {
+		return mime;
+	}
+	const lowerName = file.name.toLowerCase();
+	if (lowerName.endsWith(".jpg")) return "image/jpg";
+	if (lowerName.endsWith(".jpeg")) return "image/jpeg";
+	if (lowerName.endsWith(".png")) return "image/png";
+	if (lowerName.endsWith(".webp")) return "image/webp";
+	if (lowerName.endsWith(".gif")) return "image/gif";
+	if (lowerName.endsWith(".mp4")) return "video/mp4";
+	if (lowerName.endsWith(".mov")) return "video/quicktime";
+	if (lowerName.endsWith(".webm")) return "video/webm";
+	if (lowerName.endsWith(".pdf")) return "application/pdf";
+	return null;
+};
+
+function getAssetKind(url: string): "image" | "video" | "pdf" | "other" {
+	const clean = String(url || "").split("?")[0].toLowerCase();
+	if (/\.(png|jpe?g|webp|gif)$/i.test(clean)) return "image";
+	if (/\.(mp4|mov|webm|m4v)$/i.test(clean)) return "video";
+	if (/\.pdf$/i.test(clean)) return "pdf";
+	return "other";
+}
 
 function Field({
 	label,

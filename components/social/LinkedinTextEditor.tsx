@@ -23,6 +23,7 @@ export function LinkedinTextEditor({
 	onUploadImage,
 	onImageUploaded,
 	insertUploadedImageUrl = true,
+	showImageTool = true,
 }: {
 	value: string;
 	onChange: (next: string) => void;
@@ -31,6 +32,7 @@ export function LinkedinTextEditor({
 	onUploadImage?: (file: File) => Promise<string>;
 	onImageUploaded?: (url: string) => void;
 	insertUploadedImageUrl?: boolean;
+	showImageTool?: boolean;
 }) {
 	const ref = useRef<HTMLTextAreaElement | null>(null);
 	const fileRef = useRef<HTMLInputElement | null>(null);
@@ -136,10 +138,12 @@ export function LinkedinTextEditor({
 					icon={<IconMoodSmile className="h-4 w-4" />}
 					onClick={() => setEmojiOpen((v) => !v)}
 				/>
-				<ToolButton
-					icon={<IconPhoto className="h-4 w-4" />}
-					onClick={() => fileRef.current?.click()}
-				/>
+				{showImageTool && (
+					<ToolButton
+						icon={<IconPhoto className="h-4 w-4" />}
+						onClick={() => fileRef.current?.click()}
+					/>
+				)}
 				<span className="mx-1 h-6 w-px bg-slate-200" />
 				<ToolButton
 					icon={<IconArrowBackUp className="h-4 w-4" />}
@@ -192,17 +196,19 @@ export function LinkedinTextEditor({
 				rows={rows}
 				className="w-full resize-none px-3 py-2.5 text-sm leading-relaxed text-slate-800 outline-none"
 			/>
-			<input
-				ref={fileRef}
-				type="file"
-				accept="image/*"
-				className="hidden"
-				onChange={(event) => {
-					const file = event.target.files?.[0];
-					onPickImage(file);
-					event.currentTarget.value = "";
-				}}
-			/>
+			{showImageTool && (
+				<input
+					ref={fileRef}
+					type="file"
+					accept="image/*"
+					className="hidden"
+					onChange={(event) => {
+						const file = event.target.files?.[0];
+						onPickImage(file);
+						event.currentTarget.value = "";
+					}}
+				/>
+			)}
 			{uploading && (
 				<div className="border-t border-slate-200 bg-blue-50 px-3 py-1.5 text-xs text-blue-700">
 					Uploading image...

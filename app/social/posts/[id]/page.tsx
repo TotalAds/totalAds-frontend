@@ -31,6 +31,7 @@ import {
 	retrySocialMediaAsset,
 	schedulePost,
 	SocialEvent,
+	getSocialAccess,
 	SocialMediaAsset,
 	SocialPostRun,
 	uploadSocialEditorImage,
@@ -64,6 +65,7 @@ export default function SocialPostDetailPage() {
 	const [mediaUrls, setMediaUrls] = useState<string[]>([]);
 	const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 	const [assetToRemoveUrl, setAssetToRemoveUrl] = useState<string | null>(null);
+	const [imageGenerationEnabled, setImageGenerationEnabled] = useState(true);
 	const [busy, setBusy] = useState(false);
 	const [retryingAssetId, setRetryingAssetId] = useState<number | null>(null);
 	const [pickerValue, setPickerValue] = useState("");
@@ -97,6 +99,19 @@ export default function SocialPostDetailPage() {
 		if (Number.isFinite(id)) load();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [id]);
+
+	useEffect(() => {
+		(async () => {
+			try {
+				const access = await getSocialAccess();
+				setImageGenerationEnabled(
+					access.linkedinImageGenerationEnabled !== false
+				);
+			} catch {
+				setImageGenerationEnabled(true);
+			}
+		})();
+	}, []);
 
 	if (!Number.isFinite(id)) {
 		return (
@@ -525,7 +540,8 @@ export default function SocialPostDetailPage() {
 										mediaUrls={post.mediaUrls || undefined}
 										mediaAssets={postMediaAssets}
 									/>
-									{canRetryFailedMedia &&
+									{imageGenerationEnabled &&
+										canRetryFailedMedia &&
 										postMediaAssets.some(
 											(a) =>
 												(a.status === "failed" || a.status === "pending") &&
