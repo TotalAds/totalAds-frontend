@@ -5,7 +5,12 @@ import { ChangeEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { PostPreview } from "@/components/social/PostPreview";
-import { PrimaryButton, SecondaryButton, StatusPill } from "@/components/social/SocialUi";
+import {
+	PostGenerationChips,
+	PrimaryButton,
+	SecondaryButton,
+	StatusPill,
+} from "@/components/social/SocialUi";
 import {
 	briefLinkedinCopilot,
 	CopilotAttachment,
@@ -69,6 +74,7 @@ export default function SocialCopilotPage() {
 	const [isThinking, setIsThinking] = useState(false);
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [imageGenerationEnabled, setImageGenerationEnabled] = useState(true);
+	const sessionDraftsHref = chatId ? `/social/copilot/sessions/${chatId}/drafts` : null;
 
 	const selectedFramework =
 		brief?.recommendedFrameworks.find((item) => item.id === selectedFrameworkId) ||
@@ -293,6 +299,14 @@ export default function SocialCopilotPage() {
 							</p>
 						</div>
 						<div className="flex flex-wrap items-center gap-2">
+							{sessionDraftsHref && (
+								<Link href={sessionDraftsHref}>
+									<SecondaryButton className="text-xs p-2">
+										<IconCalendarEvent className="h-3 w-3" />
+										Session drafts
+									</SecondaryButton>
+								</Link>
+							)}
 							<SecondaryButton onClick={() => setHistoryOpen(true)} className="text-xs p-2">
 								<IconHistory className="h-3 w-3" />
 								History
@@ -409,6 +423,7 @@ export default function SocialCopilotPage() {
 
 					<aside className="hidden min-h-0 xl:block">
 						<WorkspacePanel
+							chatId={chatId}
 							brief={brief}
 							calendar={calendar}
 							imageGenerationEnabled={imageGenerationEnabled}
@@ -441,6 +456,7 @@ export default function SocialCopilotPage() {
 
 			<DetailsDrawer open={detailsOpen} onClose={() => setDetailsOpen(false)}>
 				<WorkspacePanel
+					chatId={chatId}
 					brief={brief}
 					calendar={calendar}
 					imageGenerationEnabled={imageGenerationEnabled}
@@ -479,6 +495,7 @@ function ChatBubble({ message }: { message: ChatMessage }) {
 }
 
 function WorkspacePanel({
+	chatId,
 	brief,
 	calendar,
 	imageGenerationEnabled,
@@ -492,6 +509,7 @@ function WorkspacePanel({
 	onGenerate,
 	isGenerating,
 }: {
+	chatId: string | null;
 	brief: CopilotBriefResponse | null;
 	calendar: GeneratedLinkedinCalendar | null;
 	imageGenerationEnabled: boolean;
@@ -528,6 +546,7 @@ function WorkspacePanel({
 				)}
 				{calendar && (
 					<DraftsPanel
+						chatId={chatId}
 						calendar={calendar}
 						groupedPosts={groupedPosts}
 						selectedPost={selectedPost}
@@ -747,11 +766,13 @@ function PlanArchitectureModal({
 }
 
 function DraftsPanel({
+	chatId,
 	calendar,
 	groupedPosts,
 	selectedPost,
 	onSelectPost,
 }: {
+	chatId: string | null;
 	calendar: GeneratedLinkedinCalendar;
 	groupedPosts: Array<{ date: string; label: string; posts: GeneratedLinkedinCalendarPost[] }>;
 	selectedPost: GeneratedLinkedinCalendarPost | null;
@@ -765,7 +786,14 @@ function DraftsPanel({
 						<p className="text-sm font-semibold text-slate-950">Generated drafts</p>
 						<p className="text-xs text-slate-500">{calendar.totalPosts} drafts in the pipeline</p>
 					</div>
-					<IconCalendarEvent className="h-5 w-5 text-blue-500" />
+					<div className="flex items-center gap-2">
+						{chatId ? (
+							<Link href={`/social/copilot/sessions/${chatId}/drafts`}>
+								<SecondaryButton className="text-xs">View session drafts</SecondaryButton>
+							</Link>
+						) : null}
+						<IconCalendarEvent className="h-5 w-5 text-blue-500" />
+					</div>
 				</div>
 				<div className="mt-4 space-y-4">
 					{groupedPosts.map((group) => (
@@ -788,11 +816,20 @@ function DraftsPanel({
 										<p className="line-clamp-2 text-sm font-semibold text-slate-800">
 											{post.hook || post.topic}
 										</p>
-										<div className="mt-2 flex flex-wrap gap-2">
+										<div className="mt-2 flex flex-wrap items-center gap-2">
 											<StatusPill status={post.status} label={post.kltStage} />
-											<span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
-												{post.mediaAssets?.length ? `${post.mediaAssets.length} media` : post.format}
-											</span>
+											{post.mediaAssets?.length ? (
+												<span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+													{post.mediaAssets.length} media
+												</span>
+											) : null}
+											<PostGenerationChips
+												post={{
+													formatLabel: post.format,
+													productMentionMode: "none",
+													hasProductMention: false,
+												}}
+											/>
 										</div>
 									</button>
 								))}
@@ -814,6 +851,15 @@ function SelectedPostPreview({ post }: { post: GeneratedLinkedinCalendarPost }) 
 				<div>
 					<p className="text-sm font-semibold text-slate-950">{post.topic}</p>
 					<p className="mt-1 text-xs leading-5 text-slate-500">{post.angle}</p>
+					<div className="mt-2">
+						<PostGenerationChips
+							post={{
+								formatLabel: post.format,
+								productMentionMode: "none",
+								hasProductMention: false,
+							}}
+						/>
+					</div>
 				</div>
 				<StatusPill status={post.status} />
 			</div>
@@ -876,20 +922,37 @@ function HistoryDrawer({
 						</p>
 					) : (
 						sessions.map((session) => (
-							<button
+							<div
 								key={session.chatId}
-								onClick={() => onResume(session.chatId)}
-								className={`w-full rounded-2xl border p-4 text-left transition ${
+								className={`w-full rounded-2xl border p-4 transition ${
 									activeChatId === session.chatId
 										? "border-blue-400 bg-blue-50"
 										: "border-slate-200 bg-white hover:border-blue-200"
 								}`}
 							>
-								<p className="line-clamp-2 text-sm font-semibold text-slate-900">{session.title}</p>
-								<p className="mt-2 text-xs text-slate-500">
-									{session.status} · {new Date(session.updatedAt).toLocaleString()}
-								</p>
-							</button>
+								<button
+									type="button"
+									onClick={() => onResume(session.chatId)}
+									className="w-full text-left"
+								>
+									<p className="line-clamp-2 text-sm font-semibold text-slate-900">{session.title}</p>
+									<p className="mt-2 text-xs text-slate-500">
+										{session.status} · {new Date(session.updatedAt).toLocaleString()}
+									</p>
+								</button>
+								{session.status === "generated" &&
+								session.calendar?.posts &&
+								session.calendar.posts.length > 0 ? (
+									<div className="mt-3 flex">
+										<Link href={`/social/copilot/sessions/${session.chatId}/drafts`}>
+											<SecondaryButton className="text-xs">
+												<IconCalendarEvent className="h-3.5 w-3.5" />
+												View generated drafts
+											</SecondaryButton>
+										</Link>
+									</div>
+								) : null}
+							</div>
 						))
 					)}
 				</div>

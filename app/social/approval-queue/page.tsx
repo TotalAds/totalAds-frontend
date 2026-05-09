@@ -16,6 +16,7 @@ import {
 	PageShell,
 	PrimaryButton,
 	SecondaryButton,
+	PostGenerationChips,
 	SectionTitle,
 	StatusPill,
 	SurfaceCard,
@@ -37,7 +38,10 @@ import {
 	IconCalendarPlus,
 	IconCheck,
 	IconEdit,
+	IconFile,
 	IconInbox,
+	IconPhoto,
+	IconPlayerPlay,
 	IconX,
 } from "@tabler/icons-react";
 
@@ -49,6 +53,10 @@ export default function SocialApprovalQueuePage() {
 	const [editor, setEditor] = useState<{ id: number; body: string } | null>(null);
 	const [busyId, setBusyId] = useState<number | null>(null);
 	const [runningScheduler, setRunningScheduler] = useState(false);
+	const [previewMedia, setPreviewMedia] = useState<{
+		url: string;
+		assetType: "single_image" | "single_video" | "carousel_pdf";
+	} | null>(null);
 	const scheduleTargetPost = queue.find((item) => item.id === schedulePickerFor) || null;
 
 	const load = async () => {
@@ -227,6 +235,7 @@ export default function SocialApprovalQueuePage() {
 										)
 									);
 								}}
+								onPreviewMedia={(media) => setPreviewMedia(media)}
 							/>
 						)}
 					/>
@@ -255,6 +264,7 @@ export default function SocialApprovalQueuePage() {
 										)
 									);
 								}}
+								onPreviewMedia={(media) => setPreviewMedia(media)}
 							/>
 						)}
 					/>
@@ -374,6 +384,41 @@ export default function SocialApprovalQueuePage() {
 					</SurfaceCard>
 				</Overlay>
 			)}
+			{previewMedia && (
+				<Overlay onClose={() => setPreviewMedia(null)}>
+					<SurfaceCard className="w-full max-w-5xl">
+						<div className="mb-3 flex items-center justify-between">
+							<p className="text-sm font-semibold text-slate-900">
+								Media preview · {previewMedia.assetType}
+							</p>
+							<SecondaryButton onClick={() => setPreviewMedia(null)}>
+								Close
+							</SecondaryButton>
+						</div>
+						<div className="max-h-[70vh] overflow-auto rounded-xl bg-slate-50 p-3">
+							{previewMedia.assetType === "single_image" ? (
+								<img
+									src={previewMedia.url}
+									alt="Approval media preview"
+									className="mx-auto max-h-[66vh] w-auto rounded-lg border border-slate-200 bg-white"
+								/>
+							) : previewMedia.assetType === "single_video" ? (
+								<video
+									src={previewMedia.url}
+									controls
+									className="mx-auto max-h-[66vh] w-full rounded-lg border border-slate-200 bg-black"
+								/>
+							) : (
+								<iframe
+									src={previewMedia.url}
+									title="Carousel preview"
+									className="h-[66vh] w-full rounded-lg border border-slate-200 bg-white"
+								/>
+							)}
+						</div>
+					</SurfaceCard>
+				</Overlay>
+			)}
 		</PageShell>
 	);
 }
@@ -446,6 +491,7 @@ function QueueItem({
 	onReject,
 	onEdit,
 	onSchedulePicker,
+	onPreviewMedia,
 }: {
 	post: SocialPostRun;
 	busy: boolean;
@@ -454,6 +500,10 @@ function QueueItem({
 	onReject: () => void;
 	onEdit: () => void;
 	onSchedulePicker: () => void;
+	onPreviewMedia: (media: {
+		url: string;
+		assetType: "single_image" | "single_video" | "carousel_pdf";
+	}) => void;
 }) {
 	const approvalDone = hasUserApproved(post);
 	const scheduleDone = hasCompletedScheduling(post);
@@ -468,6 +518,13 @@ function QueueItem({
 	const canPublishNow = !scheduleDone && !terminal && post.status !== "approved";
 	const canEdit = !approvalDone && !terminal;
 	const canReject = !approvalDone && !terminal;
+	const mediaItems = (post.mediaUrls || [])
+		.filter((url): url is string => Boolean(url))
+		.map((url) => ({
+			url,
+			assetType: inferAssetTypeFromUrl(url),
+		}));
+	const mediaSuggestion = inferMediaSuggestionFromMedia(mediaItems);
 
 	return (
 		<SurfaceCard>
@@ -511,6 +568,14 @@ function QueueItem({
 										: null,
 								].filter(Boolean) as any}
 							/>
+							<div className="mt-2">
+								<PostGenerationChips
+									post={{
+										...post,
+										mediaSuggestion,
+									}}
+								/>
+							</div>
 						</div>
 					</div>
 					<PostPreview
@@ -518,6 +583,47 @@ function QueueItem({
 						hashtags={post.hashtags || undefined}
 						mediaUrls={post.mediaUrls || undefined}
 					/>
+					{mediaItems.length > 0 ? (
+						<div>
+							<p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+								Media assets
+							</p>
+							<div className="mt-2 flex flex-wrap gap-2">
+								{mediaItems.map((item, index) => (
+									<button
+										key={`${item.url}-${index}`}
+										type="button"
+										onClick={() => onPreviewMedia(item)}
+										className="overflow-hidden rounded-lg border border-slate-200 bg-white hover:border-blue-300"
+										title="Click to preview"
+									>
+										{item.assetType === "single_image" ? (
+											<img
+												src={item.url}
+												alt="Asset thumbnail"
+												className="h-14 w-20 object-cover"
+											/>
+										) : (
+											<span className="flex h-14 w-20 items-center justify-center gap-1 text-[11px] text-slate-600">
+												{item.assetType === "single_video" ? (
+													<IconPlayerPlay className="h-3.5 w-3.5" />
+												) : item.assetType === "carousel_pdf" ? (
+													<IconFile className="h-3.5 w-3.5" />
+												) : (
+													<IconPhoto className="h-3.5 w-3.5" />
+												)}
+												{item.assetType === "carousel_pdf"
+													? "Carousel"
+													: item.assetType === "single_video"
+														? "Video"
+														: "Image"}
+											</span>
+										)}
+									</button>
+								))}
+							</div>
+						</div>
+					) : null}
 				</div>
 
 				<div className="shrink-0 lg:w-52">
@@ -576,6 +682,23 @@ function QueueItem({
 			</div>
 		</SurfaceCard>
 	);
+}
+
+function inferAssetTypeFromUrl(
+	url: string
+): "single_image" | "single_video" | "carousel_pdf" {
+	const clean = String(url || "").split("?")[0].toLowerCase();
+	if (/\.pdf$/.test(clean)) return "carousel_pdf";
+	if (/\.(mp4|mov|webm|m4v)$/.test(clean)) return "single_video";
+	return "single_image";
+}
+
+function inferMediaSuggestionFromMedia(
+	media: Array<{ url: string; assetType: "single_image" | "single_video" | "carousel_pdf" }>
+): "none" | "image" | "carousel" {
+	if (!media.length) return "none";
+	if (media.some((m) => m.assetType === "carousel_pdf")) return "carousel";
+	return "image";
 }
 
 function QueueStatusNotice({

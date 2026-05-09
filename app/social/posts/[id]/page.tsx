@@ -15,6 +15,7 @@ import {
 	PageShell,
 	PrimaryButton,
 	SecondaryButton,
+	PostGenerationChips,
 	SectionTitle,
 	StatusPill,
 	SurfaceCard,
@@ -307,7 +308,14 @@ export default function SocialPostDetailPage() {
 			const matched = postMediaAssets.find((asset) => asset.publicUrl === url);
 			if (matched?.id) {
 				await deleteSocialMediaAsset(matched.id);
-				setPostMediaAssets((prev) => prev.filter((asset) => asset.id !== matched.id));
+				// Keep the asset row for prompt history, but clear media URL from active previews.
+				setPostMediaAssets((prev) =>
+					prev.map((asset) =>
+						asset.id === matched.id
+							? { ...asset, publicUrl: null, status: "deleted" as any }
+							: asset
+					)
+				);
 			}
 			setMediaUrls((prev) => prev.filter((item) => item !== url));
 			toast.success("Asset removed");
@@ -356,6 +364,7 @@ export default function SocialPostDetailPage() {
 				<LoadingCardGrid cards={2} />
 			) : (
 				<>
+					<PostGenerationChips post={post} className="mb-1" />
 					{post.status === "failed" && post.failureReason && (
 						<InlineAlert
 							tone="danger"
@@ -697,18 +706,27 @@ export default function SocialPostDetailPage() {
 													const promptText = buildHumanReadablePrompt(
 														asset.sourcePrompt || ""
 													);
+													const sourceDeleted =
+														asset.status === "deleted" || !asset.publicUrl;
 													return (
 														<li
 															key={asset.id}
 															className="rounded-lg border border-slate-200 bg-slate-50/70 p-3"
 														>
 															<div className="flex flex-wrap items-center justify-between gap-2">
-																<p className="text-xs font-medium text-slate-800">
-																	{asset.assetType === "carousel_pdf"
-																		? "Carousel prompt"
-																		: "Image prompt"}{" "}
-																	· Asset #{asset.id}
-																</p>
+																<div className="flex flex-wrap items-center gap-2">
+																	<p className="text-xs font-medium text-slate-800">
+																		{asset.assetType === "carousel_pdf"
+																			? "Carousel prompt"
+																			: "Image prompt"}{" "}
+																		· Asset #{asset.id}
+																	</p>
+																	{sourceDeleted ? (
+																		<span className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-200">
+																			Source asset deleted
+																		</span>
+																	) : null}
+																</div>
 																<SecondaryButton
 																	onClick={() => void copyPromptBundle(asset)}
 																	className="px-2 py-1 text-xs"

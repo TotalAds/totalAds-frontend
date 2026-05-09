@@ -249,6 +249,80 @@ function humanize(value: string) {
 		.replace(/\b\w/g, (ch) => ch.toUpperCase());
 }
 
+export type PostGenerationMeta = {
+	/** Stored slug, e.g. hot_take */
+	contentPostFormat?: string | null;
+	/** When set, shown instead of humanizing contentPostFormat (e.g. copilot strategy label) */
+	formatLabel?: string | null;
+	productMentionMode?: string | null;
+	hasProductMention?: boolean | null;
+	mediaSuggestion?: "none" | "image" | "carousel" | null;
+};
+
+export function PostGenerationChips({
+	post,
+	className,
+}: {
+	post: PostGenerationMeta;
+	className?: string;
+}) {
+	const formatText = post.formatLabel?.trim()
+		? post.formatLabel.trim()
+		: post.contentPostFormat
+			? humanize(post.contentPostFormat)
+			: "—";
+
+	let productText = "—";
+	if (
+		post.productMentionMode === "none" ||
+		post.productMentionMode === "soft" ||
+		post.productMentionMode === "direct"
+	) {
+		productText = humanize(post.productMentionMode);
+	} else if (post.hasProductMention === true) {
+		productText = "In copy";
+	} else if (post.hasProductMention === false) {
+		productText = "None";
+	}
+
+	const mediaSuggestion = post.mediaSuggestion || null;
+	const mediaText = mediaSuggestion ? humanize(mediaSuggestion) : "—";
+	const mediaToneClass =
+		mediaSuggestion === "carousel"
+			? "bg-amber-50 text-amber-900 ring-amber-200/80"
+			: mediaSuggestion === "image"
+				? "bg-blue-50 text-blue-800 ring-blue-200/80"
+				: mediaSuggestion === "none"
+					? "bg-slate-100 text-slate-700 ring-slate-200/80"
+					: "bg-slate-50 text-slate-500 ring-slate-200/80";
+
+	return (
+		<div className={cn("flex flex-wrap items-center gap-1.5", className)}>
+			<span
+				className="inline-flex items-center rounded-md bg-violet-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-800 ring-1 ring-inset ring-violet-200/80"
+				title="Post format"
+			>
+				Format · {formatText}
+			</span>
+			<span
+				className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900 ring-1 ring-inset ring-amber-200/80"
+				title="Product mention"
+			>
+				Product · {productText}
+			</span>
+			<span
+				className={cn(
+					"inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset",
+					mediaToneClass
+				)}
+				title="AI media suggestion"
+			>
+				Media · {mediaText}
+			</span>
+		</div>
+	);
+}
+
 // -----------------------------------------------------------------------
 // EmptyState
 // -----------------------------------------------------------------------

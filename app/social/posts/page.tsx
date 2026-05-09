@@ -10,6 +10,7 @@ import {
 	MetaRow,
 	PageHeader,
 	PageShell,
+	PostGenerationChips,
 	PrimaryButton,
 	SecondaryButton,
 	SectionTitle,
@@ -202,6 +203,9 @@ export default function SocialPostsPage() {
 														: null,
 												].filter(Boolean) as any}
 											/>
+											<div className="mt-2">
+												<PostGenerationChips post={post} />
+											</div>
 										</div>
 										<SecondaryButton>Open →</SecondaryButton>
 									</div>

@@ -11,6 +11,7 @@ import {
 	PageShell,
 	PrimaryButton,
 	SecondaryButton,
+	PostGenerationChips,
 	StatusPill,
 	SurfaceCard,
 } from "@/components/social/SocialUi";
@@ -320,6 +321,9 @@ function CalendarPostPill({ item }: { item: CalendarItem }) {
 			<p className="mt-1 line-clamp-2 text-xs font-medium leading-4 text-slate-800">
 				{title}
 			</p>
+			<div className="mt-1.5">
+				<PostGenerationChips post={item.post} className="gap-1" />
+			</div>
 		</Link>
 	);
 }

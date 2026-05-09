@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import {
@@ -14,450 +14,788 @@ import {
 	SurfaceCard,
 } from "@/components/social/SocialUi";
 import {
+	enrichMemoryFromWebsite,
 	getProfileMemory,
 	getSocialAccess,
 	saveMemoryOnboarding,
 } from "@/utils/api/socialClient";
 
-const STEPS = [
-	"Identity",
-	"Audience",
-	"Tone",
-	"Format + CTA",
-	"Review",
-] as const;
+const DRAFT_KEY = "social_memory_onboarding_draft_v2";
 
-type Step = (typeof STEPS)[number];
+const GOAL_OPTIONS = [
+	"Build authority",
+	"Generate leads",
+	"Grow audience",
+	"Increase engagement",
+	"Promote product",
+	"Build trust",
+	"Educate audience",
+	"Drive website traffic",
+];
+const TONE_OPTIONS = [
+	"Professional",
+	"Founder-led",
+	"Casual",
+	"Contrarian",
+	"Analytical",
+	"Educational",
+	"Technical",
+	"Bold",
+	"Storytelling",
+	"Opinionated",
+];
+const FORMAT_OPTIONS = [
+	"Storytelling",
+	"Contrarian opinion",
+	"Founder insight",
+	"Case study",
+	"Problem → Solution",
+	"Listicle",
+	"Framework breakdown",
+	"Data-backed insight",
+	"Tactical guide",
+];
+const PILLAR_OPTIONS = [
+	"Founder lessons",
+	"Industry insights",
+	"Customer pain points",
+	"How-to education",
+	"Product strategy",
+	"Case studies",
+	"Behind the scenes",
+	"Myth vs reality",
+];
 
-interface OnboardingForm {
+type StepId = "basics" | "autofill" | "audience" | "tone" | "review";
+
+const STEPS: Array<{ id: StepId; label: string; description: string }> = [
+	{ id: "basics", label: "Brand basics", description: "Minimal setup to start smart autofill" },
+	{ id: "autofill", label: "AI autofill", description: "Review and accept AI suggestions" },
+	{ id: "audience", label: "Audience & goals", description: "Select who you want to influence" },
+	{ id: "tone", label: "Tone & style", description: "Train your ghostwriter voice" },
+	{ id: "review", label: "Review", description: "Save and start generating better posts" },
+];
+
+type Form = {
 	founderName: string;
+	companyName: string;
 	productName: string;
+	website: string;
+	productCategory: string;
 	linkedinHeadline: string;
+	oneLineDescription: string;
+	detailedDescription: string;
 	icpDescription: string;
-	toneKeywordsRaw: string;
-	forbiddenPhrasesRaw: string;
+	targetAudience: string;
+	industry: string;
+	brandPositioning: string;
+	usp: string;
 	preferredCtaStyle: string;
 	postFormatPreference: string;
-}
+	keyPainPointsRaw: string;
+	productFeaturesRaw: string;
+	competitorsRaw: string;
+	contentPillars: string[];
+	goalTags: string[];
+	toneTags: string[];
+	forbiddenPhrasesRaw: string;
+	writingPreferences: string;
+	founderProfile: string;
+};
 
-const initial: OnboardingForm = {
+const initialForm: Form = {
 	founderName: "",
+	companyName: "",
 	productName: "",
+	website: "",
+	productCategory: "",
 	linkedinHeadline: "",
+	oneLineDescription: "",
+	detailedDescription: "",
 	icpDescription: "",
-	toneKeywordsRaw: "",
-	forbiddenPhrasesRaw: "",
+	targetAudience: "",
+	industry: "",
+	brandPositioning: "",
+	usp: "",
 	preferredCtaStyle: "",
 	postFormatPreference: "",
+	keyPainPointsRaw: "",
+	productFeaturesRaw: "",
+	competitorsRaw: "",
+	contentPillars: [],
+	goalTags: [],
+	toneTags: [],
+	forbiddenPhrasesRaw: "",
+	writingPreferences: "",
+	founderProfile: "",
 };
 
 export default function MemoryOnboardingPage() {
 	const router = useRouter();
-	const [step, setStep] = useState<Step>(STEPS[0]);
-	const [form, setForm] = useState<OnboardingForm>(initial);
+	const [stepIdx, setStepIdx] = useState(0);
+	const [form, setForm] = useState<Form>(initialForm);
+	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
-	const [loadingExisting, setLoadingExisting] = useState(true);
+	const [enriching, setEnriching] = useState(false);
+	const [enrichment, setEnrichment] = useState<{
+		summary?: string;
+		suggestions?: Record<string, { value: string | string[]; confidence: number; reason: string }>;
+		recommendedMissing?: string[];
+	} | null>(null);
+	const [appliedSuggestionKeys, setAppliedSuggestionKeys] = useState<string[]>([]);
 
-	const idx = STEPS.indexOf(step);
-	const isFirst = idx === 0;
-	const isLast = idx === STEPS.length - 1;
+	const step = STEPS[stepIdx];
 
-	const update = <K extends keyof OnboardingForm>(
-		field: K,
-		value: OnboardingForm[K]
-	) => setForm((prev) => ({ ...prev, [field]: value }));
+	const update = <K extends keyof Form>(key: K, value: Form[K]) =>
+		setForm((prev) => ({ ...prev, [key]: value }));
 
-	const onNext = () => {
-		if (step === "Identity" && !form.founderName.trim()) {
-			toast.error("Founder name is required");
-			return;
-		}
-		setStep(STEPS[Math.min(idx + 1, STEPS.length - 1)]);
-	};
-	const onBack = () => setStep(STEPS[Math.max(idx - 1, 0)]);
+	const toList = (raw: string) =>
+		raw
+			.split(/[,\n]/)
+			.map((s) => s.trim())
+			.filter(Boolean);
 
-	const onSubmit = async () => {
-		if (!form.founderName.trim()) {
-			toast.error("Founder name is required");
-			setStep("Identity");
-			return;
-		}
+	const completionScore = useMemo(() => {
+		const checks = [
+			form.founderName,
+			form.companyName,
+			form.productName,
+			form.website,
+			form.icpDescription,
+			form.targetAudience,
+			form.brandPositioning,
+			form.preferredCtaStyle,
+			form.postFormatPreference,
+			form.goalTags.length ? "ok" : "",
+			form.toneTags.length ? "ok" : "",
+			form.contentPillars.length ? "ok" : "",
+		];
+		const done = checks.filter((x) => String(x).trim().length > 0).length;
+		return Math.round((done / checks.length) * 100);
+	}, [form]);
+
+	useEffect(() => {
 		try {
-			setSaving(true);
-			const toList = (raw: string) =>
-				raw
-					.split(/[,\n]/)
-					.map((s) => s.trim())
-					.filter(Boolean);
-			await saveMemoryOnboarding({
-				founderName: form.founderName.trim(),
-				productName: form.productName.trim() || undefined,
-				linkedinHeadline: form.linkedinHeadline.trim() || undefined,
-				icpDescription: form.icpDescription.trim() || undefined,
-				toneKeywords: form.toneKeywordsRaw
-					? toList(form.toneKeywordsRaw)
-					: undefined,
-				forbiddenPhrases: form.forbiddenPhrasesRaw
-					? toList(form.forbiddenPhrasesRaw)
-					: undefined,
-				preferredCtaStyle: form.preferredCtaStyle.trim() || undefined,
-				postFormatPreference: form.postFormatPreference.trim() || undefined,
-			});
-			toast.success("Profile memory saved");
-			router.push("/social/dashboard");
-		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Save failed");
-		} finally {
-			setSaving(false);
+			const raw = localStorage.getItem(DRAFT_KEY);
+			if (raw) {
+				const parsed = JSON.parse(raw);
+				setForm((prev) => ({ ...prev, ...parsed }));
+			}
+		} catch {
+			// ignore local draft parse errors
 		}
-	};
+	}, []);
+
+	useEffect(() => {
+		localStorage.setItem(DRAFT_KEY, JSON.stringify(form));
+	}, [form]);
 
 	useEffect(() => {
 		let cancelled = false;
-		const load = async () => {
+		(async () => {
 			try {
-				setLoadingExisting(true);
-				const a = await getSocialAccess();
-				if (!a.enabled) {
+				setLoading(true);
+				const access = await getSocialAccess();
+				if (!access.enabled) {
 					if (!cancelled) {
-						toast.error("SocialSnipper is not enabled for your account yet.");
+						toast.error("SocialSnipper is not enabled for your account.");
 						router.replace("/social/dashboard");
 					}
 					return;
 				}
-				const profileItems = await getProfileMemory();
-				if (cancelled || !profileItems.length) return;
-				const asMap = new Map(profileItems.map((item) => [item.key, item.value]));
-				const toLineList = (value: unknown): string => {
-					if (Array.isArray(value)) {
-						return value
-							.map((item) => (typeof item === "string" ? item : String(item)))
-							.join("\n");
-					}
-					if (typeof value === "string") return value;
-					if (value === null || value === undefined) return "";
-					return String(value);
-				};
-
-				setForm({
-					founderName: String(asMap.get("founder_name") ?? ""),
-					productName: String(asMap.get("product_name") ?? ""),
-					linkedinHeadline: String(asMap.get("linkedin_headline") ?? ""),
-					icpDescription: String(asMap.get("icp_description") ?? ""),
-					toneKeywordsRaw: toLineList(asMap.get("tone_keywords")),
-					forbiddenPhrasesRaw: toLineList(asMap.get("forbidden_phrases")),
-					preferredCtaStyle: String(asMap.get("preferred_cta_style") ?? ""),
+				const items = await getProfileMemory();
+				if (cancelled || !items.length) return;
+				const map = new Map(items.map((item) => [item.key, item.value]));
+				const asText = (v: unknown) =>
+					Array.isArray(v) ? v.join("\n") : typeof v === "string" ? v : v ? String(v) : "";
+				setForm((prev) => ({
+					...prev,
+					founderName: String(map.get("founder_name") ?? prev.founderName),
+					companyName: String(map.get("company") ?? prev.companyName),
+					productName: String(map.get("product_name") ?? prev.productName),
+					website: String(map.get("company_website") ?? prev.website),
+					productCategory: String(map.get("product_category") ?? prev.productCategory),
+					linkedinHeadline: String(map.get("linkedin_headline") ?? prev.linkedinHeadline),
+					icpDescription: String(map.get("icp_description") ?? prev.icpDescription),
+					targetAudience: String(map.get("target_audience") ?? prev.targetAudience),
+					industry: String(map.get("industry") ?? prev.industry),
+					brandPositioning: String(map.get("brand_positioning") ?? prev.brandPositioning),
+					usp: String(map.get("usp") ?? prev.usp),
+					preferredCtaStyle: String(map.get("preferred_cta_style") ?? prev.preferredCtaStyle),
 					postFormatPreference: String(
-						asMap.get("post_format_preference") ?? ""
+						map.get("post_format_preference") ?? prev.postFormatPreference
 					),
-				});
-			} catch (err) {
+					keyPainPointsRaw: asText(map.get("key_pain_points")) || prev.keyPainPointsRaw,
+					productFeaturesRaw: asText(map.get("product_features")) || prev.productFeaturesRaw,
+					competitorsRaw: asText(map.get("competitors")) || prev.competitorsRaw,
+					founderProfile: String(map.get("founder_profile") ?? prev.founderProfile),
+					writingPreferences: String(
+						map.get("writing_preferences") ?? prev.writingPreferences
+					),
+					forbiddenPhrasesRaw: asText(map.get("forbidden_phrases")) || prev.forbiddenPhrasesRaw,
+					contentPillars:
+						Array.isArray(map.get("content_pillars")) && !prev.contentPillars.length
+							? (map.get("content_pillars") as string[])
+							: prev.contentPillars,
+					toneTags:
+						Array.isArray(map.get("tone_keywords")) && !prev.toneTags.length
+							? (map.get("tone_keywords") as string[])
+							: prev.toneTags,
+				}));
+			} catch (error) {
 				if (!cancelled) {
-					toast.error(
-						err instanceof Error ? err.message : "Failed to load saved memory"
-					);
+					toast.error(error instanceof Error ? error.message : "Failed to load memory");
 				}
 			} finally {
-				if (!cancelled) setLoadingExisting(false);
+				if (!cancelled) setLoading(false);
 			}
-		};
-		load();
+		})();
 		return () => {
 			cancelled = true;
 		};
 	}, [router]);
 
+	const runAutofill = async () => {
+		try {
+			setEnriching(true);
+			const data = await enrichMemoryFromWebsite({
+				website: form.website || undefined,
+				companyName: form.companyName || undefined,
+				productName: form.productName || undefined,
+				founderName: form.founderName || undefined,
+				linkedinHeadline: form.linkedinHeadline || undefined,
+			});
+			setEnrichment(data);
+			setAppliedSuggestionKeys([]);
+			toast.success("AI suggestions ready");
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "AI autofill failed");
+		} finally {
+			setEnriching(false);
+		}
+	};
+
+	const applySuggestion = (key: string, value: string | string[]) => {
+		const text = Array.isArray(value) ? value.join("\n") : value;
+		if (key === "companyName") update("companyName", text);
+		if (key === "productName") update("productName", text);
+		if (key === "productCategory") update("productCategory", text);
+		if (key === "icpDescription") update("icpDescription", text);
+		if (key === "targetAudience") update("targetAudience", text);
+		if (key === "brandPositioning") update("brandPositioning", text);
+		if (key === "competitors") update("competitorsRaw", text);
+		if (key === "keyPainPoints") update("keyPainPointsRaw", text);
+		if (key === "contentPillars")
+			update("contentPillars", Array.isArray(value) ? value : toList(text));
+		if (key === "toneKeywords")
+			update("toneTags", Array.isArray(value) ? value : toList(text));
+		if (key === "preferredCtaStyle") update("preferredCtaStyle", text);
+		if (key === "postFormatPreference") update("postFormatPreference", text);
+		if (key === "userGoals")
+			update("goalTags", Array.isArray(value) ? value : toList(text));
+		if (key === "oneLineDescription") update("oneLineDescription", text);
+		if (key === "detailedDescription") update("detailedDescription", text);
+		if (key === "industry") update("industry", text);
+		if (key === "usp") update("usp", text);
+		if (!appliedSuggestionKeys.includes(key)) {
+			setAppliedSuggestionKeys((prev) => [...prev, key]);
+		}
+		toast.success(`Applied suggestion: ${key}`);
+	};
+
+	const applyAllHighConfidenceSuggestions = (minConfidence = 0.7) => {
+		if (!enrichment?.suggestions) {
+			toast("Generate AI suggestions first.");
+			return;
+		}
+		let applied = 0;
+		for (const [key, suggestion] of Object.entries(enrichment.suggestions)) {
+			if (Number(suggestion.confidence || 0) >= minConfidence) {
+				applySuggestion(key, suggestion.value);
+				applied += 1;
+			}
+		}
+		if (!applied) {
+			toast("No suggestions met that confidence threshold.");
+			return;
+		}
+		toast.success(`Applied ${applied} high-confidence suggestion${applied === 1 ? "" : "s"}`);
+	};
+
+	const applyAllSuggestions = () => {
+		if (!enrichment?.suggestions) {
+			toast("Generate AI suggestions first.");
+			return;
+		}
+		let applied = 0;
+		for (const [key, suggestion] of Object.entries(enrichment.suggestions)) {
+			applySuggestion(key, suggestion.value);
+			applied += 1;
+		}
+		toast.success(`Applied ${applied} AI suggestion${applied === 1 ? "" : "s"}`);
+		goNext();
+	};
+
+	const onSave = async () => {
+		try {
+			setSaving(true);
+			await saveMemoryOnboarding({
+				founderName: form.founderName || "Founder",
+				companyName: form.companyName || undefined,
+				productName: form.productName || undefined,
+				website: form.website || undefined,
+				productCategory: form.productCategory || undefined,
+				linkedinHeadline: form.linkedinHeadline || undefined,
+				icpDescription: form.icpDescription || undefined,
+				targetAudience: form.targetAudience || undefined,
+				industry: form.industry || undefined,
+				brandPositioning: form.brandPositioning || undefined,
+				usp: form.usp || undefined,
+				preferredCtaStyle: form.preferredCtaStyle || undefined,
+				postFormatPreference: form.postFormatPreference || undefined,
+				keyPainPoints: toList(form.keyPainPointsRaw),
+				productFeatures: toList(form.productFeaturesRaw),
+				competitors: toList(form.competitorsRaw),
+				founderProfile: form.founderProfile || undefined,
+				writingPreferences: form.writingPreferences || undefined,
+				contentPillars: form.contentPillars,
+				toneKeywords: form.toneTags,
+				forbiddenPhrases: toList(form.forbiddenPhrasesRaw),
+				brandTone: form.toneTags.join(", ") || undefined,
+				userGoals: form.goalTags.join(", ") || undefined,
+			});
+			localStorage.removeItem(DRAFT_KEY);
+			toast.success("AI Brand Brain saved");
+			router.push("/social/memory");
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Failed to save onboarding");
+		} finally {
+			setSaving(false);
+		}
+	};
+
+	const goNext = () => setStepIdx((idx) => Math.min(idx + 1, STEPS.length - 1));
+	const goBack = () => setStepIdx((idx) => Math.max(idx - 1, 0));
+
 	return (
-		<PageShell maxWidth="5xl">
+		<PageShell maxWidth="6xl">
 			<PageHeader
-				breadcrumb={[
-					{ label: "Memory", href: "/social/memory" },
-					{ label: "Onboarding" },
-				]}
-				eyebrow="Memory wizard"
-				title="Teach the agent your voice"
-				description="Five quick steps. Everything here goes into profile memory — the layer that guides every draft."
+				breadcrumb={[{ label: "Memory", href: "/social/memory" }, { label: "AI Brand Brain Setup" }]}
+				eyebrow="AI Brand Brain"
+				title="Train your LinkedIn ghostwriter"
+				description="2-3 minute setup. Mostly verify AI suggestions instead of filling long forms."
 			/>
-
-			{loadingExisting && (
-				<InlineAlert
-					tone="info"
-					title="Loading existing profile memory"
-					description="If memory already exists, fields are pre-filled so you can edit them."
-				/>
-			)}
-
-			<SurfaceCard padded={false}>
-				<div className="flex items-center gap-2 overflow-x-auto border-b border-slate-100 px-5 py-4 text-xs">
-					{STEPS.map((s, i) => (
-						<div key={s} className="flex items-center gap-2 whitespace-nowrap">
-							<span
-								className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold ${
-									i <= idx
-										? "bg-blue-600 text-white"
-										: "bg-slate-200 text-slate-500"
-								}`}
-							>
-								{i + 1}
-							</span>
-							<span
-								className={`font-medium ${
-									i <= idx ? "text-slate-900" : "text-slate-400"
-								}`}
-							>
-								{s}
-							</span>
-							{i < STEPS.length - 1 && (
-								<span className="text-slate-300">·</span>
-							)}
-						</div>
-					))}
-				</div>
-
-				<div className="p-5 md:p-6">
-					{step === "Identity" && (
-						<StepIdentity form={form} update={update} />
-					)}
-					{step === "Audience" && (
-						<StepAudience form={form} update={update} />
-					)}
-					{step === "Tone" && <StepTone form={form} update={update} />}
-					{step === "Format + CTA" && (
-						<StepFormat form={form} update={update} />
-					)}
-					{step === "Review" && <StepReview form={form} />}
-				</div>
-
-				<div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-5 py-3">
-					<SecondaryButton onClick={onBack} disabled={isFirst}>
-						Back
-					</SecondaryButton>
-					{isLast ? (
-						<PrimaryButton onClick={onSubmit} disabled={saving}>
-							{saving ? "Saving…" : "Save profile memory"}
-						</PrimaryButton>
-					) : (
-						<PrimaryButton onClick={onNext}>Next step</PrimaryButton>
-					)}
-				</div>
-			</SurfaceCard>
-
 			<InlineAlert
 				tone="info"
-				title="You can change any of this later"
-				description="Every answer becomes a standalone memory item you can edit from the Memory page."
+				title={`Setup progress: ${completionScore}%`}
+				description="Everything is optional. Skip anything and refine later from the AI Brand Brain dashboard."
 			/>
+			<SurfaceCard padded={false}>
+				<div className="border-b border-slate-100 px-5 py-4">
+					<div className="flex flex-wrap gap-2">
+						{STEPS.map((s, index) => (
+							<button
+								key={s.id}
+								type="button"
+								onClick={() => setStepIdx(index)}
+								className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+									index === stepIdx
+										? "bg-slate-900 text-white"
+										: index < stepIdx
+											? "bg-emerald-100 text-emerald-700"
+											: "bg-slate-100 text-slate-600"
+								}`}
+							>
+								{s.label}
+							</button>
+						))}
+					</div>
+					<p className="mt-2 text-xs text-slate-500">{step.description}</p>
+				</div>
+				<div className="p-5 md:p-6">
+					{loading ? (
+						<p className="text-sm text-slate-500">Loading your existing memory...</p>
+					) : step.id === "basics" ? (
+						<BasicsStep form={form} update={update} onQuickSkip={goNext} />
+					) : step.id === "autofill" ? (
+						<AutofillStep
+							form={form}
+							runAutofill={runAutofill}
+							enriching={enriching}
+							enrichment={enrichment}
+							applySuggestion={applySuggestion}
+							applyAllHighConfidence={applyAllHighConfidenceSuggestions}
+							applyAllSuggestions={applyAllSuggestions}
+							appliedSuggestionKeys={appliedSuggestionKeys}
+							onSkip={goNext}
+						/>
+					) : step.id === "audience" ? (
+						<AudienceStep form={form} update={update} />
+					) : step.id === "tone" ? (
+						<ToneStep form={form} update={update} />
+					) : (
+						<ReviewStep form={form} />
+					)}
+				</div>
+				<div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-5 py-3">
+					<SecondaryButton onClick={goBack} disabled={stepIdx === 0}>
+						Back
+					</SecondaryButton>
+					<div className="flex items-center gap-2">
+						{step.id !== "review" ? (
+							<>
+								<SecondaryButton onClick={goNext}>Skip</SecondaryButton>
+								<PrimaryButton onClick={goNext}>Continue</PrimaryButton>
+							</>
+						) : (
+							<PrimaryButton onClick={onSave} disabled={saving}>
+								{saving ? "Saving..." : "Save AI Brand Brain"}
+							</PrimaryButton>
+						)}
+					</div>
+				</div>
+			</SurfaceCard>
 		</PageShell>
 	);
 }
 
-function StepIdentity({
+function BasicsStep({
 	form,
 	update,
+	onQuickSkip,
 }: {
-	form: OnboardingForm;
-	update: <K extends keyof OnboardingForm>(
-		field: K,
-		value: OnboardingForm[K]
-	) => void;
+	form: Form;
+	update: <K extends keyof Form>(key: K, value: Form[K]) => void;
+	onQuickSkip: () => void;
 }) {
 	return (
 		<div className="space-y-4">
 			<SectionTitle
-				title="Who is posting?"
-				description="This goes into the LinkedIn post as the speaker identity."
+				title="Start with the essentials"
+				description="Add just a few details, then AI prepares a full first draft of your brand memory."
 			/>
-			<Field
-				label="Founder name"
-				value={form.founderName}
-				onChange={(v) => update("founderName", v)}
-				placeholder="e.g. Aditya Sharma"
-				required
-			/>
-			<Field
-				label="Product name"
-				value={form.productName}
-				onChange={(v) => update("productName", v)}
-				placeholder="e.g. TotalAds"
-			/>
-			<Field
-				label="LinkedIn headline"
-				value={form.linkedinHeadline}
-				onChange={(v) => update("linkedinHeadline", v)}
-				placeholder="Founder @ TotalAds — helping D2C brands stop wasting ad spend"
-			/>
-		</div>
-	);
-}
-
-function StepAudience({
-	form,
-	update,
-}: {
-	form: OnboardingForm;
-	update: <K extends keyof OnboardingForm>(
-		field: K,
-		value: OnboardingForm[K]
-	) => void;
-}) {
-	return (
-		<div className="space-y-4">
-			<SectionTitle
-				title="Who is this for?"
-				description="Describe your ICP in one sentence. The agent writes every post with this reader in mind."
-			/>
-			<Field
-				label="ICP description"
-				value={form.icpDescription}
-				onChange={(v) => update("icpDescription", v)}
-				placeholder="D2C brand owners running Meta ads with $10k–$100k/month spend"
-				multiline
-			/>
-		</div>
-	);
-}
-
-function StepTone({
-	form,
-	update,
-}: {
-	form: OnboardingForm;
-	update: <K extends keyof OnboardingForm>(
-		field: K,
-		value: OnboardingForm[K]
-	) => void;
-}) {
-	return (
-		<div className="space-y-4">
-			<SectionTitle
-				title="How do you sound?"
-				description="Keywords describe your voice. Forbidden phrases are the things the agent must never write."
-			/>
-			<Field
-				label="Tone keywords"
-				value={form.toneKeywordsRaw}
-				onChange={(v) => update("toneKeywordsRaw", v)}
-				placeholder="blunt, founder-led, no fluff, data-first"
-				multiline
-			/>
-			<Field
-				label="Forbidden phrases"
-				value={form.forbiddenPhrasesRaw}
-				onChange={(v) => update("forbiddenPhrasesRaw", v)}
-				placeholder="game-changer, excited to announce, I'm humbled"
-				multiline
-			/>
-			<p className="text-xs text-slate-400">
-				Separate items with commas or newlines.
-			</p>
-		</div>
-	);
-}
-
-function StepFormat({
-	form,
-	update,
-}: {
-	form: OnboardingForm;
-	update: <K extends keyof OnboardingForm>(
-		field: K,
-		value: OnboardingForm[K]
-	) => void;
-}) {
-	return (
-		<div className="space-y-4">
-			<SectionTitle
-				title="How should the post be structured?"
-				description="The agent will try to match these patterns on every draft."
-			/>
-			<Field
-				label="Post format preference"
-				value={form.postFormatPreference}
-				onChange={(v) => update("postFormatPreference", v)}
-				placeholder="short hook → 3-4 line story → 1 insight → soft CTA"
-				multiline
-			/>
-			<Field
-				label="Preferred CTA style"
-				value={form.preferredCtaStyle}
-				onChange={(v) => update("preferredCtaStyle", v)}
-				placeholder="Soft ask — DM me if relevant, never hard sell"
-			/>
-		</div>
-	);
-}
-
-function StepReview({ form }: { form: OnboardingForm }) {
-	return (
-		<div className="space-y-4">
-			<SectionTitle
-				title="Everything looks right?"
-				description="Hit save and the agent is live with this memory stack. You can edit anything later."
-			/>
-			<div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
-				<ReviewRow label="Founder name" value={form.founderName} />
-				<ReviewRow label="Product" value={form.productName} />
-				<ReviewRow label="Headline" value={form.linkedinHeadline} />
-				<ReviewRow label="ICP" value={form.icpDescription} />
-				<ReviewRow label="Tone keywords" value={form.toneKeywordsRaw} />
-				<ReviewRow label="Forbidden" value={form.forbiddenPhrasesRaw} />
-				<ReviewRow label="Format" value={form.postFormatPreference} />
-				<ReviewRow label="CTA style" value={form.preferredCtaStyle} />
+			<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+				<Input label="Founder name" value={form.founderName} onChange={(v) => update("founderName", v)} placeholder="e.g. Rehan Qureshi" />
+				<Input label="Company name" value={form.companyName} onChange={(v) => update("companyName", v)} placeholder="e.g. TotalAds" />
+				<Input label="Product name" value={form.productName} onChange={(v) => update("productName", v)} placeholder="e.g. SocialSnipper" />
+				<Input label="Website" value={form.website} onChange={(v) => update("website", v)} placeholder="https://..." />
+				<Input label="LinkedIn headline (optional)" value={form.linkedinHeadline} onChange={(v) => update("linkedinHeadline", v)} placeholder="Founder @ ..." />
+				<Input
+					label="What does your product do? (optional)"
+					value={form.oneLineDescription}
+					onChange={(v) => update("oneLineDescription", v)}
+					placeholder="One-line product summary"
+				/>
+				<Input
+					label="Primary audience (optional)"
+					value={form.targetAudience}
+					onChange={(v) => update("targetAudience", v)}
+					placeholder="Who you want to reach"
+				/>
 			</div>
+			<InlineAlert
+				tone="info"
+				title="How AI autofill works"
+				description="AI uses your website + company/product basics + headline + product summary to infer category, ICP, tone, pillars, and positioning."
+				action={<SecondaryButton onClick={onQuickSkip}>Continue with current info</SecondaryButton>}
+			/>
 		</div>
 	);
 }
 
-function ReviewRow({ label, value }: { label: string; value: string }) {
+function AutofillStep({
+	form,
+	runAutofill,
+	enriching,
+	enrichment,
+	applySuggestion,
+	applyAllHighConfidence,
+	applyAllSuggestions,
+	appliedSuggestionKeys,
+	onSkip,
+}: {
+	form: Form;
+	runAutofill: () => Promise<void>;
+	enriching: boolean;
+	enrichment: {
+		summary?: string;
+		suggestions?: Record<string, { value: string | string[]; confidence: number; reason: string }>;
+		recommendedMissing?: string[];
+	} | null;
+	applySuggestion: (key: string, value: string | string[]) => void;
+	applyAllHighConfidence: (minConfidence?: number) => void;
+	applyAllSuggestions: () => void;
+	appliedSuggestionKeys: string[];
+	onSkip: () => void;
+}) {
+	const totalSuggestions = enrichment?.suggestions
+		? Object.keys(enrichment.suggestions).length
+		: 0;
+	const appliedCount = appliedSuggestionKeys.length;
+
+	const contextSignals = [
+		{ label: "Website", value: form.website },
+		{ label: "Company", value: form.companyName },
+		{ label: "Product", value: form.productName },
+		{ label: "Founder", value: form.founderName },
+		{ label: "Headline", value: form.linkedinHeadline },
+		{ label: "Product summary", value: form.oneLineDescription },
+		{ label: "Audience", value: form.targetAudience },
+	].filter((signal) => String(signal.value || "").trim().length > 0);
+
 	return (
-		<div className="grid grid-cols-1 gap-1 border-b border-slate-200 py-2 last:border-0 sm:grid-cols-3">
-			<span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-				{label}
-			</span>
-			<span className="col-span-2 break-words text-sm text-slate-800">
-				{value || <span className="text-slate-400">—</span>}
-			</span>
+		<div className="space-y-4">
+			<SectionTitle title="AI autofill suggestions" description="We prefill most fields so you mostly approve/edit instead of typing." />
+			{totalSuggestions > 0 ? (
+				<div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+					<p className="text-sm font-semibold text-emerald-800">
+						Applied {appliedCount} / {totalSuggestions} suggestions
+					</p>
+					<div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-emerald-100">
+						<div
+							className="h-full rounded-full bg-emerald-500 transition-all"
+							style={{
+								width: `${Math.round((appliedCount / Math.max(totalSuggestions, 1)) * 100)}%`,
+							}}
+						/>
+					</div>
+				</div>
+			) : null}
+			<div className="rounded-xl border border-slate-200 bg-white p-3">
+				<p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+					Context signals used for autofill ({contextSignals.length})
+				</p>
+				<div className="mt-2 flex flex-wrap gap-2">
+					{contextSignals.length ? (
+						contextSignals.map((signal) => (
+							<span
+								key={signal.label}
+								className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700"
+							>
+								{signal.label}
+							</span>
+						))
+					) : (
+						<span className="text-xs text-slate-500">
+							Add at least website/company/product in the previous step for stronger suggestions.
+						</span>
+					)}
+				</div>
+			</div>
+			<div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+				<PrimaryButton onClick={runAutofill} disabled={enriching}>
+					{enriching ? "Generating suggestions..." : "Generate AI suggestions"}
+				</PrimaryButton>
+				<SecondaryButton onClick={() => applyAllHighConfidence(0.7)}>
+					Apply all high-confidence
+				</SecondaryButton>
+				<SecondaryButton onClick={applyAllSuggestions}>Use all suggestions & continue</SecondaryButton>
+				<SecondaryButton onClick={onSkip}>Skip for now</SecondaryButton>
+			</div>
+			{enrichment?.summary ? (
+				<InlineAlert tone="info" title="AI summary" description={enrichment.summary} />
+			) : null}
+			{enrichment?.suggestions ? (
+				<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+					{Object.entries(enrichment.suggestions).map(([key, suggestion]) => (
+						<div key={key} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+							<div className="flex items-center justify-between gap-2">
+								<p className="text-sm font-semibold text-slate-900">
+									{key
+										.replace(/([A-Z])/g, " $1")
+										.replace(/_/g, " ")
+										.replace(/\b\w/g, (c) => c.toUpperCase())
+										.trim()}
+								</p>
+								<span
+									className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+										Number(suggestion.confidence || 0) >= 0.7
+											? "bg-emerald-100 text-emerald-700"
+											: "bg-amber-100 text-amber-700"
+									}`}
+								>
+									AI confidence {Math.round((suggestion.confidence || 0) * 100)}%
+								</span>
+							</div>
+							<p className="mt-2 text-sm text-slate-700">
+								{Array.isArray(suggestion.value) ? suggestion.value.join(", ") : suggestion.value}
+							</p>
+							<p className="mt-1 text-xs text-slate-500">Why suggested: {suggestion.reason}</p>
+							<div className="mt-3 flex items-center gap-2">
+								<SecondaryButton onClick={() => applySuggestion(key, suggestion.value)}>
+									{appliedSuggestionKeys.includes(key) ? "Applied" : "Use this suggestion"}
+								</SecondaryButton>
+								<SecondaryButton onClick={() => toast("Skipped. You can always apply it later.")}>
+									Skip
+								</SecondaryButton>
+							</div>
+						</div>
+					))}
+				</div>
+			) : null}
 		</div>
 	);
 }
 
-function Field({
+function AudienceStep({
+	form,
+	update,
+}: {
+	form: Form;
+	update: <K extends keyof Form>(key: K, value: Form[K]) => void;
+}) {
+	return (
+		<div className="space-y-4">
+			<SectionTitle title="Audience & content goals" description="Pick options quickly. Add details only if you want." />
+			<ChipGroup label="Content goals" options={GOAL_OPTIONS} values={form.goalTags} onChange={(values) => update("goalTags", values)} />
+			<ChipGroup label="Content pillars" options={PILLAR_OPTIONS} values={form.contentPillars} onChange={(values) => update("contentPillars", values)} />
+			<TextArea label="ICP description" value={form.icpDescription} onChange={(v) => update("icpDescription", v)} placeholder="Who do you help most?" />
+			<TextArea label="Target audience roles" value={form.targetAudience} onChange={(v) => update("targetAudience", v)} placeholder="Founders, CMOs, RevOps leaders..." />
+			<TextArea label="Pain points solved" value={form.keyPainPointsRaw} onChange={(v) => update("keyPainPointsRaw", v)} placeholder="One per line or comma-separated" />
+		</div>
+	);
+}
+
+function ToneStep({
+	form,
+	update,
+}: {
+	form: Form;
+	update: <K extends keyof Form>(key: K, value: Form[K]) => void;
+}) {
+	return (
+		<div className="space-y-4">
+			<SectionTitle title="Tone, style, and strategy" description="Train how your AI ghostwriter should sound and sell." />
+			<ChipGroup label="Tone chips" options={TONE_OPTIONS} values={form.toneTags} onChange={(values) => update("toneTags", values)} />
+			<ChipGroup label="Preferred formats" options={FORMAT_OPTIONS} values={form.postFormatPreference ? [form.postFormatPreference] : []} onChange={(values) => update("postFormatPreference", values.join(", "))} singleSelect />
+			<Input label="Preferred CTA style" value={form.preferredCtaStyle} onChange={(v) => update("preferredCtaStyle", v)} placeholder="e.g. soft CTA with optional DM prompt" />
+			<TextArea label="Product positioning" value={form.brandPositioning} onChange={(v) => update("brandPositioning", v)} placeholder="How should your product be positioned in posts?" />
+			<TextArea label="Words or phrases to avoid" value={form.forbiddenPhrasesRaw} onChange={(v) => update("forbiddenPhrasesRaw", v)} placeholder="List words to avoid" />
+		</div>
+	);
+}
+
+function ReviewStep({ form }: { form: Form }) {
+	const rows = [
+		["Founder", form.founderName],
+		["Company", form.companyName],
+		["Product", form.productName],
+		["Website", form.website],
+		["Category", form.productCategory],
+		["ICP", form.icpDescription],
+		["Audience", form.targetAudience],
+		["Tone", form.toneTags.join(", ")],
+		["Goals", form.goalTags.join(", ")],
+		["Pillars", form.contentPillars.join(", ")],
+		["Preferred formats", form.postFormatPreference],
+		["CTA style", form.preferredCtaStyle],
+	];
+	return (
+		<div className="space-y-4">
+			<SectionTitle title="Final review" description="Save now, and refine anytime from your AI Brand Brain dashboard." />
+			<div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+				{rows.map(([label, value]) => (
+					<div key={label} className="grid grid-cols-1 gap-1 border-b border-slate-200 py-2 text-sm last:border-0 md:grid-cols-3">
+						<span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+						<span className="md:col-span-2 text-slate-800">{value || <span className="text-slate-400">Not set</span>}</span>
+					</div>
+				))}
+			</div>
+			<InlineAlert tone="info" title="What happens next?" description="Post Studio and Copilot will use this context for hooks, format selection, CTA style, and natural product mentions." />
+		</div>
+	);
+}
+
+function Input({
 	label,
 	value,
 	onChange,
 	placeholder,
-	multiline,
-	required,
 }: {
 	label: string;
 	value: string;
-	onChange: (v: string) => void;
+	onChange: (value: string) => void;
 	placeholder?: string;
-	multiline?: boolean;
-	required?: boolean;
 }) {
 	return (
 		<label className="block">
-			<span className="mb-1.5 flex items-center justify-between text-xs font-medium uppercase tracking-wide text-slate-600">
-				<span>{label}</span>
-				{required && <span className="text-rose-500">Required</span>}
-			</span>
-			{multiline ? (
-				<textarea
-					value={value}
-					onChange={(e) => onChange(e.target.value)}
-					placeholder={placeholder}
-					rows={3}
-					className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-				/>
-			) : (
-				<input
-					value={value}
-					onChange={(e) => onChange(e.target.value)}
-					placeholder={placeholder}
-					className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-				/>
-			)}
+			<span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+			<input
+				value={value}
+				onChange={(e) => onChange(e.target.value)}
+				placeholder={placeholder}
+				className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+			/>
 		</label>
+	);
+}
+
+function TextArea({
+	label,
+	value,
+	onChange,
+	placeholder,
+}: {
+	label: string;
+	value: string;
+	onChange: (value: string) => void;
+	placeholder?: string;
+}) {
+	return (
+		<label className="block">
+			<span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+			<textarea
+				value={value}
+				onChange={(e) => onChange(e.target.value)}
+				placeholder={placeholder}
+				rows={3}
+				className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+			/>
+		</label>
+	);
+}
+
+function ChipGroup({
+	label,
+	options,
+	values,
+	onChange,
+	singleSelect,
+}: {
+	label: string;
+	options: string[];
+	values: string[];
+	onChange: (values: string[]) => void;
+	singleSelect?: boolean;
+}) {
+	return (
+		<div>
+			<p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+			<div className="flex flex-wrap gap-2">
+				{options.map((option) => {
+					const active = values.includes(option);
+					return (
+						<button
+							key={option}
+							type="button"
+							onClick={() => {
+								if (singleSelect) {
+									onChange(active ? [] : [option]);
+									return;
+								}
+								onChange(active ? values.filter((v) => v !== option) : [...values, option]);
+							}}
+							className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
+								active
+									? "border-blue-600 bg-blue-600 text-white"
+									: "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-700"
+							}`}
+						>
+							{option}
+						</button>
+					);
+				})}
+			</div>
+		</div>
 	);
 }

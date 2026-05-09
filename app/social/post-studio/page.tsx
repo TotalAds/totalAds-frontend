@@ -14,6 +14,7 @@ import {
 	PageShell,
 	PrimaryButton,
 	SecondaryButton,
+	PostGenerationChips,
 	SectionTitle,
 	StatusPill,
 	SurfaceCard,
@@ -23,6 +24,7 @@ import {
 	AgentRunOutput,
 	approvePost,
 	createManualPost,
+	getFormatRecommendation,
 	getSocialAccess,
 	listPosts,
 	publishPostNow,
@@ -113,6 +115,12 @@ export default function SocialPostStudioPage() {
 	const [manualBusy, setManualBusy] = useState<"save" | "schedule" | "post_now" | null>(
 		null
 	);
+	const [formatPreview, setFormatPreview] = useState<{
+		selectedLabel: string;
+		formatConfidenceScore: number;
+		reasoning: string;
+		recommendations: Array<{ label: string; score: number; reason: string }>;
+	} | null>(null);
 
 	const loadDrafts = async () => {
 		try {
@@ -186,6 +194,20 @@ export default function SocialPostStudioPage() {
 				createCarousel: form.createCarousel,
 			});
 			setLatestRun(run);
+			setFormatPreview(
+				run.formatIntelligence
+					? {
+							selectedLabel: run.formatIntelligence.selectedFormat,
+							formatConfidenceScore: run.formatIntelligence.formatConfidenceScore,
+							reasoning: run.formatIntelligence.reasoning,
+							recommendations: run.formatIntelligence.recommendations.map((r) => ({
+								label: r.label,
+								score: r.score,
+								reason: r.reason,
+							})),
+						}
+					: null
+			);
 			toast.success("Draft generated");
 			await loadDrafts();
 		} catch (err) {
@@ -521,6 +543,38 @@ export default function SocialPostStudioPage() {
 							</div>
 						</div>
 						<div className="mt-5 flex flex-wrap items-center justify-end gap-2">
+								<SecondaryButton
+									onClick={async () => {
+										try {
+											const rec = await getFormatRecommendation({
+												topic: form.topic.trim(),
+												angles: selectedAngles,
+												audiences: selectedAudiences,
+												cta: form.cta || undefined,
+												extraInstructions: form.extraInstructions || undefined,
+											});
+											setFormatPreview({
+												selectedLabel: rec.selectedLabel,
+												formatConfidenceScore: rec.formatConfidenceScore,
+												reasoning: rec.reasoning,
+												recommendations: rec.recommendations.map((r) => ({
+													label: r.label,
+													score: r.score,
+													reason: r.reason,
+												})),
+											});
+										} catch (err) {
+											toast.error(
+												err instanceof Error
+													? err.message
+													: "Failed to preview format recommendation"
+											);
+										}
+									}}
+									disabled={!form.topic.trim()}
+								>
+									Preview format recommendation
+								</SecondaryButton>
 							<PrimaryButton onClick={onGenerate} disabled={isGenerating}>
 								{isGenerating ? (
 									<>
@@ -540,6 +594,15 @@ export default function SocialPostStudioPage() {
 								</SecondaryButton>
 							)}
 						</div>
+						{formatPreview ? (
+							<div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 p-3 text-sm text-violet-900">
+								<p className="font-semibold">
+									Recommended format: {formatPreview.selectedLabel} (
+									{Math.round(formatPreview.formatConfidenceScore * 100)}%)
+								</p>
+								<p className="mt-1 text-xs">{formatPreview.reasoning}</p>
+							</div>
+						) : null}
 					</SurfaceCard>
 				) : (
 					<SurfaceCard className="lg:col-span-5">
@@ -655,6 +718,9 @@ export default function SocialPostStudioPage() {
 													: null,
 											].filter(Boolean) as any}
 										/>
+										<div className="mt-2">
+											<PostGenerationChips post={draft} />
+										</div>
 									</div>
 									<IconChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
 								</Link>
@@ -1107,6 +1173,15 @@ function LatestRunPanel({
 					description={`Agent confidence ${Math.round(draft.confidence * 100)}% · memory used: ${memoryUsed.profileKeyCount} profile, ${memoryUsed.workKeyCount} work, ${memoryUsed.learningRuleCount} rules`}
 					action={<StatusPill status={status} />}
 				/>
+				<div className="mb-3">
+					<PostGenerationChips
+						post={{
+							contentPostFormat: draft.postFormat,
+							productMentionMode: draft.productMentionMode,
+							hasProductMention: draft.hasProductMention,
+						}}
+					/>
+				</div>
 				<PostPreview
 					body={draft.body}
 					hashtags={draft.hashtags}
@@ -1117,6 +1192,20 @@ function LatestRunPanel({
 						Why this will work: {draft.rationale}
 					</p>
 				)}
+				{run.formatIntelligence ? (
+					<div className="mt-3 rounded-xl border border-violet-200 bg-violet-50 p-3">
+						<p className="text-xs font-semibold uppercase tracking-wide text-violet-700">
+							Format intelligence
+						</p>
+						<p className="mt-1 text-xs text-violet-900">
+							{run.formatIntelligence.selectedFormat} ·{" "}
+							{Math.round(run.formatIntelligence.formatConfidenceScore * 100)}% confidence
+						</p>
+						<p className="mt-1 text-xs text-violet-800">
+							{run.formatIntelligence.reasoning}
+						</p>
+					</div>
+				) : null}
 				{run.mediaAssets && run.mediaAssets.length > 0 && (
 					<div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-3">
 						<p className="text-xs font-semibold uppercase tracking-wide text-blue-700">

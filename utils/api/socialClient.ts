@@ -124,6 +124,11 @@ export interface AgentDraft {
 	hashtags: string[];
 	rationale: string;
 	confidence: number;
+	postFormat: string;
+	productMentionMode: "none" | "soft" | "direct";
+	ctaType: string;
+	hasProductMention: boolean;
+	topicCategory: string;
 }
 
 export interface AgentRunOutput {
@@ -145,6 +150,18 @@ export interface AgentRunOutput {
 		publicUrl: string | null;
 		status: "pending" | "processing" | "ready" | "failed";
 	}>;
+	formatIntelligence?: {
+		selectedFormat: string;
+		formatConfidenceScore: number;
+		reasoning: string;
+		historicalSimilarityScore: number;
+		recommendations: Array<{
+			format: string;
+			label: string;
+			score: number;
+			reason: string;
+		}>;
+	};
 }
 
 export interface SocialPostRun {
@@ -174,6 +191,13 @@ export interface SocialPostRun {
 	angle: string | null;
 	audience: string | null;
 	agentRunId: string | null;
+	contentPostFormat?: string | null;
+	productMentionMode?: string | null;
+	hasProductMention?: boolean | null;
+	selectedFormat?: string | null;
+	formatConfidenceScore?: number | null;
+	formatReasoning?: string | null;
+	historicalSimilarityScore?: number | null;
 	profileMemorySnapshot: Record<string, unknown> | null;
 	workMemorySnapshot: Record<string, unknown> | null;
 	learningRulesApplied: number[] | null;
@@ -288,6 +312,7 @@ export interface GeneratedLinkedinCalendarPost {
 	hashtags: string[];
 	ctaType: string;
 	notes: string;
+	mediaSuggestion?: "none" | "image" | "carousel";
 	status: "draft" | "in_review";
 	mediaAssets?: Array<{
 		id: number;
@@ -345,6 +370,41 @@ export interface MemoryItem {
 	expiresAt: string | null;
 	createdAt: string;
 	updatedAt: string;
+}
+
+export interface MemoryBrainSection {
+	id: string;
+	label: string;
+	completed: number;
+	total: number;
+	completion: number;
+	items: Array<{
+		key: string;
+		label: string;
+		hint: string;
+		value: unknown;
+		isSet: boolean;
+		impactWeight: number;
+		updatedAt: string | null;
+		usedInPostsCount: number;
+		usedInPosts: number[];
+	}>;
+}
+
+export interface MemoryBrainPayload {
+	sections: MemoryBrainSection[];
+	completionScore: number;
+	rawCompletionScore?: number;
+	weighting?: Record<string, number>;
+	completedFields: number;
+	totalFields: number;
+	missing: Array<{
+		section: string;
+		key: string;
+		label: string;
+		hint: string;
+		priority?: number;
+	}>;
 }
 
 export interface LearningRule {
@@ -431,7 +491,7 @@ export interface SocialMediaAsset {
 	providerAssetId: string | null;
 	sourcePrompt: string | null;
 	publicUrl: string | null;
-	status: "pending" | "processing" | "ready" | "failed";
+	status: "pending" | "processing" | "ready" | "failed" | "deleted";
 	failureReason: string | null;
 	createdAt: string;
 	updatedAt: string;
@@ -522,6 +582,26 @@ export const runAgent = async (input: {
 }): Promise<AgentRunOutput> => {
 	const response = await socialClient.post("/api/v1/agent/run", input);
 	return response.data?.data;
+};
+
+export const getFormatRecommendation = async (input: {
+	topic: string;
+	angle?: string;
+	angles?: string[];
+	audience?: string;
+	audiences?: string[];
+	cta?: string;
+	extraInstructions?: string;
+}) => {
+	const response = await socialClient.post("/api/v1/agent/format-recommendation", input);
+	return response.data?.data as {
+		selectedFormat: string;
+		selectedLabel: string;
+		formatConfidenceScore: number;
+		reasoning: string;
+		historicalSimilarityScore: number;
+		recommendations: Array<{ format: string; label: string; score: number; reason: string }>;
+	};
 };
 
 export const getAgentBriefing = async (): Promise<AgentBriefing> => {
@@ -885,11 +965,26 @@ export const deprecateMemoryItem = async (layer: MemoryLayer, key: string) => {
 export const saveMemoryOnboarding = async (payload: {
 	founderName: string;
 	productName?: string;
+	companyName?: string;
+	productCategory?: string;
+	website?: string;
 	icpDescription?: string;
+	targetAudience?: string;
 	toneKeywords?: string[];
+	brandTone?: string;
+	userGoals?: string;
 	forbiddenPhrases?: string[];
 	preferredCtaStyle?: string;
 	postFormatPreference?: string;
+	industry?: string;
+	brandPositioning?: string;
+	keyPainPoints?: string[];
+	productFeatures?: string[];
+	usp?: string;
+	competitors?: string[];
+	founderProfile?: string;
+	writingPreferences?: string;
+	contentPillars?: string[];
 	linkedinHeadline?: string;
 }) => {
 	const response = await socialClient.post("/api/v1/memory/onboarding", payload);
@@ -903,6 +998,29 @@ export const getMemoryOnboardingStatus = async (): Promise<{
 }> => {
 	const response = await socialClient.get("/api/v1/memory/onboarding-status");
 	return response.data?.data;
+};
+
+export const getMemoryBrain = async (): Promise<MemoryBrainPayload> => {
+	const response = await socialClient.get("/api/v1/memory/brain");
+	return response.data?.data;
+};
+
+export const enrichMemoryFromWebsite = async (payload: {
+	website?: string;
+	companyName?: string;
+	productName?: string;
+	founderName?: string;
+	linkedinHeadline?: string;
+}) => {
+	const response = await socialClient.post("/api/v1/memory/enrich", payload);
+	return response.data?.data as {
+		suggestions?: Record<
+			string,
+			{ value: string | string[]; confidence: number; reason: string }
+		>;
+		summary?: string;
+		recommendedMissing?: string[];
+	};
 };
 
 // -----------------------------------------------------------------------

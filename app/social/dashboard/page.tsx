@@ -11,6 +11,7 @@ import {
 	MetaRow,
 	PageHeader,
 	PageShell,
+	PostGenerationChips,
 	PrimaryButton,
 	SecondaryButton,
 	SectionTitle,
@@ -556,6 +557,9 @@ function RecentPostRow({ post }: { post: SocialPostRun }) {
 								: null,
 						].filter(Boolean) as any}
 					/>
+					<div className="mt-2">
+						<PostGenerationChips post={post} />
+					</div>
 				</div>
 				<span className="text-xs text-slate-400">→</span>
 			</div>
