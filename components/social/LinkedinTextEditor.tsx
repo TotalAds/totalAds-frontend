@@ -23,7 +23,7 @@ export function LinkedinTextEditor({
 	onUploadImage,
 	onImageUploaded,
 	insertUploadedImageUrl = true,
-	showImageTool = true,
+	showImageTool = false,
 }: {
 	value: string;
 	onChange: (next: string) => void;

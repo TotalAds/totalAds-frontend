@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { PostPreview } from "@/components/social/PostPreview";
@@ -255,9 +255,30 @@ export default function SocialPostStudioPage() {
 		}
 	};
 
+	// Mirrors the backend merge so we can warn before sending the request.
+	// We use \w+ here because parseHashtagInput strips non-ASCII anyway, so
+	// this matches what the server will ultimately persist.
+	const manualMergedHashtags = useMemo(() => {
+		const fromInput = parseHashtagInput(manualHashtagInput || manualBody);
+		const fromBody = Array.from(
+			manualBody.matchAll(/(^|\s)#(\w+)/g)
+		).map((match) => match[2]);
+		return Array.from(new Set([...fromInput, ...fromBody]));
+	}, [manualBody, manualHashtagInput]);
+	const manualHashtagLimitExceeded =
+		manualMergedHashtags.length > MAX_LINKEDIN_HASHTAGS;
+
 	const createManualDraft = async () => {
 		if (manualBody.trim().length < 10) {
 			toast.error("Write at least 10 characters");
+			return null;
+		}
+		if (manualHashtagLimitExceeded) {
+			toast.error(
+				`You can use at most ${MAX_LINKEDIN_HASHTAGS} LinkedIn tags. Remove ${
+					manualMergedHashtags.length - MAX_LINKEDIN_HASHTAGS
+				} to continue.`
+			);
 			return null;
 		}
 		const created = await createManualPost({
@@ -615,6 +636,8 @@ export default function SocialPostStudioPage() {
 							onBodyChange={setManualBody}
 							hashtagInput={manualHashtagInput}
 							onHashtagInputChange={setManualHashtagInput}
+							hashtagCount={manualMergedHashtags.length}
+							hashtagLimitExceeded={manualHashtagLimitExceeded}
 							mediaUrls={manualMediaUrls}
 							onMediaUrlsChange={setManualMediaUrls}
 							topic={manualTopic}
@@ -786,6 +809,8 @@ function LinkedinStudioEditor({
 	onBodyChange,
 	hashtagInput,
 	onHashtagInputChange,
+	hashtagCount,
+	hashtagLimitExceeded,
 	mediaUrls,
 	onMediaUrlsChange,
 	topic,
@@ -802,6 +827,8 @@ function LinkedinStudioEditor({
 	onBodyChange: (v: string) => void;
 	hashtagInput: string;
 	onHashtagInputChange: (v: string) => void;
+	hashtagCount: number;
+	hashtagLimitExceeded: boolean;
 	mediaUrls: string[];
 	onMediaUrlsChange: (urls: string[]) => void;
 	topic: string;
@@ -840,15 +867,39 @@ function LinkedinStudioEditor({
 							}}
 						/>
 						<label className="block">
-							<span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-								LinkedIn tags
-							</span>
+							<div className="mb-1 flex items-center justify-between">
+								<span className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+									LinkedIn tags
+								</span>
+								<span
+									className={`text-[11px] font-medium ${
+										hashtagLimitExceeded ? "text-red-600" : "text-slate-500"
+									}`}
+								>
+									{hashtagCount}/{MAX_LINKEDIN_HASHTAGS}
+								</span>
+							</div>
 							<input
 								value={hashtagInput}
 								onChange={(e) => onHashtagInputChange(e.target.value)}
 								placeholder="growth, saas, founderjourney"
-								className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+								className={`w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2 ${
+									hashtagLimitExceeded
+										? "border-red-300 focus:border-red-400 focus:ring-red-100"
+										: "border-slate-200 focus:border-blue-400 focus:ring-blue-100"
+								}`}
 							/>
+							<p
+								className={`mt-1 text-[11px] ${
+									hashtagLimitExceeded ? "text-red-600" : "text-slate-500"
+								}`}
+							>
+								{hashtagLimitExceeded
+									? `Too many tags. Remove ${
+											hashtagCount - MAX_LINKEDIN_HASHTAGS
+										} to stay within the ${MAX_LINKEDIN_HASHTAGS}-tag limit (inline #tags in the body count too).`
+									: `Up to ${MAX_LINKEDIN_HASHTAGS} tags total. Inline #tags in the body count toward this limit.`}
+							</p>
 						</label>
 						<div>
 							<p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
@@ -939,7 +990,10 @@ function LinkedinStudioEditor({
 						</div>
 					</div>
 					<div className="flex flex-wrap items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
-						<SecondaryButton onClick={onSave} disabled={busy !== null}>
+						<SecondaryButton
+							onClick={onSave}
+							disabled={busy !== null || hashtagLimitExceeded}
+						>
 							{busy === "save" ? (
 								<IconRotateClockwise className="h-4 w-4 animate-spin" />
 							) : null}
@@ -951,7 +1005,10 @@ function LinkedinStudioEditor({
 							onChange={(event) => onScheduleForChange(event.target.value)}
 							className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
 						/>
-						<PrimaryButton onClick={onSchedule} disabled={busy !== null}>
+						<PrimaryButton
+							onClick={onSchedule}
+							disabled={busy !== null || hashtagLimitExceeded}
+						>
 							{busy === "schedule" ? (
 								<IconRotateClockwise className="h-4 w-4 animate-spin" />
 							) : (
@@ -959,7 +1016,10 @@ function LinkedinStudioEditor({
 							)}
 							Schedule
 						</PrimaryButton>
-						<SecondaryButton onClick={onPostNow} disabled={busy !== null}>
+						<SecondaryButton
+							onClick={onPostNow}
+							disabled={busy !== null || hashtagLimitExceeded}
+						>
 							{busy === "post_now" ? (
 								<IconRotateClockwise className="h-4 w-4 animate-spin" />
 							) : (
@@ -1005,6 +1065,12 @@ const extractHashtags = (input: string) =>
 		.map((token) => token.slice(1).trim())
 		.map((tag) => tag.replace(/[^A-Za-z0-9_]/g, ""))
 		.filter(Boolean);
+
+/**
+ * Mirrors the backend cap in totalads-social-service/src/routes/posts.ts so
+ * the UI can preempt 422s before sending the request.
+ */
+const MAX_LINKEDIN_HASHTAGS = 10;
 
 const parseHashtagInput = (input: string): string[] =>
 	Array.from(

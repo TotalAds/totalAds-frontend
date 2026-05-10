@@ -675,6 +675,19 @@ export const schedulePost = async (id: number, scheduledFor: string) => {
 	return response.data;
 };
 
+export type SocialTimeSlot = "morning" | "afternoon" | "evening";
+
+export const reschedulePostToSlot = async (
+	id: number,
+	slot: SocialTimeSlot
+) => {
+	const response = await socialClient.post(
+		`/api/v1/posts/${id}/schedule-slot`,
+		{ slot }
+	);
+	return response.data;
+};
+
 export const publishPostNow = async (id: number) => {
 	const response = await socialClient.post(`/api/v1/posts/${id}/publish-now`);
 	return response.data?.data;

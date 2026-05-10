@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import toast from "react-hot-toast";
 
 import { LinkedinTextEditor } from "@/components/social/LinkedinTextEditor";
@@ -29,9 +29,11 @@ import {
 	listEntityEvents,
 	publishPostNow,
 	rejectPost,
+	reschedulePostToSlot,
 	retrySocialMediaAsset,
 	schedulePost,
 	SocialEvent,
+	SocialTimeSlot,
 	getSocialAccess,
 	SocialMediaAsset,
 	SocialPostRun,
@@ -43,10 +45,14 @@ import {
 	IconArrowLeft,
 	IconBolt,
 	IconBrandLinkedin,
+	IconCalendarTime,
 	IconCheck,
-	IconClock,
 	IconCopy,
 	IconEdit,
+	IconLoader2,
+	IconMoon,
+	IconSun,
+	IconSunrise,
 	IconTrash,
 	IconX,
 } from "@tabler/icons-react";
@@ -70,6 +76,23 @@ export default function SocialPostDetailPage() {
 	const [busy, setBusy] = useState(false);
 	const [retryingAssetId, setRetryingAssetId] = useState<number | null>(null);
 	const [pickerValue, setPickerValue] = useState("");
+	/** Only schedule controls; avoids full-page reload feel when rescheduling */
+	type ScheduleSubmitKind = false | "manual" | SocialTimeSlot;
+	const [scheduleSubmitting, setScheduleSubmitting] =
+		useState<ScheduleSubmitKind>(false);
+
+	// Mirrors the backend merge: explicit input tags + inline #tags from body,
+	// deduped. Used to show a live X/10 counter and gate the save button.
+	// We use \w+ here because parseHashtagInput strips non-ASCII anyway, so
+	// this matches what the server will ultimately persist.
+	const mergedHashtags = useMemo(() => {
+		const fromInput = parseHashtagInput(hashtagInput);
+		const fromBody = Array.from(body.matchAll(/(^|\s)#(\w+)/g)).map(
+			(match) => match[2]
+		);
+		return Array.from(new Set([...fromInput, ...fromBody]));
+	}, [body, hashtagInput]);
+	const hashtagLimitExceeded = mergedHashtags.length > MAX_LINKEDIN_HASHTAGS;
 
 	const load = async () => {
 		try {
@@ -87,6 +110,7 @@ export default function SocialPostDetailPage() {
 			setBody(data.post.contentBody);
 			setHashtagInput((data.post.hashtags || []).join(", "));
 			setMediaUrls(mergedMediaUrls);
+			setPickerValue(toDatetimeLocalValue(data.post.scheduledFor));
 			setEvents(ev);
 			setPostMediaAssets(media);
 		} catch (err) {
@@ -100,6 +124,19 @@ export default function SocialPostDetailPage() {
 		if (Number.isFinite(id)) load();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [id]);
+
+	const patchScheduledTime = (iso: string) => {
+		setPost((prev) =>
+			prev
+				? {
+						...prev,
+						scheduledFor: iso,
+						status: "scheduled",
+					}
+				: null
+		);
+		setPickerValue(toDatetimeLocalValue(iso));
+	};
 
 	useEffect(() => {
 		(async () => {
@@ -123,6 +160,14 @@ export default function SocialPostDetailPage() {
 	}
 
 	const saveEdit = async () => {
+		if (hashtagLimitExceeded) {
+			toast.error(
+				`You can use at most ${MAX_LINKEDIN_HASHTAGS} LinkedIn tags. Remove ${
+					mergedHashtags.length - MAX_LINKEDIN_HASHTAGS
+				} to continue.`
+			);
+			return;
+		}
 		try {
 			setBusy(true);
 			await updatePostDraft(id, {
@@ -182,9 +227,11 @@ export default function SocialPostDetailPage() {
 	const scheduleAt = async () => {
 		if (!pickerValue) return;
 		try {
-			setBusy(true);
+			setScheduleSubmitting("manual");
 			const response = await schedulePost(id, new Date(pickerValue).toISOString());
 			const payload = response?.data;
+			const iso = payload?.scheduledFor as string | undefined;
+			if (iso) patchScheduledTime(iso);
 			if (payload?.rescheduled) {
 				toast.success(
 					`Rescheduled to ${formatSocialDateTime(payload.scheduledFor)} (daily limit reached on selected day)`
@@ -192,12 +239,29 @@ export default function SocialPostDetailPage() {
 			} else {
 				toast.success("Scheduled");
 			}
-			setPickerValue("");
-			await load();
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : "Scheduling failed");
 		} finally {
-			setBusy(false);
+			setScheduleSubmitting(false);
+		}
+	};
+
+	const rescheduleToSlot = async (slot: SocialTimeSlot) => {
+		try {
+			setScheduleSubmitting(slot);
+			const response = await reschedulePostToSlot(id, slot);
+			const payload = response?.data;
+			const iso = payload?.scheduledFor as string | undefined;
+			if (iso) patchScheduledTime(iso);
+			toast.success(
+				payload?.shiftedDays
+					? `Rescheduled to ${formatSocialDateTime(payload.scheduledFor)} (daily limit pushed to next available day)`
+					: `Rescheduled to ${formatSocialDateTime(payload?.scheduledFor)}`
+			);
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Scheduling failed");
+		} finally {
+			setScheduleSubmitting(false);
 		}
 	};
 
@@ -237,6 +301,7 @@ export default function SocialPostDetailPage() {
 		!isRejected &&
 		!isPublishing &&
 		hasUserApproved;
+	const schedulingBusy = scheduleSubmitting !== false;
 	const canRetryFailedMedia =
 		!!post &&
 		!post.linkedinPostUrn &&
@@ -346,11 +411,23 @@ export default function SocialPostDetailPage() {
 				eyebrow={post?.topic || "Post"}
 				title={post?.hookText || post?.topic || `Post #${id}`}
 				description={
-					post?.publishedAt
-						? `Published ${formatSocialDateTime(post.publishedAt)}`
-						: post?.scheduledFor
-							? `Scheduled for ${formatSocialDateTime(post.scheduledFor)}`
-							: "Draft"
+					post?.publishedAt ? (
+						<>
+							Published{" "}
+							<strong className="font-semibold text-slate-700">
+								{formatSocialDateTime(post.publishedAt)}
+							</strong>
+						</>
+					) : post?.scheduledFor ? (
+						<>
+							Scheduled for{" "}
+							<strong className="font-semibold text-slate-700">
+								{formatSocialDateTime(post.scheduledFor)}
+							</strong>
+						</>
+					) : (
+						"Draft"
+					)
 				}
 				actions={
 					<SecondaryButton onClick={() => router.back()}>
@@ -415,18 +492,40 @@ export default function SocialPostDetailPage() {
 									/>
 									<div className="mt-4 space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
 										<label className="block">
-											<span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-												LinkedIn tags
-											</span>
+											<div className="mb-1 flex items-center justify-between">
+												<span className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+													LinkedIn tags
+												</span>
+												<span
+													className={`text-[11px] font-medium ${
+														hashtagLimitExceeded
+															? "text-red-600"
+															: "text-slate-500"
+													}`}
+												>
+													{mergedHashtags.length}/{MAX_LINKEDIN_HASHTAGS}
+												</span>
+											</div>
 											<input
 												value={hashtagInput}
 												onChange={(e) => setHashtagInput(e.target.value)}
 												placeholder="growth, saas, founderjourney"
-												className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+												className={`w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2 ${
+													hashtagLimitExceeded
+														? "border-red-300 focus:border-red-400 focus:ring-red-100"
+														: "border-slate-200 focus:border-blue-400 focus:ring-blue-100"
+												}`}
 											/>
-											<p className="mt-1 text-[11px] text-slate-500">
-												Use comma, space, or newline separated tags. We will publish
-												them as hashtags.
+											<p
+												className={`mt-1 text-[11px] ${
+													hashtagLimitExceeded ? "text-red-600" : "text-slate-500"
+												}`}
+											>
+												{hashtagLimitExceeded
+													? `Too many tags. Remove ${
+															mergedHashtags.length - MAX_LINKEDIN_HASHTAGS
+														} to stay within the ${MAX_LINKEDIN_HASHTAGS}-tag limit (inline #tags in the body count too).`
+													: `Use comma, space, or newline separated tags. Up to ${MAX_LINKEDIN_HASHTAGS} total (inline #tags in the body count toward this limit).`}
 											</p>
 										</label>
 										<div>
@@ -527,7 +626,10 @@ export default function SocialPostDetailPage() {
 										>
 											Cancel
 										</SecondaryButton>
-										<PrimaryButton onClick={saveEdit} disabled={busy}>
+										<PrimaryButton
+											onClick={saveEdit}
+											disabled={busy || hashtagLimitExceeded}
+										>
 											Save draft
 										</PrimaryButton>
 									</div>
@@ -753,25 +855,79 @@ export default function SocialPostDetailPage() {
 										title={post.scheduledFor ? "Reschedule" : "Schedule"}
 									/>
 									<p className="text-xs text-slate-500">
-										{post.scheduledFor
-											? `Currently scheduled for ${formatSocialDateTime(post.scheduledFor)}`
-											: "Not scheduled."}
+										{post.scheduledFor ? (
+											<>
+												Currently scheduled for{" "}
+												<strong className="font-semibold text-slate-700">
+													{formatSocialDateTime(post.scheduledFor)}
+												</strong>
+											</>
+										) : (
+											"Not scheduled."
+										)}
 									</p>
-									<div className="mt-3 flex flex-wrap items-center gap-2">
+									{post.scheduledFor && (
+										<div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+											{otherSlots(detectSlotForDate(post.scheduledFor)).map(
+												(slot) => {
+													const SlotIcon = SLOT_ICON[slot];
+													const slotLoading = scheduleSubmitting === slot;
+													return (
+														<SecondaryButton
+															key={slot}
+															onClick={() => rescheduleToSlot(slot)}
+															disabled={schedulingBusy}
+															className="w-full justify-center"
+														>
+															{slotLoading ? (
+																<IconLoader2 className="h-4 w-4 shrink-0 animate-spin" />
+															) : (
+																<SlotIcon className="h-4 w-4 shrink-0" />
+															)}
+															Reschedule to {SLOT_LABEL[slot]}
+														</SecondaryButton>
+													);
+												}
+											)}
+										</div>
+									)}
+									{post.scheduledFor && (
+										<div className="my-4 flex items-center gap-3">
+											<span className="h-px flex-1 bg-slate-200" />
+											<span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+												or
+											</span>
+											<span className="h-px flex-1 bg-slate-200" />
+										</div>
+									)}
+									<div className="mt-3 flex flex-col gap-2">
 										<input
 											type="datetime-local"
 											value={pickerValue}
 											onChange={(e) => setPickerValue(e.target.value)}
-											className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+											disabled={schedulingBusy}
+											className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
 										/>
 										<PrimaryButton
 											onClick={scheduleAt}
-											disabled={busy || !pickerValue}
+											disabled={schedulingBusy || !pickerValue}
+											className="w-full justify-center"
 										>
-											<IconClock className="h-4 w-4" />
+											{scheduleSubmitting === "manual" ? (
+												<IconLoader2 className="h-4 w-4 shrink-0 animate-spin" />
+											) : (
+												<IconCalendarTime className="h-4 w-4 shrink-0" />
+											)}
 											{post.scheduledFor ? "Reschedule" : "Save"}
 										</PrimaryButton>
 									</div>
+									{post.scheduledFor && (
+										<p className="mt-2 text-[11px] text-slate-400">
+											Quick reschedule picks a random time inside the slot
+											(clipped to your posting window) so posts don't always
+											land on the same minute.
+										</p>
+									)}
 								</SurfaceCard>
 							)}
 
@@ -1045,6 +1201,63 @@ const fileToBase64 = (file: File): Promise<string> =>
 		reader.onerror = () => reject(reader.error);
 		reader.readAsDataURL(file);
 	});
+
+/**
+ * Mirrors the backend cap in totalads-social-service/src/routes/posts.ts so
+ * the UI can preempt 422s before sending the request.
+ */
+const MAX_LINKEDIN_HASHTAGS = 10;
+
+/**
+ * Bucket a scheduled timestamp into one of the three canonical time slots.
+ * Mirrors detectSlotForHour on the server. Used to figure out which two
+ * "Reschedule to ..." quick-action buttons to surface.
+ */
+const detectSlotForDate = (iso: string | null | undefined): SocialTimeSlot => {
+	if (!iso) return "morning";
+	const date = new Date(iso);
+	if (Number.isNaN(date.getTime())) return "morning";
+	const hour = date.getHours();
+	if (hour < 12) return "morning";
+	if (hour < 16) return "afternoon";
+	return "evening";
+};
+
+const ALL_SLOTS: SocialTimeSlot[] = ["morning", "afternoon", "evening"];
+
+const SLOT_LABEL: Record<SocialTimeSlot, string> = {
+	morning: "morning",
+	afternoon: "afternoon",
+	evening: "evening",
+};
+
+const SLOT_ICON: Record<
+	SocialTimeSlot,
+	ComponentType<{ className?: string }>
+> = {
+	morning: IconSunrise,
+	afternoon: IconSun,
+	evening: IconMoon,
+};
+
+const otherSlots = (current: SocialTimeSlot) =>
+	ALL_SLOTS.filter((slot) => slot !== current);
+
+/**
+ * Convert an ISO timestamp to the value format expected by
+ * `<input type="datetime-local">` (YYYY-MM-DDTHH:mm in the browser's local
+ * timezone). Used to prefill the reschedule picker with the post's existing
+ * scheduledFor value.
+ */
+const toDatetimeLocalValue = (iso: string | null | undefined) => {
+	if (!iso) return "";
+	const date = new Date(iso);
+	if (Number.isNaN(date.getTime())) return "";
+	const pad = (n: number) => String(n).padStart(2, "0");
+	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+		date.getDate()
+	)}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
 
 const parseHashtagInput = (input: string): string[] =>
 	Array.from(

@@ -18,6 +18,7 @@ import {
 import {
 	getSocialCalendar,
 	runSchedulerNow,
+	schedulePost,
 	SocialPostRun,
 } from "@/utils/api/socialClient";
 import {
@@ -52,6 +53,9 @@ export default function SocialCalendarPage() {
 	const [scheduled, setScheduled] = useState<SocialPostRun[]>([]);
 	const [recent, setRecent] = useState<SocialPostRun[]>([]);
 	const [running, setRunning] = useState(false);
+	const [draggingPostId, setDraggingPostId] = useState<number | null>(null);
+	const [dropTargetDate, setDropTargetDate] = useState<string | null>(null);
+	const [reschedulingPostId, setReschedulingPostId] = useState<number | null>(null);
 	const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
 
 	const load = async () => {
@@ -81,6 +85,56 @@ export default function SocialCalendarPage() {
 			toast.error(err instanceof Error ? err.message : "Run failed");
 		} finally {
 			setRunning(false);
+		}
+	};
+
+	const moveScheduledPost = async (post: SocialPostRun, targetDay: Date) => {
+		if (!post.scheduledFor || reschedulingPostId) return;
+		const currentSchedule = new Date(post.scheduledFor);
+		if (Number.isNaN(currentSchedule.getTime())) return;
+
+		const nextSchedule = new Date(targetDay);
+		nextSchedule.setHours(
+			currentSchedule.getHours(),
+			currentSchedule.getMinutes(),
+			currentSchedule.getSeconds(),
+			currentSchedule.getMilliseconds()
+		);
+
+		if (dateKey(currentSchedule) === dateKey(nextSchedule)) return;
+
+		const previousScheduled = scheduled;
+		const nextScheduledFor = nextSchedule.toISOString();
+		setReschedulingPostId(post.id);
+		setScheduled((posts) =>
+			posts.map((item) =>
+				item.id === post.id ? { ...item, scheduledFor: nextScheduledFor } : item
+			)
+		);
+
+		try {
+			const result = await schedulePost(post.id, nextScheduledFor);
+			const savedScheduledFor =
+				typeof result?.data?.scheduledFor === "string"
+					? result.data.scheduledFor
+					: nextScheduledFor;
+			setScheduled((posts) =>
+				posts.map((item) =>
+					item.id === post.id ? { ...item, scheduledFor: savedScheduledFor } : item
+				)
+			);
+			if (savedScheduledFor !== nextScheduledFor) {
+				toast.success("Post moved to next available schedule slot");
+			} else {
+				toast.success("Post schedule updated");
+			}
+		} catch (err) {
+			setScheduled(previousScheduled);
+			toast.error(err instanceof Error ? err.message : "Failed to move post");
+		} finally {
+			setReschedulingPostId(null);
+			setDraggingPostId(null);
+			setDropTargetDate(null);
 		}
 	};
 
@@ -240,8 +294,29 @@ export default function SocialCalendarPage() {
 								return (
 									<div
 										key={key}
-										className={`min-h-[150px] border-b border-r border-slate-100 p-2 ${
+										onDragOver={(event) => {
+											if (!draggingPostId) return;
+											event.preventDefault();
+										}}
+										onDragEnter={() => {
+											if (draggingPostId) setDropTargetDate(key);
+										}}
+										onDragLeave={() => {
+											if (dropTargetDate === key) setDropTargetDate(null);
+										}}
+										onDrop={(event) => {
+											event.preventDefault();
+											const postId = Number(event.dataTransfer.getData("text/plain"));
+											const post = scheduled.find((item) => item.id === postId);
+											setDropTargetDate(null);
+											if (post) void moveScheduledPost(post, day);
+										}}
+										className={`min-h-[150px] border-b border-r border-slate-100 p-2 transition ${
 											isCurrentMonth ? "bg-white" : "bg-slate-50/70"
+										} ${
+											dropTargetDate === key
+												? "bg-blue-50 ring-2 ring-inset ring-blue-300"
+												: ""
 										}`}
 									>
 										<div className="mb-2 flex items-center justify-between">
@@ -264,7 +339,17 @@ export default function SocialCalendarPage() {
 										</div>
 										<div className="space-y-1.5">
 											{items.slice(0, 4).map((item) => (
-												<CalendarPostPill key={`${item.kind}-${item.post.id}`} item={item} />
+												<CalendarPostPill
+													key={`${item.kind}-${item.post.id}`}
+													item={item}
+													dragging={draggingPostId === item.post.id}
+													rescheduling={reschedulingPostId === item.post.id}
+													onDragStart={() => setDraggingPostId(item.post.id)}
+													onDragEnd={() => {
+														setDraggingPostId(null);
+														setDropTargetDate(null);
+													}}
+												/>
 											))}
 											{items.length > 4 && (
 												<p className="px-1 text-[11px] font-medium text-slate-500">
@@ -299,17 +384,45 @@ export default function SocialCalendarPage() {
 	);
 }
 
-function CalendarPostPill({ item }: { item: CalendarItem }) {
+function CalendarPostPill({
+	item,
+	dragging,
+	rescheduling,
+	onDragStart,
+	onDragEnd,
+}: {
+	item: CalendarItem;
+	dragging: boolean;
+	rescheduling: boolean;
+	onDragStart: () => void;
+	onDragEnd: () => void;
+}) {
 	const title =
 		item.post.hookText || item.post.topic || item.post.contentBody.slice(0, 80);
 	const tone = item.kind === "published" ? "positive" : "info";
+	const canDrag = item.kind === "scheduled" && !rescheduling;
 	return (
 		<Link
 			href={`/social/posts/${item.post.id}`}
+			draggable={canDrag}
+			onDragStart={(event) => {
+				if (!canDrag) {
+					event.preventDefault();
+					return;
+				}
+				event.dataTransfer.effectAllowed = "move";
+				event.dataTransfer.setData("text/plain", String(item.post.id));
+				onDragStart();
+			}}
+			onDragEnd={onDragEnd}
 			className={`block rounded-lg border px-2 py-1.5 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
 				item.kind === "published"
 					? "border-emerald-200 bg-emerald-50"
 					: "border-blue-200 bg-blue-50"
+			} ${canDrag ? "cursor-grab active:cursor-grabbing" : ""} ${
+				dragging ? "opacity-60 ring-2 ring-blue-300" : ""
+			} ${
+				rescheduling ? "pointer-events-none opacity-70" : ""
 			}`}
 		>
 			<div className="flex items-center justify-between gap-2">
