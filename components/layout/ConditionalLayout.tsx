@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 
 import EmailVerificationBanner from "@/components/common/EmailVerificationBanner";
 import { useAuthContext } from "@/context/AuthContext";
+import { cn } from "@/utils/cn";
 import { IconMenu2 } from "@tabler/icons-react";
 
 // Dynamically import components that pull in framer-motion to avoid SSR vendor-chunk issues
@@ -73,11 +74,14 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
 
   // Return children with sidebar for other pages (no top header)
   return (
-    <div className="h-screen flex bg-bg-100">
+    <div className="flex h-screen min-h-0 bg-bg-100">
       {/* Sidebar */}
       {isAuthenticated && (
         isSocialRoute ? (
-          <SocialSidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
+          // SocialSidebar uses a fragment; wrap so overlay+panel are not extra flex siblings (fixes narrow main column on phones).
+          <div className="w-0 shrink-0 overflow-visible md:w-64 md:shrink-0">
+            <SocialSidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
+          </div>
         ) : (
           <MainSidebar
             isOpen={isSidebarOpen}
@@ -88,13 +92,13 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Mobile Header - Only visible on mobile when sidebar is closed */}
         {isAuthenticated && !isSidebarOpen && (
-          <div className="md:hidden flex items-center px-4 py-3 bg-bg-200 border-b border-gray-200">
+          <div className="flex items-center border-b border-gray-200 bg-bg-200 px-4 py-3 md:hidden">
             <button
               onClick={toggleSidebar}
-              className="p-2 rounded-lg text-text-200 hover:bg-gray-100 transition-colors"
+              className="rounded-lg p-2 text-text-200 transition-colors hover:bg-gray-100"
             >
               <IconMenu2 className="h-6 w-6" />
             </button>
@@ -104,7 +108,14 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
           </div>
         )}
 
-        <main className="flex-1 overflow-auto thin-scrollbar">
+        <main
+          className={cn(
+            "thin-scrollbar min-w-0 flex-1",
+            isSocialRoute
+              ? "overflow-y-auto overflow-x-hidden md:overflow-auto"
+              : "overflow-auto"
+          )}
+        >
           {/* Email Verification Banner - only show for authenticated users with unverified email */}
           {isAuthenticated && state.user && !state.user.emailVerified && (
             <div className="p-4">

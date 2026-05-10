@@ -283,8 +283,8 @@ export default function SocialCopilotPage() {
 	};
 
 	return (
-		<div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dbeafe_0,transparent_30%),linear-gradient(135deg,#f8fafc,#eef2ff)] px-3 py-3 md:px-4">
-			<div className="mx-auto flex h-[calc(100vh-24px)] max-w-[1500px] flex-col gap-3">
+		<div className="min-h-screen w-full min-w-0 overflow-x-hidden bg-[radial-gradient(circle_at_top_left,#dbeafe_0,transparent_30%),linear-gradient(135deg,#f8fafc,#eef2ff)] px-3 py-3 md:px-4">
+			<div className="mx-auto flex h-[calc(100vh-24px)] min-h-0 w-full min-w-0 max-w-[1500px] flex-col gap-3 max-md:h-[calc(100dvh-32px)]">
 				<header className="rounded-[22px] border border-white/80 bg-white/85 px-4 py-3 shadow-[0_16px_50px_rgba(15,23,42,0.07)] backdrop-blur-xl">
 					<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
 						<div>

@@ -93,21 +93,21 @@ export function PostPreview({
 	return (
 		<div
 			className={cn(
-				"rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
+				"min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
 				className
 			)}
 		>
-			<div className="flex items-center gap-3 border-b border-slate-100 px-5 py-3">
-				<div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+			<div className="flex min-w-0 items-center gap-3 border-b border-slate-100 px-4 py-3 md:px-5">
+				<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
 					<IconBrandLinkedin className="h-5 w-5" />
 				</div>
-				<div className="flex-1">
+				<div className="min-w-0 flex-1">
 					<p className="text-sm font-semibold text-slate-900">{name}</p>
 					<p className="text-xs text-slate-500">{headline}</p>
 					<p className="mt-0.5 text-[10px] text-slate-400">Now · Public</p>
 				</div>
 			</div>
-			<div className="px-5 py-4 text-[13.5px] leading-relaxed text-slate-800">
+			<div className="min-w-0 px-4 py-4 text-[13.5px] leading-relaxed text-slate-800 md:px-5">
 				{html ? (
 					<div
 						className="[&_a]:text-blue-600 [&_a]:underline [&_img]:my-3 [&_img]:max-h-72 [&_img]:rounded-lg [&_img]:border [&_img]:border-slate-200 [&_img]:object-cover [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:whitespace-pre-wrap [&_ul]:list-disc [&_ul]:pl-5"
@@ -145,7 +145,7 @@ export function PostPreview({
 								<iframe
 									title={`Carousel preview ${idx + 1}`}
 									src={`${asset.publicUrl}#page=${getCurrentPage(idx)}&view=FitH`}
-									className="h-[340px] w-full rounded-md border border-slate-200 bg-white"
+									className="h-[min(340px,55vh)] w-full rounded-md border border-slate-200 bg-white md:h-[340px]"
 								/>
 								<div className="mt-2 flex items-center justify-between">
 									<button
@@ -172,7 +172,7 @@ export function PostPreview({
 					</div>
 				)}
 				{mergedHashtags.length > 0 && (
-					<p className="mt-4 text-xs">
+					<p className="mt-4 text-xs flex flex-wrap ">
 						{mergedHashtags.map((tag, idx) => (
 							<span key={tag + idx} className="mr-2 font-medium text-[#0a66c2]">
 								#{tag}
@@ -181,9 +181,9 @@ export function PostPreview({
 					</p>
 				)}
 			</div>
-			<div className="flex items-center justify-between border-t border-slate-100 px-5 py-2 text-xs text-slate-400">
-				<span>Like · Comment · Repost · Send</span>
-				<span>Draft preview</span>
+			<div className="flex min-w-0 flex-col gap-1 border-t border-slate-100 px-4 py-2 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between md:px-5">
+				<span className="min-w-0 truncate">Like · Comment · Repost · Send</span>
+				<span className="shrink-0">Draft preview</span>
 			</div>
 		</div>
 	);

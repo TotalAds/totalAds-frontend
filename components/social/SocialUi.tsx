@@ -23,8 +23,8 @@ export function PageShell({
 				? "max-w-7xl"
 				: "max-w-6xl";
 	return (
-		<div className="min-h-screen bg-slate-50 p-6 md:p-8">
-			<div className={cn("mx-auto w-full space-y-6", max)}>{children}</div>
+		<div className="min-h-screen bg-slate-50 px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] sm:px-4 sm:py-5 md:p-8 md:pb-8 md:pt-8">
+			<div className={cn("mx-auto w-full min-w-0 space-y-6", max)}>{children}</div>
 		</div>
 	);
 }
@@ -47,7 +47,7 @@ export function PageHeader({
 	breadcrumb?: Array<{ label: string; href?: string }>;
 }) {
 	return (
-		<div className="space-y-2">
+		<div className="min-w-0 space-y-2">
 			{breadcrumb && breadcrumb.length > 0 && (
 				<nav className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
 					{breadcrumb.map((crumb, idx) => (
@@ -69,8 +69,8 @@ export function PageHeader({
 					))}
 				</nav>
 			)}
-			<div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-				<div>
+			<div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-start md:justify-between">
+				<div className="min-w-0 flex-1">
 					{eyebrow && (
 						<p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600">
 							{eyebrow}
@@ -85,7 +85,11 @@ export function PageHeader({
 						</p>
 					)}
 				</div>
-				{actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+				{actions && (
+					<div className="flex shrink-0 flex-wrap items-center gap-2 md:justify-end">
+						{actions}
+					</div>
+				)}
 			</div>
 		</div>
 	);
@@ -108,7 +112,7 @@ export function SurfaceCard({
 		<div
 			className={cn(
 				"rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
-				padded ? "p-5 md:p-6" : "",
+				padded ? "p-4 md:p-6" : "",
 				className
 			)}
 		>
@@ -339,7 +343,7 @@ export function EmptyState({
 	action?: ReactNode;
 }) {
 	return (
-		<div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
+		<div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center md:p-10">
 			{icon && (
 				<div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-blue-50 text-blue-500">
 					{icon}
@@ -541,12 +545,12 @@ export function SectionTitle({
 	action?: ReactNode;
 }) {
 	return (
-		<div className="mb-4 flex items-start justify-between gap-3">
-			<div>
+		<div className="mb-4 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+			<div className="min-w-0 flex-1">
 				<h3 className="text-sm font-semibold text-slate-900">{title}</h3>
 				{description && <p className="mt-0.5 text-xs text-slate-500">{description}</p>}
 			</div>
-			{action}
+			{action && <div className="shrink-0 sm:self-start">{action}</div>}
 		</div>
 	);
 }
