@@ -73,6 +73,7 @@ export default function SocialCopilotPage() {
 	const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
 	const [isThinking, setIsThinking] = useState(false);
 	const [isGenerating, setIsGenerating] = useState(false);
+	const [generationStatus, setGenerationStatus] = useState<string | null>(null);
 	const [imageGenerationEnabled, setImageGenerationEnabled] = useState(true);
 	const sessionDraftsHref = chatId ? `/social/copilot/sessions/${chatId}/drafts` : null;
 
@@ -163,26 +164,30 @@ export default function SocialCopilotPage() {
 	const resumeChat = async (id: string) => {
 		try {
 			const session = await getCopilotSession(id);
-			setChatId(session.chatId);
-			setMessages(
-				session.messages.length
-					? session.messages.map((message) => ({
-							role: message.role,
-							content: message.content,
-						}))
-					: [initialMessage]
-			);
-			setAttachments(session.attachments || []);
-			setBrief(session.brief);
-			setSelectedFrameworkId(session.selectedFrameworkId);
-			setAnswers(session.answers || {});
-			setCalendar(session.calendar);
-			setSelectedPostId(session.calendar?.posts[0]?.postRunId ?? null);
+			applySession(session);
 			setHistoryOpen(false);
 			if (session.brief || session.calendar) setDetailsOpen(true);
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : "Failed to resume chat");
 		}
+	};
+
+	const applySession = (session: CopilotSessionSnapshot) => {
+		setChatId(session.chatId);
+		setMessages(
+			session.messages.length
+				? session.messages.map((message) => ({
+						role: message.role,
+						content: message.content,
+					}))
+				: [initialMessage]
+		);
+		setAttachments(session.attachments || []);
+		setBrief(session.brief);
+		setSelectedFrameworkId(session.selectedFrameworkId);
+		setAnswers(session.answers || {});
+		setCalendar(session.calendar);
+		setSelectedPostId(session.calendar?.posts[0]?.postRunId ?? null);
 	};
 
 	const askCopilot = async (text = prompt) => {
@@ -232,6 +237,8 @@ export default function SocialCopilotPage() {
 		}
 		try {
 			setIsGenerating(true);
+			setGenerationStatus("Starting draft generation...");
+			setDetailsOpen(true);
 			const questionAnswers = Object.fromEntries(
 				Object.entries(answers).filter(([, value]) => value.trim())
 			);
@@ -258,6 +265,19 @@ export default function SocialCopilotPage() {
 				messages: [...messages, { role: "assistant", content: generationDoneMessage }],
 				selectedFrameworkId: selectedFramework.id,
 				briefSnapshot: brief,
+			}, {
+				timeoutMs: 8 * 60 * 1000,
+				onStatus: ({ status, attempt }) => {
+					if (status === "started") {
+						setGenerationStatus("Generation started. Creating strategy and drafts...");
+					} else if (status === "pending") {
+						setGenerationStatus(
+							`Still generating drafts${attempt > 1 ? ` (${attempt})` : ""}...`
+						);
+					} else if (status === "completed") {
+						setGenerationStatus("Drafts generated. Loading preview...");
+					}
+				},
 			});
 			setCalendar(result);
 			setSelectedPostId(result.posts[0]?.postRunId ?? null);
@@ -272,11 +292,26 @@ export default function SocialCopilotPage() {
 			toast.success(`Generated ${result.totalPosts} post(s) — open Approval queue to review`);
 			await loadSessions();
 		} catch (err) {
-			toast.error(
-				err instanceof Error ? err.message : "Failed to generate the approved plan"
-			);
+			const activeChatId = chatId;
+			if (activeChatId) {
+				try {
+					setGenerationStatus("Checking saved drafts...");
+					const recovered = await getCopilotSession(activeChatId);
+					if (recovered.calendar?.posts?.length) {
+						applySession(recovered);
+						setDetailsOpen(true);
+						toast.success("Drafts were generated and loaded.");
+						await loadSessions();
+						return;
+					}
+				} catch {
+					// Fall through to the visible error below.
+				}
+			}
+			toast.error(err instanceof Error ? err.message : "Failed to generate the approved plan");
 		} finally {
 			setIsGenerating(false);
+			setGenerationStatus(null);
 		}
 	};
 
@@ -436,6 +471,7 @@ export default function SocialCopilotPage() {
 							onSelectPost={setSelectedPostId}
 							onGenerate={generateApprovedPlan}
 							isGenerating={isGenerating}
+							generationStatus={generationStatus}
 						/>
 					</aside>
 				</main>
@@ -469,6 +505,7 @@ export default function SocialCopilotPage() {
 					onSelectPost={setSelectedPostId}
 					onGenerate={generateApprovedPlan}
 					isGenerating={isGenerating}
+					generationStatus={generationStatus}
 				/>
 			</DetailsDrawer>
 		</div>
@@ -506,6 +543,7 @@ function WorkspacePanel({
 	onSelectPost,
 	onGenerate,
 	isGenerating,
+	generationStatus,
 }: {
 	chatId: string | null;
 	brief: CopilotBriefResponse | null;
@@ -520,6 +558,7 @@ function WorkspacePanel({
 	onSelectPost: (id: number) => void;
 	onGenerate: () => void;
 	isGenerating: boolean;
+	generationStatus: string | null;
 }) {
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[26px] border border-white/80 bg-white shadow-[0_20px_70px_rgba(15,23,42,0.09)]">
@@ -538,6 +577,7 @@ function WorkspacePanel({
 						onAnswer={onAnswer}
 						onGenerate={onGenerate}
 						isGenerating={isGenerating}
+						generationStatus={generationStatus}
 					/>
 				) : (
 					<PromptActionCard />
@@ -579,6 +619,7 @@ function BriefingPanel({
 	onAnswer,
 	onGenerate,
 	isGenerating,
+	generationStatus,
 }: {
 	brief: CopilotBriefResponse;
 	imageGenerationEnabled: boolean;
@@ -588,6 +629,7 @@ function BriefingPanel({
 	onAnswer: (key: string, value: string) => void;
 	onGenerate: () => void;
 	isGenerating: boolean;
+	generationStatus: string | null;
 }) {
 	const [fullPlanOpen, setFullPlanOpen] = useState(false);
 
@@ -704,6 +746,18 @@ function BriefingPanel({
 					</>
 				)}
 			</PrimaryButton>
+			{isGenerating && generationStatus ? (
+				<div className="rounded-2xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800">
+					<div className="flex items-center gap-2 font-semibold">
+						<IconRotateClockwise className="h-3.5 w-3.5 animate-spin" />
+						{generationStatus}
+					</div>
+					<p className="mt-1 text-blue-700/90">
+						You can keep this page open. If the network drops, the copilot will try
+						to reload the generated drafts from the saved session.
+					</p>
+				</div>
+			) : null}
 
 			<PlanArchitectureModal
 				open={fullPlanOpen}

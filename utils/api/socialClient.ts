@@ -810,7 +810,15 @@ export const briefLinkedinCopilot = async (input: {
  * (short HTTP timeouts) do not abort while drafts are still being created.
  */
 export const generateLinkedinCalendar = async (
-	input: GenerateLinkedinCalendarInput
+	input: GenerateLinkedinCalendarInput,
+	options?: {
+		onStatus?: (status: {
+			batchId: string;
+			status: "started" | "pending" | "completed" | "failed";
+			attempt: number;
+		}) => void;
+		timeoutMs?: number;
+	}
 ): Promise<GeneratedLinkedinCalendar> => {
 	const startResponse = await socialClient.post("/api/v1/calendar/generate/async", input, {
 		timeout: 60000,
@@ -823,10 +831,14 @@ export const generateLinkedinCalendar = async (
 		);
 	}
 
-	const deadline = Date.now() + 25 * 60 * 1000;
+	options?.onStatus?.({ batchId, status: "started", attempt: 0 });
+
+	const deadline = Date.now() + (options?.timeoutMs ?? 8 * 60 * 1000);
 	let delayMs = 2500;
+	let attempt = 0;
 
 	while (Date.now() < deadline) {
+		attempt += 1;
 		const poll = await socialClient.get(
 			`/api/v1/calendar/generate/status/${batchId}`,
 			{ timeout: 60000 }
@@ -844,16 +856,19 @@ export const generateLinkedinCalendar = async (
 		}
 
 		if (payload.status === "completed" && payload.data) {
+			options?.onStatus?.({ batchId, status: "completed", attempt });
 			return payload.data;
 		}
 
 		if (payload.status === "failed") {
+			options?.onStatus?.({ batchId, status: "failed", attempt });
 			throw new Error(
 				payload.error ||
 					"Calendar generation failed. Check Posts — drafts may still have been created."
 			);
 		}
 
+		options?.onStatus?.({ batchId, status: "pending", attempt });
 		await new Promise((resolve) => setTimeout(resolve, Math.min(delayMs, 12000)));
 		delayMs = Math.min(Math.floor(delayMs * 1.2), 12000);
 	}
