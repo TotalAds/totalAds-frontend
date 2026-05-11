@@ -93,7 +93,6 @@ export default function SocialPostStudioPage() {
 		seriesName: "",
 		extraInstructions: "",
 		createImage: false,
-		createCarousel: false,
 	});
 	const [selectedAngles, setSelectedAngles] = useState<string[]>([]);
 	const [selectedAudiences, setSelectedAudiences] = useState<string[]>([]);
@@ -160,7 +159,7 @@ export default function SocialPostStudioPage() {
 		setForm((prev) => ({ ...prev, [field]: value }));
 	};
 
-	const setMedia = (field: "createImage" | "createCarousel", value: boolean) => {
+	const setMedia = (field: "createImage", value: boolean) => {
 		setForm((prev) => ({ ...prev, [field]: value }));
 	};
 
@@ -191,7 +190,7 @@ export default function SocialPostStudioPage() {
 				seriesName: form.seriesName || undefined,
 				extraInstructions: form.extraInstructions || undefined,
 				createImage: imageGenerationEnabled ? form.createImage : false,
-				createCarousel: form.createCarousel,
+				createCarousel: false,
 			});
 			setLatestRun(run);
 			setFormatPreview(
@@ -545,7 +544,7 @@ export default function SocialPostStudioPage() {
 										Optional. Create media while this draft is being generated.
 									</p>
 								</div>
-								<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+								<div className="grid grid-cols-1 gap-3">
 									{imageGenerationEnabled && (
 										<MediaOption
 											title="Create LinkedIn image"
@@ -554,12 +553,6 @@ export default function SocialPostStudioPage() {
 											onChange={(checked) => setMedia("createImage", checked)}
 										/>
 									)}
-									<MediaOption
-										title="Create carousel"
-										description="Prepare a carousel deck asset for this draft."
-										checked={form.createCarousel}
-										onChange={(checked) => setMedia("createCarousel", checked)}
-									/>
 								</div>
 							</div>
 						</div>

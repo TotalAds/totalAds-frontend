@@ -308,21 +308,7 @@ export default function SocialPostDetailPage() {
 		post.status !== "published" &&
 		post.status !== "publishing";
 	const mediaPolicy = getLinkedinMediaPolicy(mediaUrls);
-	const imagePromptAssets = postMediaAssets.filter(
-		(asset) =>
-			asset.assetType === "single_image" &&
-			asset.provider !== "user_upload" &&
-			typeof asset.sourcePrompt === "string" &&
-			asset.sourcePrompt.trim().length > 0
-	);
-	const generationPromptAssets = postMediaAssets.filter(
-		(asset) =>
-			(asset.assetType === "single_image" || asset.assetType === "carousel_pdf") &&
-			asset.provider !== "user_upload" &&
-			typeof asset.sourcePrompt === "string" &&
-			asset.sourcePrompt.trim().length > 0
-	);
-
+	const imagePromptText = post ? buildImagePromptFromPost(post) : "";
 	const retryMediaAsset = async (assetId: number) => {
 		try {
 			setRetryingAssetId(assetId);
@@ -391,8 +377,7 @@ export default function SocialPostDetailPage() {
 		}
 	};
 
-	const copyPromptBundle = async (asset: SocialMediaAsset) => {
-		const text = buildHumanReadablePrompt(asset.sourcePrompt || "");
+	const copyTextToClipboard = async (text: string) => {
 		try {
 			await navigator.clipboard.writeText(text);
 			toast.success("Prompt copied");
@@ -666,9 +651,8 @@ export default function SocialPostDetailPage() {
 													Generated media needs attention
 												</p>
 												<p className="mt-1 text-xs leading-relaxed text-amber-800/90">
-													If image or carousel generation failed before this post went
-													live, retry below. This is only available until the post is on
-													LinkedIn.
+													If generated media failed before this post went live, retry
+													below. This is only available until the post is on LinkedIn.
 												</p>
 												<ul className="mt-3 space-y-2">
 													{postMediaAssets
@@ -792,60 +776,28 @@ export default function SocialPostDetailPage() {
 						<div className="space-y-5 lg:col-span-2">
 							{canCustomizePrePublish && (
 								<SurfaceCard>
-									<SectionTitle title="Generation prompts" />
-									{generationPromptAssets.length === 0 ? (
-										<p className="text-xs leading-relaxed text-slate-500">
-											No generated prompts available yet for this post.
-										</p>
-									) : (
-										<>
-											<p className="text-xs leading-relaxed text-slate-600">
-												Use these prompts in GPT, Claude, Gemini, or another tool to
-												generate your own asset, then upload it back here for posting.
+									<SectionTitle title="Image generation prompts" />
+									<p className="text-xs leading-relaxed text-slate-600">
+										Use this image prompt in GPT, Claude, Gemini, or another tool
+										to generate your own asset, then upload it back here for posting.
+									</p>
+									<div className="mt-3 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+										<div className="flex flex-wrap items-center justify-between gap-2">
+											<p className="text-xs font-medium text-slate-800">
+												Image prompt
 											</p>
-											<ul className="mt-3 space-y-3">
-												{generationPromptAssets.map((asset) => {
-													const promptText = buildHumanReadablePrompt(
-														asset.sourcePrompt || ""
-													);
-													const sourceDeleted =
-														asset.status === "deleted" || !asset.publicUrl;
-													return (
-														<li
-															key={asset.id}
-															className="rounded-lg border border-slate-200 bg-slate-50/70 p-3"
-														>
-															<div className="flex flex-wrap items-center justify-between gap-2">
-																<div className="flex flex-wrap items-center gap-2">
-																	<p className="text-xs font-medium text-slate-800">
-																		{asset.assetType === "carousel_pdf"
-																			? "Carousel prompt"
-																			: "Image prompt"}{" "}
-																		· Asset #{asset.id}
-																	</p>
-																	{sourceDeleted ? (
-																		<span className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-200">
-																			Source asset deleted
-																		</span>
-																	) : null}
-																</div>
-																<SecondaryButton
-																	onClick={() => void copyPromptBundle(asset)}
-																	className="px-2 py-1 text-xs"
-																>
-																	<IconCopy className="h-3.5 w-3.5" />
-																	Copy prompt
-																</SecondaryButton>
-															</div>
-															<pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-[11px] leading-relaxed text-slate-700">
-																{promptText}
-															</pre>
-														</li>
-													);
-												})}
-											</ul>
-										</>
-									)}
+											<SecondaryButton
+												onClick={() => void copyTextToClipboard(imagePromptText)}
+												className="px-2 py-1 text-xs"
+											>
+												<IconCopy className="h-3.5 w-3.5" />
+												Copy prompt
+											</SecondaryButton>
+										</div>
+										<pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-[11px] leading-relaxed text-slate-700">
+											{imagePromptText}
+										</pre>
+									</div>
 								</SurfaceCard>
 							)}
 
@@ -1171,6 +1123,21 @@ function getLinkedinMediaPolicy(mediaUrls: string[]): {
 		};
 	}
 	return { tone: "info", message: null };
+}
+
+function buildImagePromptFromPost(post: SocialPostRun): string {
+	const prompt = [
+		`Create a polished LinkedIn image for this post: ${
+			post.topic || post.hookText || "LinkedIn post"
+		}`,
+		post.angle ? `Angle: ${post.angle}` : "",
+		post.selectedFormat || post.contentPostFormat
+			? `Format: ${post.selectedFormat || post.contentPostFormat}`
+			: "",
+		"Visual rule: no humans, no founder portraits, no unrelated people; use abstract/product/data/workspace visuals with a subtle bottom-corner organization tag.",
+		`Post body:\n${String(post.contentBody || "").slice(0, 1600)}`,
+	].filter(Boolean).join("\n");
+	return buildHumanReadablePrompt(prompt);
 }
 
 function buildHumanReadablePrompt(rawPrompt: string): string {

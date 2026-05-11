@@ -46,7 +46,7 @@ type ChatMessage = {
 const starterPrompts = [
 	"Create a 7-day LinkedIn plan for my founder brand",
 	"Turn this launch into 15 days of LinkedIn posts",
-	"Build a 30-day authority calendar with images and carousels",
+	"Build a 30-day authority calendar with image prompts",
 ];
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -236,6 +236,7 @@ export default function SocialCopilotPage() {
 				Object.entries(answers).filter(([, value]) => value.trim())
 			);
 			const generationDoneMessage = `Done. I created the approved ${selectedFramework.label} plan and queued the posts for approval (suggested times are on the calendar plan, not live-scheduled yet).`;
+			const mediaMode = imageGenerationEnabled ? "auto" : "none";
 			const result = await generateLinkedinCalendar({
 				chatId: chatId || undefined,
 				durationDays:
@@ -251,10 +252,7 @@ export default function SocialCopilotPage() {
 				answers: questionAnswers,
 				approvedArchitecture: brief.architecture as unknown as Record<string, unknown>,
 				attachments,
-				mediaMode: sanitizeMediaMode(
-					selectedFramework.mediaMode || brief.intent.mediaMode || "auto",
-					imageGenerationEnabled
-				),
+				mediaMode,
 				imageStyle: "professional",
 				aspectRatio: "1:1",
 				messages: [...messages, { role: "assistant", content: generationDoneMessage }],
@@ -635,9 +633,7 @@ function BriefingPanel({
 							<div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
 								<span>{framework.durationDays} days</span>
 								<span>{framework.postsPerWeek}/week</span>
-								<span>
-									{sanitizeMediaMode(framework.mediaMode, imageGenerationEnabled)}
-								</span>
+								<span>{imageGenerationEnabled ? "image prompts" : "no generated media"}</span>
 							</div>
 						</button>
 					))}
@@ -679,7 +675,7 @@ function BriefingPanel({
 								<StatusPill label={day.kltStage} tone="info" />
 							</div>
 							<p className="mt-1 text-xs leading-5 text-slate-500">
-								{day.framework} · {day.creativeDirection} · {day.mediaSuggestion}
+								{day.framework} · {day.creativeDirection}
 							</p>
 						</div>
 					))}
@@ -755,7 +751,7 @@ function PlanArchitectureModal({
 								<StatusPill label={day.kltStage} tone="info" />
 							</div>
 							<p className="mt-1 text-xs leading-5 text-slate-500">
-								{day.framework} · {day.creativeDirection} · {day.mediaSuggestion}
+								{day.framework} · {day.creativeDirection}
 							</p>
 						</div>
 					))}
@@ -992,11 +988,3 @@ function DetailsDrawer({
 	);
 }
 
-function sanitizeMediaMode(
-	mode: "none" | "image" | "carousel" | "auto",
-	imageGenerationEnabled: boolean
-): "none" | "image" | "carousel" | "auto" {
-	if (imageGenerationEnabled) return mode;
-	if (mode === "image" || mode === "auto") return "carousel";
-	return mode;
-}

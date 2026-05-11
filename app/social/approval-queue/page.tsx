@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 import { PostPreview } from "@/components/social/PostPreview";
@@ -9,7 +9,6 @@ import { LinkedinTextEditor } from "@/components/social/LinkedinTextEditor";
 import {
 	DangerButton,
 	EmptyState,
-	InlineAlert,
 	LoadingCardGrid,
 	MetaRow,
 	PageHeader,
@@ -45,6 +44,35 @@ import {
 	IconX,
 } from "@tabler/icons-react";
 
+function hasCompletedScheduling(post: SocialPostRun) {
+	return post.status === "scheduled" || !!post.scheduledFor;
+}
+
+/** True once the post has been approved or has moved past approval in the pipeline. */
+function hasUserApproved(post: SocialPostRun) {
+	return (
+		post.status === "approved" ||
+		!!post.approvedAt ||
+		post.status === "scheduled" ||
+		post.status === "publishing" ||
+		post.status === "published"
+	);
+}
+
+function isTerminalPost(post: SocialPostRun) {
+	return (
+		post.status === "published" ||
+		post.status === "publishing" ||
+		post.status === "rejected" ||
+		post.status === "cancelled"
+	);
+}
+
+/** Matches per-card "Approve" availability on the queue. */
+function canApprovePost(post: SocialPostRun) {
+	return !hasUserApproved(post) && !isTerminalPost(post);
+}
+
 export default function SocialApprovalQueuePage() {
 	const [loading, setLoading] = useState(true);
 	const [queue, setQueue] = useState<SocialPostRun[]>([]);
@@ -52,6 +80,8 @@ export default function SocialApprovalQueuePage() {
 	const [pickerValue, setPickerValue] = useState("");
 	const [editor, setEditor] = useState<{ id: number; body: string } | null>(null);
 	const [busyId, setBusyId] = useState<number | null>(null);
+	const [bulkApproving, setBulkApproving] = useState(false);
+	const [selectedPostIds, setSelectedPostIds] = useState<number[]>([]);
 	const [runningScheduler, setRunningScheduler] = useState(false);
 	const [previewMedia, setPreviewMedia] = useState<{
 		url: string;
@@ -64,6 +94,8 @@ export default function SocialApprovalQueuePage() {
 			setLoading(true);
 			const data = await getApprovalQueue();
 			setQueue(data);
+			const valid = new Set(data.map((q) => q.id));
+			setSelectedPostIds((prev) => prev.filter((id) => valid.has(id)));
 		} catch (err) {
 			toast.error(
 				err instanceof Error ? err.message : "Failed to load approval queue"
@@ -87,6 +119,61 @@ export default function SocialApprovalQueuePage() {
 			toast.error(err instanceof Error ? err.message : "Failed to approve");
 		} finally {
 			setBusyId(null);
+		}
+	};
+
+	const toggleSelectPost = (id: number) => {
+		setSelectedPostIds((prev) =>
+			prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+		);
+	};
+
+	const toggleSelectAllInPosts = (posts: SocialPostRun[]) => {
+		const ids = posts.filter(canApprovePost).map((p) => p.id);
+		if (ids.length === 0) return;
+		setSelectedPostIds((prev) => {
+			const allIncluded = ids.every((id) => prev.includes(id));
+			if (allIncluded) {
+				return prev.filter((id) => !ids.includes(id));
+			}
+			return Array.from(new Set([...prev, ...ids]));
+		});
+	};
+
+	const selectedApprovableIds = (posts: SocialPostRun[]) => {
+		const allow = new Set(posts.filter(canApprovePost).map((p) => p.id));
+		return selectedPostIds.filter((id) => allow.has(id));
+	};
+
+	const approveManySchedule = async (ids: number[]) => {
+		if (ids.length === 0) return;
+		try {
+			setBulkApproving(true);
+			let ok = 0;
+			let fail = 0;
+			for (const id of ids) {
+				try {
+					await approvePost(id, { postNow: false });
+					ok += 1;
+				} catch {
+					fail += 1;
+				}
+			}
+			setSelectedPostIds((prev) => prev.filter((id) => !ids.includes(id)));
+			await load();
+			if (fail === 0) {
+				toast.success(
+					`Approved ${ok} post${ok === 1 ? "" : "s"} — use Schedule to set times if needed`
+				);
+			} else {
+				toast.error(
+					`Approved ${ok}, ${fail} failed${ok ? " (refresh to see current state)" : ""}`
+				);
+			}
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Bulk approve failed");
+		} finally {
+			setBulkApproving(false);
 		}
 	};
 
@@ -214,11 +301,35 @@ export default function SocialApprovalQueuePage() {
 						title="Awaiting approval"
 						description="The agent has finished drafting. Take a decision."
 						posts={inReview}
+						bulkToolbar={
+							<ApprovalBulkToolbar
+								posts={inReview}
+								selectedPostIds={selectedPostIds}
+								onToggleSelectAll={() => toggleSelectAllInPosts(inReview)}
+								onApproveSelected={() =>
+									approveManySchedule(selectedApprovableIds(inReview))
+								}
+								onApproveAll={() =>
+									approveManySchedule(
+										inReview.filter(canApprovePost).map((p) => p.id)
+									)
+								}
+								disabled={bulkApproving}
+							/>
+						}
 						renderItem={(post) => (
 							<QueueItem
 								key={post.id}
 								post={post}
-								busy={busyId === post.id}
+								busy={busyId === post.id || bulkApproving}
+								selection={
+									canApprovePost(post)
+										? {
+												selected: selectedPostIds.includes(post.id),
+												onToggle: () => toggleSelectPost(post.id),
+											}
+										: undefined
+								}
 								onApproveSchedule={() => approve(post.id, false)}
 								onApproveNow={() => approve(post.id, true)}
 								onReject={() => reject(post.id)}
@@ -243,11 +354,35 @@ export default function SocialApprovalQueuePage() {
 						title="Drafts"
 						description="Drafts the agent prepared but never sent for review. Edit or trigger approval manually."
 						posts={drafts}
+						bulkToolbar={
+							<ApprovalBulkToolbar
+								posts={drafts}
+								selectedPostIds={selectedPostIds}
+								onToggleSelectAll={() => toggleSelectAllInPosts(drafts)}
+								onApproveSelected={() =>
+									approveManySchedule(selectedApprovableIds(drafts))
+								}
+								onApproveAll={() =>
+									approveManySchedule(
+										drafts.filter(canApprovePost).map((p) => p.id)
+									)
+								}
+								disabled={bulkApproving}
+							/>
+						}
 						renderItem={(post) => (
 							<QueueItem
 								key={post.id}
 								post={post}
-								busy={busyId === post.id}
+								busy={busyId === post.id || bulkApproving}
+								selection={
+									canApprovePost(post)
+										? {
+												selected: selectedPostIds.includes(post.id),
+												onToggle: () => toggleSelectPost(post.id),
+											}
+										: undefined
+								}
 								onApproveSchedule={() => approve(post.id, false)}
 								onApproveNow={() => approve(post.id, true)}
 								onReject={() => reject(post.id)}
@@ -435,39 +570,26 @@ const fileToBase64 = (file: File): Promise<string> =>
 		reader.readAsDataURL(file);
 	});
 
-function hasCompletedScheduling(post: SocialPostRun) {
-	return post.status === "scheduled" || !!post.scheduledFor;
-}
-
-/** True once the post has been approved or has moved past approval in the pipeline. */
-function hasUserApproved(post: SocialPostRun) {
-	return (
-		post.status === "approved" ||
-		!!post.approvedAt ||
-		post.status === "scheduled" ||
-		post.status === "publishing" ||
-		post.status === "published"
-	);
-}
-
 function Bucket({
 	title,
 	description,
 	tone,
 	posts,
 	renderItem,
+	bulkToolbar,
 }: {
 	title: string;
 	description: string;
 	tone?: "danger";
 	posts: SocialPostRun[];
 	renderItem: (post: SocialPostRun) => React.ReactNode;
+	bulkToolbar?: React.ReactNode;
 }) {
 	if (posts.length === 0) return null;
 	return (
 		<div>
-			<div className="mb-3 flex items-center justify-between">
-				<div>
+			<div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+				<div className="min-w-0">
 					<h2
 						className={`text-sm font-semibold ${
 							tone === "danger" ? "text-rose-700" : "text-slate-900"
@@ -477,8 +599,71 @@ function Bucket({
 					</h2>
 					<p className="mt-0.5 text-xs text-slate-500">{description}</p>
 				</div>
+				{bulkToolbar ? (
+					<div className="shrink-0 sm:pt-0.5">{bulkToolbar}</div>
+				) : null}
 			</div>
 			<div className="space-y-4">{posts.map(renderItem)}</div>
+		</div>
+	);
+}
+
+function ApprovalBulkToolbar({
+	posts,
+	selectedPostIds,
+	onToggleSelectAll,
+	onApproveSelected,
+	onApproveAll,
+	disabled,
+}: {
+	posts: SocialPostRun[];
+	selectedPostIds: number[];
+	onToggleSelectAll: () => void;
+	onApproveSelected: () => void;
+	onApproveAll: () => void;
+	disabled: boolean;
+}) {
+	const selectAllRef = useRef<HTMLInputElement>(null);
+	const approvable = posts.filter(canApprovePost);
+	if (approvable.length === 0) return null;
+	const approvableIds = new Set(approvable.map((p) => p.id));
+	const selectedHere = selectedPostIds.filter((id) => approvableIds.has(id));
+	const allSelected =
+		approvable.length > 0 && selectedHere.length === approvable.length;
+	const someSelected = selectedHere.length > 0 && !allSelected;
+
+	useEffect(() => {
+		const el = selectAllRef.current;
+		if (el) {
+			el.indeterminate = someSelected;
+		}
+	}, [someSelected, allSelected]);
+
+	return (
+		<div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
+			<label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+				<input
+					ref={selectAllRef}
+					type="checkbox"
+					className="h-4 w-4 rounded border-slate-300"
+					checked={allSelected}
+					onChange={onToggleSelectAll}
+					disabled={disabled}
+				/>
+				Select all ({approvable.length})
+			</label>
+			<div className="flex flex-wrap gap-2">
+				<SecondaryButton
+					onClick={onApproveSelected}
+					disabled={disabled || selectedHere.length === 0}
+				>
+					Approve selected ({selectedHere.length})
+				</SecondaryButton>
+				<PrimaryButton onClick={onApproveAll} disabled={disabled}>
+					<IconCheck className="h-4 w-4" />
+					Approve all ({approvable.length})
+				</PrimaryButton>
+			</div>
 		</div>
 	);
 }
@@ -486,6 +671,7 @@ function Bucket({
 function QueueItem({
 	post,
 	busy,
+	selection,
 	onApproveSchedule,
 	onApproveNow,
 	onReject,
@@ -495,6 +681,7 @@ function QueueItem({
 }: {
 	post: SocialPostRun;
 	busy: boolean;
+	selection?: { selected: boolean; onToggle: () => void };
 	onApproveSchedule: () => void;
 	onApproveNow: () => void;
 	onReject: () => void;
@@ -507,12 +694,8 @@ function QueueItem({
 }) {
 	const approvalDone = hasUserApproved(post);
 	const scheduleDone = hasCompletedScheduling(post);
-	const terminal =
-		post.status === "published" ||
-		post.status === "publishing" ||
-		post.status === "rejected" ||
-		post.status === "cancelled";
-	const canApprove = !approvalDone && !terminal;
+	const terminal = isTerminalPost(post);
+	const canApprove = canApprovePost(post);
 	// Only offer schedule/reschedule after approval so the flow is: approve → then pick time.
 	const canSchedule = approvalDone && !terminal;
 	const canPublishNow = !scheduleDone && !terminal && post.status !== "approved";
@@ -531,7 +714,18 @@ function QueueItem({
 			<div className="flex flex-col gap-4 lg:flex-row">
 				<div className="min-w-0 flex-1 space-y-3">
 					<div className="flex flex-wrap items-start justify-between gap-2">
-						<div>
+						<div className="flex min-w-0 flex-1 items-start gap-3">
+							{selection ? (
+								<input
+									type="checkbox"
+									className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300"
+									checked={selection.selected}
+									onChange={selection.onToggle}
+									disabled={busy}
+									aria-label={`Select post #${post.id}`}
+								/>
+							) : null}
+							<div className="min-w-0">
 							<p className="text-sm font-semibold text-slate-900">
 								#{post.id} · {post.topic || post.hookText || "LinkedIn post"}
 							</p>
@@ -575,6 +769,7 @@ function QueueItem({
 										mediaSuggestion,
 									}}
 								/>
+							</div>
 							</div>
 						</div>
 					</div>

@@ -405,7 +405,7 @@ export default function CopilotSessionDraftsPage() {
 														: `Planned date ${formatSocialDate(`${post.date}T00:00:00`)}`}
 											</span>
 											<span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
-												AI media suggestion: {post.mediaSuggestion || "image"}
+												AI media suggestion: image
 											</span>
 										</div>
 
