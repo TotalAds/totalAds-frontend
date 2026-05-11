@@ -275,7 +275,11 @@ export default function MemoryOnboardingPage() {
 		}
 	};
 
-	const applySuggestion = (key: string, value: string | string[]) => {
+	const applySuggestion = (
+		key: string,
+		value: string | string[],
+		options?: { silent?: boolean }
+	) => {
 		const text = Array.isArray(value) ? value.join("\n") : value;
 		if (key === "companyName") update("companyName", text);
 		if (key === "productName") update("productName", text);
@@ -300,7 +304,9 @@ export default function MemoryOnboardingPage() {
 		if (!appliedSuggestionKeys.includes(key)) {
 			setAppliedSuggestionKeys((prev) => [...prev, key]);
 		}
-		toast.success(`Applied suggestion: ${key}`);
+		if (!options?.silent) {
+			toast.success(`Applied suggestion: ${key}`);
+		}
 	};
 
 	const applyAllHighConfidenceSuggestions = (minConfidence = 0.7) => {
@@ -311,7 +317,7 @@ export default function MemoryOnboardingPage() {
 		let applied = 0;
 		for (const [key, suggestion] of Object.entries(enrichment.suggestions)) {
 			if (Number(suggestion.confidence || 0) >= minConfidence) {
-				applySuggestion(key, suggestion.value);
+				applySuggestion(key, suggestion.value, { silent: true });
 				applied += 1;
 			}
 		}
@@ -329,7 +335,7 @@ export default function MemoryOnboardingPage() {
 		}
 		let applied = 0;
 		for (const [key, suggestion] of Object.entries(enrichment.suggestions)) {
-			applySuggestion(key, suggestion.value);
+			applySuggestion(key, suggestion.value, { silent: true });
 			applied += 1;
 		}
 		toast.success(`Applied ${applied} AI suggestion${applied === 1 ? "" : "s"}`);
@@ -522,7 +528,11 @@ function AutofillStep({
 		suggestions?: Record<string, { value: string | string[]; confidence: number; reason: string }>;
 		recommendedMissing?: string[];
 	} | null;
-	applySuggestion: (key: string, value: string | string[]) => void;
+	applySuggestion: (
+		key: string,
+		value: string | string[],
+		options?: { silent?: boolean }
+	) => void;
 	applyAllHighConfidence: (minConfidence?: number) => void;
 	applyAllSuggestions: () => void;
 	appliedSuggestionKeys: string[];
