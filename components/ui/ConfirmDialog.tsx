@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+
+import { BodyPortal } from "@/components/ui/BodyPortal";
 import { IconAlertTriangle, IconX } from "@tabler/icons-react";
 
 interface ConfirmDialogProps {
@@ -60,7 +62,8 @@ export default function ConfirmDialog({
   const styles = getTypeStyles();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <BodyPortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
       <div className="relative w-full max-w-md">
         <div className={`bg-gray-900/95 backdrop-blur-xl border ${styles.border} rounded-2xl shadow-2xl`}>
           {/* Header */}
@@ -112,5 +115,6 @@ export default function ConfirmDialog({
         </div>
       </div>
     </div>
+    </BodyPortal>
   );
 }

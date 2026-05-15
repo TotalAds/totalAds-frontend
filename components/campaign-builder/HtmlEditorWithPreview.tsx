@@ -1,7 +1,7 @@
 "use client";
 
-import { Check, Copy } from "lucide-react";
-import { useState } from "react";
+import { Check, Copy, Dices, Sparkles } from "lucide-react";
+import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { wrapEmailPreviewDocument } from "./htmlPreviewUtils";
@@ -9,13 +9,70 @@ import { wrapEmailPreviewDocument } from "./htmlPreviewUtils";
 interface HtmlEditorWithPreviewProps {
   htmlContent: string;
   onHtmlContentChange: (content: string) => void;
+  onTokenClick?: (
+    type: "merge" | "spintax",
+    token: string,
+    occurrenceIndex: number
+  ) => void;
+}
+
+function getMergeTokenLabel(token: string): string {
+  const inner = token.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "");
+  const [field, fallback] = inner.split("|").map((part) => part.trim());
+  const label = field
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return fallback ? `${label} · ${fallback}` : label || "Personalization";
+}
+
+function getSpintaxLabel(token: string): string {
+  const variants = token
+    .replace(/^\{\s*/, "")
+    .replace(/\s*\}$/, "")
+    .split("|")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (variants.length <= 3) return variants.join(" · ");
+  return `${variants.slice(0, 3).join(" · ")} +${variants.length - 3}`;
+}
+
+function extractEmailTokens(html: string) {
+  const tokenRegex = /(\{\{\s*[^{}]+?\s*\}\}|\{[^{}]*\|[^{}]*\})/g;
+  const matches: Array<{
+    type: "merge" | "spintax";
+    token: string;
+    label: string;
+    occurrenceIndex: number;
+  }> = [];
+  const seen = new Map<string, number>();
+
+  html.split(/(<[^>]+>)/g).forEach((chunk) => {
+    if (!chunk || chunk.startsWith("<")) return;
+    Array.from(chunk.matchAll(tokenRegex)).forEach((match) => {
+      const token = match[0];
+      const type = token.startsWith("{{") ? "merge" : "spintax";
+      const key = `${type}:${token}`;
+      const occurrenceIndex = seen.get(key) || 0;
+      seen.set(key, occurrenceIndex + 1);
+      matches.push({
+        type,
+        token,
+        occurrenceIndex,
+        label: type === "merge" ? getMergeTokenLabel(token) : getSpintaxLabel(token),
+      });
+    });
+  });
+
+  return matches;
 }
 
 export default function HtmlEditorWithPreview({
   htmlContent,
   onHtmlContentChange,
+  onTokenClick,
 }: HtmlEditorWithPreviewProps) {
   const [copied, setCopied] = useState(false);
+  const tokens = useMemo(() => extractEmailTokens(htmlContent), [htmlContent]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(htmlContent);
@@ -92,6 +149,35 @@ export default function HtmlEditorWithPreview({
             {copied ? "Copied" : "Copy"}
           </button>
         </div>
+        {tokens.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-white px-3 py-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Editable tokens
+            </span>
+            {tokens.map((token, index) => (
+              <button
+                key={`${token.type}-${token.token}-${token.occurrenceIndex}-${index}`}
+                type="button"
+                onClick={() =>
+                  onTokenClick?.(token.type, token.token, token.occurrenceIndex)
+                }
+                className={
+                  token.type === "merge"
+                    ? "inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+                    : "inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-700 transition hover:bg-violet-100"
+                }
+              >
+                {token.type === "merge" ? (
+                  <Sparkles className="h-3 w-3" />
+                ) : (
+                  <Dices className="h-3 w-3" />
+                )}
+                {token.type === "spintax" ? "spin " : ""}
+                {token.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <textarea
           id="codeEditor"
           value={htmlContent}

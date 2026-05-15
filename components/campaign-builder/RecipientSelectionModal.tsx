@@ -20,6 +20,7 @@ import * as XLSX from "xlsx";
 
 import CreatableSelect from "@/components/common/CreatableSelect";
 import { Button } from "@/components/ui/button";
+import { BodyPortal } from "@/components/ui/BodyPortal";
 import emailClient, {
   createLeadCategory,
   createLeadTag,
@@ -747,7 +748,9 @@ export default function RecipientSelectionModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <BodyPortal>
+    <>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div className=" bg-bg-200 border border-brand-main/20 rounded-xl shadow-2xl flex flex-col max-h-[90vh] h-[90vh] max-w-[80vw] w-[80vw]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-2 border-b border-brand-main/10 bg-bg-200/50">
@@ -1428,10 +1431,11 @@ export default function RecipientSelectionModal({
           </div>
         </div>
       </div>
+      </div>
 
       {/* CSV upload result modal: show valid / invalid / duplicate breakdown */}
       {csvResultModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-bg-200 border border-brand-main/20 rounded-xl shadow-2xl flex flex-col max-w-2xl w-full max-h-[90vh] overflow-hidden">
             <div className="px-6 py-4 border-b border-brand-main/10">
               <h3 className="text-lg font-semibold text-text-100">
@@ -1534,6 +1538,7 @@ export default function RecipientSelectionModal({
           </div>
         </div>
       )}
-    </div>
+    </>
+    </BodyPortal>
   );
 }

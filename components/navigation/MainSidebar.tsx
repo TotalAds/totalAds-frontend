@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuthContext } from "@/context/AuthContext";
 import { getSubscriptionInfo, SubscriptionInfo } from "@/utils/api/emailClient";
@@ -49,6 +49,7 @@ interface MainSidebarProps {
 }
 
 const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";
+const HOVER_COLLAPSE_MS = 220;
 
 const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
@@ -57,6 +58,8 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
   const { user } = state;
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isHoverExpanded, setIsHoverExpanded] = useState(false);
+  const hoverCollapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [subscriptionInfo, setSubscriptionInfo] =
     useState<SubscriptionInfo | null>(null);
   const [linkedinExternalUrl, setLinkedinExternalUrl] = useState<string>(
@@ -107,6 +110,39 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
     const newState = !isCollapsed;
     setIsCollapsed(newState);
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(newState));
+    if (!newState) {
+      setIsHoverExpanded(false);
+    }
+  };
+
+  const clearHoverCollapseTimer = () => {
+    if (hoverCollapseTimer.current) {
+      clearTimeout(hoverCollapseTimer.current);
+      hoverCollapseTimer.current = null;
+    }
+  };
+
+  useEffect(() => () => clearHoverCollapseTimer(), []);
+
+  /** Desktop: when icon-only (collapsed), hover temporarily expands labels + width */
+  const showExpandedChrome = !isCollapsed || isHoverExpanded;
+
+  const handleSidebarPointerEnter = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) return;
+    clearHoverCollapseTimer();
+    if (isCollapsed) {
+      setIsHoverExpanded(true);
+    }
+  };
+
+  const handleSidebarPointerLeave = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) return;
+    if (!isCollapsed) return;
+    clearHoverCollapseTimer();
+    hoverCollapseTimer.current = setTimeout(() => {
+      setIsHoverExpanded(false);
+      hoverCollapseTimer.current = null;
+    }, HOVER_COLLAPSE_MS);
   };
 
   // Navigation sections — AI Knowledge only for admin `userType`
@@ -210,26 +246,31 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
         />
       )}
 
-      {/* Sidebar - Dark Navy Theme */}
+      {/* Flex spacer (desktop) keeps a narrow gutter when collapsed; panel overflows on hover */}
       <div
-        data-tour="sidebar"
         className={cn(
-          "bg-sidebar transition-all duration-300 ease-in-out shadow-xl flex-shrink-0",
-          // Width based on collapsed state (desktop only)
-          isCollapsed ? "md:w-[72px]" : "w-64",
-          // Mobile behavior: fixed overlay, always full width
-          "fixed left-0 top-0 h-screen z-40 md:relative w-64",
-          // Show/hide behavior
-          isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+          "relative h-screen w-0 shrink-0 overflow-visible transition-[width] duration-300 ease-in-out motion-reduce:transition-none",
+          isCollapsed ? "md:w-[72px]" : "md:w-64"
         )}
       >
+        <div
+          data-tour="sidebar"
+          onPointerEnter={handleSidebarPointerEnter}
+          onPointerLeave={handleSidebarPointerLeave}
+          className={cn(
+            "bg-sidebar overflow-x-hidden shadow-xl",
+            "fixed left-0 top-0 z-[45] h-screen w-64 transition-[width,transform] duration-300 ease-in-out motion-reduce:transition-none md:absolute md:left-0 md:top-0 md:z-[45]",
+            isCollapsed && !isHoverExpanded ? "md:w-[72px]" : "md:w-64",
+            isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+          )}
+        >
         {/* Sidebar Content */}
-        <div className="h-full flex flex-col">
+        <div className="flex h-full flex-col">
           {/* Header - Company Logo with Collapse Toggle */}
           <div
             className={cn(
               "py-5 border-b border-sidebar-border",
-              isCollapsed ? "px-3" : "px-4"
+              showExpandedChrome ? "px-4" : "px-3"
             )}
           >
             <div className="flex items-center justify-between">
@@ -237,51 +278,49 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
                 href="/email/dashboard"
                 className={cn(
                   "flex items-center",
-                  isCollapsed ? "justify-center w-full" : "space-x-3"
+                  showExpandedChrome ? "space-x-3" : "w-full justify-center"
                 )}
               >
-                {/* Show only icon when collapsed */}
-                <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
-                  <GetLogo className="w-8 h-8" color="#3b82f6" />
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center">
+                  <GetLogo className="h-8 w-8" color="#3b82f6" />
                 </div>
-                {!isCollapsed && (
+                {showExpandedChrome && (
                   <div className="overflow-hidden">
-                    <h1 className="text-base font-bold text-sidebar-text whitespace-nowrap">
+                    <h1 className="whitespace-nowrap text-base font-bold text-sidebar-text">
                       Leadsnipper
                     </h1>
-                    <p className="text-xs text-sidebar-muted whitespace-nowrap">
+                    <p className="whitespace-nowrap text-xs text-sidebar-muted">
                       Email Marketing
                     </p>
                   </div>
                 )}
               </Link>
 
-              {/* Desktop Collapse Toggle Button - visible inside sidebar */}
-              {!isCollapsed && (
+              {showExpandedChrome && (
                 <button
                   onClick={(e) => {
                     e.preventDefault();
                     toggleCollapse();
                   }}
-                  className="hidden md:flex items-center justify-center w-8 h-8 rounded-md text-sidebar-muted hover:text-sidebar-text hover:bg-sidebar-hover transition-colors ml-2"
+                  className="ml-2 hidden h-8 w-8 items-center justify-center rounded-md text-sidebar-muted transition-colors hover:bg-sidebar-hover hover:text-sidebar-text md:flex"
                   title="Collapse sidebar"
                 >
-                  <IconChevronLeft className="w-5 h-5" />
+                  <IconChevronLeft className="h-5 w-5" />
                 </button>
               )}
             </div>
 
-            {/* Expand button when collapsed - below logo */}
-            {isCollapsed && (
+            {/* Expand control when icon-only (no hover); hover still expands without this row */}
+            {!showExpandedChrome && (
               <button
                 onClick={(e) => {
                   e.preventDefault();
                   toggleCollapse();
                 }}
-                className="hidden md:flex w-full items-center justify-center mt-3 py-2 rounded-md text-sidebar-muted hover:text-sidebar-text hover:bg-sidebar-hover transition-colors"
-                title="Expand sidebar"
+                className="mt-3 hidden w-full items-center justify-center rounded-md py-2 text-sidebar-muted transition-colors hover:bg-sidebar-hover hover:text-sidebar-text md:flex"
+                title="Expand sidebar (pinned)"
               >
-                <IconChevronRight className="w-5 h-5" />
+                <IconChevronRight className="h-5 w-5" />
               </button>
             )}
 
@@ -297,20 +336,18 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
           {/* Navigation Sections */}
           <nav
             className={cn(
-              "flex-1 py-4 overflow-y-auto sidebar-scrollbar no-scrollbar",
-              isCollapsed ? "px-2" : "px-3"
+              "sidebar-scrollbar no-scrollbar flex-1 overflow-y-auto py-4",
+              showExpandedChrome ? "px-3" : "px-2"
             )}
           >
-            {navSections.map((section) => (
+            {navSections.map((section, sectionIndex) => (
               <div key={section.title} className="mb-6">
-                {/* Section title - hidden when collapsed */}
-                {!isCollapsed && (
-                  <h3 className="px-3 mb-2 text-xs font-semibold text-sidebar-muted tracking-wider whitespace-nowrap">
+                {showExpandedChrome && (
+                  <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-muted whitespace-nowrap">
                     {section.title}
                   </h3>
                 )}
-                {/* Divider line when collapsed */}
-                {isCollapsed && (
+                {!showExpandedChrome && sectionIndex > 0 && (
                   <div className="mx-2 mb-3 border-t border-sidebar-border" />
                 )}
                 <div className="space-y-1">
@@ -322,10 +359,10 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
 
                     const isExternal = item.href.startsWith("http");
                     const commonClass = cn(
-                      "flex items-center py-2.5 text-sm font-medium transition-all duration-200 group relative",
-                      isCollapsed
-                        ? "px-0 justify-center rounded-lg"
-                        : "px-3 rounded-lg",
+                      "group relative flex items-center py-2.5 text-sm font-medium transition-all duration-200",
+                      showExpandedChrome
+                        ? "rounded-lg px-3"
+                        : "justify-center rounded-lg px-0",
                       isActive
                         ? "bg-brand-main text-white shadow-md"
                         : "text-sidebar-text hover:bg-sidebar-hover"
@@ -342,13 +379,13 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
                             onClose();
                           }
                         }}
-                        title={isCollapsed ? item.name : undefined}
+                        title={!showExpandedChrome ? item.name : undefined}
                         className={commonClass}
                       >
                         <span
                           className={cn(
-                            "transition-colors flex-shrink-0",
-                            !isCollapsed && "mr-3",
+                            "flex-shrink-0 transition-colors",
+                            showExpandedChrome && "mr-3",
                             isActive
                               ? "text-white"
                               : "text-sidebar-muted group-hover:text-sidebar-text"
@@ -356,15 +393,15 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
                         >
                           {item.icon}
                         </span>
-                        {!isCollapsed && (
+                        {showExpandedChrome && (
                           <>
-                            <span className="flex-1 whitespace-nowrap overflow-hidden">
+                            <span className="flex-1 overflow-hidden whitespace-nowrap">
                               {item.name}
                             </span>
                             {item.badge && (
                               <span
                                 className={cn(
-                                  "px-2 py-0.5 text-xs font-semibold rounded-full",
+                                  "rounded-full px-2 py-0.5 text-xs font-semibold",
                                   getBadgeClasses(item.badgeColor)
                                 )}
                               >
@@ -373,8 +410,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
                             )}
                           </>
                         )}
-                        {/* Badge indicator dot when collapsed */}
-                        {isCollapsed && item.badge && (
+                        {!showExpandedChrome && item.badge && (
                           <span
                             className={cn(
                               "absolute top-1 right-1 w-2 h-2 rounded-full",
@@ -396,13 +432,13 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
                             onClose();
                           }
                         }}
-                        title={isCollapsed ? item.name : undefined}
+                        title={!showExpandedChrome ? item.name : undefined}
                         className={commonClass}
                       >
                         <span
                           className={cn(
-                            "transition-colors flex-shrink-0",
-                            !isCollapsed && "mr-3",
+                            "flex-shrink-0 transition-colors",
+                            showExpandedChrome && "mr-3",
                             isActive
                               ? "text-white"
                               : "text-sidebar-muted group-hover:text-sidebar-text"
@@ -410,15 +446,15 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
                         >
                           {item.icon}
                         </span>
-                        {!isCollapsed && (
+                        {showExpandedChrome && (
                           <>
-                            <span className="flex-1 whitespace-nowrap overflow-hidden">
+                            <span className="flex-1 overflow-hidden whitespace-nowrap">
                               {item.name}
                             </span>
                             {item.badge && (
                               <span
                                 className={cn(
-                                  "px-2 py-0.5 text-xs font-semibold rounded-full",
+                                  "rounded-full px-2 py-0.5 text-xs font-semibold",
                                   getBadgeClasses(item.badgeColor)
                                 )}
                               >
@@ -427,10 +463,10 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
                             )}
                           </>
                         )}
-                        {isCollapsed && item.badge && (
+                        {!showExpandedChrome && item.badge && (
                           <span
                             className={cn(
-                              "absolute top-1 right-1 w-2 h-2 rounded-full",
+                              "absolute top-1 right-1 h-2 w-2 rounded-full",
                               item.badgeColor === "green"
                                 ? "bg-green-400"
                                 : item.badgeColor === "yellow"
@@ -450,23 +486,23 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
           {/* User Profile Section */}
           <div
             className={cn(
-              "py-4 border-t border-sidebar-border mt-auto",
-              isCollapsed ? "px-2" : "px-3"
+              "mt-auto border-t border-sidebar-border py-4",
+              showExpandedChrome ? "px-3" : "px-2"
             )}
           >
             <div className="relative">
               <button
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                title={isCollapsed ? user?.name || "User" : undefined}
+                title={!showExpandedChrome ? user?.name || "User" : undefined}
                 className={cn(
-                  "w-full flex items-center py-2.5 rounded-lg hover:bg-sidebar-hover transition-colors",
-                  isCollapsed ? "px-0 justify-center" : "px-3"
+                  "flex w-full items-center rounded-lg py-2.5 transition-colors hover:bg-sidebar-hover",
+                  showExpandedChrome ? "px-3" : "justify-center px-0"
                 )}
               >
-                <div className="w-9 h-9 rounded-lg bg-brand-main flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-brand-main text-sm font-semibold text-white">
                   {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
                 </div>
-                {!isCollapsed && (
+                {showExpandedChrome && (
                   <>
                     <div className="ml-3 flex-1 text-left overflow-hidden">
                       <p className="text-sm flex gap-1 items-center font-medium text-sidebar-text truncate">
@@ -504,9 +540,9 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.15 }}
                     className={cn(
-                      "absolute bottom-full mb-2 bg-sidebar-hover rounded-lg shadow-lg border border-sidebar-border overflow-hidden",
-                      isCollapsed
-                        ? "left-full ml-2 bottom-0 mb-0 min-w-[180px]"
+                      "absolute bottom-full mb-2 overflow-hidden rounded-lg border border-sidebar-border bg-sidebar-hover shadow-lg",
+                      !showExpandedChrome
+                        ? "bottom-0 left-full mb-0 ml-2 min-w-[180px]"
                         : "left-0 right-0"
                     )}
                   >
@@ -530,6 +566,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
               </AnimatePresence>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </>

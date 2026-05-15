@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
+import { BodyPortal } from "@/components/ui/BodyPortal";
 import warmupClient from "@/utils/api/warmupClient";
 import { IconAlertCircle, IconCheck, IconX } from "@tabler/icons-react";
 
@@ -42,7 +43,8 @@ export function PrerequisitesModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <BodyPortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
       <div className="bg-bg-200 rounded-2xl p-8 max-w-md w-full mx-4">
         <div className="flex items-center gap-3 mb-6">
           <IconAlertCircle className="w-6 h-6 text-yellow-400" />
@@ -152,5 +154,6 @@ export function PrerequisitesModal({
         </div>
       </div>
     </div>
+    </BodyPortal>
   );
 }

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 import toast from "react-hot-toast";
 
+import { BodyPortal } from "@/components/ui/BodyPortal";
 import { useAuthContext } from "@/context/AuthContext";
 import { resendVerificationCode } from "@/utils/api/authClient";
 import { IconMail, IconRefresh, IconX } from "@tabler/icons-react";
@@ -52,7 +53,8 @@ const EmailVerificationBanner: React.FC<EmailVerificationBannerProps> = ({
 
   if (variant === "modal") {
     return (
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <BodyPortal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
         <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center">
@@ -103,6 +105,7 @@ const EmailVerificationBanner: React.FC<EmailVerificationBannerProps> = ({
           </p>
         </div>
       </div>
+      </BodyPortal>
     );
   }
 

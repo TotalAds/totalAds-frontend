@@ -4,7 +4,10 @@ import {
   ArrowLeft,
   BookOpen,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Code2,
+  Dices,
   Eye,
   FileText,
   LayoutGrid,
@@ -21,14 +24,9 @@ import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -59,13 +57,14 @@ import emailClient, { Campaign, getCampaigns } from "@/utils/api/emailClient";
 
 import DesignEditor from "./DesignEditor";
 import HtmlEditorWithPreview from "./HtmlEditorWithPreview";
-import { mergeVariableLists, wrapEmailPreviewDocument } from "./htmlPreviewUtils";
 import {
-  applyRecommendedSpintaxToHtml,
-  getSpintaxSuggestions,
-  SPINTAX_PACKS,
-  type SpintaxPackId,
-} from "./spintaxUtils";
+  PREVIEW_SAMPLE_LEADS,
+  buildCompositeLeadForPreview,
+  mergeVariableLists,
+  resolveMergeTagsAndSpintax,
+  wrapEmailPreviewDocument,
+} from "./htmlPreviewUtils";
+import { type SpintaxPackId } from "./spintaxUtils";
 
 export type BodyEditorMode = "simple" | "html";
 
@@ -103,6 +102,57 @@ function wrapPreviewDocThumb(html: string) {
     img{max-width:100%!important;height:auto!important;}
     *{box-sizing:border-box;}
   </style></head><body>${html}</body></html>`;
+}
+
+function formatPreviewRecipientLine(lead: Record<string, string>): string {
+  const email = lead.email || "preview@example.com";
+  const name =
+    lead.name?.trim() ||
+    [lead.firstName || lead.first_name, lead.lastName || lead.last_name]
+      .filter(Boolean)
+      .join(" ")
+      .trim() ||
+    "Sample recipient";
+  return `${name} <${email}>`;
+}
+
+function isStructuredHtmlEmail(content: string): boolean {
+  const trimmed = content.trim();
+  if (!trimmed) return false;
+
+  // Plain TipTap paragraphs and line-breaks should still open in the visual editor.
+  const withoutSimpleRichText = trimmed
+    .replace(/<\/?p(?:\s[^>]*)?>/gi, "")
+    .replace(/<br\s*\/?>/gi, "")
+    .trim();
+
+  return /<\/?(table|tbody|thead|tfoot|tr|td|th|div|section|article|img|a|ul|ol|li|h[1-6]|blockquote|center|mj-[a-z-]+)(\s|>|\/)/i.test(
+    withoutSimpleRichText
+  );
+}
+
+function textToSimpleEditorHtml(content: string): string {
+  const trimmed = content.trim();
+  if (!trimmed) return "<p></p>";
+  if (/<\/?p(?:\s[^>]*)?>|<br\s*\/?>/i.test(trimmed)) return content;
+  return trimmed
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${paragraph.replace(/\n/g, "<br />")}</p>`)
+    .join("");
+}
+
+/** Split user-selected text into spintax option rows (modal prefill). */
+function splitCapturedTextIntoSpintaxOptions(raw: string): string[] {
+  const t = raw.trim();
+  if (!t) return [];
+  if (t.includes("|")) {
+    return t.split("|").map((s) => s.trim()).filter(Boolean);
+  }
+  const byLine = t.split(/\n/).map((s) => s.trim()).filter(Boolean);
+  if (byLine.length > 1) return byLine;
+  const byComma = t.split(",").map((s) => s.trim()).filter(Boolean);
+  if (byComma.length > 1) return byComma;
+  return [t];
 }
 
 const TEMPLATE_CARD_GRID =
@@ -228,31 +278,116 @@ export default function CreateEmailModal({
   const [userTemplatesLoading, setUserTemplatesLoading] = useState(false);
   const [readyCategory, setReadyCategory] = useState<string>("All");
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [inboxPreviewOpen, setInboxPreviewOpen] = useState(false);
+  const [inboxPreviewLeadIndex, setInboxPreviewLeadIndex] = useState(0);
 
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [saveTemplateName, setSaveTemplateName] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [fallbackModalOpen, setFallbackModalOpen] = useState(false);
+  const [fallbackVariable, setFallbackVariable] = useState("{{firstName}}");
+  const [fallbackText, setFallbackText] = useState("");
+  const [editingFallbackToken, setEditingFallbackToken] = useState<{
+    token: string;
+    occurrenceIndex: number;
+  } | null>(null);
+  const [spintaxModalOpen, setSpintaxModalOpen] = useState(false);
+  const [manualSpintaxOptions, setManualSpintaxOptions] = useState<string[]>([
+    "Hi",
+    "Hello",
+    "Hey",
+  ]);
+  const [editingSpintaxToken, setEditingSpintaxToken] = useState<{
+    token: string;
+    occurrenceIndex: number;
+  } | null>(null);
 
   const [variableSearch, setVariableSearch] = useState("");
   const [showVariablePanel, setShowVariablePanel] = useState(false);
   const variablePanelRef = useRef<HTMLDivElement>(null);
+  /** Snapshot from editor/HTML textarea when toolbar opens (selection is lost on focus otherwise). */
+  const pendingComposerSelectionRef = useRef("");
+  const pendingReplaceSelectionRef = useRef(false);
+  const pendingHtmlSelectionRangeRef = useRef<{ start: number; end: number } | null>(
+    null
+  );
+
+  const clearPendingInsertSelection = useCallback(() => {
+    pendingComposerSelectionRef.current = "";
+    pendingReplaceSelectionRef.current = false;
+    pendingHtmlSelectionRangeRef.current = null;
+  }, []);
+
+  const captureComposerSelection = useCallback(() => {
+    pendingHtmlSelectionRangeRef.current = null;
+    const ta = document.getElementById("codeEditor") as HTMLTextAreaElement | null;
+    if (ta && ta.selectionEnd > ta.selectionStart) {
+      pendingComposerSelectionRef.current = ta.value.slice(
+        ta.selectionStart,
+        ta.selectionEnd
+      );
+      pendingReplaceSelectionRef.current = true;
+      pendingHtmlSelectionRangeRef.current = {
+        start: ta.selectionStart,
+        end: ta.selectionEnd,
+      };
+      return;
+    }
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && sel.toString().length > 0) {
+      const node = sel.anchorNode;
+      const el =
+        node?.nodeType === Node.TEXT_NODE
+          ? (node.parentElement as Element | null)
+          : (node as Element | null);
+      if (el?.closest?.(".ProseMirror")) {
+        pendingComposerSelectionRef.current = sel.toString();
+        pendingReplaceSelectionRef.current = true;
+        return;
+      }
+    }
+    pendingComposerSelectionRef.current = "";
+    pendingReplaceSelectionRef.current = false;
+  }, []);
 
   const mergeTags = useMemo(
     () => mergeVariableLists(availableVariables),
     [availableVariables]
   );
 
+  const shiftInboxPreviewLead = useCallback((delta: number) => {
+    const n = PREVIEW_SAMPLE_LEADS.length;
+    setInboxPreviewLeadIndex((i) => (i + delta + n * 10) % n);
+  }, []);
+
+  const inboxPreviewLead = useMemo(
+    () => buildCompositeLeadForPreview(inboxPreviewLeadIndex, mergeTags),
+    [inboxPreviewLeadIndex, mergeTags]
+  );
+
+  const inboxPreviewResolved = useMemo(
+    () => ({
+      subject: resolveMergeTagsAndSpintax(
+        draftSubject,
+        inboxPreviewLead,
+        inboxPreviewLeadIndex
+      ),
+      previewText: resolveMergeTagsAndSpintax(
+        draftPreviewText,
+        inboxPreviewLead,
+        inboxPreviewLeadIndex
+      ),
+      html: resolveMergeTagsAndSpintax(draftHtml || "", inboxPreviewLead, inboxPreviewLeadIndex),
+    }),
+    [draftSubject, draftPreviewText, draftHtml, inboxPreviewLead, inboxPreviewLeadIndex]
+  );
+
   const filteredVariables = mergeTags.filter((variable) =>
     variable.toLowerCase().includes(variableSearch.toLowerCase())
   );
-  const spintaxSuggestions = getSpintaxSuggestions(
-    draftSpintaxPackId,
-    true,
-    draftStrictGrammarMode
-  );
-
   useEffect(() => {
     if (!open) return;
+    clearPendingInsertSelection();
     setTab(initialTab);
     setDraftSubject(seedSubject || "");
     setDraftPreviewText(seedPreviewText || "");
@@ -266,9 +401,11 @@ export default function CreateEmailModal({
           : seedBodyEditor === "html"
             ? ""
             : "<p></p>";
+      const shouldUseHtmlEditor =
+        seedBodyEditor === "html" && isStructuredHtmlEmail(html);
       setDraftHtml(html);
-      setDraftBodyEditor(seedBodyEditor);
-      setRightPanel(seedBodyEditor === "html" ? "html" : "simple");
+      setDraftBodyEditor(shouldUseHtmlEditor ? "html" : "simple");
+      setRightPanel(shouldUseHtmlEditor ? "html" : "simple");
     } else {
       setRightPanel("browse");
       setDraftHtml(seedHtml);
@@ -287,6 +424,7 @@ export default function CreateEmailModal({
     seedUseSpintax,
     seedSpintaxPackId,
     seedStrictGrammarMode,
+    clearPendingInsertSelection,
   ]);
 
   useEffect(() => {
@@ -296,13 +434,14 @@ export default function CreateEmailModal({
         !variablePanelRef.current.contains(event.target as Node)
       ) {
         setShowVariablePanel(false);
+        clearPendingInsertSelection();
       }
     };
     if (showVariablePanel) {
       document.addEventListener("mousedown", handleClickOutside);
     }
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showVariablePanel]);
+  }, [showVariablePanel, clearPendingInsertSelection]);
 
   useEffect(() => {
     if (!open || !domainId) return;
@@ -363,16 +502,32 @@ export default function CreateEmailModal({
 
   const insertVariable = (variable: string) => {
     if (draftBodyEditor === "simple" || rightPanel === "simple") {
+      const replaceSel = pendingReplaceSelectionRef.current;
+      pendingReplaceSelectionRef.current = false;
+      pendingHtmlSelectionRangeRef.current = null;
+      pendingComposerSelectionRef.current = "";
+      const detail =
+        replaceSel && variable.trim().length > 0
+          ? { variable, replaceSelection: true as const }
+          : variable;
       window.dispatchEvent(
-        new CustomEvent("totalads:insert-variable", { detail: variable })
+        new CustomEvent("totalads:insert-variable", { detail })
       );
       toast.success(`Added ${variable}`, { duration: 1500 });
       return;
     }
     const textarea = document.getElementById("codeEditor") as HTMLTextAreaElement | null;
     if (textarea) {
-      const start = textarea.selectionStart || 0;
-      const end = textarea.selectionEnd || 0;
+      let start = textarea.selectionStart || 0;
+      let end = textarea.selectionEnd || 0;
+      const snap = pendingHtmlSelectionRangeRef.current;
+      if (snap && pendingReplaceSelectionRef.current) {
+        start = snap.start;
+        end = snap.end;
+      }
+      pendingHtmlSelectionRangeRef.current = null;
+      pendingReplaceSelectionRef.current = false;
+      pendingComposerSelectionRef.current = "";
       const newContent =
         draftHtml.substring(0, start) + variable + draftHtml.substring(end);
       setDraftHtml(newContent);
@@ -385,11 +540,213 @@ export default function CreateEmailModal({
       toast.success(`Added ${variable}`, { duration: 1500 });
       return;
     }
+    pendingReplaceSelectionRef.current = false;
+    pendingComposerSelectionRef.current = "";
     setDraftHtml((draftHtml || "") + variable);
   };
 
+  const insertSpintax = (token: string) => {
+    if (draftBodyEditor === "simple" || rightPanel === "simple") {
+      const replaceSel = pendingReplaceSelectionRef.current;
+      pendingReplaceSelectionRef.current = false;
+      pendingHtmlSelectionRangeRef.current = null;
+      pendingComposerSelectionRef.current = "";
+      const detail =
+        replaceSel && token.trim().length > 0
+          ? { token, replaceSelection: true as const }
+          : token;
+      window.dispatchEvent(
+        new CustomEvent("totalads:insert-spintax", { detail })
+      );
+      toast.success("Added spintax", { duration: 1500 });
+      return;
+    }
+    const textarea = document.getElementById("codeEditor") as HTMLTextAreaElement | null;
+    if (textarea) {
+      let start = textarea.selectionStart || 0;
+      let end = textarea.selectionEnd || 0;
+      const snap = pendingHtmlSelectionRangeRef.current;
+      if (snap && pendingReplaceSelectionRef.current) {
+        start = snap.start;
+        end = snap.end;
+      }
+      pendingHtmlSelectionRangeRef.current = null;
+      pendingReplaceSelectionRef.current = false;
+      pendingComposerSelectionRef.current = "";
+      const newContent =
+        draftHtml.substring(0, start) + token + draftHtml.substring(end);
+      setDraftHtml(newContent);
+      setTimeout(() => {
+        const pos = start + token.length;
+        textarea.selectionStart = pos;
+        textarea.selectionEnd = pos;
+        textarea.focus();
+      }, 0);
+      toast.success("Added spintax", { duration: 1500 });
+      return;
+    }
+    pendingReplaceSelectionRef.current = false;
+    pendingComposerSelectionRef.current = "";
+    setDraftHtml((draftHtml || "") + token);
+  };
+
+  const replaceTokenOccurrence = (
+    source: string,
+    oldToken: string,
+    newToken: string,
+    occurrenceIndex: number
+  ) => {
+    let seen = 0;
+    return source.replace(oldToken, (match) => {
+      if (seen === occurrenceIndex) {
+        seen += 1;
+        return newToken;
+      }
+      seen += 1;
+      return match;
+    });
+  };
+
+  const normalizeVariableToken = (variable: string) =>
+    variable.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "").trim();
+
+  const openFallbackModal = (token?: string, occurrenceIndex: number = 0) => {
+    if (token) {
+      clearPendingInsertSelection();
+      const inner = token.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "");
+      const [field, fallback] = inner.split("|").map((part) => part.trim());
+      const fieldToken = `{{${field || normalizeVariableToken(mergeTags[0] || "firstName")}}}`;
+      setFallbackVariable(fieldToken);
+      setFallbackText(fallback || "there");
+      setEditingFallbackToken({ token, occurrenceIndex });
+    } else {
+      const captured = pendingComposerSelectionRef.current.trim();
+      pendingComposerSelectionRef.current = "";
+      setFallbackVariable(mergeTags[0] || "{{firstName}}");
+      setFallbackText(captured);
+      setEditingFallbackToken(null);
+    }
+    setFallbackModalOpen(true);
+  };
+
+  const openSpintaxModal = (token?: string, occurrenceIndex: number = 0) => {
+    if (token) {
+      clearPendingInsertSelection();
+      const options = token
+        .replace(/^\{\s*/, "")
+        .replace(/\s*\}$/, "")
+        .split("|")
+        .map((option) => option.trim())
+        .filter(Boolean);
+      setManualSpintaxOptions(options.length >= 2 ? options : ["Hi", "Hello"]);
+      setEditingSpintaxToken({ token, occurrenceIndex });
+    } else {
+      const captured = pendingComposerSelectionRef.current;
+      pendingComposerSelectionRef.current = "";
+      const parts = splitCapturedTextIntoSpintaxOptions(captured);
+      if (parts.length >= 2) {
+        setManualSpintaxOptions(parts);
+      } else if (parts.length === 1) {
+        setManualSpintaxOptions([parts[0], ""]);
+      } else {
+        setManualSpintaxOptions(["Hi", "Hello", "Hey"]);
+      }
+      setEditingSpintaxToken(null);
+    }
+    setSpintaxModalOpen(true);
+  };
+
+  const handleEditorTokenClick = (
+    type: "merge" | "spintax",
+    token: string,
+    occurrenceIndex: number
+  ) => {
+    if (type === "merge") {
+      openFallbackModal(token, occurrenceIndex);
+      return;
+    }
+    openSpintaxModal(token, occurrenceIndex);
+  };
+
+  const handleInsertFallback = () => {
+    const variable = normalizeVariableToken(fallbackVariable);
+    const fallback = fallbackText.trim();
+    if (!variable) {
+      toast.error("Select a personalization field");
+      return;
+    }
+    const newToken = fallback ? `{{${variable} | ${fallback}}}` : `{{${variable}}}`;
+    if (editingFallbackToken) {
+      setDraftHtml((current) =>
+        replaceTokenOccurrence(
+          current,
+          editingFallbackToken.token,
+          newToken,
+          editingFallbackToken.occurrenceIndex
+        )
+      );
+    } else {
+      insertVariable(newToken);
+    }
+    setEditingFallbackToken(null);
+    setFallbackModalOpen(false);
+  };
+
+  const handleRemoveFallbackToken = () => {
+    if (!editingFallbackToken) return;
+    setDraftHtml((current) =>
+      replaceTokenOccurrence(
+        current,
+        editingFallbackToken.token,
+        "",
+        editingFallbackToken.occurrenceIndex
+      )
+    );
+    setEditingFallbackToken(null);
+    setFallbackModalOpen(false);
+  };
+
+  const handleInsertManualSpintax = () => {
+    const options = manualSpintaxOptions
+      .map((option) => option.trim())
+      .filter(Boolean);
+    if (options.length < 2) {
+      toast.error("Add at least two spin options");
+      return;
+    }
+    const newToken = `{${Array.from(new Set(options)).join("|")}}`;
+    if (editingSpintaxToken) {
+      setDraftHtml((current) =>
+        replaceTokenOccurrence(
+          current,
+          editingSpintaxToken.token,
+          newToken,
+          editingSpintaxToken.occurrenceIndex
+        )
+      );
+    } else {
+      insertSpintax(newToken);
+    }
+    setEditingSpintaxToken(null);
+    setSpintaxModalOpen(false);
+  };
+
+  const handleRemoveSpintaxToken = () => {
+    if (!editingSpintaxToken) return;
+    setDraftHtml((current) =>
+      replaceTokenOccurrence(
+        current,
+        editingSpintaxToken.token,
+        "",
+        editingSpintaxToken.occurrenceIndex
+      )
+    );
+    setEditingSpintaxToken(null);
+    setSpintaxModalOpen(false);
+  };
+
   const startSimpleEditor = () => {
-    setDraftHtml("<p></p>");
+    setDraftHtml(textToSimpleEditorHtml(draftHtml));
     setDraftBodyEditor("simple");
     setRightPanel("simple");
     toast.success("Rich text editor");
@@ -445,30 +802,6 @@ export default function CreateEmailModal({
     });
     onOpenChange(false);
     toast.success("Email saved to campaign");
-  };
-
-  const handleSuggestSpintax = () => {
-    if (!draftUseSpintax) {
-      toast.error("Enable Recommended spintax first");
-      return;
-    }
-    if (!draftHtml.trim()) {
-      toast.error("Add email content first");
-      return;
-    }
-
-    const { output, replacements } = applyRecommendedSpintaxToHtml(draftHtml, {
-      packId: draftSpintaxPackId,
-      strictGrammarMode: draftStrictGrammarMode,
-    });
-
-    if (replacements === 0) {
-      toast("No matching words found for this pack");
-      return;
-    }
-
-    setDraftHtml(output);
-    toast.success(`Added ${replacements} spintax variation${replacements > 1 ? "s" : ""}`);
   };
 
   const handleSaveTemplate = async () => {
@@ -730,7 +1063,7 @@ export default function CreateEmailModal({
   );
 
   const composerSetupBar = (
-    <div className="flex-shrink-0 border-b border-border bg-bg-200 px-3 py-2">
+    <div className="flex-shrink-0 border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-blue-50/60 px-4 py-3">
       <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
         <div className="space-y-1">
           <Label htmlFor="modal-email-subject" className="text-[11px] font-medium text-text-300">
@@ -757,25 +1090,48 @@ export default function CreateEmailModal({
             className="h-9 bg-bg-100 text-sm"
           />
         </div>
-        <div className="relative flex items-end" ref={variablePanelRef}>
+        <div className="relative flex flex-wrap items-end justify-end gap-2" ref={variablePanelRef}>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="h-9 gap-1.5"
+            className="h-9 gap-1.5 border-blue-200 bg-white text-blue-700 hover:bg-blue-50"
+            onPointerDownCapture={captureComposerSelection}
             onClick={() => setShowVariablePanel(!showVariablePanel)}
           >
             <Plus className="h-3.5 w-3.5" />
-            Add personalization
+            Personalize
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 gap-1.5 border-blue-200 bg-white text-blue-700 hover:bg-blue-50"
+            onPointerDownCapture={captureComposerSelection}
+            onClick={() => openFallbackModal()}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Fallback
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 gap-1.5 border-violet-200 bg-white text-violet-700 hover:bg-violet-50"
+            onPointerDownCapture={captureComposerSelection}
+            onClick={() => openSpintaxModal()}
+          >
+            <Dices className="h-3.5 w-3.5" />
+            Spintax
           </Button>
           {showVariablePanel && (
-            <div className="absolute right-0 top-full z-50 mt-1 flex max-h-80 w-72 flex-col rounded-lg border border-border bg-bg-200 shadow-lg">
+            <div className="absolute right-0 top-full z-50 mt-1 flex max-h-80 w-80 flex-col rounded-xl border border-slate-200 bg-white shadow-2xl">
               <div className="border-b border-border p-2">
                 <p className="mb-1 text-[11px] font-semibold text-text-100">
-                  Add variables, fallbacks, and conditionals
+                  Add personalization chips
                 </p>
                 <p className="mb-2 text-[10px] leading-relaxed text-text-300">
-                  Example: <code className="text-brand-main">{"{{first_name | there}}"}</code>
+                  These render as chips in the editor and save as merge tags.
                 </p>
                 <div className="relative">
                   <Search
@@ -806,7 +1162,9 @@ export default function CreateEmailModal({
                         }}
                         className="w-full rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-brand-main/10"
                       >
-                        <code className="font-mono text-brand-main">{variable}</code>
+                        <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 font-semibold text-blue-700">
+                          {variable.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "").replace(/[_-]+/g, " ")}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -815,102 +1173,12 @@ export default function CreateEmailModal({
                 )}
               </div>
               <div className="border-t border-border bg-bg-100/80 px-2 py-1.5 text-[10px] text-text-300">
-                Pro tip: <code className="text-brand-main">{"{{#if first_name}}...{{else}}...{{/if}}"}</code>{" "}
-                avoids awkward empty greetings.
+                Use Fallback for safe greetings like “First name · there”.
               </div>
             </div>
           )}
         </div>
       </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <label className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-border bg-bg-100 px-2.5 text-xs text-text-200">
-          <input
-            type="checkbox"
-            checked={draftUseSpintax}
-            onChange={(e) => setDraftUseSpintax(e.target.checked)}
-            className="h-4 w-4 rounded border-brand-main/30 text-brand-main focus:ring-brand-main"
-          />
-          <span className="font-medium text-text-100">Recommended spintax</span>
-        </label>
-        <label className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-bg-100 px-2.5 text-xs text-text-200">
-          Industry pack
-          <select
-            value={draftSpintaxPackId}
-            onChange={(e) => setDraftSpintaxPackId(e.target.value as SpintaxPackId)}
-            className="h-6 rounded border border-border bg-white px-2 text-xs text-text-100 focus:outline-none focus:ring-1 focus:ring-brand-main"
-            disabled={!draftUseSpintax}
-          >
-            {SPINTAX_PACKS.map((pack) => (
-              <option key={pack.id} value={pack.id}>
-                {pack.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-border bg-bg-100 px-2.5 text-xs text-text-200">
-          <input
-            type="checkbox"
-            checked={draftStrictGrammarMode}
-            onChange={(e) => setDraftStrictGrammarMode(e.target.checked)}
-            className="h-4 w-4 rounded border-brand-main/30 text-brand-main focus:ring-brand-main"
-            disabled={!draftUseSpintax}
-          />
-          Strict grammar mode
-        </label>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-8 gap-1.5"
-          disabled={!draftUseSpintax}
-          onClick={handleSuggestSpintax}
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-          Suggest spintax
-        </Button>
-      </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-brand-main/20 bg-brand-main/5 px-2.5 py-1.5 text-[11px] leading-none text-text-200">
-        <span className="font-semibold text-text-100">Personalize:</span>
-        <code className="rounded bg-white px-1 py-0.5 text-brand-main">{"{{first_name}}"}</code>
-        <code className="rounded bg-white px-1 py-0.5 text-brand-main">
-          {"{{first_name | there}}"}
-        </code>
-        <code className="max-w-full truncate rounded bg-white px-1 py-0.5 text-brand-main">
-          {"{{#if first_name}}Hi {{first_name}},{{else}}Hello,{{/if}}"}
-        </code>
-      </div>
-
-      {draftUseSpintax ? (
-        <Accordion type="single" collapsible className="mt-1">
-          <AccordionItem value="spintax-options" className="border-b-0">
-            <AccordionTrigger className="py-1.5 text-[11px] font-semibold text-text-200 hover:no-underline">
-              Show spintax suggestions ({spintaxSuggestions.length})
-            </AccordionTrigger>
-            <AccordionContent className="pb-0 pt-1">
-              <div className="grid max-h-24 gap-1 overflow-y-auto rounded-md border border-border bg-bg-300/30 p-1.5 md:grid-cols-2">
-                {spintaxSuggestions.map((suggestion) => (
-                  <div
-                    key={`${suggestion.packId}-${suggestion.category}-${suggestion.trigger}`}
-                    className="rounded border border-border/60 bg-bg-200/80 px-2 py-1"
-                  >
-                    <p className="text-[10px] font-medium uppercase tracking-wide text-text-300">
-                      {suggestion.packLabel} - {suggestion.category}
-                    </p>
-                    <p className="text-[11px] text-text-200">
-                      Trigger: <span className="font-medium text-text-100">{suggestion.trigger}</span>
-                    </p>
-                    <code className="block break-words text-[11px] text-brand-main">
-                      {suggestion.spintax}
-                    </code>
-                  </div>
-                ))}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      ) : null}
     </div>
   );
 
@@ -937,6 +1205,19 @@ export default function CreateEmailModal({
           <Save className="h-3.5 w-3.5" />
           Save as template
         </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1"
+          onClick={() => {
+            setInboxPreviewLeadIndex(0);
+            setInboxPreviewOpen(true);
+          }}
+        >
+          <Eye className="h-3.5 w-3.5" />
+          Preview
+        </Button>
         <Button type="button" size="sm" className="bg-brand-main px-4" onClick={handleApplyToCampaign}>
           Apply to campaign
         </Button>
@@ -948,7 +1229,7 @@ export default function CreateEmailModal({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="flex h-[92vh] max-h-[940px] w-[98vw] max-w-[1320px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[1320px]">
-          <DialogHeader className="flex-shrink-0 border-b border-border bg-bg-200 px-6 py-4 text-left">
+          <DialogHeader className="flex-shrink-0 border-b border-border bg-bg-200 px-6 py-2 text-left">
             <DialogTitle className="text-xl font-bold tracking-tight text-text-100">
               {rightPanel === "browse" ? "Create an email" : "Edit email"}
             </DialogTitle>
@@ -1019,7 +1300,11 @@ export default function CreateEmailModal({
                   <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                     {composerSetupBar}
                     <div className="min-h-0 flex-1 overflow-y-auto bg-bg-200">
-                      <DesignEditor htmlContent={draftHtml} onHtmlContentChange={setDraftHtml} />
+                      <DesignEditor
+                        htmlContent={draftHtml}
+                        onHtmlContentChange={setDraftHtml}
+                        onTokenClick={handleEditorTokenClick}
+                      />
                     </div>
                   </div>
                   {composerFooter}
@@ -1032,6 +1317,7 @@ export default function CreateEmailModal({
                       <HtmlEditorWithPreview
                         htmlContent={draftHtml}
                         onHtmlContentChange={setDraftHtml}
+                        onTokenClick={handleEditorTokenClick}
                       />
                     </div>
                   </div>
@@ -1058,6 +1344,120 @@ export default function CreateEmailModal({
         </DialogContent>
       </Dialog>
 
+      <Dialog open={inboxPreviewOpen} onOpenChange={setInboxPreviewOpen}>
+        <DialogContent className="flex max-h-[min(88vh,640px)] w-[min(100vw-1.25rem,28rem)] max-w-md flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+          <DialogTitle className="sr-only">Email preview with sample recipient</DialogTitle>
+
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-3 pt-3">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                From
+              </Label>
+              <Input
+                readOnly
+                tabIndex={-1}
+                className="h-9 cursor-default border-slate-200 bg-slate-50 text-xs text-slate-600"
+                value="Your verified sender (LeadSnipper)"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                To (sample)
+              </Label>
+              <div className="flex gap-1.5">
+                <Select
+                  value={String(inboxPreviewLeadIndex)}
+                  onValueChange={(v) => setInboxPreviewLeadIndex(Number(v))}
+                >
+                  <SelectTrigger className="h-9 min-w-0 flex-1 text-xs">
+                    <SelectValue placeholder="Recipient" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PREVIEW_SAMPLE_LEADS.map((sample, i) => (
+                      <SelectItem key={i} value={String(i)}>
+                        {sample.name ||
+                          `${sample.firstName || sample.first_name} ${sample.lastName || sample.last_name}`.trim()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex shrink-0 rounded-md border border-slate-200">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-none rounded-l-md"
+                    aria-label="Previous sample recipient"
+                    onClick={() => shiftInboxPreviewLead(-1)}
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-none rounded-r-md border-l border-slate-200"
+                    aria-label="Next sample recipient"
+                    onClick={() => shiftInboxPreviewLead(1)}
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white">
+              <div className="border-b border-slate-100 px-3 py-2.5">
+                <p className="text-xs leading-snug text-slate-800">
+                  <span className="text-slate-400">To </span>
+                  <span className="font-medium text-slate-900">
+                    {formatPreviewRecipientLine(inboxPreviewLead)}
+                  </span>
+                </p>
+                <p className="mt-1.5 text-sm font-semibold leading-snug text-slate-900">
+                  <span className="mr-1.5 text-xs font-normal text-slate-400">Subject </span>
+                  {inboxPreviewResolved.subject.trim() || "(no subject)"}
+                </p>
+                {inboxPreviewResolved.previewText.trim() ? (
+                  <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                    <span className="text-slate-400">Preheader </span>
+                    {inboxPreviewResolved.previewText}
+                  </p>
+                ) : null}
+              </div>
+              <div className="bg-slate-50 p-1.5">
+                <iframe
+                  title="Resolved email body preview"
+                  className="h-[min(38vh,320px)] w-full min-h-[160px] rounded-md bg-white [scrollbar-width:thin]"
+                  sandbox="allow-same-origin"
+                  srcDoc={wrapEmailPreviewDocument(
+                    inboxPreviewResolved.html.trim()
+                      ? inboxPreviewResolved.html
+                      : '<p style="margin:0;padding:16px;font-size:13px;line-height:1.5;color:#94a3b8;font-family:system-ui,sans-serif;">No body content yet.</p>',
+                    false
+                  )}
+                />
+              </div>
+            </div>
+
+            <p className="text-center text-[10px] text-slate-500">
+              Reply &quot;Stop&quot; to opt out.
+            </p>
+          </div>
+
+          <DialogFooter className="border-t border-slate-100 px-4 py-2 sm:justify-end">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setInboxPreviewOpen(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen}>
         <DialogContent>
           <DialogHeader>
@@ -1079,6 +1479,168 @@ export default function CreateEmailModal({
             </Button>
             <Button type="button" onClick={handleSaveTemplate} disabled={savingTemplate}>
               {savingTemplate ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={fallbackModalOpen}
+        onOpenChange={(nextOpen) => {
+          setFallbackModalOpen(nextOpen);
+          if (!nextOpen) {
+            setEditingFallbackToken(null);
+            pendingReplaceSelectionRef.current = false;
+            pendingHtmlSelectionRangeRef.current = null;
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl border-slate-200 bg-white p-0 sm:max-w-xl">
+          <DialogHeader className="border-b border-slate-100 px-6 py-5">
+            <DialogTitle className="flex items-center gap-2 text-2xl font-bold text-slate-900">
+              <Sparkles className="h-6 w-6 text-blue-600" />
+              {editingFallbackToken ? "Edit Fallback Text" : "Add Fallback Text"}
+            </DialogTitle>
+            <DialogDescription className="text-left text-base leading-relaxed text-slate-600">
+              Choose what should appear if a recipient is missing this field.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 px-6 py-5">
+            <div className="space-y-2">
+              <Label htmlFor="fallback-variable">Personalization field</Label>
+              <select
+                id="fallback-variable"
+                value={fallbackVariable}
+                onChange={(e) => setFallbackVariable(e.target.value)}
+                className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                {mergeTags.map((variable) => (
+                  <option key={variable} value={variable}>
+                    {variable.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "").replace(/[_-]+/g, " ")}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="fallback-text">Fallback text</Label>
+              <Input
+                id="fallback-text"
+                value={fallbackText}
+                onChange={(e) => setFallbackText(e.target.value)}
+                placeholder="Optional, e.g. there"
+                className="h-11 border-slate-200 bg-white text-base"
+              />
+            </div>
+            <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+              Preview:{" "}
+              <span className="inline-flex rounded-full border border-blue-200 bg-white px-2 py-1 font-semibold text-blue-700">
+                {fallbackVariable.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "").replace(/[_-]+/g, " ")} · {fallbackText || "fallback"}
+              </span>
+            </div>
+          </div>
+          <DialogFooter className="border-t border-slate-100 px-6 py-4">
+            <Button type="button" variant="outline" onClick={() => setFallbackModalOpen(false)}>
+              Cancel
+            </Button>
+            {editingFallbackToken ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                onClick={handleRemoveFallbackToken}
+              >
+                Remove
+              </Button>
+            ) : null}
+            <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={handleInsertFallback}>
+              {editingFallbackToken ? "Update" : "Add"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={spintaxModalOpen}
+        onOpenChange={(nextOpen) => {
+          setSpintaxModalOpen(nextOpen);
+          if (!nextOpen) {
+            setEditingSpintaxToken(null);
+            pendingReplaceSelectionRef.current = false;
+            pendingHtmlSelectionRangeRef.current = null;
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl border-slate-200 bg-white p-0 sm:max-w-xl">
+          <DialogHeader className="border-b border-slate-100 px-6 py-5">
+            <DialogTitle className="flex items-center gap-2 text-2xl font-bold text-slate-900">
+              <Dices className="h-6 w-6 text-violet-600" />
+              {editingSpintaxToken ? "Edit Spintax" : "Add Spintax"}
+            </DialogTitle>
+            <DialogDescription className="text-left text-base leading-relaxed text-slate-600">
+              Add alternate phrases. The editor shows one chip, and campaign sending keeps the spintax syntax.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 px-6 py-5">
+            {manualSpintaxOptions.map((option, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <Input
+                  value={option}
+                  onChange={(e) =>
+                    setManualSpintaxOptions((items) =>
+                      items.map((item, itemIndex) =>
+                        itemIndex === index ? e.target.value : item
+                      )
+                    )
+                  }
+                  placeholder={`Option ${index + 1}`}
+                  className="h-11 border-slate-200 bg-white text-base"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-10 w-10 px-0 text-slate-400 hover:text-slate-700"
+                  onClick={() =>
+                    setManualSpintaxOptions((items) =>
+                      items.length > 2 ? items.filter((_, itemIndex) => itemIndex !== index) : items
+                    )
+                  }
+                  aria-label="Remove spintax option"
+                >
+                  ×
+                </Button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="ghost"
+              className="px-0 font-semibold text-slate-800 hover:bg-transparent hover:text-violet-700"
+              onClick={() => setManualSpintaxOptions((items) => [...items, ""])}
+            >
+              + Add Spin
+            </Button>
+            <div className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+              Preview:{" "}
+              <span className="inline-flex rounded-full border border-violet-200 bg-white px-2 py-1 font-semibold text-violet-700">
+                spin {manualSpintaxOptions.filter(Boolean).join(" · ") || "Option A · Option B"}
+              </span>
+            </div>
+          </div>
+          <DialogFooter className="border-t border-slate-100 px-6 py-4">
+            <Button type="button" variant="outline" onClick={() => setSpintaxModalOpen(false)}>
+              Cancel
+            </Button>
+            {editingSpintaxToken ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                onClick={handleRemoveSpintaxToken}
+              >
+                Remove
+              </Button>
+            ) : null}
+            <Button type="button" className="bg-violet-600 text-white hover:bg-violet-700" onClick={handleInsertManualSpintax}>
+              {editingSpintaxToken ? "Update" : "Insert"}
             </Button>
           </DialogFooter>
         </DialogContent>

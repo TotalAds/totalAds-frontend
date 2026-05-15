@@ -11,6 +11,7 @@ import BulkUploadProgressBanner from "@/components/leads/BulkUploadProgressBanne
 import ContactPlanLimitBanner from "@/components/leads/ContactPlanLimitBanner";
 // import LeadFilterModal from "@/components/leads/LeadFilterModal"; // Removed - using AG Grid built-in filters
 import { LeadVerificationModal } from "@/components/leads/LeadVerificationModal";
+import { BodyPortal } from "@/components/ui/BodyPortal";
 import emailClient, {
   Campaign,
   checkActiveBulkUploadJobs,
@@ -960,7 +961,8 @@ export default function LeadsPage() {
         {selectedLeadForCampaigns &&
           selectedLeadForCampaigns.campaigns &&
           selectedLeadForCampaigns.campaigns.length > 0 && (
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <BodyPortal>
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
               <div className="bg-gradient-to-br from-bg-200 to-bg-300 border border-brand-main/20 rounded-2xl p-6 max-w-md w-full shadow-2xl">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-text-100">
@@ -1012,11 +1014,13 @@ export default function LeadsPage() {
                 </div>
               </div>
             </div>
+            </BodyPortal>
           )}
 
         {/* Start Campaign Modal */}
         {showStartCampaignModal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <BodyPortal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
             <div className="bg-slate-900 border border-brand-main/20 rounded-2xl p-6 max-w-md w-full">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-text-100">
@@ -1084,6 +1088,7 @@ export default function LeadsPage() {
               </div>
             </div>
           </div>
+          </BodyPortal>
         )}
         <LeadVerificationModal
           isOpen={!!selectedLeadForVerification}

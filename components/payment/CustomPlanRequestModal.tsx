@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import toast from "react-hot-toast";
 
 import emailClient from "@/utils/api/emailClient";
+import { BodyPortal } from "@/components/ui/BodyPortal";
 
 interface CustomPlanRequestModalProps {
   isOpen: boolean;
@@ -97,7 +98,8 @@ export default function CustomPlanRequestModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+    <BodyPortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
       <div className="bg-bg-200 rounded-xl border border-brand-main/20 w-full max-w-lg max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-brand-main/10">
@@ -253,5 +255,6 @@ export default function CustomPlanRequestModal({
         </form>
       </div>
     </div>
+    </BodyPortal>
   );
 }

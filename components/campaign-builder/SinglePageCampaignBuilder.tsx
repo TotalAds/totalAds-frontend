@@ -35,6 +35,7 @@ import {
   getReoonStatus,
 } from "@/utils/api/reoonClient";
 
+import { BodyPortal } from "@/components/ui/BodyPortal";
 import { useEmailProvider } from "@/hooks/useEmailProvider";
 import ReoonApiKeyRequiredModal from "./ReoonApiKeyRequiredModal";
 import AICampaignGeneratorModal from "./AICampaignGeneratorModal";
@@ -1909,7 +1910,8 @@ export default function SinglePageCampaignBuilder({
                     </div>
 
                     {showSequenceCanvasModal && (
-                      <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/45 p-4">
+                      <BodyPortal>
+                      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-4">
                         <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
                           <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
                             <div>
@@ -1966,7 +1968,10 @@ export default function SinglePageCampaignBuilder({
 
                               <button
                                 type="button"
-                                onClick={() => setSelectedSequenceStepId(step.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedSequenceStepId(step.id);
+                                }}
                                 className={`absolute left-0 top-3 flex h-8 w-8 items-center justify-center rounded-full border text-[11px] font-semibold transition ${
                                   isActive
                                     ? "border-blue-300 bg-blue-100 text-blue-700"
@@ -1978,10 +1983,11 @@ export default function SinglePageCampaignBuilder({
                               </button>
 
                               <div
+                                onClick={() => setSelectedSequenceStepId(step.id)}
                                 className={`overflow-hidden rounded-xl border bg-white transition ${
                                   isActive
                                     ? "border-blue-300 shadow-[0_10px_25px_-20px_rgba(37,99,235,0.8)]"
-                                    : "border-slate-200"
+                                    : "cursor-pointer border-slate-200 hover:border-slate-300"
                                 }`}
                               >
                                 <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
@@ -1996,7 +2002,10 @@ export default function SinglePageCampaignBuilder({
                                   <div className="flex items-center gap-2">
                                     <button
                                       type="button"
-                                      onClick={() => setPreviewStepId(step.id)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPreviewStepId(step.id);
+                                      }}
                                       className="rounded-md border border-slate-200 p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
                                       aria-label={`Preview step ${index + 1}`}
                                     >
@@ -2015,7 +2024,10 @@ export default function SinglePageCampaignBuilder({
                                 </div>
 
                                 {isActive ? (
-                                  <div className="space-y-3 px-4 py-3">
+                                  <div
+                                    className="space-y-3 px-4 py-3"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
                                     <div className="grid gap-2 sm:grid-cols-2">
                                       <div>
                                         <label className="mb-1 block text-[11px] font-medium text-text-200">
@@ -2066,9 +2078,20 @@ export default function SinglePageCampaignBuilder({
                                     </div>
 
                                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                                      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                                        Template preview
-                                      </p>
+                                      <div className="flex items-start justify-between gap-2">
+                                        <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                                          Template preview
+                                        </p>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-7 shrink-0 border-slate-200 px-2 text-[11px]"
+                                          onClick={() => setSequenceEditorOpen(true)}
+                                        >
+                                          Edit template
+                                        </Button>
+                                      </div>
                                       <p className="mt-2 truncate text-sm font-semibold text-text-100">
                                         Subject: {step.subject || "Untitled"}
                                       </p>
@@ -2094,10 +2117,6 @@ export default function SinglePageCampaignBuilder({
                                         )}
                                       </div>
                                     </div>
-
-                                    <p className="text-[11px] text-text-200">
-                                      Edit email content from the sequence email editor modal.
-                                    </p>
                                   </div>
                                 ) : (
                                   <div className="flex items-center justify-between gap-3 px-4 py-3">
@@ -2108,9 +2127,13 @@ export default function SinglePageCampaignBuilder({
                                       type="button"
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => setSelectedSequenceStepId(step.id)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedSequenceStepId(step.id);
+                                        setSequenceEditorOpen(true);
+                                      }}
                                     >
-                                      Edit
+                                      Edit template
                                     </Button>
                                   </div>
                                 )}
@@ -2205,6 +2228,7 @@ export default function SinglePageCampaignBuilder({
                 </div>
               </div>
             </div>
+          </BodyPortal>
           )}
       </>
                 ) : (
@@ -3195,7 +3219,8 @@ export default function SinglePageCampaignBuilder({
       </main>
 
       {previewStep && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/55 p-4">
+        <BodyPortal>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4">
           <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
               <div>
@@ -3245,10 +3270,12 @@ export default function SinglePageCampaignBuilder({
             </div>
           </div>
         </div>
+        </BodyPortal>
       )}
 
       {showDiscardModal && (
-        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/55 p-4">
+        <BodyPortal>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/55 p-4">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
             <h3 className="text-base font-semibold text-text-100">Leave campaign builder?</h3>
             <p className="mt-2 text-sm text-text-200">
@@ -3275,6 +3302,7 @@ export default function SinglePageCampaignBuilder({
             </div>
           </div>
         </div>
+        </BodyPortal>
       )}
 
       <ReoonApiKeyRequiredModal

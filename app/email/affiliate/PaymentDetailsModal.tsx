@@ -4,6 +4,8 @@ import { useState } from "react";
 
 import { IconX } from "@tabler/icons-react";
 
+import { BodyPortal } from "@/components/ui/BodyPortal";
+
 interface PaymentDetails {
   hasPaymentDetails: boolean;
   paymentMethod: "upi" | "bank" | null;
@@ -73,7 +75,8 @@ export default function PaymentDetailsModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <BodyPortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
       <div className="bg-bg-200 border border-brand-main/20 rounded-xl w-full max-w-md">
         <div className="flex items-center justify-between p-4 border-b border-brand-main/10">
           <h3 className="text-lg font-semibold text-text-100">Payment Details</h3>
@@ -161,6 +164,7 @@ export default function PaymentDetailsModal({
         </form>
       </div>
     </div>
+    </BodyPortal>
   );
 }
 

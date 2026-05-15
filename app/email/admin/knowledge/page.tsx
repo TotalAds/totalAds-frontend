@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
+import { BodyPortal } from "@/components/ui/BodyPortal";
 import { useAuthContext } from "@/context/AuthContext";
 import {
   AIKnowledgeEntry,
@@ -300,7 +301,8 @@ export default function AIKnowledgeBasePage() {
       </div>
 
       {formOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <BodyPortal>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="bg-bg-200 border border-brand-main/20 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="px-5 py-4 border-b border-brand-main/10">
               <h2 className="text-lg font-semibold text-text-100">
@@ -378,6 +380,7 @@ export default function AIKnowledgeBasePage() {
             </div>
           </div>
         </div>
+        </BodyPortal>
       )}
     </div>
   );

@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 
 import CreatableSelect from "@/components/common/CreatableSelect";
 import { Button } from "@/components/ui/button";
+import { BodyPortal } from "@/components/ui/BodyPortal";
 import emailClient, {
   checkActiveBulkUploadJobs,
   ContactMetrics,
@@ -656,7 +657,8 @@ export default function BulkUploadModal({
     remainingSlots !== null && distinctEmailCount > remainingSlots;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <BodyPortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
       <div className="bg-gradient-to-br from-bg-200 to-bg-300 border border-brand-main/20 rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-text-100">
@@ -985,5 +987,6 @@ export default function BulkUploadModal({
         )}
       </div>
     </div>
+    </BodyPortal>
   );
 }

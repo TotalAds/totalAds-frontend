@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
+import { BodyPortal } from "@/components/ui/BodyPortal";
 import { useAuthContext } from "@/context/AuthContext";
 import { getBillingInfo } from "@/utils/api/billingClient";
 import {
@@ -490,7 +491,8 @@ const BillingSection = () => {
 
       {/* Cancel Subscription Modal */}
       {showCancelModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <BodyPortal>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
           <div className="bg-bg-200 border border-brand-main/20 rounded-xl p-6 max-w-md w-full shadow-2xl">
             <h3 className="text-xl font-bold text-text-100 mb-4">
               Cancel Subscription
@@ -552,6 +554,7 @@ const BillingSection = () => {
             </div>
           </div>
         </div>
+        </BodyPortal>
       )}
     </div>
   );
