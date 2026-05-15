@@ -29,6 +29,7 @@ import emailClient, {
   markLeadRepliedInCampaign,
   stopCampaign,
 } from "@/utils/api/emailClient";
+import { buildCampaignBuilderHref } from "@/utils/campaignBuilder";
 import { exportLeadsnipperCampaignReportPDF } from "@/utils/pdfExport";
 
 interface CampaignAnalytics {
@@ -435,10 +436,14 @@ export default function CampaignDetailsPage() {
     ["draft", "sending", "scheduled", "verifying_leads", "paused", "verification_failed"].includes(
       campaignStatusNorm
     );
-  const sequenceEditHref =
-    isSequenceCampaign && campaign.domainId
-      ? `/email/campaigns/builder?domainId=${campaign.domainId}&id=${campaign.id}&liveSequenceEdit=1`
-      : null;
+  const campaignEditHref = campaign.domainId
+    ? buildCampaignBuilderHref({
+        domainId: campaign.domainId,
+        campaignId: campaign.id,
+        mode: isSequenceCampaign ? "sequence" : "single",
+        liveSequenceEdit: isSequenceCampaign,
+      })
+    : null;
   const mappedSteps =
     analytics.sequenceSteps?.map((step) => {
       const hasSent = (step.sent || 0) > 0;
@@ -651,14 +656,7 @@ export default function CampaignDetailsPage() {
         trendData={trendData}
         onStopCampaign={canStopCampaign ? () => setStopDialogOpen(true) : undefined}
         onEditCampaign={
-          sequenceEditHref
-            ? () => router.push(sequenceEditHref)
-            : campaign.domainId
-            ? () =>
-                router.push(
-                  `/email/campaigns/builder?domainId=${campaign.domainId}&id=${campaign.id}`
-                )
-            : undefined
+          campaignEditHref ? () => router.push(campaignEditHref) : undefined
         }
         onDownloadReport={() => void handleDownloadFullReport()}
         onBack={() => router.push("/email/campaigns")}

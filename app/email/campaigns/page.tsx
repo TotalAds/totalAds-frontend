@@ -16,6 +16,10 @@ import {
   getDomains,
 } from "@/utils/api/emailClient";
 import { tokenStorage } from "@/utils/auth/tokenStorage";
+import {
+  buildCampaignBuilderHref,
+  getCampaignBuilderMode,
+} from "@/utils/campaignBuilder";
 
 export default function CampaignsPage() {
   const router = useRouter();
@@ -174,7 +178,11 @@ export default function CampaignsPage() {
             campaign.status
           ) ? (
             <Link
-              href={`/email/campaigns/builder?domainId=${campaign.domainId}&id=${campaign.id}`}
+              href={buildCampaignBuilderHref({
+                domainId: campaign.domainId,
+                campaignId: campaign.id,
+                sequence: campaign.sequence,
+              })}
             >
               <Button className="bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-md font-medium transition border border-slate-200">
                 {campaign.status === "scheduled" ? "Review & send" : "Edit"}
@@ -236,10 +244,8 @@ export default function CampaignsPage() {
   };
 
   // AG Grid Column Definitions
-  const getCampaignType = (campaign: Campaign): "single" | "sequence" => {
-    const sequenceLength = Array.isArray(campaign.sequence) ? campaign.sequence.length : 0;
-    return sequenceLength > 1 ? "sequence" : "single";
-  };
+  const getCampaignType = (campaign: Campaign) =>
+    getCampaignBuilderMode(campaign.sequence);
 
   const filteredCampaigns = campaigns.filter((campaign) => {
     if (campaignTypeFilter === "all") return true;

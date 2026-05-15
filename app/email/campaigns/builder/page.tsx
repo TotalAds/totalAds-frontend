@@ -1,12 +1,14 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { ArrowRight, Mail, Workflow } from "lucide-react";
 
 import SinglePageCampaignBuilder from "@/components/campaign-builder/SinglePageCampaignBuilder";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { getCampaignById } from "@/utils/api/emailClient";
+import { getCampaignBuilderMode } from "@/utils/campaignBuilder";
 
 function CampaignBuilderContent() {
   const router = useRouter();
@@ -14,6 +16,40 @@ function CampaignBuilderContent() {
   const initialDomainId = searchParams.get("domainId") || "";
   const existingCampaignId = searchParams.get("id") || undefined;
   const mode = searchParams.get("mode");
+  const [resolvingEditMode, setResolvingEditMode] = useState(
+    () => !mode && !!existingCampaignId && !!initialDomainId
+  );
+
+  useEffect(() => {
+    if (mode || !existingCampaignId || !initialDomainId) {
+      setResolvingEditMode(false);
+      return;
+    }
+
+    let cancelled = false;
+    setResolvingEditMode(true);
+
+    getCampaignById(initialDomainId, existingCampaignId)
+      .then((campaign) => {
+        if (cancelled) return;
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("mode", getCampaignBuilderMode(campaign.sequence));
+        router.replace(`/email/campaigns/builder?${params.toString()}`);
+      })
+      .catch(() => {
+        if (!cancelled) setResolvingEditMode(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    mode,
+    existingCampaignId,
+    initialDomainId,
+    router,
+    searchParams,
+  ]);
 
   const handleCancel = () => {
     router.push("/email/campaigns");
@@ -22,6 +58,14 @@ function CampaignBuilderContent() {
   const handleSuccess = () => {
     router.push("/email/campaigns");
   };
+
+  if (resolvingEditMode) {
+    return (
+      <div className="min-h-screen bg-bg-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-main" />
+      </div>
+    );
+  }
 
   if (mode === "single") {
     return (
