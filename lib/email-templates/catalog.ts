@@ -1140,7 +1140,7 @@ export const READY_TO_USE_EMAIL_TEMPLATES: BuiltInEmailTemplate[] = [
                     <td style="padding:18px 18px 18px 12px;font-family:${FONT};
                                font-size:14px;color:#374151;">
                       <strong style="color:#0f172a;">Book a quick tour</strong><br/>
-                      15-minute call. We'll show you around personally.
+                      30-minute call. We'll show you around personally.
                     </td>
                   </tr>
                 </table>
@@ -1522,7 +1522,7 @@ export const READY_TO_USE_EMAIL_TEMPLATES: BuiltInEmailTemplate[] = [
         <td style="padding:24px 40px 0;">
           <p style="margin:0 0 16px;font-family:${FONT};font-size:15px;
                     line-height:1.8;color:#374151;">
-            Worth a 15-minute call this week?
+            Worth a 30-minute call this week?
           </p>
           ${pillBtn("Book a quick call")}
         </td>
