@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 import {
@@ -18,6 +18,7 @@ import {
 	getProfileMemory,
 	getSocialAccess,
 	saveMemoryOnboarding,
+	uploadBrandLogo,
 } from "@/utils/api/socialClient";
 
 const DRAFT_KEY = "social_memory_onboarding_draft_v2";
@@ -101,6 +102,10 @@ type Form = {
 	forbiddenPhrasesRaw: string;
 	writingPreferences: string;
 	founderProfile: string;
+	// Brand recognition fields (v1.1)
+	instagramHandle: string;
+	brandLogoUrl: string;
+	brandLogoFile: File | null;
 };
 
 const initialForm: Form = {
@@ -128,6 +133,10 @@ const initialForm: Form = {
 	forbiddenPhrasesRaw: "",
 	writingPreferences: "",
 	founderProfile: "",
+	// Brand recognition fields (v1.1)
+	instagramHandle: "",
+	brandLogoUrl: "",
+	brandLogoFile: null,
 };
 
 export default function MemoryOnboardingPage() {
@@ -241,6 +250,9 @@ export default function MemoryOnboardingPage() {
 						Array.isArray(map.get("tone_keywords")) && !prev.toneTags.length
 							? (map.get("tone_keywords") as string[])
 							: prev.toneTags,
+					// Brand recognition fields (v1.1)
+					instagramHandle: String(map.get("instagram_handle") ?? prev.instagramHandle).replace(/^@/, ""),
+					brandLogoUrl: String(map.get("brand_logo_url") ?? prev.brandLogoUrl),
 				}));
 			} catch (error) {
 				if (!cancelled) {
@@ -345,6 +357,28 @@ export default function MemoryOnboardingPage() {
 	const onSave = async () => {
 		try {
 			setSaving(true);
+
+			// Upload logo if a file is selected
+			let brandLogoUrl = form.brandLogoUrl;
+			if (form.brandLogoFile) {
+				const reader = new FileReader();
+				const base64Promise = new Promise<string>((resolve) => {
+					reader.onload = () => {
+						const base64 = (reader.result as string)?.split(",")[1] || "";
+						resolve(base64);
+					};
+				});
+				reader.readAsDataURL(form.brandLogoFile);
+				const base64Data = await base64Promise;
+
+				const uploadResult = await uploadBrandLogo({
+					fileName: form.brandLogoFile.name,
+					mimeType: form.brandLogoFile.type as "image/png" | "image/jpeg" | "image/jpg" | "image/webp",
+					dataBase64: base64Data,
+				});
+				brandLogoUrl = uploadResult.publicUrl;
+			}
+
 			await saveMemoryOnboarding({
 				founderName: form.founderName || "Founder",
 				companyName: form.companyName || undefined,
@@ -369,6 +403,9 @@ export default function MemoryOnboardingPage() {
 				forbiddenPhrases: toList(form.forbiddenPhrasesRaw),
 				brandTone: form.toneTags.join(", ") || undefined,
 				userGoals: form.goalTags.join(", ") || undefined,
+				// Brand recognition fields (v1.1)
+				instagramHandle: form.instagramHandle || undefined,
+				brandLogoUrl: brandLogoUrl || undefined,
 			});
 			localStorage.removeItem(DRAFT_KEY);
 			toast.success("AI Brand Brain saved");
@@ -474,6 +511,38 @@ function BasicsStep({
 	update: <K extends keyof Form>(key: K, value: Form[K]) => void;
 	onQuickSkip: () => void;
 }) {
+	const fileInputRef = useRef<HTMLInputElement>(null);
+
+	const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (!file) return;
+
+		// Validate file type
+		if (!file.type.startsWith("image/")) {
+			toast.error("Please upload an image file");
+			return;
+		}
+
+		// Validate file size (max 8MB)
+		if (file.size > 8 * 1024 * 1024) {
+			toast.error("Logo image must be under 8MB");
+			return;
+		}
+
+		update("brandLogoFile", file);
+
+		// Create preview URL
+		const reader = new FileReader();
+		reader.onload = () => {
+			update("brandLogoUrl", reader.result as string);
+		};
+		reader.readAsDataURL(file);
+	};
+
+	const normalizeInstagram = (handle: string): string => {
+		return handle.replace(/^@/, "").trim();
+	};
+
 	return (
 		<div className="space-y-4">
 			<SectionTitle
@@ -481,7 +550,7 @@ function BasicsStep({
 				description="Add just a few details, then AI prepares a full first draft of your brand memory."
 			/>
 			<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-				<Input label="Founder name" value={form.founderName} onChange={(v) => update("founderName", v)} placeholder="e.g. Rehan Qureshi" />
+				<Input label="Founder name *" value={form.founderName} onChange={(v) => update("founderName", v)} placeholder="e.g. Rehan Qureshi" />
 				<Input label="Company name" value={form.companyName} onChange={(v) => update("companyName", v)} placeholder="e.g. TotalAds" />
 				<Input label="Product name" value={form.productName} onChange={(v) => update("productName", v)} placeholder="e.g. SocialSnipper" />
 				<Input label="Website" value={form.website} onChange={(v) => update("website", v)} placeholder="https://..." />
@@ -499,6 +568,77 @@ function BasicsStep({
 					placeholder="Who you want to reach"
 				/>
 			</div>
+
+			{/* Brand Recognition Section (v1.1) */}
+			<div className="mt-6 border-t border-slate-200 pt-6">
+				<SectionTitle
+					title="Brand Recognition (optional)"
+					description="Add your logo and social handles for better brand awareness."
+				/>
+				<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+					{/* Logo Upload */}
+					<div className="space-y-2">
+						<p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Brand Logo</p>
+						<div className="flex items-center gap-3">
+							{form.brandLogoUrl ? (
+								<div className="relative">
+									<img
+										src={form.brandLogoUrl}
+										alt="Brand logo preview"
+										className="h-16 w-16 rounded-lg border border-slate-200 object-cover"
+									/>
+									<button
+										type="button"
+										onClick={() => {
+											update("brandLogoUrl", "");
+											update("brandLogoFile", null);
+										}}
+										className="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white hover:bg-red-600"
+									>
+										<svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+										</svg>
+									</button>
+								</div>
+							) : (
+								<button
+									type="button"
+									onClick={() => fileInputRef.current?.click()}
+									className="flex h-16 w-16 items-center justify-center rounded-lg border-2 border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50"
+								>
+									<svg className="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+									</svg>
+								</button>
+							)}
+							<div className="flex-1">
+								<p className="text-sm text-slate-600">
+									{form.brandLogoUrl ? "Logo selected" : "Upload your brand logo"}
+								</p>
+								<p className="text-xs text-slate-400">PNG, JPG, or WebP. Max 8MB.</p>
+							</div>
+							<input
+								ref={fileInputRef}
+								type="file"
+								accept="image/png,image/jpeg,image/jpg,image/webp"
+								onChange={handleLogoUpload}
+								className="hidden"
+							/>
+						</div>
+					</div>
+
+					{/* Instagram Handle */}
+					<div>
+						<Input
+							label="Instagram handle"
+							value={form.instagramHandle}
+							onChange={(v) => update("instagramHandle", normalizeInstagram(v))}
+							placeholder="@yourhandle"
+						/>
+					</div>
+				</div>
+			</div>
+
 			<InlineAlert
 				tone="info"
 				title="How AI autofill works"
@@ -699,6 +839,9 @@ function ReviewStep({ form }: { form: Form }) {
 		["Pillars", form.contentPillars.join(", ")],
 		["Preferred formats", form.postFormatPreference],
 		["CTA style", form.preferredCtaStyle],
+		// Brand recognition fields (v1.1)
+		["Instagram", form.instagramHandle ? `@${form.instagramHandle}` : ""],
+		["Brand Logo", form.brandLogoUrl ? "Uploaded" : ""],
 	];
 	return (
 		<div className="space-y-4">
@@ -711,6 +854,19 @@ function ReviewStep({ form }: { form: Form }) {
 					</div>
 				))}
 			</div>
+			{form.brandLogoUrl && (
+				<div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
+					<img
+						src={form.brandLogoUrl.startsWith("data:") ? form.brandLogoUrl : form.brandLogoUrl}
+						alt="Brand logo"
+						className="h-12 w-12 rounded-lg object-cover"
+					/>
+					<div>
+						<p className="text-sm font-medium text-slate-800">Brand Logo</p>
+						<p className="text-xs text-slate-500">Will be uploaded when you save</p>
+					</div>
+				</div>
+			)}
 			<InlineAlert tone="info" title="What happens next?" description="Post Studio and Copilot will use this context for hooks, format selection, CTA style, and natural product mentions." />
 		</div>
 	);

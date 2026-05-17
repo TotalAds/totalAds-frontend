@@ -1049,6 +1049,9 @@ export const saveMemoryOnboarding = async (payload: {
 	writingPreferences?: string;
 	contentPillars?: string[];
 	linkedinHeadline?: string;
+	// Brand recognition fields (v1.1)
+	instagramHandle?: string;
+	brandLogoUrl?: string;
 }) => {
 	const response = await socialClient.post("/api/v1/memory/onboarding", payload);
 	return response.data?.data as { keysWritten: number };
@@ -1084,6 +1087,124 @@ export const enrichMemoryFromWebsite = async (payload: {
 		summary?: string;
 		recommendedMissing?: string[];
 	};
+};
+
+// -----------------------------------------------------------------------
+// Memory.md & Agent.md (v1.1)
+// -----------------------------------------------------------------------
+
+export interface MemoryMarkdownResponse {
+	markdown: string;
+	charCount: number;
+	isTruncated: boolean;
+	editable?: boolean;
+	pageCount?: number;
+	currentPage?: number;
+	metadata: {
+		profileKeysCount: number;
+		customKeysCount?: number;
+		contactsIncluded: number;
+		brandLogoUrl?: string | null;
+		instagramHandle?: string | null;
+		source?: string;
+	};
+}
+
+export const getMemoryMarkdown = async (options?: {
+	view?: "paged" | "raw";
+	page?: number;
+	maxChars?: number;
+	maxContacts?: number;
+}): Promise<MemoryMarkdownResponse> => {
+	const response = await socialClient.get("/api/v1/memory/docs/memory", {
+		params: options,
+	});
+	return response.data?.data;
+};
+
+export const saveMemoryMarkdown = async (markdown: string): Promise<{
+	charCount: number;
+	keysWritten: number;
+	limit: number;
+}> => {
+	const response = await socialClient.post("/api/v1/memory/docs/memory", { markdown });
+	return response.data?.data;
+};
+
+export const regenerateMemoryMarkdown = async (): Promise<{
+	markdown: string;
+	charCount: number;
+	limit: number;
+}> => {
+	const response = await socialClient.post("/api/v1/memory/docs/memory/regenerate");
+	return response.data?.data;
+};
+
+export interface AgentDocumentResponse {
+	current: {
+		id: number;
+		content: string;
+		version: number;
+		charCount: number;
+		updatedAt: string;
+	};
+	history: Array<{
+		id: number;
+		version: number;
+		charCount: number;
+		createdAt: string;
+	}>;
+	canRestore: boolean;
+	template: string;
+	limit: number;
+}
+
+export const getAgentDocument = async (): Promise<AgentDocumentResponse> => {
+	const response = await socialClient.get("/api/v1/memory/docs/agent");
+	return response.data?.data;
+};
+
+export const saveAgentDocument = async (content: string): Promise<{
+	id: number;
+	version: number;
+	charCount: number;
+	limit: number;
+}> => {
+	const response = await socialClient.post("/api/v1/memory/docs/agent", { content });
+	return response.data?.data;
+};
+
+export const listAgentDocumentVersions = async (limit?: number): Promise<
+	Array<{
+		id: number;
+		version: number;
+		charCount: number;
+		createdAt: string;
+		isCurrent: boolean;
+	}>
+> => {
+	const response = await socialClient.get("/api/v1/memory/docs/agent/versions", {
+		params: { limit },
+	});
+	return response.data?.data;
+};
+
+export const restoreAgentDocumentVersion = async (versionId: number): Promise<{
+	newVersion: number;
+}> => {
+	const response = await socialClient.post("/api/v1/memory/docs/agent/restore", {
+		versionId,
+	});
+	return response.data?.data;
+};
+
+export const uploadBrandLogo = async (payload: {
+	fileName: string;
+	mimeType: "image/png" | "image/jpeg" | "image/jpg" | "image/webp";
+	dataBase64: string;
+}): Promise<{ publicUrl: string; key: string }> => {
+	const response = await socialClient.post("/api/v1/memory/logo", payload);
+	return response.data?.data;
 };
 
 // -----------------------------------------------------------------------

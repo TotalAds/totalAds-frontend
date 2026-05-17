@@ -17,12 +17,18 @@ import {
 } from "@/components/social/SocialUi";
 import {
 	getMemoryBrain,
+	getMemoryMarkdown,
+	regenerateMemoryMarkdown,
+	saveMemoryMarkdown,
 	type MemoryBrainPayload,
 	type MemoryBrainSection,
+	type MemoryMarkdownResponse,
 	upsertMemory,
 } from "@/utils/api/socialClient";
 import { useEffect } from "react";
 import { IconBrain, IconSearch, IconSparkles } from "@tabler/icons-react";
+
+type ViewTab = "brain" | "markdown";
 
 export default function SocialMemoryPage() {
 	const [loading, setLoading] = useState(true);
@@ -35,17 +41,89 @@ export default function SocialMemoryPage() {
 		value: string;
 	} | null>(null);
 	const [saving, setSaving] = useState(false);
+	const [activeTab, setActiveTab] = useState<ViewTab>("brain");
+	const [markdownData, setMarkdownData] = useState<MemoryMarkdownResponse | null>(null);
+	const [markdownDraft, setMarkdownDraft] = useState("");
+	const [markdownLoading, setMarkdownLoading] = useState(false);
+	const [markdownSaving, setMarkdownSaving] = useState(false);
+	const MEMORY_MD_LIMIT = 4000;
 
 	const load = async () => {
 		try {
 			setLoading(true);
 			const data = await getMemoryBrain();
 			setBrain(data);
-			if (data.sections?.[0]?.id) setActiveSection((prev) => prev || data.sections[0].id);
+			if (data.sections?.[0]?.id) {
+				setActiveSection((prev) => {
+					if (prev && data.sections.some((s) => s.id === prev)) return prev;
+					return data.sections[0].id;
+				});
+			}
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to load memory brain");
 		} finally {
 			setLoading(false);
+		}
+	};
+
+	const loadMarkdown = async () => {
+		try {
+			setMarkdownLoading(true);
+			const data = await getMemoryMarkdown({ view: "raw" });
+			setMarkdownData(data);
+			setMarkdownDraft(data.markdown);
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Failed to load memory markdown");
+		} finally {
+			setMarkdownLoading(false);
+		}
+	};
+
+	const saveMarkdown = async () => {
+		if (markdownDraft.length > MEMORY_MD_LIMIT) {
+			toast.error(`Memory.md must be ${MEMORY_MD_LIMIT} characters or less`);
+			return;
+		}
+		try {
+			setMarkdownSaving(true);
+			await saveMemoryMarkdown(markdownDraft);
+			toast.success("Memory.md saved — brain cards updated");
+			await Promise.all([load(), loadMarkdown()]);
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Failed to save memory.md");
+		} finally {
+			setMarkdownSaving(false);
+		}
+	};
+
+	const resetMarkdownFromBrain = async () => {
+		try {
+			setMarkdownSaving(true);
+			const data = await regenerateMemoryMarkdown();
+			setMarkdownDraft(data.markdown);
+			setMarkdownData({
+				markdown: data.markdown,
+				charCount: data.charCount,
+				isTruncated: false,
+				editable: true,
+				metadata: {
+					profileKeysCount: 0,
+					contactsIncluded: 0,
+					source: "regenerated",
+				},
+			});
+			toast.success("Regenerated from current brain data");
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Failed to regenerate");
+		} finally {
+			setMarkdownSaving(false);
+		}
+	};
+
+	const handleTabChange = (tab: ViewTab) => {
+		setActiveTab(tab);
+		if (tab === "markdown" && !markdownData) {
+			loadMarkdown();
 		}
 	};
 
@@ -84,6 +162,7 @@ export default function SocialMemoryPage() {
 			setEditor(null);
 			toast.success("Memory updated");
 			await load();
+			if (activeTab === "markdown") await loadMarkdown();
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to update memory");
 		} finally {
@@ -105,28 +184,61 @@ export default function SocialMemoryPage() {
 								AI setup wizard
 							</PrimaryButton>
 						</Link>
-						<SecondaryButton onClick={load}>Refresh</SecondaryButton>
+						<Link href="/social/agent">
+							<SecondaryButton>Agent Instructions</SecondaryButton>
+						</Link>
+						<SecondaryButton onClick={() => { load(); if (activeTab === "markdown") loadMarkdown(); }}>
+							Refresh
+						</SecondaryButton>
 					</>
 				}
 			/>
 
-			{loading ? (
-				<LoadingCardGrid cards={3} />
-			) : !brain ? (
-				<SurfaceCard>
-					<EmptyState
-						icon={<IconBrain className="h-5 w-5" />}
-						title="No memory found yet"
-						description="Run the AI setup wizard to initialize your brand brain in under 3 minutes."
-						action={
-							<Link href="/social/memory/onboarding">
-								<PrimaryButton>Start AI setup</PrimaryButton>
-							</Link>
-						}
-					/>
-				</SurfaceCard>
-			) : (
-				<div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+			{/* View Tabs */}
+			<div className="mb-4 flex items-center gap-2 border-b border-slate-200">
+				<button
+					type="button"
+					onClick={() => handleTabChange("brain")}
+					className={`border-b-2 px-4 py-2 text-sm font-medium ${
+						activeTab === "brain"
+							? "border-blue-600 text-blue-600"
+							: "border-transparent text-slate-600 hover:text-slate-800"
+					}`}
+				>
+					Brain View
+				</button>
+				<button
+					type="button"
+					onClick={() => handleTabChange("markdown")}
+					className={`border-b-2 px-4 py-2 text-sm font-medium ${
+						activeTab === "markdown"
+							? "border-blue-600 text-blue-600"
+							: "border-transparent text-slate-600 hover:text-slate-800"
+					}`}
+				>
+					Memory.md
+				</button>
+			</div>
+
+			{activeTab === "brain" && (
+				<>
+					{loading ? (
+						<LoadingCardGrid cards={3} />
+					) : !brain ? (
+						<SurfaceCard>
+							<EmptyState
+								icon={<IconBrain className="h-5 w-5" />}
+								title="No memory found yet"
+								description="Run the AI setup wizard to initialize your brand brain in under 3 minutes."
+								action={
+									<Link href="/social/memory/onboarding">
+										<PrimaryButton>Start AI setup</PrimaryButton>
+									</Link>
+								}
+							/>
+						</SurfaceCard>
+					) : (
+						<div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
 					<SurfaceCard className="lg:col-span-3">
 						<SectionTitle
 							title="Brain health"
@@ -217,6 +329,88 @@ export default function SocialMemoryPage() {
 						) : null}
 					</SurfaceCard>
 				</div>
+					)}
+				</>
+			)}
+
+			{/* Markdown View */}
+			{activeTab === "markdown" && (
+				<SurfaceCard>
+					{markdownLoading ? (
+						<LoadingCardGrid cards={1} />
+					) : markdownData ? (
+						<div className="space-y-4">
+							<div className="flex flex-wrap items-center justify-between gap-2">
+								<SectionTitle
+									title="Memory.md"
+									description="Edit here to update brain cards. Extra fields go under ## Custom Memory in Brain View."
+								/>
+								<div className="flex flex-wrap items-center gap-2">
+									<span
+										className={`text-xs font-medium ${
+											markdownDraft.length > MEMORY_MD_LIMIT
+												? "text-red-600"
+												: "text-slate-500"
+										}`}
+									>
+										{markdownDraft.length.toLocaleString()} / {MEMORY_MD_LIMIT.toLocaleString()}{" "}
+										chars
+									</span>
+									<SecondaryButton onClick={resetMarkdownFromBrain} disabled={markdownSaving}>
+										Regenerate from brain
+									</SecondaryButton>
+									<SecondaryButton
+										onClick={() => {
+											navigator.clipboard.writeText(markdownDraft);
+											toast.success("Copied to clipboard");
+										}}
+									>
+										Copy
+									</SecondaryButton>
+									<PrimaryButton
+										onClick={saveMarkdown}
+										disabled={markdownSaving || markdownDraft.length > MEMORY_MD_LIMIT}
+									>
+										{markdownSaving ? "Saving..." : "Save memory.md"}
+									</PrimaryButton>
+								</div>
+							</div>
+
+							<InlineAlert
+								tone="info"
+								title="How editing works"
+								description="Standard ## Profile Memory fields map to brain cards. Add ## Custom Memory for extra keys (competitors, launch notes, etc.) — they appear in the Custom Memory tab."
+							/>
+
+							<textarea
+								value={markdownDraft}
+								onChange={(e) => setMarkdownDraft(e.target.value)}
+								rows={24}
+								className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm leading-relaxed text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+								placeholder="# AI Brand Memory"
+							/>
+
+							{markdownData.isTruncated && (
+								<InlineAlert
+									tone="info"
+									title="Content truncated"
+									description="Some content was truncated to stay within limits. Lower priority/older contacts were removed first."
+								/>
+							)}
+						</div>
+					) : (
+						<EmptyState
+							icon={<IconBrain className="h-5 w-5" />}
+							title="No memory data"
+							description="Complete the AI setup wizard to generate your memory.md view."
+							action={
+								<Link href="/social/memory/onboarding">
+									<PrimaryButton>Start AI setup</PrimaryButton>
+								</Link>
+							}
+						/>
+					)}
+				</SurfaceCard>
 			)}
 
 			{editor ? (
