@@ -50,7 +50,7 @@ export default function SocialPostsPage() {
 				status: filter === "all" ? undefined : filter,
 				limit: 200,
 			});
-			setPosts(data);
+			setPosts(data.filter((post) => post.contentPostFormat !== "article"));
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : "Failed to load posts");
 		} finally {

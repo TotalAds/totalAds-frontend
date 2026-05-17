@@ -366,6 +366,12 @@ export interface Campaign {
   description?: string;
   dailySendTime?: string;
   replyTo?: string;
+  attachment?: {
+    s3Key: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+  } | null;
   reoonVerificationSummary?: {
     verificationJobFailed?: boolean;
     errorMessage?: string;

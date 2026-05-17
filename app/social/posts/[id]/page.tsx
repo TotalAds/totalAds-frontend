@@ -98,6 +98,10 @@ export default function SocialPostDetailPage() {
 		try {
 			setLoading(true);
 			const data = await getPost(id);
+			if (data.post.contentPostFormat === "article") {
+				router.replace("/social/posts");
+				return;
+			}
 			const [ev, media] = await Promise.all([
 				listEntityEvents("post", id),
 				listPostMediaAssets(id),

@@ -80,6 +80,13 @@ interface CampaignState {
   replyTo?: string; // Optional comma-separated reply-to addresses
   useReplyTo: boolean; // Checkbox state for reply-to
   useAttachment: boolean; // Checkbox state for attachment
+  /** Attachment already stored (e.g. loaded draft); no local File required */
+  persistedAttachment?: {
+    s3Key: string;
+    fileName: string;
+    size?: number;
+    mimeType?: string;
+  } | null;
   selectedRecipients: {
     type: "list" | "filter" | "individual" | "csv";
     ids: string[];
@@ -286,6 +293,7 @@ export default function SinglePageCampaignBuilder({
     replyTo: "",
     useReplyTo: false,
     useAttachment: false,
+    persistedAttachment: null,
     selectedRecipients: {
       type: "individual",
       ids: [],
@@ -541,8 +549,16 @@ export default function SinglePageCampaignBuilder({
           dailySendTime?: string;
           replyTo?: string;
           leadIds?: string[];
+          attachment?: {
+            s3Key?: string;
+            fileName?: string;
+            size?: number;
+            mimeType?: string;
+          } | null;
           reoonVerificationSummary?: { verificationJobFailed?: boolean };
         };
+
+        const serverAtt = rawC.attachment;
 
         const loadedBody = seq?.body != null ? String(seq.body) : "";
         const hasBody = loadedBody.trim().length > 0;
@@ -575,6 +591,16 @@ export default function SinglePageCampaignBuilder({
           replyTo: rawC.replyTo || prev.replyTo,
           useReplyTo: Boolean(rawC.replyTo),
           senderIds: c.senderId ? [String(c.senderId)] : prev.senderIds,
+          useAttachment: Boolean(serverAtt?.s3Key),
+          persistedAttachment:
+            serverAtt?.s3Key && serverAtt.fileName
+              ? {
+                  s3Key: serverAtt.s3Key,
+                  fileName: serverAtt.fileName,
+                  size: serverAtt.size,
+                  mimeType: serverAtt.mimeType,
+                }
+              : null,
           selectedRecipients: {
             type: "individual",
             ids: Array.isArray(rawC.leadIds) ? rawC.leadIds.map(String) : [],
@@ -1043,57 +1069,68 @@ export default function SinglePageCampaignBuilder({
       throw addLeadsError;
     }
 
-    if (
-      state.useAttachment &&
-      state.emailTemplate.attachments &&
-      state.emailTemplate.attachments.length > 0
-    ) {
-      toast.loading("Uploading attachment...");
-      try {
-        const attachment = state.emailTemplate.attachments[0];
-        const fileBuffer = await attachment.file.arrayBuffer();
-        const bytes = new Uint8Array(fileBuffer);
-        const binary = bytes.reduce(
-          (acc, byte) => acc + String.fromCharCode(byte),
-          ""
-        );
-        const base64 = btoa(binary);
+    if (state.useAttachment) {
+      const hasLocal =
+        state.emailTemplate.attachments &&
+        state.emailTemplate.attachments.length > 0;
+      const hasPersisted = Boolean(state.persistedAttachment?.s3Key);
 
-        const uploadResponse = await emailClient.post(
-          `/api/domains/${domainId}/campaigns/${campaignId}/upload-attachment`,
-          {
-            fileBuffer: base64,
-            fileName: attachment.name,
-            mimeType: attachment.type,
+      if (hasLocal) {
+        toast.loading("Uploading attachment...");
+        try {
+          const attachment = state.emailTemplate.attachments![0];
+          const fileBuffer = await attachment.file.arrayBuffer();
+          const bytes = new Uint8Array(fileBuffer);
+          const binary = bytes.reduce(
+            (acc, byte) => acc + String.fromCharCode(byte),
+            ""
+          );
+          const base64 = btoa(binary);
+
+          const uploadResponse = await emailClient.post(
+            `/api/domains/${domainId}/campaigns/${campaignId}/upload-attachment`,
+            {
+              fileBuffer: base64,
+              fileName: attachment.name,
+              mimeType: attachment.type,
+            }
+          );
+
+          const uploadData = uploadResponse.data?.data;
+          if (!uploadData?.s3Key) {
+            throw new Error("Failed to get s3Key from upload response");
           }
-        );
 
-        const uploadData = uploadResponse.data?.data;
-        if (!uploadData?.s3Key) {
-          throw new Error("Failed to get s3Key from upload response");
+          await emailClient.patch(
+            `/api/domains/${domainId}/campaigns/${campaignId}`,
+            {
+              attachment: {
+                s3Key: uploadData.s3Key,
+                fileName: uploadData.fileName || attachment.name,
+                mimeType: uploadData.mimeType || attachment.type,
+                size: uploadData.size || attachment.size,
+              },
+            }
+          );
+
+          toast.dismiss();
+          toast.success("Attachment uploaded successfully!");
+        } catch (attachmentError: any) {
+          toast.dismiss();
+          console.error("Attachment upload error:", attachmentError);
+          const msg =
+            attachmentError.response?.data?.message ||
+            attachmentError.message ||
+            "Failed to upload attachment";
+          toast.error(msg, { duration: 6000 });
+          throw attachmentError;
         }
-
-        await emailClient.patch(
-          `/api/domains/${domainId}/campaigns/${campaignId}`,
-          {
-            attachment: {
-              s3Key: uploadData.s3Key,
-              fileName: uploadData.fileName || attachment.name,
-              mimeType: uploadData.mimeType || attachment.type,
-              size: uploadData.size || attachment.size,
-            },
-          }
-        );
-
+      } else if (!hasPersisted) {
         toast.dismiss();
-        toast.success("Attachment uploaded successfully!");
-      } catch (attachmentError: any) {
-        toast.dismiss();
-        console.error("Attachment upload error:", attachmentError);
         toast.error(
-          attachmentError.response?.data?.message ||
-            "Failed to upload attachment"
+          'Add an attachment file or turn off "Add an attachment".'
         );
+        throw new Error("Attachment required but no file on campaign");
       }
     }
 
@@ -1280,6 +1317,39 @@ export default function SinglePageCampaignBuilder({
           return;
         }
 
+        let attachmentFile:
+          | { fileBuffer: string; fileName: string; mimeType: string }
+          | undefined;
+
+        if (state.useAttachment) {
+          const hasLocal =
+            state.emailTemplate.attachments &&
+            state.emailTemplate.attachments.length > 0;
+          if (hasLocal) {
+            const attachment = state.emailTemplate.attachments![0];
+            const buf = await attachment.file.arrayBuffer();
+            const bytes = new Uint8Array(buf);
+            const binary = bytes.reduce(
+              (acc, byte) => acc + String.fromCharCode(byte),
+              ""
+            );
+            attachmentFile = {
+              fileBuffer: btoa(binary),
+              fileName: attachment.name,
+              mimeType:
+                attachment.type && attachment.type.trim().length > 0
+                  ? attachment.type
+                  : "application/octet-stream",
+            };
+          } else {
+            toast.dismiss();
+            toast.error(
+              'Add an attachment file or turn off "Add an attachment".'
+            );
+            return;
+          }
+        }
+
         const response = await emailClient.post(
           `/api/domains/${state.domainId}/campaigns/send`,
           {
@@ -1289,6 +1359,7 @@ export default function SinglePageCampaignBuilder({
             sequence: buildSequencePayload(),
             leadIds,
             tags: state.selectedTags?.map((t: any) => t.name) || [],
+            ...(attachmentFile ? { attachmentFile } : {}),
             send: {
               senderId: primarySenderId,
               senderIds: state.senderIds,
@@ -2765,6 +2836,9 @@ export default function SinglePageCampaignBuilder({
                                   ? prev.emailTemplate.attachments
                                   : [],
                               },
+                              persistedAttachment: e.target.checked
+                                ? prev.persistedAttachment
+                                : null,
                             }))
                           }
                           className="w-4 h-4 rounded border-brand-main/20 text-brand-main focus:ring-brand-main"
@@ -2776,7 +2850,7 @@ export default function SinglePageCampaignBuilder({
                       {state.useAttachment && (
                         <div className="mt-2">
                           {(state.emailTemplate.attachments || []).length ===
-                          0 ? (
+                            0 && !state.persistedAttachment?.s3Key ? (
                             <label className="flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed border-brand-main/20 rounded-lg cursor-pointer hover:border-brand-main/40 hover:bg-brand-main/5 transition-all">
                               <div className="text-center">
                                 <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-brand-main/10 flex items-center justify-center">
@@ -2786,7 +2860,8 @@ export default function SinglePageCampaignBuilder({
                                   Click to upload or drag and drop
                                 </p>
                                 <p className="text-xs text-text-200/60">
-                                  PDF, DOC, DOCX, XLS, XLSX, PNG, JPG (Max 7MB)
+                                  PDF, Office, PNG, JPG, GIF, WebP, MP4, MP3,
+                                  WAV (max 7MB)
                                 </p>
                               </div>
                               <input
@@ -2815,15 +2890,47 @@ export default function SinglePageCampaignBuilder({
                                         },
                                       ],
                                     },
+                                    persistedAttachment: null,
                                   }));
                                   toast.success(`Added ${file.name}`);
                                 }}
                                 className="hidden"
-                                accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                                accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.webp,.mp4,.webm,.mp3,.wav"
                               />
                             </label>
                           ) : (
                             <div className="space-y-2">
+                              {state.persistedAttachment?.s3Key &&
+                                (state.emailTemplate.attachments || [])
+                                  .length === 0 && (
+                                  <div className="flex items-center justify-between p-3 bg-bg-300/50 border border-brand-main/20 rounded-lg">
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                      <span className="text-xl">📎</span>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-medium text-text-100 truncate">
+                                          {state.persistedAttachment.fileName}
+                                        </p>
+                                        <p className="text-xs text-text-200/60 mt-0.5">
+                                          Saved on campaign — will send with
+                                          email
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setState((prev) => ({
+                                          ...prev,
+                                          persistedAttachment: null,
+                                          useAttachment: false,
+                                        }))
+                                      }
+                                      className="px-2 py-1 text-xs font-medium text-error hover:bg-error/10 rounded transition-colors"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                )}
                               {(state.emailTemplate.attachments || []).map(
                                 (attachment, index) => {
                                   const sizeInMB = (
@@ -2871,17 +2978,18 @@ export default function SinglePageCampaignBuilder({
                                       </div>
                                       <button
                                         onClick={() => {
-                                          setState((prev) => ({
-                                            ...prev,
-                                            emailTemplate: {
-                                              ...prev.emailTemplate,
-                                              attachments: (
-                                                prev.emailTemplate
-                                                  .attachments || []
-                                              ).filter((_, i) => i !== index),
-                                            },
-                                          }));
-                                        }}
+                                  setState((prev) => ({
+                                    ...prev,
+                                    emailTemplate: {
+                                      ...prev.emailTemplate,
+                                      attachments: (
+                                        prev.emailTemplate
+                                          .attachments || []
+                                      ).filter((_, i) => i !== index),
+                                    },
+                                    persistedAttachment: null,
+                                  }));
+                                }}
                                         className="px-2 py-1 text-xs font-medium text-error hover:bg-error/10 rounded transition-colors"
                                       >
                                         Remove

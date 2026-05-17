@@ -62,8 +62,10 @@ export default function SocialCalendarPage() {
 		try {
 			setLoading(true);
 			const data = await getSocialCalendar();
-			setScheduled(data?.scheduled || []);
-			setRecent(data?.recentPosts || []);
+			const excludeArticles = (posts: SocialPostRun[]) =>
+				posts.filter((post) => post.contentPostFormat !== "article");
+			setScheduled(excludeArticles(data?.scheduled || []));
+			setRecent(excludeArticles(data?.recentPosts || []));
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : "Failed to load calendar");
 		} finally {
@@ -186,7 +188,7 @@ export default function SocialCalendarPage() {
 			<PageHeader
 				eyebrow="Calendar"
 				title="LinkedIn publishing calendar"
-				description="A Google Calendar style month view for scheduled and recently published posts. Click any post to open its detail page."
+				description="Month view for scheduled and published LinkedIn posts."
 				actions={
 					<>
 						<SecondaryButton onClick={load}>
@@ -398,12 +400,15 @@ function CalendarPostPill({
 	onDragEnd: () => void;
 }) {
 	const title =
-		item.post.hookText || item.post.topic || item.post.contentBody.slice(0, 80);
+		item.post.hookText ||
+		item.post.topic ||
+		item.post.contentBody.slice(0, 80);
 	const tone = item.kind === "published" ? "positive" : "info";
 	const canDrag = item.kind === "scheduled" && !rescheduling;
+	const href = `/social/posts/${item.post.id}`;
 	return (
 		<Link
-			href={`/social/posts/${item.post.id}`}
+			href={href}
 			draggable={canDrag}
 			onDragStart={(event) => {
 				if (!canDrag) {

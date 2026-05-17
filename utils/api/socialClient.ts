@@ -9,6 +9,16 @@ import apiClient from "./apiClient";
 const SOCIAL_SERVICE_URL =
 	process.env.NEXT_PUBLIC_SOCIAL_SERVICE_URL || "http://localhost:3005";
 
+export const getSocialApiErrorMessage = (error: unknown, fallback: string) => {
+	if (axios.isAxiosError(error)) {
+		const data = error.response?.data as { message?: string } | undefined;
+		if (data?.message) return data.message;
+		return error.message || fallback;
+	}
+	if (error instanceof Error) return error.message;
+	return fallback;
+};
+
 const socialClient = axios.create({
 	baseURL: SOCIAL_SERVICE_URL,
 	headers: { "Content-Type": "application/json" },
@@ -164,6 +174,30 @@ export interface AgentRunOutput {
 	};
 }
 
+export interface ArticleMeta {
+	title: string;
+	description: string;
+	source: string;
+	bodyHtml: string;
+	commentary: string;
+	thumbnailUrl?: string;
+	coverImagePrompt?: string;
+	/** Paste into ChatGPT, Claude, or Gemini for cover art */
+	coverImagePromptExternal?: string;
+	linkedinThumbnailUrn?: string;
+	articleHosted?: boolean;
+	hostedUrl?: string;
+	hostedAt?: string;
+	plannedSourceUrl?: string;
+	feedPostEnabled?: boolean;
+	feedPostPublishedAt?: string;
+	feedPostUrn?: string;
+	/** Public S3 object key after publish-live */
+	hostedS3Key?: string;
+	/** https://www.linkedin.com/feed/update/… after feed publish */
+	linkedinPostUrl?: string;
+}
+
 export interface SocialPostRun {
 	id: number;
 	userId: number;
@@ -192,6 +226,7 @@ export interface SocialPostRun {
 	audience: string | null;
 	agentRunId: string | null;
 	contentPostFormat?: string | null;
+	articleMeta?: ArticleMeta | null;
 	productMentionMode?: string | null;
 	hasProductMention?: boolean | null;
 	selectedFormat?: string | null;
@@ -1143,4 +1178,156 @@ export const linkWhatsapp = async (params: { phone: string }) => {
 export const unlinkWhatsapp = async () => {
 	const response = await socialClient.post("/api/v1/whatsapp/unlink");
 	return response.data;
+};
+
+// -----------------------------------------------------------------------
+// LinkedIn articles
+// -----------------------------------------------------------------------
+
+export const listArticles = async (filters?: {
+	status?: SocialPostStatus;
+	limit?: number;
+}): Promise<SocialPostRun[]> => {
+	const response = await socialClient.get("/api/v1/articles", {
+		params: filters,
+	});
+	return response.data?.data || [];
+};
+
+export const generateArticleDraft = async (input: {
+	topic: string;
+	angle?: string;
+	audience?: string;
+	proofPoint?: string;
+	cta?: string;
+	extraInstructions?: string;
+	sourceUrl?: string;
+	postRunId?: number;
+}) => {
+	try {
+		const response = await socialClient.post("/api/v1/articles/generate", input);
+		if (!response.data?.success) {
+			throw new Error(response.data?.message || "Article generation failed");
+		}
+		return response.data?.data as {
+			title: string;
+			description: string;
+			bodyHtml: string;
+			commentary: string;
+			coverImagePrompt: string;
+			coverImagePromptExternal: string;
+			sourceUrl: string;
+			plannedSourceUrl?: string;
+			usedFallback?: boolean;
+			modelUsed?: string;
+		};
+	} catch (error) {
+		throw new Error(getSocialApiErrorMessage(error, "Article generation failed"));
+	}
+};
+
+export const saveArticle = async (payload: {
+	topic?: string;
+	articleMeta: ArticleMeta;
+}) => {
+	try {
+		const response = await socialClient.post("/api/v1/articles", payload);
+		if (!response.data?.success) {
+			throw new Error(response.data?.message || "Failed to save article");
+		}
+		return response.data?.data as { postRunId: number };
+	} catch (error) {
+		throw new Error(getSocialApiErrorMessage(error, "Failed to save article"));
+	}
+};
+
+export const updateArticle = async (
+	id: number,
+	payload: { topic?: string; articleMeta: ArticleMeta }
+) => {
+	try {
+		const response = await socialClient.patch(`/api/v1/articles/${id}`, payload);
+		if (!response.data?.success) {
+			throw new Error(response.data?.message || "Failed to update article");
+		}
+		return response.data;
+	} catch (error) {
+		throw new Error(getSocialApiErrorMessage(error, "Failed to update article"));
+	}
+};
+
+export const generateArticleCoverImage = async (payload: {
+	postRunId?: number;
+	prompt?: string;
+	autoPrompt?: boolean;
+	imageStyle?: "professional" | "classic" | "modern" | "minimal" | "bold";
+}) => {
+	try {
+		const response = await socialClient.post("/api/v1/articles/cover-image", payload);
+		if (!response.data?.success) {
+			throw new Error(response.data?.message || "Cover image failed");
+		}
+		return response.data?.data as { publicUrl: string; prompt: string };
+	} catch (error) {
+		throw new Error(getSocialApiErrorMessage(error, "Cover image failed"));
+	}
+};
+
+export const publishArticleLive = async (id: number) => {
+	try {
+		const response = await socialClient.post(`/api/v1/articles/${id}/publish-live`);
+		if (!response.data?.success) {
+			throw new Error(response.data?.message || "Publish failed");
+		}
+		return response.data?.data as {
+			hostedUrl: string;
+			hostedAt: string;
+			hostedS3Key?: string;
+		};
+	} catch (error) {
+		throw new Error(getSocialApiErrorMessage(error, "Publish failed"));
+	}
+};
+
+export const publishArticleFeed = async (id: number) => {
+	try {
+		const response = await socialClient.post(`/api/v1/articles/${id}/publish-feed`, {
+			shareOnFeed: true,
+		});
+		if (!response.data?.success) {
+			throw new Error(response.data?.message || "Feed post failed");
+		}
+		return response.data?.data as {
+			postUrn?: string;
+			linkedinPostUrl?: string;
+		};
+	} catch (error) {
+		throw new Error(getSocialApiErrorMessage(error, "Feed post failed"));
+	}
+};
+
+/** @deprecated use publishArticleLive + publishArticleFeed */
+export const publishArticle = publishArticleFeed;
+
+export const scheduleArticle = async (
+	id: number,
+	scheduledFor: string,
+	options?: { shareOnFeed?: boolean }
+) => {
+	try {
+		const response = await socialClient.post(`/api/v1/articles/${id}/schedule`, {
+			scheduledFor,
+			shareOnFeed: options?.shareOnFeed,
+		});
+		if (!response.data?.success) {
+			throw new Error(response.data?.message || "Schedule failed");
+		}
+		return response.data?.data as {
+			scheduledFor: string;
+			rescheduled?: boolean;
+			shiftedDays?: number;
+		};
+	} catch (error) {
+		throw new Error(getSocialApiErrorMessage(error, "Schedule failed"));
+	}
 };
