@@ -105,10 +105,21 @@ export type MemoryLayer = "profile" | "work" | "learning";
 
 export interface SocialAccessResponse {
 	enabled: boolean;
+	hasActiveSubscription: boolean;
+	subscription: {
+		tierName: string | null;
+		tierDisplayName: string | null;
+		status: string | null;
+		currentPeriodEnd: string | null;
+		nextBillingDate: string | null;
+		lockedPriceInPaise: number | null;
+	} | null;
 	linkedinConnected: boolean;
 	commentsApprovalMode: boolean;
 	linkedinImageGenerationEnabled: boolean;
 	linkedinExternalUrl: string;
+	socialOnboardingCompleted: boolean;
+	_requiresSubscription?: boolean; // Internal flag indicating new subscription-based access
 }
 
 export interface LinkedinConnection {
@@ -542,6 +553,11 @@ export const getSocialAccess = async (): Promise<SocialAccessResponse> => {
 	return payload;
 };
 
+/** Mark SocialSnipper onboarding as complete */
+export const completeSocialOnboarding = async (): Promise<void> => {
+	await apiClient.post("/social/onboarding/complete");
+};
+
 export const updateSocialSettings = async (settings: {
 	commentsApprovalMode?: boolean;
 	linkedinExternalUrl?: string;
@@ -938,9 +954,9 @@ export const generateSocialCarousel = async (payload: {
 	return response.data?.data;
 };
 
-export const uploadSocialEditorImage = async (payload: {
+export const uploadSocialEditorImage = async (params: {
 	postRunId?: number;
-	fileName: string;
+	file: File;
 	mimeType:
 		| "image/png"
 		| "image/jpeg"
@@ -951,10 +967,44 @@ export const uploadSocialEditorImage = async (payload: {
 		| "video/quicktime"
 		| "video/webm"
 		| "application/pdf";
-	dataBase64: string;
 }) => {
-	const response = await socialClient.post("/api/v1/media/upload", payload);
-	return response.data?.data as SocialMediaAsset;
+	const presignResponse = await socialClient.post("/api/v1/media/upload/presign", {
+		postRunId: params.postRunId,
+		fileName: params.file.name || "linkedin-asset-upload",
+		mimeType: params.mimeType,
+		fileSize: params.file.size,
+	});
+	const presigned = presignResponse.data?.data as {
+		uploadUrl: string;
+		key: string;
+		publicUrl: string;
+		headers?: Record<string, string>;
+	};
+	if (!presigned?.uploadUrl || !presigned.key) {
+		throw new Error(presignResponse.data?.message || "Failed to prepare upload");
+	}
+
+	const putResponse = await fetch(presigned.uploadUrl, {
+		method: "PUT",
+		body: params.file,
+		headers: presigned.headers || { "Content-Type": params.mimeType },
+	});
+	if (!putResponse.ok) {
+		const detail = (await putResponse.text()).trim().slice(0, 240);
+		throw new Error(
+			detail
+				? `Direct upload to storage failed (${putResponse.status}): ${detail}`
+				: `Direct upload to storage failed (${putResponse.status})`
+		);
+	}
+
+	const completeResponse = await socialClient.post("/api/v1/media/upload/complete", {
+		postRunId: params.postRunId,
+		key: presigned.key,
+		fileName: params.file.name || "linkedin-asset-upload",
+		mimeType: params.mimeType,
+	});
+	return completeResponse.data?.data as SocialMediaAsset;
 };
 
 export const listMediaAssets = async () => {
@@ -1198,13 +1248,45 @@ export const restoreAgentDocumentVersion = async (versionId: number): Promise<{
 	return response.data?.data;
 };
 
-export const uploadBrandLogo = async (payload: {
-	fileName: string;
+export const uploadBrandLogo = async (params: {
+	file: File;
 	mimeType: "image/png" | "image/jpeg" | "image/jpg" | "image/webp";
-	dataBase64: string;
 }): Promise<{ publicUrl: string; key: string }> => {
-	const response = await socialClient.post("/api/v1/memory/logo", payload);
-	return response.data?.data;
+	const presignResponse = await socialClient.post("/api/v1/memory/logo/presign", {
+		fileName: params.file.name || "brand-logo",
+		mimeType: params.mimeType,
+		fileSize: params.file.size,
+	});
+	const presigned = presignResponse.data?.data as {
+		uploadUrl: string;
+		key: string;
+		publicUrl: string;
+		headers?: Record<string, string>;
+	};
+	if (!presigned?.uploadUrl || !presigned.key) {
+		throw new Error(presignResponse.data?.message || "Failed to prepare logo upload");
+	}
+
+	const putResponse = await fetch(presigned.uploadUrl, {
+		method: "PUT",
+		body: params.file,
+		headers: presigned.headers || { "Content-Type": params.mimeType },
+	});
+	if (!putResponse.ok) {
+		const detail = (await putResponse.text()).trim().slice(0, 240);
+		throw new Error(
+			detail
+				? `Direct logo upload to storage failed (${putResponse.status}): ${detail}`
+				: `Direct logo upload to storage failed (${putResponse.status})`
+		);
+	}
+
+	const completeResponse = await socialClient.post("/api/v1/memory/logo/complete", {
+		key: presigned.key,
+		fileName: params.file.name || "brand-logo",
+		mimeType: params.mimeType,
+	});
+	return completeResponse.data?.data;
 };
 
 // -----------------------------------------------------------------------

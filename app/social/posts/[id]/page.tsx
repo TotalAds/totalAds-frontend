@@ -41,6 +41,7 @@ import {
 	updatePostDraft,
 } from "@/utils/api/socialClient";
 import { formatSocialDateTime } from "@/utils/socialDate";
+import { resolveSocialMediaDisplayUrl } from "@/utils/social/mediaUrl";
 import {
 	IconArrowLeft,
 	IconBolt,
@@ -338,9 +339,8 @@ export default function SocialPostDetailPage() {
 				}
 				const uploaded = await uploadSocialEditorImage({
 					postRunId: id,
-					fileName: file.name || "linkedin-asset-upload",
+					file,
 					mimeType: supportedMime,
-					dataBase64: await fileToBase64(file),
 				});
 				if (uploaded.publicUrl) {
 					setMediaUrls((prev) =>
@@ -464,11 +464,14 @@ export default function SocialPostDetailPage() {
 										rows={14}
 										placeholder="Edit your LinkedIn post..."
 										onUploadImage={async (file) => {
+											const supportedMime = normalizeUploadMime(file);
+											if (!supportedMime) {
+												throw new Error("Unsupported file type");
+											}
 											const uploaded = await uploadSocialEditorImage({
 												postRunId: id,
-												fileName: file.name || "linkedin-editor-upload",
-												mimeType: file.type as any,
-												dataBase64: await fileToBase64(file),
+												file,
+												mimeType: supportedMime,
 											});
 											return uploaded.publicUrl || "";
 										}}
@@ -557,13 +560,13 @@ export default function SocialPostDetailPage() {
 																>
 																	{kind === "image" ? (
 																		<img
-																			src={url}
+																			src={resolveSocialMediaDisplayUrl(url)}
 																			alt="Uploaded asset"
 																			className="h-28 w-full object-cover"
 																		/>
 																	) : kind === "video" ? (
 																		<video
-																			src={url}
+																			src={resolveSocialMediaDisplayUrl(url)}
 																			className="h-28 w-full object-cover"
 																			muted
 																			playsInline
@@ -572,7 +575,7 @@ export default function SocialPostDetailPage() {
 																	) : kind === "pdf" ? (
 																		<iframe
 																			title="Uploaded carousel pdf"
-																			src={`${url}#page=1&view=FitH`}
+																			src={`${resolveSocialMediaDisplayUrl(url)}#page=1&view=FitH`}
 																			className="h-28 w-full border-0"
 																		/>
 																	) : (
@@ -1006,7 +1009,7 @@ export default function SocialPostDetailPage() {
 				>
 					<div className="relative max-h-[90vh] max-w-5xl" onClick={(e) => e.stopPropagation()}>
 						<img
-							src={previewImageUrl}
+							src={resolveSocialMediaDisplayUrl(previewImageUrl)}
 							alt="Image preview"
 							className="max-h-[90vh] max-w-full rounded-lg border border-slate-200 bg-white object-contain"
 						/>
@@ -1161,17 +1164,6 @@ function buildHumanReadablePrompt(rawPrompt: string): string {
 	].join("\n");
 }
 
-const fileToBase64 = (file: File): Promise<string> =>
-	new Promise((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onload = () => {
-			const out = String(reader.result || "");
-			const base64 = out.includes(",") ? out.split(",")[1] : out;
-			resolve(base64);
-		};
-		reader.onerror = () => reject(reader.error);
-		reader.readAsDataURL(file);
-	});
 
 /**
  * Mirrors the backend cap in totalads-social-service/src/routes/posts.ts so

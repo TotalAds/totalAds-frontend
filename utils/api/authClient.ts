@@ -2,6 +2,7 @@
 
 import axios from "axios";
 
+import { ProductType } from "@/utils/auth/productIntent";
 import { tokenStorage } from "../auth/tokenStorage";
 import apiClient from "./apiClient";
 
@@ -12,6 +13,7 @@ export interface LoginCredentials {
   email: string;
   password: string;
   rememberMe?: boolean;
+  product?: ProductType;
 }
 
 export interface RegisterCredentials {
@@ -20,6 +22,7 @@ export interface RegisterCredentials {
   password: string;
   confirmPassword: string;
   referralCode?: string;
+  product?: ProductType;
 }
 
 export interface UserProfile {
@@ -44,6 +47,10 @@ export interface UserProfile {
   foundingTierLockedPrice?: number; // Kept for backward compatibility
   earlySignupBonus?: boolean;
   discountedPrice?: number;
+  // Social onboarding status (new)
+  socialOnboardingCompleted?: boolean;
+  // Signup product tracking
+  signupProduct?: "leadsnipper" | "socialsnipper" | null;
 }
 
 export interface AuthResponse {
@@ -70,7 +77,11 @@ export const login = async (
 
     // Store the access token
     if (accessToken && expiresIn) {
-      tokenStorage.setTokens(accessToken, expiresIn, credentials.rememberMe);
+      tokenStorage.setTokens(
+        accessToken,
+        expiresIn,
+        credentials.rememberMe
+      );
     }
 
     return {
@@ -97,11 +108,16 @@ export const register = async (
   credentials: RegisterCredentials
 ): Promise<AuthResponse> => {
   try {
-    // Extract referralCode and send it separately (backend expects it at root level)
-    const { referralCode, ...signupData } = credentials;
-    const requestBody = referralCode 
-      ? { ...signupData, referralCode }
-      : signupData;
+    // Extract referralCode and product, send rest as signup data
+    const { referralCode, product, ...signupData } = credentials;
+    const requestBody: Record<string, unknown> = { ...signupData };
+    
+    if (referralCode) {
+      requestBody.referralCode = referralCode;
+    }
+    if (product) {
+      requestBody.product = product;
+    }
     
     const response = await apiClient.post("/auth/signup", requestBody);
 

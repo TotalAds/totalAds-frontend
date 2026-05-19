@@ -5,41 +5,50 @@ import React, { useEffect, useState } from "react";
 import GetLogo from "@/components/common/getLogo";
 import { useAuthContext } from "@/context/AuthContext";
 import { appendUtmToPath } from "@/utils/analytics/utm";
+import {
+  buildUrlWithProduct,
+  getPostAuthRedirectPath,
+  getStoredAuthProduct,
+  isSocialProductOnboardingIntent,
+  parseProduct,
+  ProductType,
+  storeAuthProduct,
+} from "@/utils/auth/productIntent";
 import { IconUserCircle } from "@tabler/icons-react";
-
-function onboardingPathFromProduct(searchParams: URLSearchParams): string {
-  const product = searchParams.get("product") || searchParams.get("app");
-  if (
-    product &&
-    ["social", "socialsnipper", "socialsniper"].includes(product.toLowerCase())
-  ) {
-    return `/onboarding?product=${encodeURIComponent(product)}`;
-  }
-  return "/onboarding";
-}
 
 export function LoginComponent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { state, loginUser, clearError } = useAuthContext();
-  const { isLoading, error, isAuthenticated } = state;
+  const { isLoading, error, isAuthenticated, user } = state;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
 
+  // Get product from URL or stored session
+  const product: ProductType = React.useMemo(() => {
+    const urlProduct = parseProduct(
+      searchParams.get("product") || searchParams.get("app")
+    );
+    if (urlProduct) {
+      storeAuthProduct(urlProduct);
+      return urlProduct;
+    }
+    return getStoredAuthProduct();
+  }, [searchParams]);
+
   // Redirect based on authentication, email verification, and onboarding status
   useEffect(() => {
-    if (isAuthenticated && state.user) {
-      if (!state.user.emailVerified) {
-        router.push("/verify-email");
-      } else if (!state.user.onboardingCompleted) {
-        router.push(onboardingPathFromProduct(searchParams));
-      } else {
-        router.push("/email/dashboard");
-      }
+    if (isAuthenticated && user) {
+      const redirectPath = getPostAuthRedirectPath(product, {
+        emailVerified: user.emailVerified,
+        onboardingCompleted: user.onboardingCompleted,
+        socialOnboardingCompleted: user.socialServiceEnabled, // Use social access as proxy until we have dedicated field
+      });
+      router.push(redirectPath);
     }
-  }, [isAuthenticated, state.user, router, searchParams]);
+  }, [isAuthenticated, user, router, product]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -48,14 +57,30 @@ export function LoginComponent() {
     clearError();
 
     try {
-      await loginUser(email, password, rememberMe);
+      // Pass product to login for founding member tracking
+      await loginUser(email, password, rememberMe, product || undefined);
       // The redirect will be handled by the AuthContext and useEffect in the component
-      // No need to manually redirect here as the auth state change will trigger it
     } catch (error) {
       console.error("Login error:", error);
-      // Error is handled by the AuthContext and will be displayed. Friendly message already comes from backend.
+      // Error is handled by the AuthContext and will be displayed
     }
   };
+
+  const getSignupUrl = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    return appendUtmToPath(
+      params.toString() ? `/signup?${params.toString()}` : "/signup"
+    );
+  };
+
+  const getForgotPasswordUrl = () => {
+    const params = new URLSearchParams();
+    if (product) {
+      params.set("product", product);
+    }
+    return params.toString() ? `/forgot-password?${params.toString()}` : "/forgot-password";
+  };
+
   return (
     <div className="h-screen bg-bg-100 flex overflow-hidden">
       {/* Left Side - Decorative */}
@@ -81,7 +106,8 @@ export function LoginComponent() {
         <div className="relative z-10 text-center text-white max-w-md">
           <h2 className="text-2xl font-bold mb-4">Welcome back!</h2>
           <p className="text-base text-white/90">
-            You can sign in to access with your existing account.
+            Sign in to {product === "socialsnipper" ? "SocialSnipper" : "LeadSnipper"} to
+            continue growing your business.
           </p>
         </div>
       </div>
@@ -89,6 +115,15 @@ export function LoginComponent() {
       {/* Right Side - Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-4 lg:p-6 overflow-y-auto">
         <div className="w-full max-w-sm">
+          {/* Product Badge */}
+          {product && (
+            <div className="mb-4 text-center">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-brand-main/10 text-brand-main rounded-full text-xs font-medium">
+                {product === "socialsnipper" ? "SocialSnipper" : "LeadSnipper"}
+              </span>
+            </div>
+          )}
+
           {/* Main Login Card */}
           <div className="bg-white dark:bg-bg-100 rounded-lg p-6 shadow-lg">
             {/* Header */}
@@ -182,7 +217,7 @@ export function LoginComponent() {
                 </div>
                 <div>
                   <a
-                    href="/forgot-password"
+                    href={getForgotPasswordUrl()}
                     className="text-xs font-medium text-brand-main hover:text-brand-secondary transition-colors"
                   >
                     Forgot password?
@@ -215,7 +250,7 @@ export function LoginComponent() {
                 </div>
                 <div className="relative flex justify-center text-xs">
                   <span className="px-2 bg-white dark:bg-brand-main/5 rounded-full text-gray-600 dark:text-text-200">
-                    New to Leadsnipper?
+                    New here?
                   </span>
                 </div>
               </div>
@@ -223,7 +258,7 @@ export function LoginComponent() {
               {/* Signup button */}
               <button
                 type="button"
-                onClick={() => router.push(appendUtmToPath("/signup"))}
+                onClick={() => router.push(getSignupUrl())}
                 disabled={isLoading}
                 className="w-full py-2.5 px-4 bg-gray-100 dark:bg-brand-main/10 hover:bg-gray-200 dark:hover:bg-brand-main/20 text-gray-900 dark:text-text-100 font-medium rounded-lg text-sm transition-all duration-200 border border-gray-300 dark:border-brand-main/20 hover:border-gray-400 dark:hover:border-brand-main/30 focus:outline-none focus:ring-2 focus:ring-brand-main/50"
               >

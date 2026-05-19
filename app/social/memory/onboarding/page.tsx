@@ -361,20 +361,13 @@ export default function MemoryOnboardingPage() {
 			// Upload logo if a file is selected
 			let brandLogoUrl = form.brandLogoUrl;
 			if (form.brandLogoFile) {
-				const reader = new FileReader();
-				const base64Promise = new Promise<string>((resolve) => {
-					reader.onload = () => {
-						const base64 = (reader.result as string)?.split(",")[1] || "";
-						resolve(base64);
-					};
-				});
-				reader.readAsDataURL(form.brandLogoFile);
-				const base64Data = await base64Promise;
-
 				const uploadResult = await uploadBrandLogo({
-					fileName: form.brandLogoFile.name,
-					mimeType: form.brandLogoFile.type as "image/png" | "image/jpeg" | "image/jpg" | "image/webp",
-					dataBase64: base64Data,
+					file: form.brandLogoFile,
+					mimeType: form.brandLogoFile.type as
+						| "image/png"
+						| "image/jpeg"
+						| "image/jpg"
+						| "image/webp",
 				});
 				brandLogoUrl = uploadResult.publicUrl;
 			}

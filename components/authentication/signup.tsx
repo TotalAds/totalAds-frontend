@@ -5,6 +5,15 @@ import React, { useState, useEffect } from "react";
 import GetLogo from "@/components/common/getLogo";
 import { useAuthContext } from "@/context/AuthContext";
 import { appendUtmToPath } from "@/utils/analytics/utm";
+import {
+  buildUrlWithProduct,
+  getPostAuthRedirectPath,
+  getStoredAuthProduct,
+  isSocialProductOnboardingIntent,
+  parseProduct,
+  ProductType,
+  storeAuthProduct,
+} from "@/utils/auth/productIntent";
 import { IconLogin } from "@tabler/icons-react";
 
 export function SignupComponent() {
@@ -19,6 +28,18 @@ export function SignupComponent() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
   const [referralCode, setReferralCode] = useState<string | null>(null);
+
+  // Get product from URL or stored session
+  const product: ProductType = React.useMemo(() => {
+    const urlProduct = parseProduct(
+      searchParams.get("product") || searchParams.get("app")
+    );
+    if (urlProduct) {
+      storeAuthProduct(urlProduct);
+      return urlProduct;
+    }
+    return getStoredAuthProduct();
+  }, [searchParams]);
 
   // Extract referral code from URL query parameter
   useEffect(() => {
@@ -63,26 +84,35 @@ export function SignupComponent() {
     clearError();
 
     try {
-      const user = await registerUser(name, email, password, confirmPassword, referralCode || undefined);
+      const user = await registerUser(
+        name,
+        email,
+        password,
+        confirmPassword,
+        referralCode || undefined,
+        product || undefined
+      );
 
       // Check if email verification is required
       if (!user.emailVerified) {
-        const product = searchParams.get("product") || searchParams.get("app");
-        const verifyHref =
-          product && ["social", "socialsnipper", "socialsniper"].includes(product.toLowerCase())
-            ? `/verify-email?product=${encodeURIComponent(product)}`
-            : "/verify-email";
+        const verifyHref = buildUrlWithProduct("/verify-email", product);
         router.push(verifyHref);
       } else if (!user.onboardingCompleted) {
-        const product = searchParams.get("product") || searchParams.get("app");
-        const onboardingHref =
-          product && ["social", "socialsnipper", "socialsniper"].includes(product.toLowerCase())
-            ? `/onboarding?product=${encodeURIComponent(product)}`
-            : "/onboarding";
-        router.push(onboardingHref);
+        // For social, use social onboarding; for email use regular onboarding
+        if (product === "socialsnipper") {
+          const onboardingHref = buildUrlWithProduct("/social/onboarding", product);
+          router.push(onboardingHref);
+        } else {
+          const onboardingHref = buildUrlWithProduct("/onboarding", product);
+          router.push(onboardingHref);
+        }
       } else {
-        // If both email and onboarding are complete, go to dashboard
-        router.push("/email/dashboard");
+        // If both email and onboarding are complete, go to appropriate dashboard
+        if (product === "socialsnipper") {
+          router.push("/social/dashboard");
+        } else {
+          router.push("/email/dashboard");
+        }
       }
     } catch (error) {
       console.error("Registration error:", error);
@@ -97,6 +127,13 @@ export function SignupComponent() {
       }
       // Other errors are handled by AuthContext and will be displayed
     }
+  };
+
+  const getLoginUrl = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    return appendUtmToPath(
+      params.toString() ? `/login?${params.toString()}` : "/login"
+    );
   };
 
   return (
@@ -122,10 +159,15 @@ export function SignupComponent() {
 
         {/* Content */}
         <div className="relative z-10 text-center text-white max-w-md">
-          <h2 className="text-2xl font-bold mb-4">Get started now!</h2>
+          <h2 className="text-2xl font-bold mb-4">
+            {product === "socialsnipper"
+              ? "Join SocialSnipper"
+              : "Get Started with LeadSnipper"}
+          </h2>
           <p className="text-base text-white/90">
-            Join thousands of businesses extracting leads and growing their
-            sales pipeline.
+            {product === "socialsnipper"
+              ? "Automate your LinkedIn presence with AI-powered content."
+              : "Join thousands of businesses extracting leads and growing their sales pipeline."}
           </p>
         </div>
       </div>
@@ -133,6 +175,15 @@ export function SignupComponent() {
       {/* Right Side - Form */}
       <div className="w-full h-full lg:w-1/2 flex items-center justify-center p-4 lg:p-6 overflow-y-auto py-4">
         <div className="w-full h-full max-w-sm">
+          {/* Product Badge */}
+          {product && (
+            <div className="mb-4 text-center">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-brand-main/10 text-brand-main rounded-full text-xs font-medium">
+                {product === "socialsnipper" ? "SocialSnipper" : "LeadSnipper"}
+              </span>
+            </div>
+          )}
+
           {/* Main Signup Card */}
           <div className="bg-white dark:bg-bg-100 rounded-lg p-6 shadow-lg">
             {/* Header */}
@@ -302,7 +353,7 @@ export function SignupComponent() {
               {/* Login button */}
               <button
                 type="button"
-                onClick={() => router.push(appendUtmToPath("/login"))}
+                onClick={() => router.push(getLoginUrl())}
                 disabled={isLoading}
                 className="w-full py-3 px-4 bg-gray-100 dark:bg-brand-main/10 hover:bg-gray-200 dark:hover:bg-brand-main/20 text-gray-900 dark:text-text-100 font-medium rounded-xl text-sm transition-all duration-200 border border-gray-300 dark:border-brand-main/20 hover:border-gray-400 dark:hover:border-brand-main/30 focus:outline-none focus:ring-2 focus:ring-brand-main/50"
               >

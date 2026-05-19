@@ -6,6 +6,7 @@ import { useAuthContext } from "@/context/AuthContext";
 import { IconBrandLinkedin } from "@tabler/icons-react";
 
 import { cn } from "@/utils/cn";
+import { resolveSocialMediaDisplayUrl } from "@/utils/social/mediaUrl";
 
 /**
  * A LinkedIn-flavoured preview of the post body. Rendered wherever the
@@ -123,7 +124,7 @@ export function PostPreview({
 						{imageAssets.map((asset, idx) => (
 							<img
 								key={`${asset.publicUrl}-${idx}`}
-								src={asset.publicUrl || ""}
+								src={resolveSocialMediaDisplayUrl(asset.publicUrl)}
 								alt={`Post media ${idx + 1}`}
 								className="max-h-72 w-full rounded-lg border border-slate-200 object-cover"
 							/>
@@ -131,7 +132,7 @@ export function PostPreview({
 						{videoAssets.map((asset, idx) => (
 							<video
 								key={`${asset.publicUrl}-${idx}`}
-								src={asset.publicUrl || ""}
+								src={resolveSocialMediaDisplayUrl(asset.publicUrl)}
 								className="max-h-80 w-full rounded-lg border border-slate-200 bg-black"
 								controls
 								preload="metadata"
@@ -144,7 +145,7 @@ export function PostPreview({
 							>
 								<iframe
 									title={`Carousel preview ${idx + 1}`}
-									src={`${asset.publicUrl}#page=${getCurrentPage(idx)}&view=FitH`}
+									src={`${resolveSocialMediaDisplayUrl(asset.publicUrl)}#page=${getCurrentPage(idx)}&view=FitH`}
 									className="h-[min(340px,55vh)] w-full rounded-md border border-slate-200 bg-white md:h-[340px]"
 								/>
 								<div className="mt-2 flex items-center justify-between">

@@ -103,7 +103,7 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
               <IconMenu2 className="h-6 w-6" />
             </button>
             <span className="ml-3 font-semibold text-text-100">
-              {isSocialRoute ? "SocialSnipper" : "Leadsnipper"}
+              {isSocialRoute ? "SocialSnipper" : "LeadSnipper"}
             </span>
           </div>
         )}

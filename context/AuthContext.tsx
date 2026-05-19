@@ -17,6 +17,7 @@ import {
   register,
   UserProfile,
 } from "@/utils/api/authClient";
+import { ProductType } from "@/utils/auth/productIntent";
 
 // Define the state type
 interface AuthState {
@@ -54,14 +55,16 @@ interface AuthContextType {
   loginUser: (
     email: string,
     password: string,
-    rememberMe?: boolean
+    rememberMe?: boolean,
+    product?: ProductType
   ) => Promise<UserProfile>;
   registerUser: (
     name: string,
     email: string,
     password: string,
     confirmPassword: string,
-    referralCode?: string
+    referralCode?: string,
+    product?: ProductType
   ) => Promise<UserProfile>;
   logoutUser: () => void;
   clearError: () => void;
@@ -144,14 +147,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const loginUser = async (
     email: string,
     password: string,
-    rememberMe?: boolean
+    rememberMe?: boolean,
+    product?: ProductType
   ) => {
     try {
       dispatch({ type: "LOGIN_START" });
-      trackEvent("login_attempt");
-      const { user } = await login({ email, password, rememberMe });
+      trackEvent("login_attempt", { product: product || "unknown" });
+      const { user } = await login({
+        email,
+        password,
+        rememberMe,
+        product,
+      });
       dispatch({ type: "LOGIN_SUCCESS", payload: user });
-      trackEvent("login_success", { email: user.email });
+      trackEvent("login_success", { email: user.email, product: product || "unknown" });
       return user; // Return user data for successful redirect
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login failed";
@@ -159,7 +168,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         type: "LOGIN_ERROR",
         payload: message,
       });
-      trackEvent("login_error", { reason: message });
+      trackEvent("login_error", { reason: message, product: product || "unknown" });
       throw error;
     }
   };
@@ -169,20 +178,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     email: string,
     password: string,
     confirmPassword: string,
-    referralCode?: string
+    referralCode?: string,
+    product?: ProductType
   ) => {
     try {
       dispatch({ type: "REGISTER_START" });
-      trackEvent("register_attempt", { hasReferralCode: !!referralCode });
+      trackEvent("register_attempt", {
+        hasReferralCode: !!referralCode,
+        product: product || "unknown",
+      });
       const { user } = await register({
         name,
         email,
         password,
         confirmPassword,
         referralCode,
+        product,
       });
       dispatch({ type: "REGISTER_SUCCESS", payload: user });
-      trackEvent("register_success", { email: user.email });
+      trackEvent("register_success", {
+        email: user.email,
+        product: product || "unknown",
+      });
       return user; // Return user data for successful redirect
     } catch (error) {
       const message =
@@ -191,7 +208,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         type: "REGISTER_ERROR",
         payload: message,
       });
-      trackEvent("register_error", { reason: message });
+      trackEvent("register_error", {
+        reason: message,
+        product: product || "unknown",
+      });
       throw error;
     }
   };

@@ -32,6 +32,7 @@ import {
 	updatePostDraft,
 } from "@/utils/api/socialClient";
 import { formatSocialDateTime } from "@/utils/socialDate";
+import { resolveSocialMediaDisplayUrl } from "@/utils/social/mediaUrl";
 import {
 	IconBolt,
 	IconCalendarPlus,
@@ -498,9 +499,8 @@ export default function SocialApprovalQueuePage() {
 							onUploadImage={async (file) => {
 								const uploaded = await uploadSocialEditorImage({
 									postRunId: editor.id,
-									fileName: file.name || "linkedin-editor-upload",
+									file,
 									mimeType: file.type as any,
-									dataBase64: await fileToBase64(file),
 								});
 								return uploaded.publicUrl || "";
 							}}
@@ -533,19 +533,19 @@ export default function SocialApprovalQueuePage() {
 						<div className="max-h-[70vh] overflow-auto rounded-xl bg-slate-50 p-3">
 							{previewMedia.assetType === "single_image" ? (
 								<img
-									src={previewMedia.url}
+									src={resolveSocialMediaDisplayUrl(previewMedia.url)}
 									alt="Approval media preview"
 									className="mx-auto max-h-[66vh] w-auto rounded-lg border border-slate-200 bg-white"
 								/>
 							) : previewMedia.assetType === "single_video" ? (
 								<video
-									src={previewMedia.url}
+									src={resolveSocialMediaDisplayUrl(previewMedia.url)}
 									controls
 									className="mx-auto max-h-[66vh] w-full rounded-lg border border-slate-200 bg-black"
 								/>
 							) : (
 								<iframe
-									src={previewMedia.url}
+									src={resolveSocialMediaDisplayUrl(previewMedia.url)}
 									title="Carousel preview"
 									className="h-[66vh] w-full rounded-lg border border-slate-200 bg-white"
 								/>
@@ -557,18 +557,6 @@ export default function SocialApprovalQueuePage() {
 		</PageShell>
 	);
 }
-
-const fileToBase64 = (file: File): Promise<string> =>
-	new Promise((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onload = () => {
-			const out = String(reader.result || "");
-			const base64 = out.includes(",") ? out.split(",")[1] : out;
-			resolve(base64);
-		};
-		reader.onerror = () => reject(reader.error);
-		reader.readAsDataURL(file);
-	});
 
 function Bucket({
 	title,
@@ -794,7 +782,7 @@ function QueueItem({
 									>
 										{item.assetType === "single_image" ? (
 											<img
-												src={item.url}
+												src={resolveSocialMediaDisplayUrl(item.url)}
 												alt="Asset thumbnail"
 												className="h-14 w-20 object-cover"
 											/>

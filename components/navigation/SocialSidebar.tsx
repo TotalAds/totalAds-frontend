@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import React from "react";
+import { usePathname } from "next/navigation";
+import React, { useEffect, useState } from "react";
 
 import { useAuthContext } from "@/context/AuthContext";
+import { getSocialAccess } from "@/utils/api/socialClient";
 import { cn } from "@/utils/cn";
 import {
 	IconActivity,
@@ -15,7 +16,6 @@ import {
 	IconCircleCheck,
 	IconInbox,
 	IconLayoutDashboard,
-	IconLogout,
 	IconPencilPlus,
 	IconSettings,
 	IconSparkles,
@@ -24,6 +24,7 @@ import {
 } from "@tabler/icons-react";
 
 import GetLogo from "../common/getLogo";
+import SidebarUserFooter from "./SidebarUserFooter";
 
 interface SocialSidebarProps {
 	isOpen: boolean;
@@ -113,14 +114,28 @@ const isActivePath = (pathname: string | null, href: string) => {
 
 const SocialSidebar: React.FC<SocialSidebarProps> = ({ isOpen, onClose }) => {
 	const pathname = usePathname();
-	const router = useRouter();
-	const { state, logoutUser } = useAuthContext();
+	const { state } = useAuthContext();
 	const sections = buildSections();
+	const [planLabel, setPlanLabel] = useState("SocialSnipper");
 
-	const handleLogout = async () => {
-		await logoutUser();
-		router.push("/login");
-	};
+	useEffect(() => {
+		const loadPlan = async () => {
+			if (!state.isAuthenticated) return;
+			try {
+				const access = await getSocialAccess();
+				if (access.subscription?.tierDisplayName) {
+					setPlanLabel(access.subscription.tierDisplayName);
+				} else if (access.enabled) {
+					setPlanLabel("Active plan");
+				} else {
+					setPlanLabel("No subscription");
+				}
+			} catch {
+				setPlanLabel("SocialSnipper");
+			}
+		};
+		loadPlan();
+	}, [state.isAuthenticated]);
 
 	return (
 		<>
@@ -218,15 +233,13 @@ const SocialSidebar: React.FC<SocialSidebarProps> = ({ isOpen, onClose }) => {
 					)}
 				</nav>
 
-				<div className="mt-auto border-t border-sidebar-border px-3 py-4">
-					<button
-						onClick={handleLogout}
-						className="flex w-full items-center rounded-lg px-3 py-2.5 text-sm text-sidebar-text transition-colors hover:bg-red-500/10 hover:text-red-400"
-					>
-						<IconLogout className="mr-3 h-4 w-4" />
-						Sign out
-					</button>
-				</div>
+				<SidebarUserFooter
+					product="socialsnipper"
+					planLabel={planLabel}
+					settingsHref="/social/settings"
+					showExpandedChrome
+					onCloseSidebar={onClose}
+				/>
 			</div>
 		</>
 	);

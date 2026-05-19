@@ -34,6 +34,7 @@ import {
 	SocialPostRun,
 	uploadSocialEditorImage,
 } from "@/utils/api/socialClient";
+import { resolveSocialMediaDisplayUrl } from "@/utils/social/mediaUrl";
 import {
 	IconCalendarTime,
 	IconBrandLinkedin,
@@ -643,9 +644,8 @@ export default function SocialPostStudioPage() {
 							busy={manualBusy}
 							onUploadImage={async (file) => {
 								const uploaded = await uploadSocialEditorImage({
-									fileName: file.name || "linkedin-editor-upload",
+									file,
 									mimeType: file.type as any,
-									dataBase64: await fileToBase64(file),
 								});
 								return uploaded.publicUrl || "";
 							}}
@@ -942,20 +942,20 @@ function LinkedinStudioEditor({
 										<div key={url} className="relative">
 											{getAssetKind(url) === "image" ? (
 												<img
-													src={url}
+													src={resolveSocialMediaDisplayUrl(url)}
 													alt="Attached media"
 													className="h-20 w-full rounded-md border border-slate-200 object-cover"
 												/>
 											) : getAssetKind(url) === "video" ? (
 												<video
-													src={url}
+													src={resolveSocialMediaDisplayUrl(url)}
 													className="h-20 w-full rounded-md border border-slate-200 object-cover"
 													controls
 												/>
 											) : getAssetKind(url) === "pdf" ? (
 												<iframe
 													title="Attached pdf"
-													src={`${url}#page=1&view=FitH`}
+													src={`${resolveSocialMediaDisplayUrl(url)}#page=1&view=FitH`}
 													className="h-20 w-full rounded-md border border-slate-200"
 												/>
 											) : (
@@ -1038,18 +1038,6 @@ function LinkedinStudioEditor({
 		</div>
 	);
 }
-
-const fileToBase64 = (file: File): Promise<string> =>
-	new Promise((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onload = () => {
-			const out = String(reader.result || "");
-			const base64 = out.includes(",") ? out.split(",")[1] : out;
-			resolve(base64);
-		};
-		reader.onerror = () => reject(reader.error);
-		reader.readAsDataURL(file);
-	});
 
 const extractHashtags = (input: string) =>
 	input

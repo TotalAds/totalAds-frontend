@@ -19,6 +19,7 @@ import {
 	StatusPill,
 	SurfaceCard,
 } from "@/components/social/SocialUi";
+import PaywallBanner from "@/components/social/PaywallBanner";
 import {
 	AgentBriefing,
 	getAccountPreferences,
@@ -137,46 +138,35 @@ export default function SocialDashboardPage() {
 			<PageShell>
 				<PageHeader
 					eyebrow="Welcome"
-					title="SocialSnipper access"
-					description="When your account is enabled, the agent ghost-writes posts in your voice, routes approvals through Telegram or the dashboard, then schedules and publishes to LinkedIn."
+					title="SocialSnipper Dashboard"
+					description="AI-powered LinkedIn posting for founders and growth teams."
 				/>
-				<SurfaceCard className="border-dashed">
-					<div className="grid gap-6 md:grid-cols-3">
-						<Feature
-							icon={<IconPencilPlus className="h-5 w-5" />}
-							title="Memory-aware drafts"
-							description="Every post is written against your profile memory and the learning rules your own posts have proven."
-						/>
-						<Feature
-							icon={<IconBrandTelegram className="h-5 w-5" />}
-							title="Approve from Telegram"
-							description="Tap Approve / Reject / Post now directly in Telegram. No dashboard round-trip."
-						/>
-						<Feature
-							icon={<IconSparkles className="h-5 w-5" />}
-							title="Learns from outcomes"
-							description="Hourly snapshots + weekly learning pass surface which hooks, CTAs and formats actually work."
-						/>
-					</div>
-					<div className="mt-6 space-y-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-						<div>
-							<p className="text-sm font-semibold text-slate-800">
-								Access is assigned by your administrator
-							</p>
-							<p className="text-xs text-slate-500">
-								SocialSnipper is not enabled for this account yet. Ask your TotalAds
-								admin to turn it on for your email in the admin panel, or contact
-								support. Once enabled, complete profile memory onboarding and connect
-								LinkedIn from here.
-							</p>
+				<div className="space-y-6">
+					{/* Paywall Banner */}
+					<PaywallBanner variant="full" />
+
+					{/* Features Preview */}
+					<SurfaceCard className="border-dashed">
+						<SectionTitle title="What you get with SocialSnipper" />
+						<div className="grid gap-6 md:grid-cols-3">
+							<Feature
+								icon={<IconPencilPlus className="h-5 w-5" />}
+								title="Memory-aware drafts"
+								description="Every post is written against your profile memory and the learning rules your own posts have proven."
+							/>
+							<Feature
+								icon={<IconBrandTelegram className="h-5 w-5" />}
+								title="Approve from Telegram"
+								description="Tap Approve / Reject / Post now directly in Telegram. No dashboard round-trip."
+							/>
+							<Feature
+								icon={<IconSparkles className="h-5 w-5" />}
+								title="Learns from outcomes"
+								description="Hourly snapshots + weekly learning pass surface which hooks, CTAs and formats actually work."
+							/>
 						</div>
-						<InlineAlert
-							tone="info"
-							title="After you are enabled"
-							description="You will be guided through the memory wizard (voice, ICP, tone) and can connect LinkedIn OAuth from the dashboard."
-						/>
-					</div>
-				</SurfaceCard>
+					</SurfaceCard>
+				</div>
 			</PageShell>
 		);
 	}

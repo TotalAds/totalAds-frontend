@@ -28,6 +28,7 @@ import {
 	type SocialPostStatus,
 } from "@/utils/api/socialClient";
 import { formatSocialDate, formatSocialDateTime, formatSocialTime } from "@/utils/socialDate";
+import { resolveSocialMediaDisplayUrl } from "@/utils/social/mediaUrl";
 import {
 	IconArrowLeft,
 	IconCalendarEvent,
@@ -428,7 +429,7 @@ export default function CopilotSessionDraftsPage() {
 														>
 															{asset.publicUrl && asset.assetType === "single_image" ? (
 																<img
-																	src={asset.publicUrl}
+																	src={resolveSocialMediaDisplayUrl(asset.publicUrl)}
 																	alt="Post media preview"
 																	className="h-16 w-24 object-cover"
 																/>
@@ -530,19 +531,19 @@ function MediaPreviewModal({
 					{asset.publicUrl ? (
 						asset.assetType === "single_image" ? (
 							<img
-								src={asset.publicUrl}
+								src={resolveSocialMediaDisplayUrl(asset.publicUrl)}
 								alt="Post asset large preview"
 								className="mx-auto max-h-[70vh] w-auto rounded-lg border border-slate-200 bg-white"
 							/>
 						) : asset.assetType === "single_video" ? (
 							<video
-								src={asset.publicUrl}
+								src={resolveSocialMediaDisplayUrl(asset.publicUrl)}
 								controls
 								className="mx-auto max-h-[70vh] w-full rounded-lg border border-slate-200 bg-black"
 							/>
 						) : (
 							<iframe
-								src={asset.publicUrl}
+								src={resolveSocialMediaDisplayUrl(asset.publicUrl)}
 								title="Carousel PDF preview"
 								className="h-[70vh] w-full rounded-lg border border-slate-200 bg-white"
 							/>
