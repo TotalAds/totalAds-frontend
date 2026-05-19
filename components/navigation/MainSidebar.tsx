@@ -343,7 +343,7 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
 
             <SidebarUserFooter
               product="leadsnipper"
-              planLabel={subscriptionInfo?.planName || "Free Plan"}
+              planLabel={subscriptionInfo?.tierDisplayName || "Free Plan"}
               settingsHref="/email/settings"
               showExpandedChrome={showExpandedChrome}
               onCloseSidebar={onClose}

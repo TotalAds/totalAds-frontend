@@ -15,12 +15,6 @@ import { getSocialAccess } from "@/utils/api/socialClient";
 import { IconCheck, IconBrandLinkedin, IconLoader2 } from "@tabler/icons-react";
 import { toast } from "react-hot-toast";
 
-declare global {
-  interface Window {
-    Razorpay: any;
-  }
-}
-
 export default function SocialPricingPage() {
   const router = useRouter();
   const { state } = useAuthContext();
@@ -107,7 +101,16 @@ export default function SocialPricingPage() {
         },
       };
 
-      const razorpay = new window.Razorpay(options);
+      const Razorpay = (
+        window as Window & { Razorpay?: new (opts: object) => { open: () => void } }
+      ).Razorpay;
+      if (!Razorpay) {
+        toast.error("Payment gateway failed to load. Please refresh and try again.");
+        setProcessing(false);
+        return;
+      }
+
+      const razorpay = new Razorpay(options);
       razorpay.open();
     } catch (error: any) {
       console.error("Error creating subscription:", error);

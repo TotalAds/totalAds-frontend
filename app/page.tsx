@@ -32,7 +32,7 @@ export default function Home() {
 
         // Get product preference from URL, storage, or signup
         const preferredProduct: ProductType =
-          parseProduct(user.signupProduct) || getStoredAuthProduct();
+          parseProduct(user?.signupProduct || null) || getStoredAuthProduct();
 
         // Check onboarding status for BOTH products independently
         const emailOnboardingComplete = user.onboardingCompleted;

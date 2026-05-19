@@ -82,7 +82,9 @@ export default function AgentEditorPage() {
 	const [rawContent, setRawContent] = useState("");
 	const [builderSections, setBuilderSections] = useState<Record<string, string>>({});
 	const [showHistory, setShowHistory] = useState(false);
-	const [versions, setVersions] = useState<AgentDocumentResponse["history"]>([]);
+	const [versions, setVersions] = useState<
+		Awaited<ReturnType<typeof listAgentDocumentVersions>>
+	>([]);
 	const [charCount, setCharCount] = useState(0);
 	const LIMIT = 6000;
 
@@ -268,7 +270,7 @@ export default function AgentEditorPage() {
 
 					{charCount > LIMIT && (
 						<InlineAlert
-							tone="error"
+							tone="danger"
 							title="Content exceeds limit"
 							description={`Your content is ${charCount - LIMIT} characters over the ${LIMIT} limit. Please trim some content before saving.`}
 						/>

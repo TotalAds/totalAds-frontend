@@ -37,12 +37,12 @@ export const checkOnboardingStatus = async (
         currentStep: 0,
         shouldRedirect: true,
         redirectPath: "/verify-email",
-        product: productContext || parseProduct(user.signupProduct),
+        product: productContext || parseProduct(user.signupProduct ?? null),
       };
     }
 
     // Determine product context
-    const product = productContext || parseProduct(user.signupProduct);
+    const product = productContext || parseProduct(user.signupProduct ?? null);
 
     // SOCIALSNIPPER FLOW: Check social onboarding separately
     if (product === "socialsnipper") {
