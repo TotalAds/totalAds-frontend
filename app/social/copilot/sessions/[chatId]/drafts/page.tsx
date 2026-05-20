@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { PostPreview } from "@/components/social/PostPreview";
+import { LinkedinPostCharLimit } from "@/components/social/LinkedinPostCharLimit";
 import {
 	EmptyState,
 	LoadingCardGrid,
@@ -29,6 +30,7 @@ import {
 } from "@/utils/api/socialClient";
 import { formatSocialDate, formatSocialDateTime, formatSocialTime } from "@/utils/socialDate";
 import { resolveSocialMediaDisplayUrl } from "@/utils/social/mediaUrl";
+import { getLinkedinPostLengthError, isLinkedinPostOverLimit } from "@/utils/social/linkedinPostLimits";
 import {
 	IconArrowLeft,
 	IconCalendarEvent,
@@ -204,6 +206,20 @@ export default function CopilotSessionDraftsPage() {
 		if (!ids.length) {
 			toast.error("Select at least one post first.");
 			return;
+		}
+		if (kind === "approve" || kind === "publish") {
+			const overLimit = drafts.filter(
+				(post) =>
+					ids.includes(post.postRunId) && isLinkedinPostOverLimit(post.postBody)
+			);
+			if (overLimit.length > 0) {
+				const sample = overLimit[0];
+				toast.error(
+					getLinkedinPostLengthError(sample.postBody.trim().length) ||
+						"One or more selected posts exceed the LinkedIn character limit."
+				);
+				return;
+			}
 		}
 		try {
 			setActionBusy(kind);
@@ -412,6 +428,10 @@ export default function CopilotSessionDraftsPage() {
 
 										<div className="mt-3">
 											<PostPreview body={post.postBody} hashtags={post.hashtags} />
+											<LinkedinPostCharLimit
+												charCount={post.postBody.trim().length}
+												className="mt-2"
+											/>
 										</div>
 										{post.mediaAssets?.length ? (
 											<div className="mt-3">

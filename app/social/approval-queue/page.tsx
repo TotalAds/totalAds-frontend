@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 import { PostPreview } from "@/components/social/PostPreview";
+import { LinkedinPostCharLimit } from "@/components/social/LinkedinPostCharLimit";
 import { LinkedinTextEditor } from "@/components/social/LinkedinTextEditor";
 import {
 	DangerButton,
@@ -33,6 +34,7 @@ import {
 } from "@/utils/api/socialClient";
 import { formatSocialDateTime } from "@/utils/socialDate";
 import { resolveSocialMediaDisplayUrl } from "@/utils/social/mediaUrl";
+import { getLinkedinPostLengthError, isLinkedinPostOverLimit } from "@/utils/social/linkedinPostLimits";
 import {
 	IconBolt,
 	IconCalendarPlus,
@@ -74,6 +76,15 @@ function canApprovePost(post: SocialPostRun) {
 	return !hasUserApproved(post) && !isTerminalPost(post);
 }
 
+function assertPostWithinLinkedinLimit(post: SocialPostRun): boolean {
+	const error = getLinkedinPostLengthError(post.contentBody.trim().length);
+	if (error) {
+		toast.error(error);
+		return false;
+	}
+	return true;
+}
+
 export default function SocialApprovalQueuePage() {
 	const [loading, setLoading] = useState(true);
 	const [queue, setQueue] = useState<SocialPostRun[]>([]);
@@ -111,6 +122,8 @@ export default function SocialApprovalQueuePage() {
 	}, []);
 
 	const approve = async (id: number, postNow = false) => {
+		const post = queue.find((item) => item.id === id);
+		if (post && !assertPostWithinLinkedinLimit(post)) return;
 		try {
 			setBusyId(id);
 			await approvePost(id, { postNow });
@@ -217,6 +230,11 @@ export default function SocialApprovalQueuePage() {
 
 	const saveEdit = async () => {
 		if (!editor) return;
+		const lengthError = getLinkedinPostLengthError(editor.body.trim().length);
+		if (lengthError) {
+			toast.error(lengthError);
+			return;
+		}
 		try {
 			setBusyId(editor.id);
 			await updatePostDraft(editor.id, { contentBody: editor.body });
@@ -231,6 +249,8 @@ export default function SocialApprovalQueuePage() {
 	};
 
 	const publishNow = async (id: number) => {
+		const post = queue.find((item) => item.id === id);
+		if (post && !assertPostWithinLinkedinLimit(post)) return;
 		try {
 			setBusyId(id);
 			await publishPostNow(id);
@@ -505,13 +525,20 @@ export default function SocialApprovalQueuePage() {
 								return uploaded.publicUrl || "";
 							}}
 						/>
+						<LinkedinPostCharLimit
+							charCount={editor.body.trim().length}
+							className="mt-3"
+						/>
 						<div className="mt-4 flex justify-end gap-2">
 							<SecondaryButton onClick={() => setEditor(null)}>
 								Cancel
 							</SecondaryButton>
 							<PrimaryButton
 								onClick={saveEdit}
-								disabled={busyId === editor.id}
+								disabled={
+									busyId === editor.id ||
+									isLinkedinPostOverLimit(editor.body)
+								}
 							>
 								Save draft
 							</PrimaryButton>
@@ -689,6 +716,7 @@ function QueueItem({
 	const canPublishNow = !scheduleDone && !terminal && post.status !== "approved";
 	const canEdit = !approvalDone && !terminal;
 	const canReject = !approvalDone && !terminal;
+	const postOverLimit = isLinkedinPostOverLimit(post.contentBody);
 	const mediaItems = (post.mediaUrls || [])
 		.filter((url): url is string => Boolean(url))
 		.map((url) => ({
@@ -766,6 +794,10 @@ function QueueItem({
 						hashtags={post.hashtags || undefined}
 						mediaUrls={post.mediaUrls || undefined}
 					/>
+					<LinkedinPostCharLimit
+						charCount={post.contentBody.trim().length}
+						className="mt-2"
+					/>
 					{mediaItems.length > 0 ? (
 						<div>
 							<p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -826,7 +858,10 @@ function QueueItem({
 							/>
 						)}
 						{canApprove && (
-							<PrimaryButton onClick={onApproveSchedule} disabled={busy}>
+							<PrimaryButton
+								onClick={onApproveSchedule}
+								disabled={busy || postOverLimit}
+							>
 								<IconCheck className="h-4 w-4" />
 								Approve
 							</PrimaryButton>
@@ -838,7 +873,10 @@ function QueueItem({
 							</SecondaryButton>
 						)}
 						{canPublishNow && (
-							<SecondaryButton onClick={onApproveNow} disabled={busy}>
+							<SecondaryButton
+								onClick={onApproveNow}
+								disabled={busy || postOverLimit}
+							>
 								<IconBolt className="h-4 w-4" />
 								Publish now
 							</SecondaryButton>

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ComponentType } from "react";
 import toast from "react-hot-toast";
 
+import { LinkedinPostCharLimit } from "@/components/social/LinkedinPostCharLimit";
 import { LinkedinTextEditor } from "@/components/social/LinkedinTextEditor";
 import { PostPreview } from "@/components/social/PostPreview";
 import {
@@ -42,6 +43,10 @@ import {
 } from "@/utils/api/socialClient";
 import { formatSocialDateTime } from "@/utils/socialDate";
 import { resolveSocialMediaDisplayUrl } from "@/utils/social/mediaUrl";
+import {
+	getLinkedinPostLengthError,
+	isLinkedinPostOverLimit,
+} from "@/utils/social/linkedinPostLimits";
 import {
 	IconArrowLeft,
 	IconBolt,
@@ -94,6 +99,11 @@ export default function SocialPostDetailPage() {
 		return Array.from(new Set([...fromInput, ...fromBody]));
 	}, [body, hashtagInput]);
 	const hashtagLimitExceeded = mergedHashtags.length > MAX_LINKEDIN_HASHTAGS;
+	const bodyLengthError = getLinkedinPostLengthError(body.trim().length);
+	const bodyOverLimit = isLinkedinPostOverLimit(body);
+	const postContentOverLimit = post
+		? isLinkedinPostOverLimit(post.contentBody)
+		: false;
 
 	const load = async () => {
 		try {
@@ -165,6 +175,10 @@ export default function SocialPostDetailPage() {
 	}
 
 	const saveEdit = async () => {
+		if (bodyLengthError) {
+			toast.error(bodyLengthError);
+			return;
+		}
 		if (hashtagLimitExceeded) {
 			toast.error(
 				`You can use at most ${MAX_LINKEDIN_HASHTAGS} LinkedIn tags. Remove ${
@@ -191,6 +205,10 @@ export default function SocialPostDetailPage() {
 	};
 
 	const approve = async (postNow = false) => {
+		if (post && isLinkedinPostOverLimit(post.contentBody)) {
+			toast.error(getLinkedinPostLengthError(post.contentBody.trim().length)!);
+			return;
+		}
 		try {
 			setBusy(true);
 			await approvePost(id, { postNow });
@@ -217,6 +235,10 @@ export default function SocialPostDetailPage() {
 	};
 
 	const publishNow = async () => {
+		if (post && isLinkedinPostOverLimit(post.contentBody)) {
+			toast.error(getLinkedinPostLengthError(post.contentBody.trim().length)!);
+			return;
+		}
 		try {
 			setBusy(true);
 			await publishPostNow(id);
@@ -437,7 +459,10 @@ export default function SocialPostDetailPage() {
 							title="Publish failed"
 							description={post.failureReason}
 							action={
-								<PrimaryButton onClick={publishNow} disabled={busy}>
+								<PrimaryButton
+									onClick={publishNow}
+									disabled={busy || postContentOverLimit}
+								>
 									Retry publish
 								</PrimaryButton>
 							}
@@ -481,6 +506,10 @@ export default function SocialPostDetailPage() {
 												prev.includes(url) ? prev : [...prev, url]
 											);
 										}}
+									/>
+									<LinkedinPostCharLimit
+										charCount={body.trim().length}
+										className="mt-3"
 									/>
 									<div className="mt-4 space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
 										<label className="block">
@@ -620,7 +649,7 @@ export default function SocialPostDetailPage() {
 										</SecondaryButton>
 										<PrimaryButton
 											onClick={saveEdit}
-											disabled={busy || hashtagLimitExceeded}
+											disabled={busy || hashtagLimitExceeded || bodyOverLimit}
 										>
 											Save draft
 										</PrimaryButton>
@@ -642,6 +671,10 @@ export default function SocialPostDetailPage() {
 										hashtags={post.hashtags || undefined}
 										mediaUrls={post.mediaUrls || undefined}
 										mediaAssets={postMediaAssets}
+									/>
+									<LinkedinPostCharLimit
+										charCount={post.contentBody.trim().length}
+										className="mt-3"
 									/>
 									{imageGenerationEnabled &&
 										canRetryFailedMedia &&
@@ -709,14 +742,14 @@ export default function SocialPostDetailPage() {
 											<>
 												<PrimaryButton
 													onClick={() => approve(false)}
-													disabled={busy}
+													disabled={busy || postContentOverLimit}
 												>
 													<IconCheck className="h-4 w-4" />
 													Approve
 												</PrimaryButton>
 												<SecondaryButton
 													onClick={() => approve(true)}
-													disabled={busy}
+													disabled={busy || postContentOverLimit}
 												>
 													<IconBolt className="h-4 w-4" />
 													Publish now

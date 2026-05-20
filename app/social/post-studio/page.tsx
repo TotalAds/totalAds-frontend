@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { PostPreview } from "@/components/social/PostPreview";
+import { LinkedinPostCharLimit } from "@/components/social/LinkedinPostCharLimit";
 import { LinkedinTextEditor } from "@/components/social/LinkedinTextEditor";
 import {
 	EmptyState,
@@ -35,6 +36,7 @@ import {
 	uploadSocialEditorImage,
 } from "@/utils/api/socialClient";
 import { resolveSocialMediaDisplayUrl } from "@/utils/social/mediaUrl";
+import { getLinkedinPostLengthError, isLinkedinPostOverLimit } from "@/utils/social/linkedinPostLimits";
 import {
 	IconCalendarTime,
 	IconBrandLinkedin,
@@ -221,6 +223,11 @@ export default function SocialPostStudioPage() {
 
 	const approveLatest = async (postNow = false) => {
 		if (!latestRun) return;
+		const lengthError = getLinkedinPostLengthError(latestRun.draft.body.trim().length);
+		if (lengthError) {
+			toast.error(lengthError);
+			return;
+		}
 		try {
 			setIsBusy(latestRun.postRunId);
 			await approvePost(latestRun.postRunId, { postNow });
@@ -267,10 +274,17 @@ export default function SocialPostStudioPage() {
 	}, [manualBody, manualHashtagInput]);
 	const manualHashtagLimitExceeded =
 		manualMergedHashtags.length > MAX_LINKEDIN_HASHTAGS;
+	const manualBodyLength = manualBody.trim().length;
+	const manualBodyLengthError = getLinkedinPostLengthError(manualBodyLength);
+	const manualBodyOverLimit = Boolean(manualBodyLengthError);
 
 	const createManualDraft = async () => {
 		if (manualBody.trim().length < 10) {
 			toast.error("Write at least 10 characters");
+			return null;
+		}
+		if (manualBodyLengthError) {
+			toast.error(manualBodyLengthError);
 			return null;
 		}
 		if (manualHashtagLimitExceeded) {
@@ -632,6 +646,7 @@ export default function SocialPostStudioPage() {
 							onHashtagInputChange={setManualHashtagInput}
 							hashtagCount={manualMergedHashtags.length}
 							hashtagLimitExceeded={manualHashtagLimitExceeded}
+							bodyOverLimit={manualBodyOverLimit}
 							mediaUrls={manualMediaUrls}
 							onMediaUrlsChange={setManualMediaUrls}
 							topic={manualTopic}
@@ -804,6 +819,7 @@ function LinkedinStudioEditor({
 	onHashtagInputChange,
 	hashtagCount,
 	hashtagLimitExceeded,
+	bodyOverLimit,
 	mediaUrls,
 	onMediaUrlsChange,
 	topic,
@@ -822,6 +838,7 @@ function LinkedinStudioEditor({
 	onHashtagInputChange: (v: string) => void;
 	hashtagCount: number;
 	hashtagLimitExceeded: boolean;
+	bodyOverLimit: boolean;
 	mediaUrls: string[];
 	onMediaUrlsChange: (urls: string[]) => void;
 	topic: string;
@@ -977,15 +994,12 @@ function LinkedinStudioEditor({
 								</div>
 							</div>
 						)}
-						<div className="flex items-center justify-between text-xs text-slate-500">
-							<span>{body.length} characters</span>
-							<span>LinkedIn sweet spot: 900-1300</span>
-						</div>
+						<LinkedinPostCharLimit charCount={body.trim().length} className="mt-1" />
 					</div>
 					<div className="flex flex-wrap items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
 						<SecondaryButton
 							onClick={onSave}
-							disabled={busy !== null || hashtagLimitExceeded}
+							disabled={busy !== null || hashtagLimitExceeded || bodyOverLimit}
 						>
 							{busy === "save" ? (
 								<IconRotateClockwise className="h-4 w-4 animate-spin" />
@@ -1000,7 +1014,7 @@ function LinkedinStudioEditor({
 						/>
 						<PrimaryButton
 							onClick={onSchedule}
-							disabled={busy !== null || hashtagLimitExceeded}
+							disabled={busy !== null || hashtagLimitExceeded || bodyOverLimit}
 						>
 							{busy === "schedule" ? (
 								<IconRotateClockwise className="h-4 w-4 animate-spin" />
@@ -1011,7 +1025,7 @@ function LinkedinStudioEditor({
 						</PrimaryButton>
 						<SecondaryButton
 							onClick={onPostNow}
-							disabled={busy !== null || hashtagLimitExceeded}
+							disabled={busy !== null || hashtagLimitExceeded || bodyOverLimit}
 						>
 							{busy === "post_now" ? (
 								<IconRotateClockwise className="h-4 w-4 animate-spin" />
@@ -1212,6 +1226,7 @@ function LatestRunPanel({
 	const { draft, approvalChannel, memoryUsed, status } = run;
 	const approvalDone = status === "approved";
 	const terminal = status === "approved" || status === "failed";
+	const draftOverLimit = isLinkedinPostOverLimit(draft.body);
 	return (
 		<div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
 			<SurfaceCard className="lg:col-span-3">
@@ -1233,6 +1248,10 @@ function LatestRunPanel({
 					body={draft.body}
 					hashtags={draft.hashtags}
 					mediaAssets={run.mediaAssets || []}
+				/>
+				<LinkedinPostCharLimit
+					charCount={draft.body.trim().length}
+					className="mt-3"
 				/>
 				{draft.rationale && (
 					<p className="mt-4 text-xs italic text-slate-500">
@@ -1281,11 +1300,17 @@ function LatestRunPanel({
 					)}
 					{!terminal && (
 						<>
-							<PrimaryButton onClick={onApproveSchedule} disabled={busy}>
+							<PrimaryButton
+								onClick={onApproveSchedule}
+								disabled={busy || draftOverLimit}
+							>
 								<IconBrandLinkedin className="h-4 w-4" />
 								Approve · schedule
 							</PrimaryButton>
-							<SecondaryButton onClick={onApproveNow} disabled={busy}>
+							<SecondaryButton
+								onClick={onApproveNow}
+								disabled={busy || draftOverLimit}
+							>
 								Publish now
 							</SecondaryButton>
 							<SecondaryButton onClick={onReject} disabled={busy}>
