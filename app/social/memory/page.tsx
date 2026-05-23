@@ -1,12 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import {
-	EmptyState,
-	InlineAlert,
 	LoadingCardGrid,
 	PageHeader,
 	PageShell,
@@ -15,50 +12,38 @@ import {
 	SectionTitle,
 	SurfaceCard,
 } from "@/components/social/SocialUi";
-import {
-	getMemoryBrain,
-	getMemoryMarkdown,
-	regenerateMemoryMarkdown,
-	saveMemoryMarkdown,
-	type MemoryBrainPayload,
-	type MemoryBrainSection,
-	type MemoryMarkdownResponse,
-	upsertMemory,
-} from "@/utils/api/socialClient";
-import { useEffect } from "react";
-import { IconBrain, IconSearch, IconSparkles } from "@tabler/icons-react";
+import { getMemoryBrain, type MemoryBrainPayload } from "@/utils/api/socialClient";
+import { useEffect, useState } from "react";
+import { IconSparkles } from "@tabler/icons-react";
 
-type ViewTab = "brain" | "markdown";
+import { CustomMemorySection } from "./CustomMemorySection";
+import { MemorySetupWizard } from "./MemorySetupWizard";
 
 export default function SocialMemoryPage() {
 	const [loading, setLoading] = useState(true);
 	const [brain, setBrain] = useState<MemoryBrainPayload | null>(null);
-	const [activeSection, setActiveSection] = useState<string>("brand_product");
-	const [query, setQuery] = useState("");
-	const [editor, setEditor] = useState<{
-		key: string;
-		label: string;
-		value: string;
-	} | null>(null);
-	const [saving, setSaving] = useState(false);
-	const [activeTab, setActiveTab] = useState<ViewTab>("brain");
-	const [markdownData, setMarkdownData] = useState<MemoryMarkdownResponse | null>(null);
-	const [markdownDraft, setMarkdownDraft] = useState("");
-	const [markdownLoading, setMarkdownLoading] = useState(false);
-	const [markdownSaving, setMarkdownSaving] = useState(false);
-	const MEMORY_MD_LIMIT = 4000;
+	const [showCompulsoryModal, setShowCompulsoryModal] = useState(false);
+
+	const COMPULSORY_KEYS = [
+		{ key: "founder_name", label: "Founder Name", description: "Primary name the founder goes by" },
+		{ key: "product_name", label: "Product Name", description: "Product the founder is selling" },
+		{ key: "icp_description", label: "ICP Description", description: "Ideal customer profile description" },
+	];
+
+	const checkCompulsoryKeys = () => {
+		if (!brain) return [];
+		const allItems = brain.sections.flatMap((s) => s.items);
+		return COMPULSORY_KEYS.filter((ck) => {
+			const item = allItems.find((i) => i.key === ck.key);
+			return !item?.isSet;
+		});
+	};
 
 	const load = async () => {
 		try {
 			setLoading(true);
 			const data = await getMemoryBrain();
 			setBrain(data);
-			if (data.sections?.[0]?.id) {
-				setActiveSection((prev) => {
-					if (prev && data.sections.some((s) => s.id === prev)) return prev;
-					return data.sections[0].id;
-				});
-			}
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to load memory brain");
 		} finally {
@@ -66,109 +51,9 @@ export default function SocialMemoryPage() {
 		}
 	};
 
-	const loadMarkdown = async () => {
-		try {
-			setMarkdownLoading(true);
-			const data = await getMemoryMarkdown({ view: "raw" });
-			setMarkdownData(data);
-			setMarkdownDraft(data.markdown);
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Failed to load memory markdown");
-		} finally {
-			setMarkdownLoading(false);
-		}
-	};
-
-	const saveMarkdown = async () => {
-		if (markdownDraft.length > MEMORY_MD_LIMIT) {
-			toast.error(`Memory.md must be ${MEMORY_MD_LIMIT} characters or less`);
-			return;
-		}
-		try {
-			setMarkdownSaving(true);
-			await saveMemoryMarkdown(markdownDraft);
-			toast.success("Memory.md saved — brain cards updated");
-			await Promise.all([load(), loadMarkdown()]);
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Failed to save memory.md");
-		} finally {
-			setMarkdownSaving(false);
-		}
-	};
-
-	const resetMarkdownFromBrain = async () => {
-		try {
-			setMarkdownSaving(true);
-			const data = await regenerateMemoryMarkdown();
-			setMarkdownDraft(data.markdown);
-			setMarkdownData({
-				markdown: data.markdown,
-				charCount: data.charCount,
-				isTruncated: false,
-				editable: true,
-				metadata: {
-					profileKeysCount: 0,
-					contactsIncluded: 0,
-					source: "regenerated",
-				},
-			});
-			toast.success("Regenerated from current brain data");
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Failed to regenerate");
-		} finally {
-			setMarkdownSaving(false);
-		}
-	};
-
-	const handleTabChange = (tab: ViewTab) => {
-		setActiveTab(tab);
-		if (tab === "markdown" && !markdownData) {
-			loadMarkdown();
-		}
-	};
-
 	useEffect(() => {
 		load();
 	}, []);
-
-	const active = brain?.sections.find((section) => section.id === activeSection) || brain?.sections[0];
-	const filteredItems = useMemo(() => {
-		const q = query.trim().toLowerCase();
-		if (!active) return [];
-		if (!q) return active.items;
-		return active.items.filter((item) =>
-			`${item.label} ${item.key} ${item.hint} ${String(item.value || "")}`.toLowerCase().includes(q)
-		);
-	}, [active, query]);
-
-	const saveQuickEdit = async () => {
-		if (!editor) return;
-		try {
-			setSaving(true);
-			let nextValue: unknown = editor.value;
-			if (editor.value.trim().startsWith("[") || editor.value.trim().startsWith("{")) {
-				try {
-					nextValue = JSON.parse(editor.value.trim());
-				} catch {
-					nextValue = editor.value.trim();
-				}
-			}
-			await upsertMemory({
-				layer: "profile",
-				key: editor.key,
-				value: nextValue,
-				description: editor.label,
-			});
-			setEditor(null);
-			toast.success("Memory updated");
-			await load();
-			if (activeTab === "markdown") await loadMarkdown();
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Failed to update memory");
-		} finally {
-			setSaving(false);
-		}
-	};
 
 	return (
 		<PageShell maxWidth="7xl">
@@ -179,322 +64,95 @@ export default function SocialMemoryPage() {
 				actions={
 					<>
 						<Link href="/social/memory/onboarding">
-							<PrimaryButton>
+							<SecondaryButton>
 								<IconSparkles className="h-4 w-4" />
-								AI setup wizard
-							</PrimaryButton>
+								Full-screen setup
+							</SecondaryButton>
 						</Link>
 						<Link href="/social/agent">
 							<SecondaryButton>Agent Instructions</SecondaryButton>
 						</Link>
-						<SecondaryButton onClick={() => { load(); if (activeTab === "markdown") loadMarkdown(); }}>
-							Refresh
+						<SecondaryButton onClick={() => setShowCompulsoryModal(true)}>
+							Required fields
 						</SecondaryButton>
+						<SecondaryButton onClick={load}>Refresh</SecondaryButton>
 					</>
 				}
 			/>
 
-			{/* View Tabs */}
-			<div className="mb-4 flex items-center gap-2 border-b border-slate-200">
-				<button
-					type="button"
-					onClick={() => handleTabChange("brain")}
-					className={`border-b-2 px-4 py-2 text-sm font-medium ${
-						activeTab === "brain"
-							? "border-blue-600 text-blue-600"
-							: "border-transparent text-slate-600 hover:text-slate-800"
-					}`}
-				>
-					Brain View
-				</button>
-				<button
-					type="button"
-					onClick={() => handleTabChange("markdown")}
-					className={`border-b-2 px-4 py-2 text-sm font-medium ${
-						activeTab === "markdown"
-							? "border-blue-600 text-blue-600"
-							: "border-transparent text-slate-600 hover:text-slate-800"
-					}`}
-				>
-					Memory.md
-				</button>
-			</div>
-
-			{activeTab === "brain" && (
+			{loading ? (
+				<LoadingCardGrid cards={3} />
+			) : (
 				<>
-					{loading ? (
-						<LoadingCardGrid cards={3} />
-					) : !brain ? (
-						<SurfaceCard>
-							<EmptyState
-								icon={<IconBrain className="h-5 w-5" />}
-								title="No memory found yet"
-								description="Run the AI setup wizard to initialize your brand brain in under 3 minutes."
-								action={
-									<Link href="/social/memory/onboarding">
-										<PrimaryButton>Start AI setup</PrimaryButton>
-									</Link>
-								}
-							/>
-						</SurfaceCard>
-					) : (
-						<div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-					<SurfaceCard className="lg:col-span-3">
-						<SectionTitle
-							title="Brain health"
-							description={`${brain.completedFields}/${brain.totalFields} details configured`}
-						/>
-						<div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-							<p className="text-xs uppercase tracking-wide text-slate-500">Completeness</p>
-							<p className="mt-1 text-2xl font-semibold text-slate-900">{brain.completionScore}%</p>
-							<p className="mt-1 text-[11px] text-slate-500">
-								Weighted score (raw: {brain.rawCompletionScore ?? brain.completionScore}%)
-							</p>
-							<div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200">
-								<div
-									className="h-full rounded-full bg-emerald-500 transition-all"
-									style={{ width: `${brain.completionScore}%` }}
-								/>
-							</div>
-						</div>
-						<div className="mt-3 space-y-2 mb-2">
-							{brain.sections.map((section) => (
-								<button
-									key={section.id}
-									type="button"
-									onClick={() => setActiveSection(section.id)}
-									className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${
-										active?.id === section.id
-											? "border-blue-200 bg-blue-50"
-											: "border-slate-200 bg-white hover:border-slate-300"
-									}`}
-								>
-									<div className="flex items-center justify-between">
-										<span className="font-medium text-slate-800">{section.label}</span>
-										<span className="text-xs text-slate-500">{section.completion}%</span>
-									</div>
-									<p className="mt-0.5 text-xs text-slate-500">
-										{section.completed}/{section.total} filled
-									</p>
-								</button>
-							))}
-						</div>
-						{brain.missing.length > 0 ? (
-							<InlineAlert
-								tone="info"
-								title="Recommended next details"
-								description={brain.missing
-									.slice(0, 3)
-									.map((m) => `${m.label} (${m.section})`)
-									.join(", ")}
-							/>
-						) : null}
-					</SurfaceCard>
-
-					<SurfaceCard className="lg:col-span-9">
-						<div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-							<div>
-								<p className="text-lg font-semibold text-slate-900">
-									{active?.label || "Memory section"}
-								</p>
-								<p className="text-xs text-slate-500">
-									Human-readable brand intelligence used by Post Studio and Copilot.
-								</p>
-							</div>
-							<div className="relative w-full max-w-sm">
-								<IconSearch className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-								<input
-									value={query}
-									onChange={(e) => setQuery(e.target.value)}
-									placeholder="Search memory..."
-									className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-								/>
-							</div>
-						</div>
-						{active ? (
-							<SectionFields
-								section={active}
-								items={filteredItems}
-								onEdit={(item) =>
-									setEditor({
-										key: item.key,
-										label: item.label,
-										value:
-											typeof item.value === "string"
-												? item.value
-												: JSON.stringify(item.value, null, 2),
-									})
-								}
-							/>
-						) : null}
-					</SurfaceCard>
-				</div>
-					)}
+					<MemorySetupWizard
+						embedded
+						brainStats={brain}
+						onSaved={load}
+					/>
+					<CustomMemorySection brain={brain} onChanged={load} />
 				</>
 			)}
 
-			{/* Markdown View */}
-			{activeTab === "markdown" && (
-				<SurfaceCard>
-					{markdownLoading ? (
-						<LoadingCardGrid cards={1} />
-					) : markdownData ? (
-						<div className="space-y-4">
-							<div className="flex flex-wrap items-center justify-between gap-2">
-								<SectionTitle
-									title="Memory.md"
-									description="Edit here to update brain cards. Extra fields go under ## Custom Memory in Brain View."
-								/>
-								<div className="flex flex-wrap items-center gap-2">
-									<span
-										className={`text-xs font-medium ${
-											markdownDraft.length > MEMORY_MD_LIMIT
-												? "text-red-600"
-												: "text-slate-500"
+			{showCompulsoryModal && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+					<SurfaceCard className="w-full max-w-lg">
+						<SectionTitle
+							title="Required Memory Fields"
+							description="These fields are required for AI to generate quality content."
+						/>
+						<div className="mt-4 space-y-3">
+							{COMPULSORY_KEYS.map((ck) => {
+								const allItems = brain?.sections.flatMap((s) => s.items) || [];
+								const item = allItems.find((i) => i.key === ck.key);
+								const isSet = item?.isSet ?? false;
+
+								return (
+									<div
+										key={ck.key}
+										className={`flex items-start gap-3 rounded-lg border p-3 ${
+											isSet
+												? "border-emerald-200 bg-emerald-50/50"
+												: "border-amber-200 bg-amber-50/50"
 										}`}
 									>
-										{markdownDraft.length.toLocaleString()} / {MEMORY_MD_LIMIT.toLocaleString()}{" "}
-										chars
-									</span>
-									<SecondaryButton onClick={resetMarkdownFromBrain} disabled={markdownSaving}>
-										Regenerate from brain
-									</SecondaryButton>
-									<SecondaryButton
-										onClick={() => {
-											navigator.clipboard.writeText(markdownDraft);
-											toast.success("Copied to clipboard");
-										}}
-									>
-										Copy
-									</SecondaryButton>
-									<PrimaryButton
-										onClick={saveMarkdown}
-										disabled={markdownSaving || markdownDraft.length > MEMORY_MD_LIMIT}
-									>
-										{markdownSaving ? "Saving..." : "Save memory.md"}
-									</PrimaryButton>
-								</div>
-							</div>
-
-							<InlineAlert
-								tone="info"
-								title="How editing works"
-								description="Standard ## Profile Memory fields map to brain cards. Add ## Custom Memory for extra keys (competitors, launch notes, etc.) — they appear in the Custom Memory tab."
-							/>
-
-							<textarea
-								value={markdownDraft}
-								onChange={(e) => setMarkdownDraft(e.target.value)}
-								rows={24}
-								className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm leading-relaxed text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-								placeholder="# AI Brand Memory"
-							/>
-
-							{markdownData.isTruncated && (
-								<InlineAlert
-									tone="info"
-									title="Content truncated"
-									description="Some content was truncated to stay within limits. Lower priority/older contacts were removed first."
-								/>
-							)}
+										<div className="mt-0.5">
+											{isSet ? (
+												<svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+													<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+												</svg>
+											) : (
+												<svg className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+													<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+												</svg>
+											)}
+										</div>
+										<div className="flex-1">
+											<p className="text-sm font-medium text-slate-800">{ck.label}</p>
+											<p className="text-xs text-slate-500">{ck.description}</p>
+											{isSet ? (
+												<p className="mt-1 text-xs font-medium text-emerald-600">Configured</p>
+											) : (
+												<p className="mt-1 text-xs font-medium text-amber-600">
+													Missing — complete in brand setup above
+												</p>
+											)}
+										</div>
+									</div>
+								);
+							})}
 						</div>
-					) : (
-						<EmptyState
-							icon={<IconBrain className="h-5 w-5" />}
-							title="No memory data"
-							description="Complete the AI setup wizard to generate your memory.md view."
-							action={
-								<Link href="/social/memory/onboarding">
-									<PrimaryButton>Start AI setup</PrimaryButton>
-								</Link>
-							}
-						/>
-					)}
-				</SurfaceCard>
-			)}
 
-			{editor ? (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-					<SurfaceCard className="w-full max-w-xl">
-						<SectionTitle title={`Quick edit: ${editor.label}`} description="Update this memory detail in plain language." />
-						<label className="block">
-							<span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-								Value
-							</span>
-							<textarea
-								value={editor.value}
-								onChange={(e) => setEditor((prev) => (prev ? { ...prev, value: e.target.value } : prev))}
-								rows={6}
-								className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-							/>
-						</label>
-						<div className="mt-4 flex justify-end gap-2">
-							<SecondaryButton onClick={() => setEditor(null)}>Cancel</SecondaryButton>
-							<PrimaryButton onClick={saveQuickEdit} disabled={saving}>
-								{saving ? "Saving..." : "Save"}
-							</PrimaryButton>
+						<div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+							<p className="text-xs text-slate-500">
+								{checkCompulsoryKeys().length === 0
+									? "All required fields are set."
+									: `${checkCompulsoryKeys().length} required field${checkCompulsoryKeys().length === 1 ? "" : "s"} missing.`}
+							</p>
+							<SecondaryButton onClick={() => setShowCompulsoryModal(false)}>Close</SecondaryButton>
 						</div>
 					</SurfaceCard>
 				</div>
-			) : null}
+			)}
 		</PageShell>
-	);
-}
-
-function SectionFields({
-	section,
-	items,
-	onEdit,
-}: {
-	section: MemoryBrainSection;
-	items: MemoryBrainSection["items"];
-	onEdit: (item: MemoryBrainSection["items"][number]) => void;
-}) {
-	if (!items.length) {
-		return (
-			<EmptyState
-				icon={<IconBrain className="h-5 w-5" />}
-				title={`No details in ${section.label}`}
-				description="Use the onboarding wizard for AI-assisted setup, or add details with quick edit."
-			/>
-		);
-	}
-	return (
-		<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-			{items.map((item) => (
-				<div key={item.key} className="rounded-xl border border-slate-200 bg-white p-3">
-					<div className="flex items-center justify-between gap-2">
-						<p className="text-sm font-semibold text-slate-900">{item.label}</p>
-						<span
-							className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-								item.isSet ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
-							}`}
-						>
-							{item.isSet ? "Configured" : "Missing"}
-						</span>
-					</div>
-					<p className="mt-1 text-xs text-slate-500">{item.hint}</p>
-					<p className="mt-1 text-[11px] text-slate-400">
-						Used in {Number(item.usedInPostsCount || 0)} post
-						{Number(item.usedInPostsCount || 0) === 1 ? "" : "s"}
-						{Array.isArray(item.usedInPosts) && item.usedInPosts.length
-							? ` · recent IDs: ${item.usedInPosts.join(", ")}`
-							: ""}
-					</p>
-					<p className="mt-2 min-h-[36px] text-sm text-slate-700">
-						{item.isSet
-							? typeof item.value === "string"
-								? item.value
-								: JSON.stringify(item.value)
-							: "Add this detail to improve content quality."}
-					</p>
-					<div className="mt-3 flex justify-end">
-						<SecondaryButton onClick={() => onEdit(item)}>
-							{item.isSet ? "Edit" : "Add"}
-						</SecondaryButton>
-					</div>
-				</div>
-			))}
-		</div>
 	);
 }

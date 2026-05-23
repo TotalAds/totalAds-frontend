@@ -73,11 +73,11 @@ const buildSections = (): Array<{ label: string; items: NavItem[] }> => [
 		label: "Content",
 		items: [
 			{ name: "Posts", href: "/social/posts", icon: IconStack2 },
-			{
-				name: "Learning Rules",
-				href: "/social/learning-rules",
-				icon: IconSparkles,
-			},
+			// {
+			// 	name: "Learning Rules",
+			// 	href: "/social/learning-rules",
+			// 	icon: IconSparkles,
+			// },
 			{ name: "Memory", href: "/social/memory", icon: IconBrain },
 			{
 				name: "Event Log",

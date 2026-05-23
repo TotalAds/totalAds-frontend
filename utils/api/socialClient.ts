@@ -152,11 +152,15 @@ export interface AgentDraft {
 	topicCategory: string;
 }
 
+export type HumanizerLevel = "off" | "light" | "medium" | "heavy";
+
 export interface AgentRunOutput {
 	agentRunId: string;
 	postRunId: number;
 	status: "draft" | "in_review" | "approved" | "failed";
 	draft: AgentDraft;
+	humanizerLevel?: HumanizerLevel;
+	antiAiScore?: number;
 	approvalChannel: string;
 	approvalMessageId?: string;
 	memoryUsed: {
@@ -280,6 +284,7 @@ export interface GenerateLinkedinCalendarInput {
 	messages?: Array<{ role: "user" | "assistant"; content: string; createdAt?: string }>;
 	selectedFrameworkId?: string | null;
 	briefSnapshot?: CopilotBriefResponse | null;
+	humanizerLevel?: HumanizerLevel;
 }
 
 export interface CopilotAttachment {
@@ -322,6 +327,7 @@ export interface CopilotBriefResponse {
 		}>;
 	};
 	canGenerate: boolean;
+	humanizerLevel?: HumanizerLevel;
 	memoryUsed: {
 		profileKeyCount: number;
 		workKeyCount: number;
@@ -384,6 +390,7 @@ export interface GeneratedLinkedinCalendar {
 		workKeyCount: number;
 		learningRuleCount: number;
 	};
+	humanizerLevel?: HumanizerLevel;
 }
 
 export interface PerformanceSnapshot {
@@ -432,8 +439,6 @@ export interface MemoryBrainSection {
 		isSet: boolean;
 		impactWeight: number;
 		updatedAt: string | null;
-		usedInPostsCount: number;
-		usedInPosts: number[];
 	}>;
 }
 
@@ -526,6 +531,7 @@ export interface AccountPreferences {
 	postingWindowEnd: string;
 	similarityPolicy: "warn" | "require_edit" | "block";
 	similarityThreshold: number;
+	humanizerLevel: HumanizerLevel;
 }
 
 export interface SocialMediaAsset {
@@ -630,6 +636,7 @@ export const runAgent = async (input: {
 	campaignId?: number | null;
 	createImage?: boolean;
 	createCarousel?: boolean;
+	humanizerLevel?: HumanizerLevel;
 }): Promise<AgentRunOutput> => {
 	const response = await socialClient.post("/api/v1/agent/run", input);
 	return response.data?.data;
@@ -717,6 +724,16 @@ export const rejectPost = async (id: number, reason?: string) => {
 		reason,
 	});
 	return response.data;
+};
+
+export const cancelScheduledPost = async (id: number, reason?: string) => {
+	const response = await socialClient.post(`/api/v1/posts/${id}/cancel-schedule`, {
+		reason,
+	});
+	return response.data?.data as {
+		previousScheduledFor: string | null;
+		post: SocialPostRun;
+	};
 };
 
 export const schedulePost = async (id: number, scheduledFor: string) => {
@@ -851,6 +868,7 @@ export const briefLinkedinCopilot = async (input: {
 	prompt: string;
 	conversation?: Array<{ role: "user" | "assistant"; content: string }>;
 	attachments?: CopilotAttachment[];
+	humanizerLevel?: HumanizerLevel;
 }): Promise<CopilotBriefResponse> => {
 	const response = await socialClient.post("/api/v1/calendar/copilot/brief", input);
 	return response.data?.data;
@@ -1042,6 +1060,18 @@ export const deleteSocialMediaAsset = async (assetId: number) => {
 	return response.data?.data as { id: number };
 };
 
+export const regenerateImagePrompt = async (params: {
+	assetId: number;
+	includeContactInImage: boolean;
+}): Promise<{
+	assetId: number;
+	sourcePrompt: string;
+	includeContactInImage: boolean;
+}> => {
+	const response = await socialClient.post("/api/v1/media/regenerate-prompt", params);
+	return response.data?.data;
+};
+
 // -----------------------------------------------------------------------
 // Memory (profile / work / learning)
 // -----------------------------------------------------------------------
@@ -1049,6 +1079,25 @@ export const deleteSocialMediaAsset = async (assetId: number) => {
 export const getProfileMemory = async (): Promise<MemoryItem[]> => {
 	const response = await socialClient.get("/api/v1/memory/profile");
 	return response.data?.data || [];
+};
+
+export interface SocialBrandDetails {
+	companyName: string | null;
+	productName: string | null;
+	website: string | null;
+	brandLogoUrl: string | null;
+	brandColor: string | null;
+	instagramHandle: string | null;
+	mobileNumber: string | null;
+	brandPositioning: string | null;
+	brandTone: string | null;
+	usp: string | null;
+}
+
+/** Current profile-layer brand fields (not the post creation snapshot). */
+export const getBrandDetails = async (): Promise<SocialBrandDetails> => {
+	const response = await socialClient.get("/api/v1/memory/brand-details");
+	return response.data?.data;
 };
 
 export const getMemoryLayer = async (
@@ -1075,7 +1124,7 @@ export const deprecateMemoryItem = async (layer: MemoryLayer, key: string) => {
 	return response.data;
 };
 
-export const saveMemoryOnboarding = async (payload: {
+export interface MemoryOnboardingPayload {
 	founderName: string;
 	productName?: string;
 	companyName?: string;
@@ -1085,7 +1134,7 @@ export const saveMemoryOnboarding = async (payload: {
 	targetAudience?: string;
 	toneKeywords?: string[];
 	brandTone?: string;
-	userGoals?: string;
+	userGoals?: string | string[];
 	forbiddenPhrases?: string[];
 	preferredCtaStyle?: string;
 	postFormatPreference?: string;
@@ -1102,7 +1151,13 @@ export const saveMemoryOnboarding = async (payload: {
 	// Brand recognition fields (v1.1)
 	instagramHandle?: string;
 	brandLogoUrl?: string;
-}) => {
+	// Brand visual identity fields (v1.2) - stored in social_memory_items for unified access
+	mobileNumber?: string;
+	brandColor?: string;
+	// Note: includeContactInImage is now controlled per-post on the post detail page
+}
+
+export const saveMemoryOnboarding = async (payload: MemoryOnboardingPayload) => {
 	const response = await socialClient.post("/api/v1/memory/onboarding", payload);
 	return response.data?.data as { keysWritten: number };
 };
@@ -1533,4 +1588,54 @@ export const scheduleArticle = async (
 	} catch (error) {
 		throw new Error(getSocialApiErrorMessage(error, "Schedule failed"));
 	}
+};
+
+// -----------------------------------------------------------------------
+// Raw thoughts (brain dump → post pipeline)
+// -----------------------------------------------------------------------
+
+export interface RawThoughtResult {
+	thoughtId: number;
+	detectedPriority: string;
+	freshnessScore: number;
+	humanizerLevel?: HumanizerLevel;
+	generatedPosts: Array<{
+		postRunId: number;
+		format: string;
+		preview: string;
+		scheduledFor?: string | null;
+		queueAction?: string;
+	}>;
+}
+
+export interface RawThought {
+	id: number;
+	userId: number;
+	rawInput: string;
+	detectedCategory: string | null;
+	detectedPriority: string | null;
+	emotionalIntensity: number | null;
+	generatedPostRunIds: number[] | null;
+	status: string;
+	createdAt: string;
+}
+
+export const submitRawThought = async (
+	rawInput: string,
+	options?: { humanizerLevel?: HumanizerLevel }
+): Promise<RawThoughtResult> => {
+	const response = await socialClient.post("/api/v1/raw-thoughts", {
+		rawInput,
+		humanizerLevel: options?.humanizerLevel,
+	});
+	return response.data?.data;
+};
+
+export const listRawThoughts = async (
+	limit = 20
+): Promise<RawThought[]> => {
+	const response = await socialClient.get("/api/v1/raw-thoughts", {
+		params: { limit },
+	});
+	return response.data?.data || [];
 };

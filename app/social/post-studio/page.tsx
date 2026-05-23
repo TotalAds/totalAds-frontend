@@ -15,6 +15,7 @@ import {
 	PageShell,
 	PrimaryButton,
 	SecondaryButton,
+	HumanizerLevelBadge,
 	PostGenerationChips,
 	SectionTitle,
 	StatusPill,
@@ -25,8 +26,10 @@ import {
 	AgentRunOutput,
 	approvePost,
 	createManualPost,
+	getAccountPreferences,
 	getFormatRecommendation,
 	getSocialAccess,
+	HumanizerLevel,
 	listPosts,
 	publishPostNow,
 	rejectPost,
@@ -114,6 +117,7 @@ export default function SocialPostStudioPage() {
 	const [manualTopic, setManualTopic] = useState("");
 	const [manualScheduleFor, setManualScheduleFor] = useState("");
 	const [imageGenerationEnabled, setImageGenerationEnabled] = useState(true);
+	const [humanizerLevel, setHumanizerLevel] = useState<HumanizerLevel>("medium");
 	const [manualBusy, setManualBusy] = useState<"save" | "schedule" | "post_now" | null>(
 		null
 	);
@@ -142,10 +146,14 @@ export default function SocialPostStudioPage() {
 		loadDrafts();
 		(async () => {
 			try {
-				const access = await getSocialAccess();
+				const [access, prefs] = await Promise.all([
+					getSocialAccess(),
+					getAccountPreferences().catch(() => null),
+				]);
 				setImageGenerationEnabled(
 					access.linkedinImageGenerationEnabled !== false
 				);
+				if (prefs?.humanizerLevel) setHumanizerLevel(prefs.humanizerLevel);
 			} catch {
 				setImageGenerationEnabled(true);
 			}
@@ -194,6 +202,7 @@ export default function SocialPostStudioPage() {
 				extraInstructions: form.extraInstructions || undefined,
 				createImage: imageGenerationEnabled ? form.createImage : false,
 				createCarousel: false,
+				humanizerLevel,
 			});
 			setLatestRun(run);
 			setFormatPreview(
@@ -604,6 +613,7 @@ export default function SocialPostStudioPage() {
 								>
 									Preview format recommendation
 								</SecondaryButton>
+							<HumanizerLevelBadge level={humanizerLevel} />
 							<PrimaryButton onClick={onGenerate} disabled={isGenerating}>
 								{isGenerating ? (
 									<>

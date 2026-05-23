@@ -166,9 +166,13 @@ export default function SocialPostsPage() {
 												{post.userEditedBody && (
 													<StatusPill tone="info" label="Edited" />
 												)}
-												{post.linkedinPostUrn && (
-													<StatusPill tone="positive" label="On LinkedIn" />
-												)}
+												{post.status === "published" &&
+													post.linkedinPostUrn && (
+														<StatusPill
+															tone="positive"
+															label="On LinkedIn"
+														/>
+													)}
 											</div>
 											<p className="mt-2 line-clamp-2 text-sm font-medium text-slate-800">
 												{post.hookText ||

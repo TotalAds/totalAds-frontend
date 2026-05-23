@@ -24,63 +24,11 @@ import {
 	type AgentDocumentResponse,
 } from "@/utils/api/socialClient";
 
-type EditorMode = "raw" | "builder";
-
-interface SectionField {
-	id: string;
-	label: string;
-	placeholder: string;
-	rows: number;
-}
-
-const SECTION_FIELDS: SectionField[] = [
-	{
-		id: "role",
-		label: "Role Definition",
-		placeholder: "Define the agent's role and purpose...",
-		rows: 3,
-	},
-	{
-		id: "voice",
-		label: "Voice & Tone",
-		placeholder: "Describe how the agent should sound...",
-		rows: 4,
-	},
-	{
-		id: "rules",
-		label: "Content Rules",
-		placeholder: "List specific rules and constraints...",
-		rows: 6,
-	},
-	{
-		id: "format",
-		label: "Format Preferences",
-		placeholder: "Describe preferred formatting...",
-		rows: 3,
-	},
-	{
-		id: "product",
-		label: "Product Mention Guidelines",
-		placeholder: "When and how to mention the product...",
-		rows: 3,
-	},
-];
-
-const DEFAULT_SECTIONS: Record<string, string> = {
-	role: "## Role\nYou are a LinkedIn content strategist and ghostwriter for the founder.",
-	voice: "## Voice & Tone\n- Sound like the founder, not a marketer\n- Use their actual vocabulary patterns\n- Avoid corporate buzzwords and AI-sounding phrases",
-	rules: "## Content Rules\n1. Lead with insight, not the product\n2. One clear idea per post\n3. Hooks should create curiosity without clickbait\n4. CTAs should feel optional, not demanding",
-	format: "## Format Preferences\n- Short paragraphs (2-3 lines max)\n- Use line breaks for rhythm\n- Occasional one-sentence paragraphs for emphasis",
-	product: "## Product Mentions\n- Only mention product when there's genuine connection to insight\n- Soft mentions > Direct pitches",
-};
-
 export default function AgentEditorPage() {
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
-	const [mode, setMode] = useState<EditorMode>("raw");
 	const [document, setDocument] = useState<AgentDocumentResponse | null>(null);
 	const [rawContent, setRawContent] = useState("");
-	const [builderSections, setBuilderSections] = useState<Record<string, string>>({});
 	const [showHistory, setShowHistory] = useState(false);
 	const [versions, setVersions] = useState<
 		Awaited<ReturnType<typeof listAgentDocumentVersions>>
@@ -95,10 +43,6 @@ export default function AgentEditorPage() {
 			setDocument(data);
 			setRawContent(data.current.content);
 			setCharCount(data.current.charCount);
-
-			// Parse existing content into sections for builder mode
-			const sections = parseContentToSections(data.current.content);
-			setBuilderSections({ ...DEFAULT_SECTIONS, ...sections });
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to load agent document");
 		} finally {
@@ -125,55 +69,15 @@ export default function AgentEditorPage() {
 		}
 	}, [showHistory, loadVersions]);
 
-	const parseContentToSections = (content: string): Record<string, string> => {
-		const sections: Record<string, string> = {};
-		const lines = content.split("\n");
-		let currentSection = "";
-		let currentContent: string[] = [];
-
-		for (const line of lines) {
-			const sectionMatch = line.match(/^##\s*(.+)$/);
-			if (sectionMatch) {
-				if (currentSection && currentContent.length > 0) {
-					sections[currentSection] = currentContent.join("\n").trim();
-				}
-				const sectionName = sectionMatch[1].toLowerCase().replace(/[^a-z]/g, "");
-				currentSection = sectionName;
-				currentContent = [];
-			} else if (currentSection) {
-				currentContent.push(line);
-			}
-		}
-
-		if (currentSection && currentContent.length > 0) {
-			sections[currentSection] = currentContent.join("\n").trim();
-		}
-
-		return sections;
-	};
-
-	const buildContentFromSections = (): string => {
-		const parts: string[] = [];
-		for (const field of SECTION_FIELDS) {
-			const content = builderSections[field.id]?.trim();
-			if (content) {
-				parts.push(`## ${field.label}\n${content}`);
-			}
-		}
-		return parts.join("\n\n");
-	};
-
 	const handleSave = async () => {
-		const contentToSave = mode === "raw" ? rawContent : buildContentFromSections();
-
-		if (contentToSave.length > LIMIT) {
+		if (rawContent.length > LIMIT) {
 			toast.error(`Content exceeds ${LIMIT} character limit`);
 			return;
 		}
 
 		try {
 			setSaving(true);
-			const result = await saveAgentDocument(contentToSave);
+			const result = await saveAgentDocument(rawContent);
 			toast.success(`Saved as version ${result.version}`);
 			await load();
 		} catch (error) {
@@ -200,16 +104,9 @@ export default function AgentEditorPage() {
 	const handleReset = () => {
 		if (confirm("Reset to default template? This will overwrite your current content.")) {
 			setRawContent(document?.template || "");
-			setBuilderSections(DEFAULT_SECTIONS);
+			setCharCount((document?.template || "").length);
 			toast.success("Reset to template");
 		}
-	};
-
-	const updateBuilderSection = (id: string, value: string) => {
-		setBuilderSections((prev) => ({ ...prev, [id]: value }));
-		// Update char count preview
-		const newContent = buildContentFromSections();
-		setCharCount(newContent.length);
 	};
 
 	const charCountColor =
@@ -252,7 +149,6 @@ export default function AgentEditorPage() {
 				</SurfaceCard>
 			) : (
 				<div className="space-y-4">
-					{/* Char count indicator */}
 					<div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
 						<div className="flex items-center gap-2">
 							<span className="text-sm text-slate-600">Character count:</span>
@@ -276,80 +172,25 @@ export default function AgentEditorPage() {
 						/>
 					)}
 
-					{/* Editor mode tabs */}
-					<div className="flex items-center gap-2 border-b border-slate-200">
-						<button
-							type="button"
-							onClick={() => setMode("raw")}
-							className={`border-b-2 px-4 py-2 text-sm font-medium ${
-								mode === "raw"
-									? "border-blue-600 text-blue-600"
-									: "border-transparent text-slate-600 hover:text-slate-800"
-							}`}
-						>
-							Raw Markdown
-						</button>
-						<button
-							type="button"
-							onClick={() => setMode("builder")}
-							className={`border-b-2 px-4 py-2 text-sm font-medium ${
-								mode === "builder"
-									? "border-blue-600 text-blue-600"
-									: "border-transparent text-slate-600 hover:text-slate-800"
-							}`}
-						>
-							Section Builder
-						</button>
-					</div>
-
-					{/* Editor content */}
 					<SurfaceCard>
-						{mode === "raw" ? (
-							<div className="space-y-3">
-								<SectionTitle
-									title="Raw Markdown Editor"
-									description="Edit the agent instructions directly using Markdown formatting."
-								/>
-								<textarea
-									value={rawContent}
-									onChange={(e) => {
-										setRawContent(e.target.value);
-										setCharCount(e.target.value.length);
-									}}
-									rows={20}
-									className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm leading-relaxed outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-									placeholder="# Agent Instructions&#10;&#10;## Role&#10;Define the agent's role..."
-								/>
-							</div>
-						) : (
-							<div className="space-y-4">
-								<SectionTitle
-									title="Section Builder"
-									description="Fill out each section to build your agent instructions."
-								/>
-								<div className="grid grid-cols-1 gap-4">
-									{SECTION_FIELDS.map((field) => (
-										<div key={field.id} className="space-y-2">
-											<label className="block">
-												<span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-													{field.label}
-												</span>
-												<textarea
-													value={builderSections[field.id] || ""}
-													onChange={(e) => updateBuilderSection(field.id, e.target.value)}
-													rows={field.rows}
-													placeholder={field.placeholder}
-													className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-												/>
-											</label>
-										</div>
-									))}
-								</div>
-							</div>
-						)}
+						<div className="space-y-3">
+							<SectionTitle
+								title="Agent instructions"
+								description="Edit your agent instructions directly using Markdown formatting."
+							/>
+							<textarea
+								value={rawContent}
+								onChange={(e) => {
+									setRawContent(e.target.value);
+									setCharCount(e.target.value.length);
+								}}
+								rows={20}
+								className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm leading-relaxed outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+								placeholder="# Agent Instructions&#10;&#10;## Role&#10;Define the agent's role..."
+							/>
+						</div>
 					</SurfaceCard>
 
-					{/* Version History Panel */}
 					{showHistory && (
 						<SurfaceCard>
 							<SectionTitle
@@ -394,7 +235,6 @@ export default function AgentEditorPage() {
 						</SurfaceCard>
 					)}
 
-					{/* Preview / Tips */}
 					<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 						<SurfaceCard>
 							<SectionTitle title="Tips for better results" description="" />
@@ -431,7 +271,7 @@ export default function AgentEditorPage() {
 							<p className="mt-2 text-sm text-slate-700">
 								Combined with your{" "}
 								<Link href="/social/memory" className="text-blue-600 hover:underline">
-									memory.md
+									brand memory
 								</Link>{" "}
 								(facts about your brand) and previous posts (for style matching), this
 								creates a complete context for every new draft.

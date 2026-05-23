@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 
 import { PostPreview } from "@/components/social/PostPreview";
 import {
+	HumanizerLevelBadge,
 	PostGenerationChips,
 	PrimaryButton,
 	SecondaryButton,
@@ -19,8 +20,10 @@ import {
 	GeneratedLinkedinCalendar,
 	GeneratedLinkedinCalendarPost,
 	generateLinkedinCalendar,
+	getAccountPreferences,
 	getSocialAccess,
 	getCopilotSession,
+	HumanizerLevel,
 	LinkedinCalendarDurationDays,
 	listCopilotSessions,
 } from "@/utils/api/socialClient";
@@ -75,6 +78,7 @@ export default function SocialCopilotPage() {
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [generationStatus, setGenerationStatus] = useState<string | null>(null);
 	const [imageGenerationEnabled, setImageGenerationEnabled] = useState(true);
+	const [humanizerLevel, setHumanizerLevel] = useState<HumanizerLevel>("medium");
 	const sessionDraftsHref = chatId ? `/social/copilot/sessions/${chatId}/drafts` : null;
 
 	const selectedFramework =
@@ -122,10 +126,14 @@ export default function SocialCopilotPage() {
 		loadSessions();
 		(async () => {
 			try {
-				const access = await getSocialAccess();
+				const [access, prefs] = await Promise.all([
+					getSocialAccess(),
+					getAccountPreferences().catch(() => null),
+				]);
 				setImageGenerationEnabled(
 					access.linkedinImageGenerationEnabled !== false
 				);
+				if (prefs?.humanizerLevel) setHumanizerLevel(prefs.humanizerLevel);
 			} catch {
 				setImageGenerationEnabled(true);
 			}
@@ -184,9 +192,11 @@ export default function SocialCopilotPage() {
 		);
 		setAttachments(session.attachments || []);
 		setBrief(session.brief);
+		if (session.brief?.humanizerLevel) setHumanizerLevel(session.brief.humanizerLevel);
 		setSelectedFrameworkId(session.selectedFrameworkId);
 		setAnswers(session.answers || {});
 		setCalendar(session.calendar);
+		if (session.calendar?.humanizerLevel) setHumanizerLevel(session.calendar.humanizerLevel);
 		setSelectedPostId(session.calendar?.posts[0]?.postRunId ?? null);
 	};
 
@@ -208,7 +218,9 @@ export default function SocialCopilotPage() {
 				prompt: cleaned,
 				conversation: messages.slice(-8),
 				attachments,
+				humanizerLevel,
 			});
+			if (response.humanizerLevel) setHumanizerLevel(response.humanizerLevel);
 			const resolvedChatId = response.chatId || response.session?.chatId || chatId;
 			if (resolvedChatId) setChatId(resolvedChatId);
 			setBrief(response);
@@ -265,6 +277,7 @@ export default function SocialCopilotPage() {
 				messages: [...messages, { role: "assistant", content: generationDoneMessage }],
 				selectedFrameworkId: selectedFramework.id,
 				briefSnapshot: brief,
+				humanizerLevel: brief.humanizerLevel ?? humanizerLevel,
 			}, {
 				timeoutMs: 8 * 60 * 1000,
 				onStatus: ({ status, attempt }) => {
@@ -280,6 +293,7 @@ export default function SocialCopilotPage() {
 				},
 			});
 			setCalendar(result);
+			if (result.humanizerLevel) setHumanizerLevel(result.humanizerLevel);
 			setSelectedPostId(result.posts[0]?.postRunId ?? null);
 			setMessages((prev) => [
 				...prev,
@@ -376,6 +390,7 @@ export default function SocialCopilotPage() {
 								</div>
 							</div>
 							<div className="hidden items-center gap-2 md:flex">
+								<HumanizerLevelBadge level={humanizerLevel} />
 								<StatusPill label={`${sessions.length} saved`} tone="info" />
 								{calendar && <StatusPill label={`${calendar.totalPosts} drafts`} tone="positive" />}
 							</div>

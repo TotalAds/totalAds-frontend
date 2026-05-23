@@ -23,12 +23,15 @@ import {
 } from "@/components/social/SocialUi";
 import {
 	approvePost,
+	cancelScheduledPost,
 	deleteSocialMediaAsset,
 	deleteLinkedinPost,
+	getBrandDetails,
 	getPost,
 	listPostMediaAssets,
 	listEntityEvents,
 	publishPostNow,
+	regenerateImagePrompt,
 	rejectPost,
 	reschedulePostToSlot,
 	retrySocialMediaAsset,
@@ -36,6 +39,7 @@ import {
 	SocialEvent,
 	SocialTimeSlot,
 	getSocialAccess,
+	SocialBrandDetails,
 	SocialMediaAsset,
 	SocialPostRun,
 	uploadSocialEditorImage,
@@ -51,6 +55,7 @@ import {
 	IconArrowLeft,
 	IconBolt,
 	IconBrandLinkedin,
+	IconCalendarOff,
 	IconCalendarTime,
 	IconCheck,
 	IconCopy,
@@ -78,7 +83,10 @@ export default function SocialPostDetailPage() {
 	const [mediaUrls, setMediaUrls] = useState<string[]>([]);
 	const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 	const [assetToRemoveUrl, setAssetToRemoveUrl] = useState<string | null>(null);
+	const [showCancelScheduleModal, setShowCancelScheduleModal] = useState(false);
 	const [imageGenerationEnabled, setImageGenerationEnabled] = useState(true);
+	const [includeFooterInPrompt, setIncludeFooterInPrompt] = useState(true);
+	const [brandDetails, setBrandDetails] = useState<SocialBrandDetails | null>(null);
 	const [busy, setBusy] = useState(false);
 	const [retryingAssetId, setRetryingAssetId] = useState<number | null>(null);
 	const [pickerValue, setPickerValue] = useState("");
@@ -113,9 +121,10 @@ export default function SocialPostDetailPage() {
 				router.replace("/social/posts");
 				return;
 			}
-			const [ev, media] = await Promise.all([
+			const [ev, media, liveBrand] = await Promise.all([
 				listEntityEvents("post", id),
 				listPostMediaAssets(id),
+				getBrandDetails().catch(() => null),
 			]);
 			const mergedMediaUrls = mergeUniqueMediaUrls(
 				data.post.mediaUrls || [],
@@ -128,6 +137,7 @@ export default function SocialPostDetailPage() {
 			setPickerValue(toDatetimeLocalValue(data.post.scheduledFor));
 			setEvents(ev);
 			setPostMediaAssets(media);
+			setBrandDetails(liveBrand);
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : "Failed to load post");
 		} finally {
@@ -306,6 +316,26 @@ export default function SocialPostDetailPage() {
 		}
 	};
 
+	const confirmCancelSchedule = async () => {
+		if (!post?.scheduledFor || post.linkedinPostUrn) return;
+		try {
+			setBusy(true);
+			await cancelScheduledPost(id, "schedule_cancelled_from_detail");
+			setShowCancelScheduleModal(false);
+			toast.success("Schedule cancelled — this post will not be published");
+			await load();
+		} catch (err: unknown) {
+			const message =
+				(err as { response?: { data?: { message?: string } } })?.response?.data
+					?.message ||
+				(err instanceof Error ? err.message : null) ||
+				"Could not cancel schedule";
+			toast.error(message);
+		} finally {
+			setBusy(false);
+		}
+	};
+
 	const isPublished = post?.status === "published";
 	const isPublishing = post?.status === "publishing";
 	const isScheduled = post?.status === "scheduled" || !!post?.scheduledFor;
@@ -328,6 +358,12 @@ export default function SocialPostDetailPage() {
 		!isRejected &&
 		!isPublishing &&
 		hasUserApproved;
+	const canCancelSchedule =
+		!!post?.scheduledFor &&
+		!post.linkedinPostUrn &&
+		!isPublished &&
+		!isPublishing &&
+		!isRejected;
 	const schedulingBusy = scheduleSubmitting !== false;
 	const canRetryFailedMedia =
 		!!post &&
@@ -335,7 +371,17 @@ export default function SocialPostDetailPage() {
 		post.status !== "published" &&
 		post.status !== "publishing";
 	const mediaPolicy = getLinkedinMediaPolicy(mediaUrls);
-	const imagePromptText = post ? buildImagePromptFromPost(post) : "";
+	const imagePromptText = useMemo(
+		() =>
+			post
+				? buildImagePromptFromPost(post, {
+						includeFooter: includeFooterInPrompt,
+						brandDetails,
+					})
+				: "",
+		[brandDetails, includeFooterInPrompt, post]
+	);
+	const aiLaunchLinks = useMemo(() => getAiPromptLaunchLinks(imagePromptText), [imagePromptText]);
 	const retryMediaAsset = async (assetId: number) => {
 		try {
 			setRetryingAssetId(assetId);
@@ -429,6 +475,8 @@ export default function SocialPostDetailPage() {
 								{formatSocialDateTime(post.publishedAt)}
 							</strong>
 						</>
+					) : post?.status === "cancelled" ? (
+						"Schedule cancelled — this post will not be published automatically."
 					) : post?.scheduledFor ? (
 						<>
 							Scheduled for{" "}
@@ -735,18 +783,41 @@ export default function SocialPostDetailPage() {
 															</li>
 														))}
 												</ul>
-											</div>
-										)}
-									<div className="mt-4 flex flex-wrap gap-2">
-										{canTakeDraftAction && (
-											<>
-												<PrimaryButton
-													onClick={() => approve(false)}
-													disabled={busy || postContentOverLimit}
-												>
-													<IconCheck className="h-4 w-4" />
-													Approve
-												</PrimaryButton>
+									</div>
+									)}
+
+									{/* Image Prompt Section */}
+									{postMediaAssets.filter(a => a.assetType === "single_image" && a.sourcePrompt).length > 0 && (
+										<div className="mt-6 border-t border-slate-200 pt-6">
+											<h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
+												Image Prompt
+											</h4>
+											{postMediaAssets
+												.filter(a => a.assetType === "single_image" && a.sourcePrompt)
+												.map(asset => (
+													<ImagePromptSection
+														key={asset.id}
+														asset={asset}
+														onPromptUpdate={(updatedAsset) => {
+															setPostMediaAssets(prev =>
+																prev.map(a => a.id === updatedAsset.id ? updatedAsset : a)
+														);
+														}}
+													/>
+												))}
+										</div>
+									)}
+
+								<div className="mt-4 flex flex-wrap gap-2">
+									{canTakeDraftAction && (
+										<>
+											<PrimaryButton
+												onClick={() => approve(false)}
+												disabled={busy || postContentOverLimit}
+											>
+												<IconCheck className="h-4 w-4" />
+												Approve
+											</PrimaryButton>
 												<SecondaryButton
 													onClick={() => approve(true)}
 													disabled={busy || postContentOverLimit}
@@ -821,6 +892,15 @@ export default function SocialPostDetailPage() {
 										Use this image prompt in GPT, Claude, Gemini, or another tool
 										to generate your own asset, then upload it back here for posting.
 									</p>
+									<label className="mt-3 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2 text-xs text-slate-700">
+										<input
+											type="checkbox"
+											checked={includeFooterInPrompt}
+											onChange={(e) => setIncludeFooterInPrompt(e.target.checked)}
+											className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+										/>
+										Add footer details in prompt
+									</label>
 									<div className="mt-3 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
 										<div className="flex flex-wrap items-center justify-between gap-2">
 											<p className="text-xs font-medium text-slate-800">
@@ -837,6 +917,24 @@ export default function SocialPostDetailPage() {
 										<pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-[11px] leading-relaxed text-slate-700">
 											{imagePromptText}
 										</pre>
+									</div>
+									<div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+										<p className="text-xs font-medium text-slate-800">
+											Open with AI tools
+										</p>
+										<div className="mt-2 flex flex-wrap gap-2">
+											{aiLaunchLinks.map((item) => (
+												<a
+													key={item.label}
+													href={item.url}
+													target="_blank"
+													rel="noreferrer"
+													className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
+												>
+													{item.label}
+												</a>
+											))}
+										</div>
 									</div>
 								</SurfaceCard>
 							)}
@@ -919,6 +1017,25 @@ export default function SocialPostDetailPage() {
 											(clipped to your posting window) so posts don't always
 											land on the same minute.
 										</p>
+									)}
+									{canCancelSchedule && (
+										<div className="mt-5 border-t border-slate-200 pt-4">
+											<p className="text-xs font-medium text-slate-700">
+												Need to stop this post?
+											</p>
+											<p className="mt-1 text-xs leading-relaxed text-slate-500">
+												This draft is only queued in SocialSnipper — nothing
+												has been sent to LinkedIn yet.
+											</p>
+											<DangerButton
+												onClick={() => setShowCancelScheduleModal(true)}
+												disabled={busy || schedulingBusy}
+												className="mt-3 w-full justify-center"
+											>
+												<IconCalendarOff className="h-4 w-4 shrink-0" />
+												Cancel schedule
+											</DangerButton>
+										</div>
 									)}
 								</SurfaceCard>
 							)}
@@ -1083,7 +1200,152 @@ export default function SocialPostDetailPage() {
 					</div>
 				</div>
 			)}
+
+			{showCancelScheduleModal && post?.scheduledFor && (
+				<div
+					className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4"
+					role="dialog"
+					aria-modal="true"
+					aria-labelledby="cancel-schedule-title"
+				>
+					<div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-xl">
+						<h3
+							id="cancel-schedule-title"
+							className="text-base font-semibold text-slate-900"
+						>
+							Cancel this scheduled post?
+						</h3>
+						<p className="mt-2 text-sm leading-relaxed text-slate-600">
+							This post is queued for{" "}
+							<strong className="font-semibold text-slate-800">
+								{formatSocialDateTime(post.scheduledFor)}
+							</strong>
+							. It has <strong className="font-semibold text-slate-800">not</strong>{" "}
+							been published to LinkedIn.
+						</p>
+						<p className="mt-3 text-sm leading-relaxed text-slate-600">
+							Cancelling removes it from your publishing queue. It will not go
+							live automatically, and you can still review it later in your posts
+							list as cancelled.
+						</p>
+						<div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+							<SecondaryButton
+								onClick={() => setShowCancelScheduleModal(false)}
+								disabled={busy}
+								className="w-full justify-center sm:w-auto"
+							>
+								Keep scheduled
+							</SecondaryButton>
+							<DangerButton
+								onClick={() => void confirmCancelSchedule()}
+								disabled={busy}
+								className="w-full justify-center sm:w-auto"
+							>
+								{busy ? (
+									<IconLoader2 className="h-4 w-4 shrink-0 animate-spin" />
+								) : (
+									<IconCalendarOff className="h-4 w-4 shrink-0" />
+								)}
+								Yes, cancel schedule
+							</DangerButton>
+						</div>
+					</div>
+				</div>
+			)}
 		</PageShell>
+	);
+}
+
+// -----------------------------------------------------------------------
+// Image Prompt Section Component
+// -----------------------------------------------------------------------
+
+function ImagePromptSection({
+	asset,
+	onPromptUpdate,
+}: {
+	asset: SocialMediaAsset;
+	onPromptUpdate: (asset: SocialMediaAsset) => void;
+}) {
+	const [showPrompt, setShowPrompt] = useState(false);
+	const [includeContact, setIncludeContact] = useState(
+		asset.sourcePrompt?.includes("Include contact info in image footer") || false
+	);
+	const [regenerating, setRegenerating] = useState(false);
+
+	const handleRegenerate = async () => {
+		try {
+			setRegenerating(true);
+			const result = await regenerateImagePrompt({
+				assetId: asset.id,
+				includeContactInImage: includeContact,
+			});
+			onPromptUpdate({ ...asset, sourcePrompt: result.sourcePrompt });
+			toast.success("Image prompt updated");
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Failed to update prompt");
+		} finally {
+			setRegenerating(false);
+		}
+	};
+
+	return (
+		<div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+			<div className="flex items-center justify-between gap-2">
+				<div className="flex items-center gap-2">
+					<span className="text-xs font-medium text-slate-700">
+						Asset #{asset.id}
+					</span>
+					<span className="text-[11px] text-slate-500">
+						({asset.provider})
+					</span>
+				</div>
+				<div className="flex items-center gap-2">
+					<label className="flex cursor-pointer items-center gap-2 text-xs text-slate-600">
+						<input
+							type="checkbox"
+							checked={includeContact}
+							onChange={(e) => setIncludeContact(e.target.checked)}
+							className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+						/>
+						Add footer details in image
+					</label>
+					<button
+						onClick={handleRegenerate}
+						disabled={regenerating}
+						className="rounded bg-blue-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+					>
+						{regenerating ? "Updating..." : "Update prompt"}
+					</button>
+				</div>
+			</div>
+
+			<button
+				onClick={() => setShowPrompt(!showPrompt)}
+				className="mt-2 flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-700"
+			>
+				{showPrompt ? "Hide" : "Show"} prompt
+				<svg
+					className={`h-3 w-3 transition-transform ${showPrompt ? "rotate-180" : ""}`}
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+				>
+					<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+				</svg>
+			</button>
+
+			{showPrompt && (
+				<div className="mt-2">
+					<textarea
+						value={asset.sourcePrompt || ""}
+						readOnly
+						rows={8}
+						className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 font-mono text-[11px] leading-relaxed text-slate-700"
+					/>
+				</div>
+			)}
+		</div>
 	);
 }
 
@@ -1165,28 +1427,84 @@ function getLinkedinMediaPolicy(mediaUrls: string[]): {
 	return { tone: "info", message: null };
 }
 
-function buildImagePromptFromPost(post: SocialPostRun): string {
-	const prompt = [
-		`Create a polished LinkedIn image for this post: ${
-			post.topic || post.hookText || "LinkedIn post"
-		}`,
-		post.angle ? `Angle: ${post.angle}` : "",
-		post.selectedFormat || post.contentPostFormat
-			? `Format: ${post.selectedFormat || post.contentPostFormat}`
+function buildImagePromptFromPost(
+	post: SocialPostRun,
+	options?: { includeFooter?: boolean; brandDetails?: SocialBrandDetails | null }
+): string {
+	const includeFooter = options?.includeFooter !== false;
+	const brandContext = extractBrandContext(post, options?.brandDetails);
+	const postTheme = post.topic || post.hookText || "LinkedIn post";
+	const headline = pickPrimaryHeadline(post);
+	const subheadline = pickSubheadline(post);
+	const formatLabel = post.selectedFormat || post.contentPostFormat || "Single image";
+	const themeTag = inferThemeTag(postTheme, formatLabel);
+	const postBodySummary = String(post.contentBody || "").slice(0, 1200);
+	const footerText = buildFooterText(brandContext);
+	const brandDetails = [
+		brandContext.companyName ? `Company: ${brandContext.companyName}` : "",
+		brandContext.productName ? `Product: ${brandContext.productName}` : "",
+		brandContext.brandDescription ? `Brand detail: ${brandContext.brandDescription}` : "",
+		brandContext.website ? `Website: ${brandContext.website}` : "",
+		brandContext.instagramHandle ? `Instagram: ${brandContext.instagramHandle}` : "",
+		brandContext.mobileNumber ? `Mobile: ${brandContext.mobileNumber}` : "",
+		brandContext.brandColor ? `Brand color: ${brandContext.brandColor}` : "",
+		brandContext.brandLogoUrl ? `Logo URL: ${brandContext.brandLogoUrl}` : "",
+	]
+		.filter(Boolean)
+		.join("\n");
+
+	const userPrompt = [
+		"Create a premium LinkedIn-ready visual for this B2B SaaS post.",
+		`POST THEME: ${postTheme}`,
+		`POST FORMAT: ${formatLabel}`,
+		`THEME TAG (top right): "${themeTag}"`,
+		brandContext.companyName || brandContext.productName
+			? `LOGO (top left): ${brandContext.productName || brandContext.companyName} logo`
+			: "LOGO (top left): Brand logo",
+		`LOGO URL: ${brandContext.brandLogoUrl || "Not provided"}`,
+		includeFooter && footerText
+			? `FOOTER: ${footerText}`
+			: "FOOTER: Do not render any footer bar or contact strip.",
+		includeFooter
+			? `FOOTER FIELDS (show when available): Instagram ${brandContext.instagramHandle || "(not provided)"} | Mobile ${brandContext.mobileNumber || "(not provided)"} | Website ${brandContext.website || "(not provided)"}`
 			: "",
-		"Visual rule: no humans, no founder portraits, no unrelated people; use abstract/product/data/workspace visuals with a subtle bottom-corner organization tag.",
-		`Post body:\n${String(post.contentBody || "").slice(0, 1600)}`,
-	].filter(Boolean).join("\n");
-	return buildHumanReadablePrompt(prompt);
+		"",
+		"VISUAL DIRECTION:",
+		"- No humans, no portraits, no unrelated people",
+		"- Use abstract tech/product/data visuals that feel like premium startup branding",
+		"- Editorial composition with clean whitespace and strong visual hierarchy",
+		"- Dark or light mode is allowed, but use one disciplined accent color",
+		"",
+		"COPY DIRECTION:",
+		`- Headline: "${headline}"`,
+		subheadline ? `- Subheadline: "${subheadline}"` : "",
+		"",
+		"BRAND DETAILS TO REFLECT IN THE IMAGE (only if provided):",
+		brandDetails || "- Use known brand identity from the post context",
+		"",
+		"POST BODY SUMMARY:",
+		postBodySummary || "(No post body available)",
+		"",
+		"IMPORTANT:",
+		"- Keep typography crisp and readable on mobile feed",
+		"- No clutter, no stock-photo look, no meme style",
+		"- Make it look like a real designer-made Canva/Figma startup creative",
+	]
+		.filter(Boolean)
+		.join("\n");
+
+	return buildHumanReadablePrompt(userPrompt);
 }
 
 function buildHumanReadablePrompt(rawPrompt: string): string {
 	const prompt = String(rawPrompt || "").trim();
 	const systemPrompt = [
-		"You are generating a LinkedIn-ready visual for a B2B post.",
-		"Use a professional style suitable for founders/operators.",
-		"Avoid unrelated people/faces unless explicitly required.",
-		"Keep composition clean and posting-ready for LinkedIn feed.",
+		"You are an elite B2B brand designer creating LinkedIn-ready visuals for premium SaaS and tech brands.",
+		"Style direction: modern, minimalistic, professional, high-whitespace layout with strong typography hierarchy.",
+		"Visual rules: avoid humans, stock-photo look, clutter, meme-style graphics, and oversaturated palettes.",
+		"Layout rules: top-left brand logo, top-right theme chip, center visual storytelling, optional clean footer strip.",
+		"Quality bar: image should look like startup launch creative built in Canva/Figma by a real design team.",
+		"Always optimize for LinkedIn feed readability and clean composition.",
 	].join("\n");
 	return [
 		"System prompt:",
@@ -1195,6 +1513,165 @@ function buildHumanReadablePrompt(rawPrompt: string): string {
 		"User prompt:",
 		prompt || "(No user prompt captured)",
 	].join("\n");
+}
+
+function extractBrandContext(
+	post: SocialPostRun,
+	liveBrand?: SocialBrandDetails | null
+): {
+	companyName: string;
+	productName: string;
+	website: string;
+	instagramHandle: string;
+	mobileNumber: string;
+	brandColor: string;
+	brandLogoUrl: string;
+	brandDescription: string;
+} {
+	const snapshots = [post.profileMemorySnapshot, post.workMemorySnapshot].filter(
+		Boolean
+	) as Array<Record<string, unknown>>;
+	const fromSnapshot = {
+		companyName: readSnapshotValue(snapshots, ["company", "companyName", "brand_name"]),
+		productName: readSnapshotValue(snapshots, [
+			"product_name",
+			"productName",
+			"product",
+		]),
+		website: readSnapshotValue(snapshots, [
+			"company_website",
+			"website",
+			"site",
+			"domain",
+		]),
+		instagramHandle: normalizeInstagramHandle(
+			readSnapshotValue(snapshots, ["instagram_handle", "instagramHandle", "instagram"])
+		),
+		mobileNumber: readSnapshotValue(snapshots, ["mobile_number", "mobileNumber", "phone"]),
+		brandColor: readSnapshotValue(snapshots, ["brand_color", "brandColor", "primary_color"]),
+		brandLogoUrl: readSnapshotValue(snapshots, ["brand_logo_url", "brandLogoUrl", "logo"]),
+		brandDescription: readSnapshotValue(snapshots, [
+			"brand_positioning",
+			"brandPositioning",
+			"usp",
+			"linkedin_headline",
+			"product_summary",
+			"description",
+		]),
+	};
+	const live = liveBrand
+		? {
+				companyName: coerceMemoryValue(liveBrand.companyName),
+				productName: coerceMemoryValue(liveBrand.productName),
+				website: coerceMemoryValue(liveBrand.website),
+				instagramHandle: normalizeInstagramHandle(
+					coerceMemoryValue(liveBrand.instagramHandle)
+				),
+				mobileNumber: coerceMemoryValue(liveBrand.mobileNumber),
+				brandColor: coerceMemoryValue(liveBrand.brandColor),
+				brandLogoUrl: coerceMemoryValue(liveBrand.brandLogoUrl),
+				brandDescription: coerceMemoryValue(
+					liveBrand.brandPositioning || liveBrand.usp
+				),
+			}
+		: null;
+
+	return {
+		companyName: fromSnapshot.companyName || live?.companyName || "",
+		productName: fromSnapshot.productName || live?.productName || "",
+		website: fromSnapshot.website || live?.website || "",
+		brandDescription: fromSnapshot.brandDescription || live?.brandDescription || "",
+		instagramHandle: live?.instagramHandle || fromSnapshot.instagramHandle,
+		mobileNumber: live?.mobileNumber || fromSnapshot.mobileNumber,
+		brandColor: live?.brandColor || fromSnapshot.brandColor,
+		brandLogoUrl: live?.brandLogoUrl || fromSnapshot.brandLogoUrl,
+	};
+}
+
+function readSnapshotValue(
+	snapshots: Array<Record<string, unknown>>,
+	keys: string[]
+): string {
+	for (const snapshot of snapshots) {
+		for (const key of keys) {
+			const value = coerceMemoryValue(snapshot[key]);
+			if (value) return value;
+		}
+	}
+	return "";
+}
+
+function coerceMemoryValue(value: unknown): string {
+	if (value == null) return "";
+	if (typeof value === "string") return value.trim();
+	if (typeof value === "number" || typeof value === "boolean") return String(value);
+	if (Array.isArray(value)) {
+		return value.map(coerceMemoryValue).filter(Boolean).join(", ");
+	}
+	if (typeof value === "object") {
+		const record = value as Record<string, unknown>;
+		if ("value" in record) return coerceMemoryValue(record.value);
+		if ("text" in record) return coerceMemoryValue(record.text);
+	}
+	return "";
+}
+
+function normalizeInstagramHandle(handle: string): string {
+	const clean = String(handle || "").trim();
+	if (!clean) return "";
+	return clean.startsWith("@") ? clean : `@${clean}`;
+}
+
+function buildFooterText(context: {
+	website: string;
+	instagramHandle: string;
+	mobileNumber: string;
+}): string {
+	const items = [context.instagramHandle, context.mobileNumber, context.website].filter(
+		Boolean
+	);
+	return items.join(" · ");
+}
+
+function pickPrimaryHeadline(post: SocialPostRun): string {
+	if (post.hookText && post.hookText.trim()) return post.hookText.trim();
+	const firstLine = String(post.contentBody || "")
+		.split("\n")
+		.map((line) => line.trim())
+		.find(Boolean);
+	return firstLine || "Modern outbound systems for B2B growth";
+}
+
+function pickSubheadline(post: SocialPostRun): string {
+	const body = String(post.contentBody || "");
+	const lines = body
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0 && line.length <= 90);
+	return lines[1] || "";
+}
+
+function inferThemeTag(topic: string, formatLabel: string): string {
+	const source = `${topic} ${formatLabel}`.toLowerCase();
+	if (source.includes("announcement") || source.includes("launch")) return "Announcement";
+	if (source.includes("update")) return "Product Update";
+	if (source.includes("insight") || source.includes("thought")) return "Insight";
+	if (source.includes("case study")) return "Case Study";
+	return "Product Update";
+}
+
+function getAiPromptLaunchLinks(prompt: string): Array<{ label: string; url: string }> {
+	const encodedPrompt = encodeURIComponent(prompt);
+	return [
+		{
+			label: "Open in ChatGPT",
+			url: `https://chatgpt.com/?q=${encodedPrompt}`,
+		},
+		{
+			label: "Open in Claude",
+			url: `https://claude.ai/new?q=${encodedPrompt}`,
+		},
+	];
 }
 
 

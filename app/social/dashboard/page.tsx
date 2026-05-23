@@ -11,6 +11,7 @@ import {
 	MetaRow,
 	PageHeader,
 	PageShell,
+	HumanizerLevelBadge,
 	PostGenerationChips,
 	PrimaryButton,
 	SecondaryButton,
@@ -29,6 +30,7 @@ import {
 	listEvents,
 	listPosts,
 	runSchedulerNow,
+	submitRawThought,
 	SocialAccessResponse,
 	SocialEvent,
 	SocialPostRun,
@@ -42,6 +44,7 @@ import {
 	IconBrandTelegram,
 	IconCalendarEvent,
 	IconInbox,
+	IconMessageBolt,
 	IconPencilPlus,
 	IconSparkles,
 } from "@tabler/icons-react";
@@ -56,6 +59,13 @@ export default function SocialDashboardPage() {
 	const [recentPosts, setRecentPosts] = useState<SocialPostRun[]>([]);
 	const [recentEvents, setRecentEvents] = useState<SocialEvent[]>([]);
 	const [error, setError] = useState<string | null>(null);
+	const [rawThought, setRawThought] = useState("");
+	const [submittingThought, setSubmittingThought] = useState(false);
+	const [thoughtResult, setThoughtResult] = useState<{
+		priority: string;
+		freshness: number;
+		posts: Array<{ postRunId: number; format: string; preview: string }>;
+	} | null>(null);
 
 	const load = async () => {
 		try {
@@ -270,6 +280,108 @@ export default function SocialDashboardPage() {
 					/>
 				))}
 			</div>
+
+			{/* Brain dump input */}
+			<SurfaceCard>
+				<SectionTitle
+					title="Quick brain dump"
+					description="Share a raw idea — we load your memory and recent posts, draft like Post Studio, then humanize."
+					action={
+						<StatusPill
+							tone="info"
+							label="New"
+						/>
+					}
+				/>
+				<div className="space-y-3">
+					<textarea
+						id="raw-thought-input"
+						value={rawThought}
+						onChange={(e) => {
+							setRawThought(e.target.value);
+							if (thoughtResult) setThoughtResult(null);
+						}}
+						placeholder="e.g. shipped domain health dashboard today. took 3 weeks. customers already asking for alerts..."
+						rows={3}
+						maxLength={2000}
+						className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+					/>
+					<div className="flex flex-wrap items-center justify-between gap-2">
+						<div className="flex flex-wrap items-center gap-2">
+							<p className="text-xs text-slate-400">
+								{rawThought.length}/2000 · Memory + format pick + humanizer (same as Post Studio)
+							</p>
+							{prefs?.humanizerLevel && (
+								<HumanizerLevelBadge level={prefs.humanizerLevel} />
+							)}
+						</div>
+						<PrimaryButton
+							onClick={async () => {
+								if (rawThought.trim().length < 5) {
+									toast.error("Tell me a bit more — at least a few words.");
+									return;
+								}
+								try {
+									setSubmittingThought(true);
+									setThoughtResult(null);
+									const result = await submitRawThought(rawThought.trim(), {
+										humanizerLevel: prefs?.humanizerLevel,
+									});
+									setThoughtResult({
+										priority: result.detectedPriority,
+										freshness: result.freshnessScore,
+										posts: result.generatedPosts.map((p) => ({
+											postRunId: p.postRunId,
+											format: p.format,
+											preview: p.preview,
+										})),
+									});
+									setRawThought("");
+									toast.success(
+										`Generated ${result.generatedPosts.length} draft(s) — ${result.detectedPriority} priority`
+									);
+									await load();
+								} catch (err) {
+									toast.error(
+										err instanceof Error ? err.message : "Failed to process thought"
+									);
+								} finally {
+									setSubmittingThought(false);
+								}
+							}}
+							disabled={submittingThought || rawThought.trim().length < 5}
+						>
+							<IconMessageBolt className="h-4 w-4" />
+							{submittingThought ? "Processing…" : "Turn into posts"}
+						</PrimaryButton>
+					</div>
+
+					{thoughtResult && (
+						<div className="rounded-lg border border-green-200 bg-green-50 p-3">
+							<div className="flex items-center gap-2 text-sm font-medium text-green-800">
+								<IconSparkles className="h-4 w-4" />
+								{thoughtResult.priority} priority · freshness {thoughtResult.freshness}
+							</div>
+							<div className="mt-2 space-y-2">
+								{thoughtResult.posts.map((post) => (
+									<Link
+										key={post.postRunId}
+										href={`/social/posts/${post.postRunId}`}
+										className="block rounded-md border border-green-100 bg-white px-3 py-2 transition hover:border-blue-200"
+									>
+										<p className="text-xs font-medium text-slate-600">
+											#{post.postRunId} · {post.format}
+										</p>
+										<p className="mt-1 line-clamp-2 text-sm text-slate-800">
+											{post.preview}
+										</p>
+									</Link>
+								))}
+							</div>
+						</div>
+					)}
+				</div>
+			</SurfaceCard>
 
 			<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
 				<SurfaceCard className="lg:col-span-2">

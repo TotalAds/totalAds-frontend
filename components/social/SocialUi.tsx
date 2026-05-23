@@ -253,6 +253,46 @@ function humanize(value: string) {
 		.replace(/\b\w/g, (ch) => ch.toUpperCase());
 }
 
+export type HumanizerLevel = "off" | "light" | "medium" | "heavy";
+
+export const HUMANIZER_LEVEL_LABELS: Record<HumanizerLevel, string> = {
+	off: "Off",
+	light: "Light",
+	medium: "Medium",
+	heavy: "Heavy",
+};
+
+export function HumanizerLevelBadge({
+	level,
+	className,
+}: {
+	level: HumanizerLevel;
+	className?: string;
+}) {
+	const label = HUMANIZER_LEVEL_LABELS[level] || level;
+	const toneClass =
+		level === "off"
+			? "bg-slate-100 text-slate-600 ring-slate-200/80"
+			: level === "light"
+				? "bg-sky-50 text-sky-800 ring-sky-200/80"
+				: level === "heavy"
+					? "bg-rose-50 text-rose-900 ring-rose-200/80"
+					: "bg-emerald-50 text-emerald-900 ring-emerald-200/80";
+
+	return (
+		<span
+			className={cn(
+				"inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset",
+				toneClass,
+				className
+			)}
+			title="Humanizer intensity for generated copy"
+		>
+			Humanizer · {label}
+		</span>
+	);
+}
+
 export type PostGenerationMeta = {
 	/** Stored slug, e.g. hot_take */
 	contentPostFormat?: string | null;
