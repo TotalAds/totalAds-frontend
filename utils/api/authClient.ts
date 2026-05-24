@@ -23,6 +23,8 @@ export interface RegisterCredentials {
   confirmPassword: string;
   referralCode?: string;
   product?: ProductType;
+  acceptedLegal: true;
+  acceptedLegalVersion: string;
 }
 
 export interface UserProfile {

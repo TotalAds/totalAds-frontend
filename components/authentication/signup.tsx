@@ -2,6 +2,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import React, { useState, useEffect } from "react";
 
+import { LegalAcceptanceCheckbox } from "@/components/authentication/LegalAcceptanceCheckbox";
 import GetLogo from "@/components/common/getLogo";
 import { useAuthContext } from "@/context/AuthContext";
 import { appendUtmToPath } from "@/utils/analytics/utm";
@@ -28,6 +29,7 @@ export function SignupComponent() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
   const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
 
   // Get product from URL or stored session
   const product: ProductType = React.useMemo(() => {
@@ -68,8 +70,12 @@ export function SignupComponent() {
 
     if (!confirmPassword)
       errors.confirmPassword = "Please confirm your password";
-    else if (password !== confirmPassword)
+    else     if (password !== confirmPassword)
       errors.confirmPassword = "Passwords do not match";
+
+    if (!acceptedLegal)
+      errors.acceptLegal =
+        "You must accept our legal agreements to create an account";
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -90,7 +96,8 @@ export function SignupComponent() {
         password,
         confirmPassword,
         referralCode || undefined,
-        product || undefined
+        product || undefined,
+        acceptedLegal
       );
 
       // Check if email verification is required
@@ -320,9 +327,17 @@ export function SignupComponent() {
                 )}
               </div>
 
+              <LegalAcceptanceCheckbox
+                checked={acceptedLegal}
+                onCheckedChange={setAcceptedLegal}
+                disabled={isLoading}
+                product={product}
+                error={formErrors.acceptLegal}
+              />
+
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || !acceptedLegal}
                 className="w-full py-2.5 px-4 bg-brand-main hover:bg-brand-main/80 text-white font-semibold rounded-lg text-sm transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 {isLoading ? (
@@ -363,9 +378,37 @@ export function SignupComponent() {
           </div>
 
           {/* Footer */}
-          <div className="text-center mt-6">
+          <div className="text-center mt-6 space-y-2">
             <p className="text-gray-600 dark:text-text-200 text-xs">
-              Need help? Contact our support team at{" "}
+              <a
+                href="https://leadsnipper.com/privacy-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand-main hover:text-brand-secondary transition-colors"
+              >
+                Privacy
+              </a>
+              {" · "}
+              <a
+                href="https://leadsnipper.com/terms-of-service"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand-main hover:text-brand-secondary transition-colors"
+              >
+                Terms
+              </a>
+              {" · "}
+              <a
+                href="https://leadsnipper.com/refund-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand-main hover:text-brand-secondary transition-colors"
+              >
+                Refunds
+              </a>
+            </p>
+            <p className="text-gray-600 dark:text-text-200 text-xs">
+              Need help?{" "}
               <a
                 href="mailto:hello@leadsnipper.com"
                 className="text-brand-main hover:text-brand-secondary transition-colors"

@@ -8,6 +8,7 @@ import React, {
   useReducer,
 } from "react";
 
+import { LEGAL_VERSION } from "@/lib/legal";
 import { resetIdentity, trackEvent } from "@/utils/analytics/track";
 import {
   getCurrentUser,
@@ -64,7 +65,8 @@ interface AuthContextType {
     password: string,
     confirmPassword: string,
     referralCode?: string,
-    product?: ProductType
+    product?: ProductType,
+    acceptedLegal?: boolean
   ) => Promise<UserProfile>;
   logoutUser: () => void;
   clearError: () => void;
@@ -179,9 +181,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     password: string,
     confirmPassword: string,
     referralCode?: string,
-    product?: ProductType
+    product?: ProductType,
+    acceptedLegal?: boolean
   ) => {
     try {
+      if (!acceptedLegal) {
+        throw new Error(
+          "You must accept the Terms of Service, Privacy Policy, Refund Policy, and Data Use Policy"
+        );
+      }
       dispatch({ type: "REGISTER_START" });
       trackEvent("register_attempt", {
         hasReferralCode: !!referralCode,
@@ -194,6 +202,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         confirmPassword,
         referralCode,
         product,
+        acceptedLegal: true,
+        acceptedLegalVersion: LEGAL_VERSION,
       });
       dispatch({ type: "REGISTER_SUCCESS", payload: user });
       trackEvent("register_success", {
