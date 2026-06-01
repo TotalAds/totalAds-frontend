@@ -9,6 +9,7 @@ import {
   Send,
   Settings,
   Sparkles,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
@@ -262,6 +263,7 @@ export default function SinglePageCampaignBuilder({
   const [showSequenceCanvasModal, setShowSequenceCanvasModal] = useState(false);
   const [previewStepId, setPreviewStepId] = useState<string | null>(null);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [sequenceStepDeleteId, setSequenceStepDeleteId] = useState<string | null>(null);
   const [sequenceEditorOpen, setSequenceEditorOpen] = useState(false);
   const prevDomainIdRef = useRef<string>(initialDomainId);
 
@@ -350,6 +352,32 @@ export default function SinglePageCampaignBuilder({
       setSelectedSequenceStepId(state.sequenceSteps[0].id);
     }
   }, [selectedSequenceStepId, state.sequenceSteps]);
+
+  const sequenceStepPendingDelete =
+    sequenceStepDeleteId != null
+      ? state.sequenceSteps.find((step) => step.id === sequenceStepDeleteId) ?? null
+      : null;
+
+  const handleConfirmDeleteSequenceStep = () => {
+    if (!sequenceStepDeleteId) return;
+    if (state.sequenceSteps.length <= 1) {
+      toast.error("A sequence must have at least one step");
+      setSequenceStepDeleteId(null);
+      return;
+    }
+
+    const deletedIndex = state.sequenceSteps.findIndex((step) => step.id === sequenceStepDeleteId);
+    updateSequenceSteps((steps) => steps.filter((step) => step.id !== sequenceStepDeleteId));
+
+    if (previewStepId === sequenceStepDeleteId) {
+      setPreviewStepId(null);
+    }
+
+    setSequenceStepDeleteId(null);
+    toast.success(
+      deletedIndex >= 0 ? `Step ${deletedIndex + 1} removed from sequence` : "Sequence step removed"
+    );
+  };
 
   // Check eligibility and load domains
   useEffect(() => {
@@ -2082,6 +2110,19 @@ export default function SinglePageCampaignBuilder({
                                     >
                                       <Eye size={14} />
                                     </button>
+                                    {state.sequenceSteps.length > 1 ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSequenceStepDeleteId(step.id);
+                                        }}
+                                        className="rounded-md border border-slate-200 p-1 text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                                        aria-label={`Delete step ${index + 1}`}
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    ) : null}
                                     <span
                                       className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.06em] ${
                                         isActive
@@ -3378,6 +3419,40 @@ export default function SinglePageCampaignBuilder({
             </div>
           </div>
         </div>
+        </BodyPortal>
+      )}
+
+      {sequenceStepDeleteId && sequenceStepPendingDelete && (
+        <BodyPortal>
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/55 p-4">
+            <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+              <h3 className="text-base font-semibold text-text-100">Delete sequence step?</h3>
+              <p className="mt-2 text-sm text-text-200">
+                This will permanently remove step{" "}
+                {state.sequenceSteps.findIndex((s) => s.id === sequenceStepDeleteId) + 1}
+                {sequenceStepPendingDelete.subject?.trim()
+                  ? ` (“${sequenceStepPendingDelete.subject.trim()}”)`
+                  : ""}{" "}
+                from your sequence. This cannot be undone.
+              </p>
+              <div className="mt-5 flex items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setSequenceStepDeleteId(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="bg-error text-white hover:bg-error/90"
+                  onClick={handleConfirmDeleteSequenceStep}
+                >
+                  Delete step
+                </Button>
+              </div>
+            </div>
+          </div>
         </BodyPortal>
       )}
 
