@@ -8,10 +8,12 @@ import {
   Mail,
   Send,
   Settings,
+  ShieldCheck,
   Sparkles,
   Trash2,
   Users,
   X,
+  Zap,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -248,8 +250,10 @@ export default function SinglePageCampaignBuilder({
   const [loadingExistingCampaign, setLoadingExistingCampaign] = useState(false);
   /** When set, Send uses this campaign id instead of creating a new one */
   const [resumeCampaignId, setResumeCampaignId] = useState<string | null>(null);
-  /** Skip Reoon pre-check / async verify when list is already verified (scheduled / legacy draft) */
-  const [resumeSkipVerification, setResumeSkipVerification] = useState(false);
+  /** Set when user confirms at launch (modal). Off until they choose. */
+  const [requireLeadVerification, setRequireLeadVerification] = useState(false);
+  const [showVerificationChoiceModal, setShowVerificationChoiceModal] =
+    useState(false);
   const [showRecipientModal, setShowRecipientModal] = useState(false);
   const [listOptions, setListOptions] = useState<EmailList[]>([]);
   const [loadingLists, setLoadingLists] = useState(false);
@@ -639,15 +643,7 @@ export default function SinglePageCampaignBuilder({
 
         setResumeCampaignId(effectiveCampaignId);
         const summary = rawC.reoonVerificationSummary;
-        const skipVerify =
-          c.status === "scheduled" ||
-          c.status === "sending" ||
-          (c.status === "draft" &&
-            Array.isArray(rawC.leadIds) &&
-            rawC.leadIds.length > 0 &&
-            summary &&
-            !summary.verificationJobFailed);
-        setResumeSkipVerification(Boolean(skipVerify));
+        setRequireLeadVerification(summary?.requireLeadVerification === true);
       } catch (e) {
         console.error(e);
         toast.error("Could not load this campaign for editing.");
@@ -1056,7 +1052,11 @@ export default function SinglePageCampaignBuilder({
     setShowRecipientModal(false);
   };
 
-  const finalizeCampaignSend = async (campaignId: string, idsToUse: string[]) => {
+  const finalizeCampaignSend = async (
+    campaignId: string,
+    idsToUse: string[],
+    withVerification: boolean
+  ) => {
     const domainId = state.domainId;
     toast.loading("Saving campaign…");
     try {
@@ -1181,6 +1181,7 @@ export default function SinglePageCampaignBuilder({
           leadCount: d.leads,
         })),
         dailySendTime: state.dailySendTime || undefined,
+        requireLeadVerification: withVerification,
       }
     );
 
@@ -1189,7 +1190,9 @@ export default function SinglePageCampaignBuilder({
         sendResponse.data?.data?.sentCount || idsToUse.length;
       toast.dismiss();
       toast.success(
-        `Campaign sent successfully to ${sentCount} recipients!`
+        withVerification
+          ? `Campaign queued. Recipients will be verified with Reoon before each send.`
+          : `Campaign sent successfully to ${sentCount} recipients!`
       );
       if (onSuccess) onSuccess();
     } else {
@@ -1198,7 +1201,8 @@ export default function SinglePageCampaignBuilder({
     }
   };
 
-  const handleSend = async () => {
+  const executeCampaignSend = async (withVerification: boolean) => {
+    setRequireLeadVerification(withVerification);
     if (!validation.recipients) {
       toast.error("Please select at least one recipient");
       return;
@@ -1232,19 +1236,21 @@ export default function SinglePageCampaignBuilder({
       return;
     }
 
-    try {
-      const reoonStatus = await getReoonStatus();
-      if (!reoonStatus.isConfigured) {
-        setShowReoonKeyRequiredModal(true);
+    if (withVerification) {
+      try {
+        const reoonStatus = await getReoonStatus();
+        if (!reoonStatus.isConfigured) {
+          setShowReoonKeyRequiredModal(true);
+          return;
+        }
+      } catch (reoonErr: any) {
+        toast.error(
+          reoonErr?.response?.data?.message ||
+            reoonErr?.message ||
+            "Could not verify Reoon setup. Try again."
+        );
         return;
       }
-    } catch (reoonErr: any) {
-      toast.error(
-        reoonErr?.response?.data?.message ||
-          reoonErr?.message ||
-          "Could not verify Reoon setup. Try again."
-      );
-      return;
     }
 
     setSending(true);
@@ -1305,14 +1311,14 @@ export default function SinglePageCampaignBuilder({
       const usingNewCsv =
         state.selectedRecipients.type === "csv" && state.csvData.length > 0;
 
-      if (resumeCampaignId && resumeSkipVerification && !usingNewCsv) {
+      if (resumeCampaignId && !usingNewCsv) {
         if (leadIds.length === 0) {
           toast.error(
             "No recipients on this campaign. Select recipients or add leads first."
           );
           return;
         }
-        await finalizeCampaignSend(resumeCampaignId, leadIds);
+        await finalizeCampaignSend(resumeCampaignId, leadIds, withVerification);
         return;
       }
 
@@ -1323,17 +1329,17 @@ export default function SinglePageCampaignBuilder({
         return;
       }
 
-      // Keep the send-time Reoon check strict, but avoid bulk pre-verification.
-      // The worker verifies one lead at a time and naturally fills each day's sender quota.
-      const refreshed = await getReoonStatus(true);
-      const daily = refreshed.lastBalanceDailyCredits ?? 0;
-      const instant = refreshed.lastBalanceInstantCredits ?? 0;
-      if (daily + instant < 1) {
-        toast.error(
-          "You ran out of credits on Reoon. Add credits or update your API key in Settings → Integrations, then refresh and try again.",
-          { duration: 10000 }
-        );
-        return;
+      if (withVerification) {
+        const refreshed = await getReoonStatus(true);
+        const daily = refreshed.lastBalanceDailyCredits ?? 0;
+        const instant = refreshed.lastBalanceInstantCredits ?? 0;
+        if (daily + instant < 1) {
+          toast.error(
+            "You ran out of credits on Reoon. Add credits or update your API key in Settings → Integrations, then refresh and try again.",
+            { duration: 10000 }
+          );
+          return;
+        }
       }
 
       toast.loading("Creating and queueing campaign...");
@@ -1396,6 +1402,7 @@ export default function SinglePageCampaignBuilder({
                 leadCount: d.leads,
               })),
               dailySendTime: state.dailySendTime || undefined,
+              requireLeadVerification: withVerification,
             },
           }
         );
@@ -1403,7 +1410,11 @@ export default function SinglePageCampaignBuilder({
         toast.dismiss();
         if (response.data?.success) {
           const queuedCount = response.data?.data?.queuedCount || leadIds.length;
-          toast.success(`Campaign queued successfully for ${queuedCount} emails!`);
+          toast.success(
+            withVerification
+              ? `Campaign queued for ${queuedCount} emails. Reoon will verify each address before sending.`
+              : `Campaign queued successfully for ${queuedCount} emails!`
+          );
           if (onSuccess) onSuccess();
           return;
         }
@@ -1426,6 +1437,48 @@ export default function SinglePageCampaignBuilder({
     } finally {
       setSending(false);
     }
+  };
+
+  const handleSend = () => {
+    if (!validation.recipients) {
+      toast.error("Please select at least one recipient");
+      return;
+    }
+    if (!validation.subject) {
+      toast.error("Please fill subject for every sequence step");
+      return;
+    }
+    if (!validation.content) {
+      toast.error("Please fill email body for every sequence step");
+      return;
+    }
+    if (!validation.campaignName) {
+      toast.error("Please enter a campaign name");
+      return;
+    }
+    if (!validation.domain) {
+      toast.error("Please select a domain");
+      return;
+    }
+    if (!validation.sender) {
+      toast.error("Please select at least one email sender");
+      return;
+    }
+    if (!validation.capacity) {
+      toast.error(
+        sesProvider === "custom"
+          ? `Your selected senders have no daily send cap configured (or capacity is zero). Set a daily send cap per sender under Email → Domains → Senders.`
+          : `Your selected senders have no daily sending capacity. Please warm up senders or add more senders.`
+      );
+      return;
+    }
+
+    if (isLiveSequenceResume) {
+      void executeCampaignSend(requireLeadVerification);
+      return;
+    }
+
+    setShowVerificationChoiceModal(true);
   };
 
   const handleAIGenerated = (data: AIGeneratedCampaignResponse) => {
@@ -1799,8 +1852,9 @@ export default function SinglePageCampaignBuilder({
                       </p>
                     </div>
                   )}
-                  <p className="text-xs text-text-200/80 mb-3">
-                    Recipients are verified with Reoon before sending. Unverified addresses are checked automatically when you send; the campaign stays in Verifying leads until that finishes.
+                  <p className="text-xs text-text-200/90 mb-3 rounded-lg border border-brand-main/15 bg-brand-main/5 px-3 py-2">
+                    When you launch, we will ask whether to verify recipients with
+                    Reoon or send to your list as-is (if already verified).
                   </p>
                 </>
               ) : (
@@ -3485,6 +3539,128 @@ export default function SinglePageCampaignBuilder({
             </div>
           </div>
         </div>
+        </BodyPortal>
+      )}
+
+      {showVerificationChoiceModal && (
+        <BodyPortal>
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]"
+            onClick={() => setShowVerificationChoiceModal(false)}
+          >
+            <div
+              className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-[0_24px_64px_-16px_rgba(15,23,42,0.35)]"
+              role="dialog"
+              aria-labelledby="verify-choice-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="border-b border-slate-100 bg-gradient-to-br from-brand-main/8 via-white to-emerald-50/40 px-6 py-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-main/12 text-brand-main">
+                      <ShieldCheck size={22} strokeWidth={2} />
+                    </div>
+                    <div>
+                      <h2
+                        id="verify-choice-title"
+                        className="text-lg font-semibold tracking-tight text-slate-900"
+                      >
+                        How should we handle your list?
+                      </h2>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                        Pick one option before launch. You can change this on
+                        future campaigns.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowVerificationChoiceModal(false)}
+                    className="rounded-xl border border-slate-200/80 p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                    aria-label="Close"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm">
+                  <Users size={14} className="text-brand-main" />
+                  <span>
+                    {state.selectedRecipients.count.toLocaleString()} recipient
+                    {state.selectedRecipients.count !== 1 ? "s" : ""} selected
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-3 p-5 sm:p-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowVerificationChoiceModal(false);
+                    void executeCampaignSend(true);
+                  }}
+                  className="group w-full rounded-2xl border-2 border-brand-main/25 bg-gradient-to-br from-brand-main/[0.07] to-white p-4 text-left transition hover:border-brand-main/50 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-main/40"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-main text-white shadow-sm transition group-hover:scale-[1.02]">
+                      <ShieldCheck size={20} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-slate-900">
+                          Verify with Reoon
+                        </span>
+                        <span className="rounded-full bg-brand-main/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-main">
+                          Recommended
+                        </span>
+                      </div>
+                      <p className="mt-1.5 text-xs leading-relaxed text-slate-600">
+                        Check each address before send. Invalid, risky, and
+                        catch-all emails are skipped automatically.
+                      </p>
+                      <p className="mt-2 text-[11px] text-slate-500">
+                        Requires Reoon API key and credits in Settings →
+                        Integrations.
+                      </p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowVerificationChoiceModal(false);
+                    void executeCampaignSend(false);
+                  }}
+                  className="group w-full rounded-2xl border border-slate-200 bg-slate-50/50 p-4 text-left transition hover:border-slate-300 hover:bg-white hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition group-hover:border-emerald-200 group-hover:text-emerald-700">
+                      <Zap size={20} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-sm font-semibold text-slate-900">
+                        Send without verification
+                      </span>
+                      <p className="mt-1.5 text-xs leading-relaxed text-slate-600">
+                        Queue all selected recipients immediately. Best when
+                        your list was cleaned or verified elsewhere.
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              <div className="border-t border-slate-100 bg-slate-50/60 px-6 py-4">
+                <button
+                  type="button"
+                  onClick={() => setShowVerificationChoiceModal(false)}
+                  className="w-full text-center text-sm font-medium text-slate-500 transition hover:text-slate-800"
+                >
+                  Cancel and keep editing
+                </button>
+              </div>
+            </div>
+          </div>
         </BodyPortal>
       )}
 

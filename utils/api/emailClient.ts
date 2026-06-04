@@ -375,6 +375,7 @@ export interface Campaign {
   reoonVerificationSummary?: {
     verificationJobFailed?: boolean;
     errorMessage?: string;
+    requireLeadVerification?: boolean;
   };
   queuedForTodayCount?: number;
   scheduledForTomorrowCount?: number;

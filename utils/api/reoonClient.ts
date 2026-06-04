@@ -43,6 +43,12 @@ export const saveReoonApiKey = async (apiKey: string): Promise<ReoonStatus> => {
   return mapStatusResponse(response.data);
 };
 
+export const deleteReoonApiKey = async (): Promise<ReoonStatus> => {
+  const response = await emailClient.delete("/api/reoon/api-key");
+
+  return mapStatusResponse(response.data);
+};
+
 export interface LeadVerificationResult {
   leadId: string;
   email: string;

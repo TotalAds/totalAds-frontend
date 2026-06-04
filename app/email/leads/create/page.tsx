@@ -37,6 +37,16 @@ export default function CreateLeadPage() {
     company: "",
     role: "",
   });
+  const [emailError, setEmailError] = useState("");
+
+  const DUPLICATE_EMAIL_MESSAGE = "A lead with this email already exists";
+
+  const isDuplicateEmailError = (error: unknown): boolean => {
+    const status = (error as { response?: { status?: number } })?.response?.status;
+    if (status === 409) return true;
+    const message = getEmailServiceErrorMessage(error, "").toLowerCase();
+    return message.includes("already exists");
+  };
 
   useEffect(() => {
     loadCategoriesTagsAndLists();
@@ -65,6 +75,9 @@ export default function CreateLeadPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
+    if (name === "email" && emailError) {
+      setEmailError("");
+    }
     setFormData((prev) => ({
       ...prev,
       [name]: value,
@@ -75,9 +88,11 @@ export default function CreateLeadPage() {
     e.preventDefault();
 
     if (!formData.email) {
-      toast.error("Email is required");
+      setEmailError("Email is required");
       return;
     }
+
+    setEmailError("");
 
     try {
       setIsLoading(true);
@@ -91,11 +106,14 @@ export default function CreateLeadPage() {
 
       toast.success("Lead created successfully");
       router.push("/email/leads");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to create lead:", error);
-      const status = error?.response?.status;
-      if (status === 409) {
-        toast.error("Lead with this email already exists");
+      const status = (error as { response?: { status?: number } })?.response
+        ?.status;
+      if (isDuplicateEmailError(error)) {
+        setEmailError(
+          getEmailServiceErrorMessage(error, DUPLICATE_EMAIL_MESSAGE)
+        );
         return;
       }
       if (status === 403) {
@@ -151,8 +169,19 @@ export default function CreateLeadPage() {
               onChange={handleChange}
               placeholder="john@example.com"
               required
-              className="w-full px-4 py-3 bg-brand-main/10 border border-brand-main/20 rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+              aria-invalid={emailError ? true : undefined}
+              aria-describedby={emailError ? "email-error" : undefined}
+              className={`w-full px-4 py-3 bg-brand-main/10 border rounded-lg text-text-100 placeholder-text-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+                emailError
+                  ? "border-red-400/60 focus:ring-red-400"
+                  : "border-brand-main/20"
+              }`}
             />
+            {emailError && (
+              <p id="email-error" className="text-red-400 text-xs mt-1.5">
+                {emailError}
+              </p>
+            )}
           </div>
 
           {/* Name */}
