@@ -300,6 +300,7 @@ export type PostGenerationMeta = {
 	formatLabel?: string | null;
 	productMentionMode?: string | null;
 	hasProductMention?: boolean | null;
+	hasProductLink?: boolean | null;
 	mediaSuggestion?: "none" | "image" | "carousel" | null;
 };
 
@@ -340,6 +341,11 @@ export function PostGenerationChips({
 					? "bg-slate-100 text-slate-700 ring-slate-200/80"
 					: "bg-slate-50 text-slate-500 ring-slate-200/80";
 
+	const hasProductLink = post.hasProductLink === true;
+	const linkToneClass = hasProductLink
+		? "bg-emerald-50 text-emerald-800 ring-emerald-200/80"
+		: "bg-slate-100 text-slate-600 ring-slate-200/80";
+
 	return (
 		<div className={cn("flex flex-wrap items-center gap-1.5", className)}>
 			<span
@@ -353,6 +359,15 @@ export function PostGenerationChips({
 				title="Product mention"
 			>
 				Product · {productText}
+			</span>
+			<span
+				className={cn(
+					"inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset",
+					linkToneClass
+				)}
+				title={hasProductLink ? "Contains product URL" : "No product URL"}
+			>
+				Link · {hasProductLink ? "Yes" : "—"}
 			</span>
 			<span
 				className={cn(

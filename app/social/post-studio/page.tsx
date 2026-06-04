@@ -1246,13 +1246,14 @@ function LatestRunPanel({
 					action={<StatusPill status={status} />}
 				/>
 				<div className="mb-3">
-					<PostGenerationChips
-						post={{
-							contentPostFormat: draft.postFormat,
-							productMentionMode: draft.productMentionMode,
-							hasProductMention: draft.hasProductMention,
-						}}
-					/>
+										<PostGenerationChips
+											post={{
+												contentPostFormat: draft.postFormat,
+												productMentionMode: draft.productMentionMode,
+												hasProductMention: draft.hasProductMention,
+												hasProductLink: draft.hasProductLink,
+											}}
+										/>
 				</div>
 				<PostPreview
 					body={draft.body}

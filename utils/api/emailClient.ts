@@ -506,14 +506,146 @@ export interface Analytics {
   complained: number;
 }
 
-export const getAnalytics = async (): Promise<Analytics> => {
+export interface AnalyticsTopCampaign {
+  id: string;
+  name: string;
+  openCount: number;
+  clickCount: number;
+  sentCount: number;
+}
+
+export interface AnalyticsSummary {
+  summary: {
+    totalCampaigns: number;
+    activeCampaigns: number;
+    completedCampaigns: number;
+    totalLeads: number;
+    totalSent: number;
+    totalOpened: number;
+    totalClicked: number;
+    totalBounced: number;
+    totalFailed: number;
+    totalComplained: number;
+  };
+  rates: {
+    openRate: number;
+    clickRate: number;
+    bounceRate: number;
+    complaintRate: number;
+  };
+  topCampaigns: AnalyticsTopCampaign[];
+}
+
+const EMPTY_ANALYTICS_SUMMARY: AnalyticsSummary = {
+  summary: {
+    totalCampaigns: 0,
+    activeCampaigns: 0,
+    completedCampaigns: 0,
+    totalLeads: 0,
+    totalSent: 0,
+    totalOpened: 0,
+    totalClicked: 0,
+    totalBounced: 0,
+    totalFailed: 0,
+    totalComplained: 0,
+  },
+  rates: {
+    openRate: 0,
+    clickRate: 0,
+    bounceRate: 0,
+    complaintRate: 0,
+  },
+  topCampaigns: [],
+};
+
+export function normalizeAnalyticsSummary(raw: unknown): AnalyticsSummary {
+  if (!raw || typeof raw !== "object") {
+    return EMPTY_ANALYTICS_SUMMARY;
+  }
+
+  const data = raw as Record<string, unknown>;
+
+  if (data.summary && typeof data.summary === "object") {
+    const summary = data.summary as Record<string, unknown>;
+    const rates = (data.rates as Record<string, unknown>) || {};
+    const topCampaigns = Array.isArray(data.topCampaigns) ? data.topCampaigns : [];
+
+    return {
+      summary: {
+        totalCampaigns: Number(summary.totalCampaigns || 0),
+        activeCampaigns: Number(summary.activeCampaigns || 0),
+        completedCampaigns: Number(summary.completedCampaigns || 0),
+        totalLeads: Number(summary.totalLeads || 0),
+        totalSent: Number(summary.totalSent || 0),
+        totalOpened: Number(summary.totalOpened || 0),
+        totalClicked: Number(summary.totalClicked || 0),
+        totalBounced: Number(summary.totalBounced || 0),
+        totalFailed: Number(summary.totalFailed || 0),
+        totalComplained: Number(summary.totalComplained || 0),
+      },
+      rates: {
+        openRate: Number(rates.openRate || 0),
+        clickRate: Number(rates.clickRate || 0),
+        bounceRate: Number(rates.bounceRate || 0),
+        complaintRate: Number(rates.complaintRate || 0),
+      },
+      topCampaigns: topCampaigns.map((c) => {
+        const row = c as Record<string, unknown>;
+        return {
+          id: String(row.id || ""),
+          name: String(row.name || "Untitled campaign"),
+          openCount: Number(row.openCount || 0),
+          clickCount: Number(row.clickCount || 0),
+          sentCount: Number(row.sentCount || 0),
+        };
+      }),
+    };
+  }
+
+  // Legacy flat shape (sent/opened/clicked at top level)
+  return {
+    summary: {
+      totalCampaigns: 0,
+      activeCampaigns: 0,
+      completedCampaigns: 0,
+      totalLeads: 0,
+      totalSent: Number(data.sent || data.totalSent || 0),
+      totalOpened: Number(data.opened || data.totalOpened || 0),
+      totalClicked: Number(data.clicked || data.totalClicked || 0),
+      totalBounced: Number(data.bounced || data.totalBounced || 0),
+      totalFailed: Number(data.failed || data.totalFailed || 0),
+      totalComplained: Number(data.complained || data.totalComplained || 0),
+    },
+    rates: {
+      openRate: 0,
+      clickRate: 0,
+      bounceRate: 0,
+      complaintRate: 0,
+    },
+    topCampaigns: [],
+  };
+}
+
+export const getAnalyticsSummary = async (): Promise<AnalyticsSummary> => {
   try {
     const response = await emailClient.get("/api/analytics/summary");
-    return response.data?.data || response.data;
+    return normalizeAnalyticsSummary(response.data?.data || response.data);
   } catch (error: any) {
-    console.error("Failed to fetch analytics:", error);
+    console.error("Failed to fetch analytics summary:", error);
     throw error;
   }
+};
+
+/** @deprecated Prefer getAnalyticsSummary — maps summary totals to flat Analytics */
+export const getAnalytics = async (): Promise<Analytics> => {
+  const summary = await getAnalyticsSummary();
+  return {
+    sent: summary.summary.totalSent,
+    opened: summary.summary.totalOpened,
+    clicked: summary.summary.totalClicked,
+    bounced: summary.summary.totalBounced,
+    complained: summary.summary.totalComplained,
+  };
 };
 
 export const getCampaignAnalytics = async (

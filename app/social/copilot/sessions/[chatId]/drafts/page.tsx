@@ -61,6 +61,7 @@ type SessionDraft = GeneratedLinkedinCalendarPost & {
 	liveSelectedFormat?: string | null;
 	liveProductMentionMode?: string | null;
 	liveHasProductMention?: boolean | null;
+	liveHasProductLink?: boolean | null;
 };
 
 type SessionMediaAsset = NonNullable<GeneratedLinkedinCalendarPost["mediaAssets"]>[number];
@@ -116,11 +117,12 @@ export default function CopilotSessionDraftsPage() {
 							livePublishedAt: detail.post.publishedAt,
 							liveRejectedReason: detail.post.rejectedReason,
 							liveFailureReason: detail.post.failureReason,
-							liveContentPostFormat: detail.post.contentPostFormat,
-							liveSelectedFormat: detail.post.selectedFormat,
-							liveProductMentionMode: detail.post.productMentionMode,
-							liveHasProductMention: detail.post.hasProductMention,
-						};
+								liveContentPostFormat: detail.post.contentPostFormat,
+								liveSelectedFormat: detail.post.selectedFormat,
+								liveProductMentionMode: detail.post.productMentionMode,
+								liveHasProductMention: detail.post.hasProductMention,
+								liveHasProductLink: detail.post.hasProductLink,
+							};
 					} catch {
 						return {
 							...post,
@@ -128,12 +130,13 @@ export default function CopilotSessionDraftsPage() {
 							liveScheduledFor: post.scheduledFor || null,
 							livePublishedAt: null,
 							liveRejectedReason: null,
-							liveFailureReason: null,
-							liveContentPostFormat: null,
-							liveSelectedFormat: null,
-							liveProductMentionMode: null,
-							liveHasProductMention: null,
-						};
+								liveFailureReason: null,
+								liveContentPostFormat: null,
+								liveSelectedFormat: null,
+								liveProductMentionMode: null,
+								liveHasProductMention: null,
+								liveHasProductLink: null,
+							};
 					}
 				})
 			);
@@ -402,17 +405,19 @@ export default function CopilotSessionDraftsPage() {
 										) : null}
 
 										<div className="mt-2 flex flex-wrap items-center gap-2">
-											<PostGenerationChips
-												post={{
-													contentPostFormat:
-														post.liveContentPostFormat || undefined,
-													formatLabel: post.liveSelectedFormat || post.format,
-													productMentionMode:
-														post.liveProductMentionMode || undefined,
-													hasProductMention:
-														post.liveHasProductMention || undefined,
-												}}
-											/>
+										<PostGenerationChips
+											post={{
+												contentPostFormat:
+													post.liveContentPostFormat || undefined,
+												formatLabel: post.liveSelectedFormat || post.format,
+												productMentionMode:
+													post.liveProductMentionMode || undefined,
+												hasProductMention:
+													post.liveHasProductMention || undefined,
+												hasProductLink:
+													post.liveHasProductLink || post.hasProductLink || undefined,
+											}}
+										/>
 											<span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
 												<IconClock className="h-3.5 w-3.5" />
 												{post.livePublishedAt

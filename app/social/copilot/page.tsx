@@ -888,16 +888,17 @@ function DraftsPanel({
 													{post.mediaAssets.length} media
 												</span>
 											) : null}
-											<PostGenerationChips
-												post={{
-													formatLabel: post.format,
-													productMentionMode: "none",
-													hasProductMention: false,
-												}}
-											/>
-										</div>
-									</button>
-								))}
+										<PostGenerationChips
+											post={{
+												formatLabel: post.format,
+												productMentionMode: "none",
+												hasProductMention: false,
+												hasProductLink: post.hasProductLink,
+											}}
+										/>
+									</div>
+								</button>
+							))}
 							</div>
 						</div>
 					))}
@@ -922,6 +923,7 @@ function SelectedPostPreview({ post }: { post: GeneratedLinkedinCalendarPost }) 
 								formatLabel: post.format,
 								productMentionMode: "none",
 								hasProductMention: false,
+								hasProductLink: post.hasProductLink,
 							}}
 						/>
 					</div>

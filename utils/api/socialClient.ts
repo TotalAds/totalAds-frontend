@@ -149,6 +149,7 @@ export interface AgentDraft {
 	productMentionMode: "none" | "soft" | "direct";
 	ctaType: string;
 	hasProductMention: boolean;
+	hasProductLink?: boolean;
 	topicCategory: string;
 }
 
@@ -244,6 +245,7 @@ export interface SocialPostRun {
 	articleMeta?: ArticleMeta | null;
 	productMentionMode?: string | null;
 	hasProductMention?: boolean | null;
+	hasProductLink?: boolean | null;
 	selectedFormat?: string | null;
 	formatConfidenceScore?: number | null;
 	formatReasoning?: string | null;
@@ -366,6 +368,7 @@ export interface GeneratedLinkedinCalendarPost {
 	notes: string;
 	mediaSuggestion?: "none" | "image" | "carousel";
 	status: "draft" | "in_review";
+	hasProductLink?: boolean;
 	mediaAssets?: Array<{
 		id: number;
 		assetType: string;
