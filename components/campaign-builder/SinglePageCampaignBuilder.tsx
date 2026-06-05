@@ -665,8 +665,9 @@ export default function SinglePageCampaignBuilder({
         setSelectedSequenceStepId(normalizedSteps[0]?.id || "step-1");
 
         setResumeCampaignId(effectiveCampaignId);
-        const summary = rawC.reoonVerificationSummary;
-        setRequireLeadVerification(summary?.requireLeadVerification === true);
+        setRequireLeadVerification(
+          c.reoonVerificationSummary?.requireLeadVerification === true
+        );
       } catch (e) {
         console.error(e);
         toast.error("Could not load this campaign for editing.");
