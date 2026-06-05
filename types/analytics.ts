@@ -1,3 +1,26 @@
+export interface DeliverabilityAlert {
+  id: string
+  type: 'quota_reduced' | 'sender_paused' | 'daily_limit_reached'
+  severity: 'info' | 'warning' | 'critical'
+  senderId: string
+  senderEmail: string
+  currentCap: number
+  usedToday: number
+  remainingToday: number
+  healthStatus?: string
+  bounceRate7d?: number
+  complaintRate7d?: number
+  reasons: string[]
+  recordedAt: string
+  source: 'live' | 'event'
+}
+
+export interface CampaignDeliverabilitySummary {
+  alerts: DeliverabilityAlert[]
+  hasActiveIssue: boolean
+  throttledPendingCount: number
+}
+
 export interface CampaignAnalyticsProps {
   mode: 'sequence' | 'single'
   campaign: {
@@ -64,4 +87,5 @@ export interface CampaignAnalyticsProps {
   stopping?: boolean
   downloading?: boolean
   showDownload?: boolean
+  deliverability?: CampaignDeliverabilitySummary | null
 }

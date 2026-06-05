@@ -118,6 +118,26 @@ interface CampaignAnalytics {
     errorMessage?: string | null;
     failedAt?: string | null;
   } | null;
+  deliverability?: {
+    alerts: Array<{
+      id: string;
+      type: "quota_reduced" | "sender_paused" | "daily_limit_reached";
+      severity: "info" | "warning" | "critical";
+      senderId: string;
+      senderEmail: string;
+      currentCap: number;
+      usedToday: number;
+      remainingToday: number;
+      healthStatus?: string;
+      bounceRate7d?: number;
+      complaintRate7d?: number;
+      reasons: string[];
+      recordedAt: string;
+      source: "live" | "event";
+    }>;
+    hasActiveIssue: boolean;
+    throttledPendingCount: number;
+  };
 }
 
 interface CampaignLeadIssue {
@@ -663,6 +683,7 @@ export default function CampaignDetailsPage() {
         showDownload
         downloading={downloadingAllReports || !!activeReportDownload}
         stopping={stopping}
+        deliverability={analytics.deliverability || null}
       />
       {failedLeadIssues.length > 0 && (
         <div className="mx-auto max-w-[1000px] px-4 pb-10">

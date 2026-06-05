@@ -175,6 +175,27 @@ function createDefaultSequenceSteps(): CampaignSequenceStep[] {
   ];
 }
 
+const padTime = (value: number) => String(value).padStart(2, "0");
+
+/**
+ * UI shows local clock time, backend stores UTC HH:MM.
+ */
+function localTimeToUtcHHMM(localTime: string): string {
+  if (!/^\d{2}:\d{2}$/.test(localTime)) return localTime;
+  const [hours, minutes] = localTime.split(":").map(Number);
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+  return `${padTime(date.getUTCHours())}:${padTime(date.getUTCMinutes())}`;
+}
+
+function utcTimeToLocalHHMM(utcTime: string): string {
+  if (!/^\d{2}:\d{2}$/.test(utcTime)) return utcTime;
+  const [hours, minutes] = utcTime.split(":").map(Number);
+  const date = new Date();
+  date.setUTCHours(hours, minutes, 0, 0);
+  return `${padTime(date.getHours())}:${padTime(date.getMinutes())}`;
+}
+
 interface Domain {
   id: string;
   domain: string;
@@ -619,7 +640,9 @@ export default function SinglePageCampaignBuilder({
             strictGrammarMode: Boolean(seqEx?.strictGrammarMode),
             emailBodyInitialized: hasBody,
           }),
-          dailySendTime: rawC.dailySendTime || prev.dailySendTime,
+          dailySendTime: rawC.dailySendTime
+            ? utcTimeToLocalHHMM(rawC.dailySendTime)
+            : prev.dailySendTime,
           replyTo: rawC.replyTo || prev.replyTo,
           useReplyTo: Boolean(rawC.replyTo),
           senderIds: c.senderId ? [String(c.senderId)] : prev.senderIds,
@@ -1180,7 +1203,9 @@ export default function SinglePageCampaignBuilder({
           senderId: d.sender.id,
           leadCount: d.leads,
         })),
-        dailySendTime: state.dailySendTime || undefined,
+        dailySendTime: state.dailySendTime
+          ? localTimeToUtcHHMM(state.dailySendTime)
+          : undefined,
         requireLeadVerification: withVerification,
       }
     );
@@ -1401,7 +1426,9 @@ export default function SinglePageCampaignBuilder({
                 senderId: d.sender.id,
                 leadCount: d.leads,
               })),
-              dailySendTime: state.dailySendTime || undefined,
+              dailySendTime: state.dailySendTime
+                ? localTimeToUtcHHMM(state.dailySendTime)
+                : undefined,
               requireLeadVerification: withVerification,
             },
           }
@@ -2374,7 +2401,7 @@ export default function SinglePageCampaignBuilder({
                             className="mt-2 w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-text-100"
                           />
                           <p className="mt-2 text-[11px] text-text-200">
-                            Campaign resumes at this time when daily limits are reached.
+                            Campaign resumes at this local time when daily limits are reached.
                           </p>
                         </div>
 
@@ -3350,7 +3377,7 @@ export default function SinglePageCampaignBuilder({
                     {state.selectedRecipients.count.toLocaleString()}) exceeds today&apos;s
                     combined sender capacity (
                     {rotation?.totalCapacity?.toLocaleString() ?? "—"}). Remaining emails
-                    resume at this time on the next eligible day (UTC — same as daily send quota).
+                    resume at this local time on the next eligible day (stored in UTC internally).
                   </p>
                   <div className="flex items-center gap-2">
                     <input

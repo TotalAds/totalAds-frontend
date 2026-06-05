@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { CampaignAnalyticsProps } from '@/types/analytics'
 import { HealthBanner } from './HealthBanner'
+import { DeliverabilityAlertBanner } from './DeliverabilityAlertBanner'
 import { HeroMetrics } from './HeroMetrics'
 import { EngagementFunnel } from './EngagementFunnel'
 import { SequenceFlow } from './SequenceFlow'
@@ -24,6 +25,7 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
   stopping,
   downloading,
   showDownload = true,
+  deliverability,
 }) => {
   const [activeTab, setActiveTab] = useState<'flow' | 'trends' | 'leads'>('flow')
   const [selectedStep, setSelectedStep] = useState<number | 'all'>('all')
@@ -122,6 +124,13 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
           )}
         </div>
       </div>
+
+      {(deliverability?.alerts?.length || deliverability?.throttledPendingCount) ? (
+        <DeliverabilityAlertBanner
+          alerts={deliverability?.alerts || []}
+          throttledPendingCount={deliverability?.throttledPendingCount || 0}
+        />
+      ) : null}
 
       {/* HEALTH BANNER */}
       {showHealthBanner && parseFloat(openRate) > 0 && (
