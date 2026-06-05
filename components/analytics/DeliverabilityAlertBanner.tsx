@@ -1,15 +1,22 @@
 import React from "react";
 import { AlertTriangle, ShieldAlert } from "lucide-react";
 import type { DeliverabilityAlert } from "@/types/analytics";
+import { DeliverabilitySafeguardsInfo } from "@/components/email/DeliverabilitySafeguardsInfo";
+import { formatDeliverabilityRate } from "@/lib/deliverabilitySafeguards";
 
 interface DeliverabilityAlertBannerProps {
   alerts: DeliverabilityAlert[];
   throttledPendingCount?: number;
 }
 
-function formatRate(rate?: number): string {
-  if (typeof rate !== "number") return "N/A";
-  return `${(rate * 100).toFixed(2)}%`;
+function alertTitle(alert: DeliverabilityAlert, isCritical: boolean): string {
+  if (alert.type === "campaign_auto_paused") {
+    return "Campaign auto-paused to protect deliverability";
+  }
+  if (isCritical) {
+    return "Sending paused to protect deliverability";
+  }
+  return "Sender quota was automatically reduced";
 }
 
 export const DeliverabilityAlertBanner: React.FC<DeliverabilityAlertBannerProps> = ({
@@ -19,11 +26,13 @@ export const DeliverabilityAlertBanner: React.FC<DeliverabilityAlertBannerProps>
   if (!alerts.length && throttledPendingCount <= 0) return null;
 
   const primary =
+    alerts.find((alert) => alert.type === "campaign_auto_paused") ||
     alerts.find((alert) => alert.severity === "critical") ||
     alerts.find((alert) => alert.severity === "warning") ||
     alerts[0];
 
-  const isCritical = primary?.severity === "critical";
+  const isCritical =
+    primary?.severity === "critical" || primary?.type === "campaign_auto_paused";
   const containerClass = isCritical
     ? "border-rose-200 bg-rose-50"
     : "border-amber-200 bg-amber-50";
@@ -34,17 +43,24 @@ export const DeliverabilityAlertBanner: React.FC<DeliverabilityAlertBannerProps>
   return (
     <div className={`mb-6 rounded-xl border p-5 ${containerClass}`}>
       <div className="flex items-start gap-3">
-        <div className={`mt-0.5 ${iconClass}`}>
+        <div className={`mt-0.5 shrink-0 ${iconClass}`}>
           {isCritical ? <ShieldAlert size={18} /> : <AlertTriangle size={18} />}
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className={`text-sm font-semibold ${titleClass}`}>
-            {isCritical
-              ? "Sending paused to protect deliverability"
-              : "Sender quota was automatically reduced"}
-          </h3>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className={`text-sm font-semibold ${titleClass}`}>
+              {primary ? alertTitle(primary, isCritical) : "Deliverability notice"}
+            </h3>
+            <DeliverabilitySafeguardsInfo variant="link" />
+          </div>
           {primary && (
             <div className={`mt-2 space-y-2 text-xs leading-relaxed ${bodyClass}`}>
+              {primary.type === "campaign_auto_paused" && (
+                <p className="font-medium">
+                  This campaign is now paused. Resume from the campaign page after fixing list
+                  quality or waiting for sender health to recover.
+                </p>
+              )}
               <p>
                 <span className="font-medium">{primary.senderEmail}</span> is currently limited to{" "}
                 <span className="font-medium">{primary.currentCap}</span> emails/day. Used today:{" "}
@@ -56,9 +72,12 @@ export const DeliverabilityAlertBanner: React.FC<DeliverabilityAlertBannerProps>
               ))}
               <p>
                 Health: <span className="font-medium">{primary.healthStatus || "unknown"}</span>
-                {" · "}7-day bounce: <span className="font-medium">{formatRate(primary.bounceRate7d)}</span>
+                {" · "}7-day bounce:{" "}
+                <span className="font-medium">{formatDeliverabilityRate(primary.bounceRate7d)}</span>
                 {" · "}7-day complaints:{" "}
-                <span className="font-medium">{formatRate(primary.complaintRate7d)}</span>
+                <span className="font-medium">
+                  {formatDeliverabilityRate(primary.complaintRate7d)}
+                </span>
               </p>
             </div>
           )}

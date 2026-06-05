@@ -691,13 +691,28 @@ export interface CampaignLeadSequenceResponse {
   };
 }
 
+export interface LeadFilters {
+  status?: string;
+  step?: number;
+  search?: string;
+}
+
 export const getCampaignLeadSequence = async (
   campaignId: string,
   page: number = 1,
-  limit: number = 100
+  limit: number = 50,
+  filters?: LeadFilters
 ): Promise<CampaignLeadSequenceResponse> => {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('limit', String(limit));
+  
+  if (filters?.status) params.set('status', filters.status);
+  if (typeof filters?.step === 'number') params.set('step', String(filters.step));
+  if (filters?.search) params.set('search', filters.search);
+
   const response = await emailClient.get(
-    `/api/analytics/campaigns/${campaignId}/leads?page=${page}&limit=${limit}`
+    `/api/analytics/campaigns/${campaignId}/leads?${params.toString()}`
   );
   return response.data?.data || { leads: [], pagination: { page, limit, total: 0, pages: 0 } };
 };

@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/dialog";
 import emailClient, {
   AnalyticsReportType,
-  CampaignLeadSequenceRow,
   EnhancedCampaignAnalytics,
   getEmailServiceErrorMessage,
   getCampaignLeadSequence,
@@ -140,16 +139,6 @@ interface CampaignAnalytics {
   };
 }
 
-interface CampaignLeadIssue {
-  id: string;
-  leadId?: string;
-  toEmail: string;
-  status: string;
-  error?: string | null;
-  errorDetails?: string | null;
-  retryCount?: number;
-}
-
 export default function CampaignDetailsPage() {
   const router = useRouter();
   const params = useParams();
@@ -166,11 +155,10 @@ export default function CampaignDetailsPage() {
   const [downloadingAllReports, setDownloadingAllReports] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
-  const [failedLeadIssues, setFailedLeadIssues] = useState<CampaignLeadIssue[]>([]);
-  const [sequenceRows, setSequenceRows] = useState<CampaignLeadSequenceRow[]>([]);
   const [, setMarkingReplied] = useState<string | null>(null);
   const campaignStatusRef = useRef<string | null>(null);
   const initialLoadedRef = useRef(false);
+  const lastRefreshRef = useRef<number>(Date.now());
 
   const fetchCampaignAnalytics = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true;
@@ -236,36 +224,12 @@ export default function CampaignDetailsPage() {
     }
   }, []);
 
-  const fetchLeadIssues = useCallback(async () => {
-    try {
-      const response = await emailClient.get(
-        `/api/analytics/campaigns/${campaignId}/leads?page=1&limit=100`
-      );
-      const leads: CampaignLeadIssue[] = response?.data?.data?.leads || [];
-      const failed = leads.filter(
-        (lead) =>
-          lead.status === "failed" && (!!lead.error || !!lead.errorDetails)
-      );
-      setFailedLeadIssues(failed.slice(0, 8));
-    } catch (error) {
-      console.error("Failed to fetch campaign lead issues:", error);
-      setFailedLeadIssues([]);
-    }
-  }, [campaignId]);
-
-  const fetchSequenceRows = useCallback(async () => {
-    try {
-      const response = await getCampaignLeadSequence(campaignId, 1, 200);
-      setSequenceRows(response.leads || []);
-    } catch {
-      setSequenceRows([]);
-    }
-  }, [campaignId]);
 
   useEffect(() => {
     fetchAnalyticsAccess();
   }, [fetchAnalyticsAccess]);
 
+  // Initial data load - only runs once when campaignId changes
   useEffect(() => {
     fetchCampaignAnalytics({ silent: false });
     if (detailedAnalyticsAllowed) {
@@ -273,37 +237,44 @@ export default function CampaignDetailsPage() {
     } else {
       setEnhancedAnalytics(null);
     }
-    fetchLeadIssues();
-    fetchSequenceRows();
+  }, [
+    campaignId,
+    detailedAnalyticsAllowed,
+    fetchCampaignAnalytics,
+    fetchEnhancedAnalytics,
+  ]);
 
-    // Poll only lightweight campaign/issue data while campaign is active.
-    // Avoid reloading enhanced charts every cycle to prevent UI flicker.
+  // Lightweight polling only for active campaigns - refreshes main analytics
+  // LeadActivityTable handles its own data fetching with server pagination
+  useEffect(() => {
     const interval = setInterval(() => {
       const st = campaignStatusRef.current;
+      // Only poll if campaign is actively sending/processing
       if (
         st === "sending" ||
         st === "verifying_leads" ||
         st === "scheduled" ||
         st === "verification_failed"
       ) {
-        fetchCampaignAnalytics({ silent: true });
-        fetchLeadIssues();
-        fetchSequenceRows();
-        if (detailedAnalyticsAllowed) {
-          fetchEnhancedAnalytics();
+        // Limit polling to once per minute max to reduce server load
+        const now = Date.now();
+        if (now - lastRefreshRef.current > 60000) {
+          lastRefreshRef.current = now;
+          fetchCampaignAnalytics({ silent: true });
+          // Enhanced analytics updates less frequently (every 5 min)
+          if (detailedAnalyticsAllowed && now - lastRefreshRef.current > 300000) {
+            fetchEnhancedAnalytics();
+          }
         }
       }
-    }, 8000);
+    }, 30000); // Check every 30 seconds but only refresh based on time limits
 
     return () => clearInterval(interval);
   }, [
     campaignId,
-    fetchCampaignAnalytics,
     detailedAnalyticsAllowed,
-    fetchAnalyticsAccess,
+    fetchCampaignAnalytics,
     fetchEnhancedAnalytics,
-    fetchLeadIssues,
-    fetchSequenceRows,
   ]);
 
   const handleMarkReplied = async (leadId: string) => {
@@ -313,7 +284,6 @@ export default function CampaignDetailsPage() {
       await markLeadRepliedInCampaign(analytics.campaign.domainId, campaignId, leadId);
       toast.success("Lead marked as replied. Sequence stopped for this lead.");
       await fetchCampaignAnalytics({ silent: true });
-      await fetchSequenceRows();
     } catch (error: unknown) {
       toast.error(getEmailServiceErrorMessage(error, "Failed to mark lead as replied"));
     } finally {
@@ -338,13 +308,19 @@ export default function CampaignDetailsPage() {
           replied: step.replied || 0,
         })) || [];
 
-      const reportLeads =
-        sequenceRows?.map((row) => ({
+      // Fetch sample of leads for report (first 100)
+      let reportLeads: any[] = [];
+      try {
+        const leadsResponse = await getCampaignLeadSequence(campaignId, 1, 100);
+        reportLeads = leadsResponse.leads?.map((row: any) => ({
           email: row.toEmail,
           stepLabel: `Email ${Number(row.sequenceStepIndex || 0) + 1}`,
           status: String(row.status || "unknown"),
           nextSend: row.nextRetryAt ? new Date(row.nextRetryAt).toLocaleString() : undefined,
         })) || [];
+      } catch {
+        reportLeads = [];
+      }
 
       exportLeadsnipperCampaignReportPDF(
         {
@@ -406,7 +382,6 @@ export default function CampaignDetailsPage() {
         typeof nextStatus === "string" ? nextStatus : "cancelled";
       setStopDialogOpen(false);
       await fetchCampaignAnalytics({ silent: false });
-      await fetchLeadIssues();
     } catch (error: unknown) {
       toast.error(getEmailServiceErrorMessage(error, "Could not stop this campaign"));
     } finally {
@@ -477,6 +452,11 @@ export default function CampaignDetailsPage() {
         delivered: step.delivered || 0,
         opened: step.opened || 0,
         replied: step.replied || 0,
+        failed: step.failed || 0,
+        bounced: (step as any).bounced || 0,
+        complained: (step as any).complained || 0,
+        unsubscribed: (step as any).unsubscribed || 0,
+        pending: step.pending || 0,
         nextSendAt: step.nextPlannedSendAt
           ? new Date(step.nextPlannedSendAt).toLocaleString()
           : undefined,
@@ -484,86 +464,25 @@ export default function CampaignDetailsPage() {
       } as const;
     }) || [];
 
-  const mappedLeads = sequenceRows.map((row) => {
-    const normalizedStatus = String(row.status || "").toLowerCase();
-    const status =
-      normalizedStatus === "opened" || normalizedStatus === "read"
-        ? "opened"
-        : normalizedStatus === "pending" ||
-          normalizedStatus === "queued" ||
-          normalizedStatus === "processing"
-        ? "pending"
-        : normalizedStatus === "failed" ||
-          normalizedStatus === "rejected" ||
-          normalizedStatus === "bounced"
-        ? "failed"
-        : "delivered";
+  // Lead activity table fetches its own data via server pagination
+  // Empty initial leads - table will load data when rendered
+  const mappedLeads: any[] = [];
 
-    return {
-      email: row.toEmail,
-      stepLabel: `Email ${Number(row.sequenceStepIndex || 0) + 1}`,
-      stepNumber: Number(row.sequenceStepIndex || 0) + 1,
-      status: status as "delivered" | "opened" | "pending" | "failed",
-      nextSend: row.nextRetryAt ? new Date(row.nextRetryAt).toLocaleString() : undefined,
-      sent: Boolean(row.sentAt),
-      read: Boolean(row.readAt || row.openedAt),
-      replied: Boolean(row.repliedAt),
-      onMarkReplied: () => {
-        if (!row.leadId || !campaign.domainId) return;
-        void handleMarkReplied(row.leadId);
-      },
-    };
-  });
-
-  const groupedStepTrends = sequenceRows.reduce<
-    Record<string, { date: string; stepNumber: number; sent: number; opened: number; clicked: number }>
-  >((acc, row) => {
-    const stepNumber = Number(row.sequenceStepIndex || 0) + 1;
-    const sentDate = row.sentAt ? new Date(row.sentAt).toISOString().split("T")[0] : null;
-    const openDate = row.openedAt ? new Date(row.openedAt).toISOString().split("T")[0] : null;
-    const clickDate = row.engagementStatus === "clicked" && row.openedAt
-      ? new Date(row.openedAt).toISOString().split("T")[0]
-      : null;
-
-    if (sentDate) {
-      const key = `${sentDate}-${stepNumber}`;
-      if (!acc[key]) {
-        acc[key] = { date: sentDate, stepNumber, sent: 0, opened: 0, clicked: 0 };
-      }
-      acc[key].sent += 1;
-    }
-    if (openDate) {
-      const key = `${openDate}-${stepNumber}`;
-      if (!acc[key]) {
-        acc[key] = { date: openDate, stepNumber, sent: 0, opened: 0, clicked: 0 };
-      }
-      acc[key].opened += 1;
-    }
-    if (clickDate) {
-      const key = `${clickDate}-${stepNumber}`;
-      if (!acc[key]) {
-        acc[key] = { date: clickDate, stepNumber, sent: 0, opened: 0, clicked: 0 };
-      }
-      acc[key].clicked += 1;
-    }
-    return acc;
-  }, {});
-
-  const trendData = Object.values(groupedStepTrends).length
-    ? Object.values(groupedStepTrends).sort((a, b) => a.date.localeCompare(b.date))
-    : enhancedAnalytics?.timeSeries?.map((point) => ({
-        date: point.date,
-        sent: point.sent || 0,
-        opened: point.opened || 0,
-        clicked: point.clicked || 0,
-      })) ||
-      sendVolume?.sendsByDay?.map((day) => ({
-        date: day.date,
-        sent: day.count || 0,
-        opened: 0,
-        clicked: 0,
-      })) ||
-      [];
+  // Trend data from API sources (enhanced analytics or send volume)
+  const trendData =
+    enhancedAnalytics?.timeSeries?.map((point) => ({
+      date: point.date,
+      sent: point.sent || 0,
+      opened: point.opened || 0,
+      clicked: point.clicked || 0,
+    })) ||
+    sendVolume?.sendsByDay?.map((day) => ({
+      date: day.date,
+      sent: day.count || 0,
+      opened: 0,
+      clicked: 0,
+    })) ||
+    [];
 
   const campaignMode = isSequenceCampaign ? "sequence" : "single";
 
@@ -671,6 +590,7 @@ export default function CampaignDetailsPage() {
           failed: (metrics.totalFailed || 0) + (metrics.totalRejected || 0),
           rejected: metrics.totalRejected || 0,
         }}
+        rates={analytics.rates}
         steps={mappedSteps}
         leads={mappedLeads}
         trendData={trendData}
@@ -684,32 +604,14 @@ export default function CampaignDetailsPage() {
         downloading={downloadingAllReports || !!activeReportDownload}
         stopping={stopping}
         deliverability={analytics.deliverability || null}
+        sendVolume={analytics.sendVolume}
+        reoon={analytics.reoon}
+        todayVerification={analytics.todayVerification}
+        progress={analytics.progress}
+        campaignId={campaignId}
+        domainId={campaign.domainId}
+        onMarkReplied={handleMarkReplied}
       />
-      {failedLeadIssues.length > 0 && (
-        <div className="mx-auto max-w-[1000px] px-4 pb-10">
-          <div className="rounded-xl border border-red-100 bg-red-50 p-4">
-            <p className="text-xs font-semibold text-red-800 mb-2">Recent failed deliveries</p>
-            <div className="space-y-2">
-              {failedLeadIssues.slice(0, 3).map((lead) => (
-                <div key={lead.id} className="text-xs text-red-700">
-                  <span className="font-medium">{lead.toEmail}</span> -{" "}
-                  {(lead.errorDetails || lead.error || "Send failed").toString().slice(0, 120)}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-      {!subscriptionLoading && !detailedAnalyticsAllowed && (
-        <div className="mx-auto max-w-[1000px] px-4 pb-10">
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <p className="text-sm font-semibold text-amber-900">Detailed analytics is locked</p>
-            <p className="text-xs text-amber-800 mt-1">
-              Trial plans include core analytics. Upgrade to unlock advanced filtered trends.
-            </p>
-          </div>
-        </div>
-      )}
     </>
   );
 }

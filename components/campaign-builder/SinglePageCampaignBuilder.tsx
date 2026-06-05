@@ -39,7 +39,12 @@ import {
 } from "@/utils/api/reoonClient";
 
 import { BodyPortal } from "@/components/ui/BodyPortal";
+import { DeliverabilitySafeguardsInfo } from "@/components/email/DeliverabilitySafeguardsInfo";
 import { useEmailProvider } from "@/hooks/useEmailProvider";
+import {
+  formatDeliverabilityRate,
+  senderHealthBadge,
+} from "@/lib/deliverabilitySafeguards";
 import ReoonApiKeyRequiredModal from "./ReoonApiKeyRequiredModal";
 import AICampaignGeneratorModal from "./AICampaignGeneratorModal";
 import AIGeneratedCampaignPanel from "./AIGeneratedCampaignPanel";
@@ -225,6 +230,10 @@ interface EmailSender {
     resetAt?: string;
     override?: number | null;
     allowed?: boolean;
+    healthScore?: number;
+    healthStatus?: string;
+    bounceRate7d?: number;
+    complaintRate7d?: number;
     domainTrustLevel?: DomainTrustLevel;
     domainAgeInDays?: number;
     quotaMode?: "byo" | "managed";
@@ -2605,9 +2614,14 @@ export default function SinglePageCampaignBuilder({
                     )}
                   </div> */}
                   <div>
-                    <label className="block text-xs font-medium text-text-200 mb-1.5">
-                      Select Email Senders (Multi-Domain Rotation) *
-                    </label>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                      <label className="block text-xs font-medium text-text-200">
+                        Select Email Senders (Multi-Domain Rotation) *
+                      </label>
+                      {sesProvider !== "custom" && (
+                        <DeliverabilitySafeguardsInfo variant="compact" />
+                      )}
+                    </div>
                     {loadingSenders ? (
                       <div className="text-text-200 text-xs py-2">
                         Loading senders...
@@ -2632,6 +2646,15 @@ export default function SinglePageCampaignBuilder({
                               ? "configured daily send cap (BYO SES)."
                               : "daily capacity."}
                           </p>
+                          {sesProvider !== "custom" && (
+                            <p className="text-[11px] text-text-200/80 mt-1.5 leading-relaxed">
+                              High bounce or complaint rates can reduce daily caps automatically.
+                              Critical reputation pauses the sender and{" "}
+                              <strong>auto-pauses running campaigns</strong> (your account is not
+                              blocked).{" "}
+                              <DeliverabilitySafeguardsInfo variant="link" className="inline" />
+                            </p>
+                          )}
                         </div>
 
                         {/* Multi-select checkboxes - Grouped by domain */}
@@ -2674,6 +2697,14 @@ export default function SinglePageCampaignBuilder({
                                     const quota = sender.quota;
                                     const remaining =
                                       quota?.remaining ?? quota?.dailyCap ?? 0;
+                                    const healthBadge =
+                                      sesProvider !== "custom"
+                                        ? senderHealthBadge(
+                                            quota?.healthStatus,
+                                            quota?.bounceRate7d,
+                                            quota?.complaintRate7d
+                                          )
+                                        : null;
 
                                     return (
                                       <label
@@ -2714,19 +2745,48 @@ export default function SinglePageCampaignBuilder({
                                               {sender.displayName ||
                                                 sender.email}
                                             </p>
-                                            {quota && (
-                                              <span className="text-xs text-text-200 ml-2 whitespace-nowrap">
-                                                {remaining.toLocaleString()} /{" "}
-                                                {quota.dailyCap.toLocaleString()}{" "}
-                                                remaining
-                                              </span>
-                                            )}
+                                            <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                                              {healthBadge && (
+                                                <span
+                                                  className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                                                    healthBadge.tone === "critical"
+                                                      ? "bg-rose-100 text-rose-800"
+                                                      : healthBadge.tone === "warn"
+                                                      ? "bg-amber-100 text-amber-900"
+                                                      : "bg-emerald-100 text-emerald-800"
+                                                  }`}
+                                                  title={
+                                                    quota
+                                                      ? `7d bounce ${formatDeliverabilityRate(quota.bounceRate7d)} · complaints ${formatDeliverabilityRate(quota.complaintRate7d)}`
+                                                      : undefined
+                                                  }
+                                                >
+                                                  {healthBadge.label}
+                                                </span>
+                                              )}
+                                              {quota && (
+                                                <span className="text-xs text-text-200 whitespace-nowrap">
+                                                  {remaining.toLocaleString()} /{" "}
+                                                  {quota.dailyCap.toLocaleString()}{" "}
+                                                  left
+                                                </span>
+                                              )}
+                                            </div>
                                           </div>
                                           {sender.displayName && (
                                             <p className="text-xs text-text-200/60 mt-0.5">
                                               {sender.email}
                                             </p>
                                           )}
+                                          {quota &&
+                                            sesProvider !== "custom" &&
+                                            (quota.healthStatus === "warning" ||
+                                              quota.healthStatus === "critical") && (
+                                              <p className="text-[10px] text-amber-800 mt-1 leading-snug">
+                                                Cap may be reduced; critical health auto-pauses
+                                                campaigns.
+                                              </p>
+                                            )}
                                           {quota && (
                                             <div className="mt-1.5">
                                               <div className="w-full bg-brand-main/10 rounded-full h-1.5">
