@@ -354,7 +354,7 @@ export const TrendsChart: React.FC<TrendsChartProps> = ({
                   tickFormatter={(v) => `${v}%`}
                 />
                 <Tooltip
-                  formatter={(value: number) => [`${value}%`, ""]}
+                  formatter={(value) => [`${Number(value ?? 0)}%`, ""]}
                   contentStyle={{
                     backgroundColor: "white",
                     border: "1px solid #e5e7eb",
