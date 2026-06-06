@@ -2411,8 +2411,8 @@ export default function SinglePageCampaignBuilder({
                             className="mt-2 w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-text-100"
                           />
                           <p className="mt-2 text-[11px] text-text-200">
-                            Emails start at this local time. If daily limits apply,
-                            remaining queue resumes at this time on later days.
+                            Emails start at this local time. Sending continues after the window
+                            opens until the queue is done (subject to daily sender limits).
                           </p>
                         </div>
 
@@ -3441,14 +3441,14 @@ export default function SinglePageCampaignBuilder({
                         Because recipient count (
                         {state.selectedRecipients.count.toLocaleString()}) exceeds today&apos;s
                         combined sender capacity (
-                        {rotation?.totalCapacity?.toLocaleString() ?? "—"}), the pending queue
-                        continues at this time on later days until every lead is processed.
+                        {rotation?.totalCapacity?.toLocaleString() ?? "—"}), overflow continues
+                        at this same time on later days until the queue is complete.
                       </>
                     ) : (
                       <>
                         {" "}
-                        If you start the campaign before this time, sending waits until this
-                        window opens.
+                        This is the start time only — once it opens, sending continues until
+                        today&apos;s queue is done (or daily sender limits are reached).
                       </>
                     )}
                   </p>
