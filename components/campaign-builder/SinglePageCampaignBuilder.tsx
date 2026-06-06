@@ -2411,7 +2411,8 @@ export default function SinglePageCampaignBuilder({
                             className="mt-2 w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-text-100"
                           />
                           <p className="mt-2 text-[11px] text-text-200">
-                            Campaign resumes at this local time when daily limits are reached.
+                            Emails start at this local time. If daily limits apply,
+                            remaining queue resumes at this time on later days.
                           </p>
                         </div>
 
@@ -3424,21 +3425,32 @@ export default function SinglePageCampaignBuilder({
 
        
 
-              {/* Daily send window — only when some sends spill past today's combined sender quota */}
-              {showDailySendWindow && (
-                <div className="rounded-2xl border border-bg-200 bg-bg-300/50 p-4 space-y-2">
+              {/* Daily send window */}
+              <div className="rounded-2xl border border-bg-200 bg-bg-300/50 p-4 space-y-2">
                   <div className="flex items-center gap-2">
                     <Clock size={14} className="text-text-200" />
                     <p className="text-xs font-medium text-text-100">
-                      Daily send window
+                      Sending time
                     </p>
                   </div>
                   <p className="text-[11px] text-text-300 leading-snug">
-                    Part of this campaign sends on a later day because recipient count (
-                    {state.selectedRecipients.count.toLocaleString()}) exceeds today&apos;s
-                    combined sender capacity (
-                    {rotation?.totalCapacity?.toLocaleString() ?? "—"}). Remaining emails
-                    resume at this local time on the next eligible day (stored in UTC internally).
+                    Campaign emails start at this local time (stored in UTC internally).
+                    {showDailySendWindow ? (
+                      <>
+                        {" "}
+                        Because recipient count (
+                        {state.selectedRecipients.count.toLocaleString()}) exceeds today&apos;s
+                        combined sender capacity (
+                        {rotation?.totalCapacity?.toLocaleString() ?? "—"}), the pending queue
+                        continues at this time on later days until every lead is processed.
+                      </>
+                    ) : (
+                      <>
+                        {" "}
+                        If you start the campaign before this time, sending waits until this
+                        window opens.
+                      </>
+                    )}
                   </p>
                   <div className="flex items-center gap-2">
                     <input
@@ -3472,10 +3484,9 @@ export default function SinglePageCampaignBuilder({
                     </div>
                   </div>
                   <p className="text-[10px] text-text-300">
-                    Recommended: 09:00–10:00 or 14:00 UTC for typical business open rates.
+                    Recommended: 09:00–10:00 or 14:00 in your local timezone.
                   </p>
                 </div>
-              )}
 
               {/* Send Button */}
               <Button
