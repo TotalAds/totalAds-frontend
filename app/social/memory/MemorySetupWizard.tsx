@@ -417,7 +417,6 @@ export function MemorySetupWizard({
 		try {
 			setSaving(true);
 
-			// Upload logo if a file is selected
 			let brandLogoUrl = form.brandLogoUrl;
 			if (form.brandLogoFile) {
 				const uploadResult = await uploadBrandLogo({
@@ -431,7 +430,7 @@ export function MemorySetupWizard({
 				brandLogoUrl = uploadResult.publicUrl;
 			}
 
-		await saveMemoryOnboarding({
+			await saveMemoryOnboarding({
 				founderName: form.founderName || "Founder",
 				companyName: form.companyName || undefined,
 				productName: form.productName || undefined,
@@ -593,13 +592,11 @@ function BasicsStep({
 		const file = e.target.files?.[0];
 		if (!file) return;
 
-		// Validate file type
-		if (!file.type.startsWith("image/")) {
-			toast.error("Please upload an image file");
+		if (!file.type.startsWith("image/") || file.type === "image/svg+xml") {
+			toast.error("Please upload a PNG, JPG, or WebP image");
 			return;
 		}
 
-		// Validate file size (max 8MB)
 		if (file.size > 8 * 1024 * 1024) {
 			toast.error("Logo image must be under 8MB");
 			return;
@@ -607,7 +604,6 @@ function BasicsStep({
 
 		update("brandLogoFile", file);
 
-		// Create preview URL
 		const reader = new FileReader();
 		reader.onload = () => {
 			update("brandLogoUrl", reader.result as string);

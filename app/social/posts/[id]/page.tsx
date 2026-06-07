@@ -1497,6 +1497,8 @@ function buildImagePromptFromPost(
   const themeTag = inferThemeTag(postTheme, formatLabel);
   const postBodySummary = String(post.contentBody || "").slice(0, 1200);
   const footerText = buildFooterText(brandContext);
+  const brandName =
+    brandContext.companyName || brandContext.productName || "Brand";
   const brandDetails = [
     brandContext.companyName ? `Company: ${brandContext.companyName}` : "",
     brandContext.productName ? `Product: ${brandContext.productName}` : "",
@@ -1509,7 +1511,6 @@ function buildImagePromptFromPost(
       : "",
     brandContext.mobileNumber ? `Mobile: ${brandContext.mobileNumber}` : "",
     brandContext.brandColor ? `Brand color: ${brandContext.brandColor}` : "",
-    brandContext.brandLogoUrl ? `Logo URL: ${brandContext.brandLogoUrl}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -1519,10 +1520,10 @@ function buildImagePromptFromPost(
     `POST THEME: ${postTheme}`,
     `POST FORMAT: ${formatLabel}`,
     // `THEME TAG (top right): "${themeTag}"`,
-    brandContext.companyName || brandContext.productName
-      ? `LOGO (top left): ${brandContext.productName || brandContext.companyName} logo`
-      : "LOGO (top left): Brand logo",
-    `LOGO URL: ${normalizeExternalLogoUrl(brandContext.brandLogoUrl) || "Not provided"}`,
+    "LOGO:",
+    "- If a brand logo image is attached to this chat, use it exactly at top-left (32px inset, 40px height). Do not redraw, restyle, recolor, or substitute it.",
+    "- If no logo attachment is present, do NOT recreate, invent, or approximate a logo. Leave the top-left logo area empty.",
+    "",
     includeFooter && footerText
       ? `FOOTER: ${footerText}`
       : "FOOTER: Do not render any footer bar or contact strip.",
@@ -1535,15 +1536,21 @@ function buildImagePromptFromPost(
     "- Use abstract tech/product/data visuals that feel like premium startup branding",
     "- Editorial composition with clean whitespace and strong visual hierarchy",
     "- Dark or light mode is allowed, but use one disciplined accent color",
-    "- Get the logo from the logo url and add it in the top left corner",
+    "- When the post contains multiple metrics, use one hero number as the dominant visual anchor and demote supporting stats to smaller secondary labels",
+    "",
     "COPY DIRECTION:",
     `- Headline: "${headline}"`,
     subheadline ? `- Subheadline: "${subheadline}"` : "",
     "",
+    "TEXT ACCURACY RULES:",
+    "- All text must be rendered exactly as written in COPY DIRECTION.",
+    "- Do not paraphrase, truncate, invent wording, or use placeholder text.",
+    `- Do not misspell ${brandName}.`,
+    "",
     "BRAND DETAILS TO REFLECT IN THE IMAGE (only if provided):",
     brandDetails || "- Use known brand identity from the post context",
     "",
-    "POST BODY SUMMARY:",
+    "POST BODY SUMMARY (context only — do not render every stat at headline size):",
     postBodySummary || "(No post body available)",
     "",
     "IMPORTANT:",
@@ -1583,7 +1590,9 @@ function buildHumanReadablePrompt(rawPrompt: string): string {
     "You are an elite B2B brand designer creating LinkedIn-ready visuals for premium SaaS and tech brands.",
     "Style direction: modern, minimalistic, professional, high-whitespace layout with strong typography hierarchy.",
     "Visual rules: avoid humans, stock-photo look, clutter, meme-style graphics, and oversaturated palettes.",
-    "Layout rules: top-left brand logo, top-right theme chip, center visual storytelling, optional clean footer strip.",
+    "Layout rules: optional top-left logo only when attached by the user, top-right theme chip, center visual storytelling, optional clean footer strip.",
+    "Logo rules: use an attached logo asset exactly if present — otherwise do not generate or recreate a logo.",
+    "Text rules: render headline and subheadline exactly as written — no paraphrasing or placeholder copy.",
     "Quality bar: image should look like startup launch creative built in Canva/Figma by a real design team.",
     "Always optimize for LinkedIn feed readability and clean composition.",
   ].join("\n");
