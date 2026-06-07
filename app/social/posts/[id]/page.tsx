@@ -1497,63 +1497,44 @@ function buildImagePromptFromPost(
   const themeTag = inferThemeTag(postTheme, formatLabel);
   const postBodySummary = String(post.contentBody || "").slice(0, 1200);
   const footerText = buildFooterText(brandContext);
-  const brandDetails = [
-    brandContext.companyName ? `Company: ${brandContext.companyName}` : "",
-    brandContext.productName ? `Product: ${brandContext.productName}` : "",
+  const logoUrl = normalizeExternalLogoUrl(brandContext.brandLogoUrl);
+
+  const specLines: string[] = [
+    "── BRAND ─────────────────────────────────────────",
+    `BRAND NAME:   ${brandContext.companyName || brandContext.productName || "Not provided"}`,
+    `PRODUCT:      ${brandContext.productName || brandContext.companyName || "Not provided"}`,
+    `BRAND COLOR:  ${brandContext.brandColor || "#3b82f6"}`,
+    `WEBSITE:      ${brandContext.website || "Not provided"}`,
+    `INSTAGRAM:    ${brandContext.instagramHandle || "Not provided"}`,
     brandContext.brandDescription
-      ? `Brand detail: ${brandContext.brandDescription}`
+      ? `BRAND DETAIL: ${brandContext.brandDescription}`
       : "",
-    brandContext.website ? `Website: ${brandContext.website}` : "",
-    brandContext.instagramHandle
-      ? `Instagram: ${brandContext.instagramHandle}`
-      : "",
-    brandContext.mobileNumber ? `Mobile: ${brandContext.mobileNumber}` : "",
-    brandContext.brandColor ? `Brand color: ${brandContext.brandColor}` : "",
-    brandContext.brandLogoUrl ? `Logo URL: ${brandContext.brandLogoUrl}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  const userPrompt = [
-    "Create a premium LinkedIn-ready visual for this B2B SaaS post.",
-    `POST THEME: ${postTheme}`,
+    "",
+    "── LOGO ──────────────────────────────────────────",
+    `LOGO URL (use as <img src="..."> verbatim, do not skip):`,
+    `  ${logoUrl || "Not provided — use brand name in bold brand color instead"}`,
+    "",
+    "── LAYOUT FIELDS ─────────────────────────────────",
+    `POST THEME:  ${postTheme}`,
     `POST FORMAT: ${formatLabel}`,
-    `THEME TAG (top right): "${themeTag}"`,
-    brandContext.companyName || brandContext.productName
-      ? `LOGO (top left): ${brandContext.productName || brandContext.companyName} logo`
-      : "LOGO (top left): Brand logo",
-    `LOGO URL: ${normalizeExternalLogoUrl(brandContext.brandLogoUrl) || "Not provided"}`,
+    `THEME TAG (top-right pill chip): "${themeTag}"`,
+    `HEADLINE:    "${headline}"`,
+    subheadline ? `SUBHEADLINE: "${subheadline}"` : "",
     includeFooter && footerText
-      ? `FOOTER: ${footerText}`
-      : "FOOTER: Do not render any footer bar or contact strip.",
-    includeFooter
-      ? `FOOTER FIELDS (show when available): Instagram ${brandContext.instagramHandle || "(not provided)"} | Mobile ${brandContext.mobileNumber || "(not provided)"} | Website ${brandContext.website || "(not provided)"}`
-      : "",
+      ? `FOOTER:      ${footerText}`
+      : "FOOTER: Do not render a footer strip.",
     "",
-    "VISUAL DIRECTION:",
-    "- No humans, no portraits, no unrelated people",
-    "- Use abstract tech/product/data visuals that feel like premium startup branding",
-    "- Editorial composition with clean whitespace and strong visual hierarchy",
-    "- Dark or light mode is allowed, but use one disciplined accent color",
+    "── VISUAL DIRECTION ──────────────────────────────",
+    "Use a dark navy background (#0f172a or similar).",
+    "Brand color as the single accent. Build an abstract hero visual",
+    "representing the post theme using CSS shapes or inline SVG.",
+    "No humans. No portraits. No stock-photo look.",
     "",
-    "COPY DIRECTION:",
-    `- Headline: "${headline}"`,
-    subheadline ? `- Subheadline: "${subheadline}"` : "",
-    "",
-    "BRAND DETAILS TO REFLECT IN THE IMAGE (only if provided):",
-    brandDetails || "- Use known brand identity from the post context",
-    "",
-    "POST BODY SUMMARY:",
-    postBodySummary || "(No post body available)",
-    "",
-    "IMPORTANT:",
-    "- Keep typography crisp and readable on mobile feed",
-    "- No clutter, no stock-photo look, no meme style",
-    "- Make it look like a real designer-made Canva/Figma startup creative",
-  ]
-    .filter(Boolean)
-    .join("\n");
+    "── POST BODY SUMMARY (context only — do not render verbatim) ──",
+    postBodySummary || "(No body available)",
+  ].filter((line) => line !== undefined && line !== null);
 
+  const userPrompt = specLines.join("\n");
   return buildHumanReadablePrompt(userPrompt);
 }
 
@@ -1578,22 +1559,83 @@ function normalizeExternalLogoUrl(logoUrl: string | null | undefined): string {
 }
 
 function buildHumanReadablePrompt(rawPrompt: string): string {
-  const prompt = String(rawPrompt || "").trim();
-  const systemPrompt = [
-    "You are an elite B2B brand designer creating LinkedIn-ready visuals for premium SaaS and tech brands.",
-    "Style direction: modern, minimalistic, professional, high-whitespace layout with strong typography hierarchy.",
-    "Visual rules: avoid humans, stock-photo look, clutter, meme-style graphics, and oversaturated palettes.",
-    "Layout rules: top-left brand logo, top-right theme chip, center visual storytelling, optional clean footer strip.",
-    "Quality bar: image should look like startup launch creative built in Canva/Figma by a real design team.",
-    "Always optimize for LinkedIn feed readability and clean composition.",
-  ].join("\n");
-  return [
-    "System prompt:",
-    systemPrompt,
-    "",
-    "User prompt:",
-    prompt || "(No user prompt captured)",
-  ].join("\n");
+  const spec = String(rawPrompt || "").trim();
+
+  return `
+TASK
+Generate a premium LinkedIn social image as a single self-contained HTML snippet.
+Do not explain. Do not add markdown fences. Output only the HTML — nothing else.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ROLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+You are an elite B2B brand designer producing LinkedIn visuals for premium SaaS
+brands. Every output must look like a real Canva / Figma startup launch creative —
+not generic AI output.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT RULES (non-negotiable)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Output ONLY raw HTML. No preamble, no explanation, no markdown code fences.
+• Root element must be:
+    <div style="width:1200px;height:628px;overflow:hidden;position:relative;...">
+• All styles inline. Google Fonts may be loaded via a <link> tag.
+• No external images except the logo URL provided below.
+• Hero visuals must use pure CSS shapes or inline <svg> — no <img> for the hero.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LOGO — CRITICAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The logo MUST appear as a real rendered <img> element using the exact URL in the
+POST SPECIFICATION below. Copy the URL verbatim.
+
+Use exactly this markup (fill in the URL):
+  <img
+    src="LOGO_URL_FROM_SPEC"
+    crossorigin="anonymous"
+    style="height:40px;width:auto;object-fit:contain;display:block;"
+    onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"
+  />
+  <div style="display:none;height:40px;align-items:center;font-weight:700;
+    font-size:18px;color:BRAND_COLOR_FROM_SPEC;">BRAND_NAME_FROM_SPEC</div>
+
+• Position: top-left, 32px from each edge.
+• Do NOT skip, describe, or replace the logo with a placeholder.
+• The onerror fallback shows the brand name if the image fails to load.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LAYOUT STRUCTURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Layer 1 — Background: solid dark or light base color. No gradients.
+Layer 2 — Top bar:
+  • Left: logo <img> at 32px from top + left edges
+  • Right: THEME TAG as a rounded pill chip
+    (12px, font-weight 600, uppercase, letter-spacing 0.08em, brand color bg)
+Layer 3 — Hero zone (center): abstract visual using CSS/SVG only
+  (pipeline, funnel, data grid, dot matrix, flow lines — no clip-art)
+Layer 4 — Copy zone (lower-center):
+  • HEADLINE: 52–64px, font-weight 700, line-height 1.1
+  • SUBHEADLINE: 20–24px, opacity 0.65, font-weight 400
+Layer 5 — Footer strip (48px, bottom):
+  • Left: FOOTER text (13px, opacity 0.55)
+  • Right: website URL (13px, opacity 0.55)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VISUAL RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• No humans, portraits, or stock-photo elements.
+• No meme-style graphics, clutter, or oversaturated palettes.
+• One accent color only (use BRAND COLOR from spec). All else: neutrals/darks.
+• Choose dark mode OR light mode — pick one, execute it cleanly.
+• Premium startup feel: think Linear, Vercel, Figma launch creative.
+• Headline must be legible at 320px wide (mobile feed thumbnail).
+• Every field in the spec must appear in the output. No Lorem ipsum.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+POST SPECIFICATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${spec || "(No specification provided)"}
+`.trim();
 }
 
 function extractBrandContext(
@@ -1771,15 +1813,19 @@ function inferThemeTag(topic: string, formatLabel: string): string {
 function getAiPromptLaunchLinks(
   prompt: string,
 ): Array<{ label: string; url: string }> {
-  const encodedPrompt = encodeURIComponent(prompt);
+  const encoded = encodeURIComponent(prompt);
   return [
     {
       label: "Open in ChatGPT",
-      url: `https://chatgpt.com/?q=${encodedPrompt}`,
+      url: `https://chatgpt.com/?q=${encoded}`,
     },
     {
       label: "Open in Claude",
-      url: `https://claude.ai/new?q=${encodedPrompt}`,
+      url: `https://claude.ai/new?q=${encoded}`,
+    },
+    {
+      label: "Open in Gemini",
+      url: `https://gemini.google.com/app?q=${encoded}`,
     },
   ];
 }
