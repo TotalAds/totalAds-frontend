@@ -1518,7 +1518,7 @@ function buildImagePromptFromPost(
     "Create a premium LinkedIn-ready visual for this B2B SaaS post.",
     `POST THEME: ${postTheme}`,
     `POST FORMAT: ${formatLabel}`,
-    `THEME TAG (top right): "${themeTag}"`,
+    // `THEME TAG (top right): "${themeTag}"`,
     brandContext.companyName || brandContext.productName
       ? `LOGO (top left): ${brandContext.productName || brandContext.companyName} logo`
       : "LOGO (top left): Brand logo",
@@ -1535,7 +1535,7 @@ function buildImagePromptFromPost(
     "- Use abstract tech/product/data visuals that feel like premium startup branding",
     "- Editorial composition with clean whitespace and strong visual hierarchy",
     "- Dark or light mode is allowed, but use one disciplined accent color",
-    "",
+    "- Get the logo from the logo url and add it in the top left corner",
     "COPY DIRECTION:",
     `- Headline: "${headline}"`,
     subheadline ? `- Subheadline: "${subheadline}"` : "",
