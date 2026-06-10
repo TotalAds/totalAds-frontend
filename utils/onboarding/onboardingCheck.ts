@@ -1,6 +1,12 @@
 import { getCurrentUser } from "@/utils/api/authClient";
-import { getMemoryOnboardingStatus, getSocialAccess } from "@/utils/api/socialClient";
-import { parseProduct, ProductType } from "@/utils/auth/productIntent";
+import { getSocialAccess } from "@/utils/api/socialClient";
+import {
+  getStoredAuthProduct,
+  isSocialSnipperUser,
+  parseProduct,
+  ProductType,
+  requiresLeadSnipperOnboarding,
+} from "@/utils/auth/productIntent";
 
 export interface OnboardingStatus {
   isCompleted: boolean;
@@ -54,22 +60,6 @@ export const checkOnboardingStatus = async (
           redirectPath: "",
           product: "socialsnipper",
         };
-      }
-
-      // Subscription + LinkedIn means onboarding is done (API auto-marks complete on /social/access)
-      try {
-        const access = await getSocialAccess();
-        if (access.enabled && access.linkedinConnected) {
-          return {
-            isCompleted: true,
-            currentStep: 3,
-            shouldRedirect: false,
-            redirectPath: "",
-            product: "socialsnipper",
-          };
-        }
-      } catch {
-        // fall through to onboarding redirect
       }
 
       return {
@@ -244,8 +234,11 @@ export const protectRoute = async (
       // Allow certain paths during onboarding
       const allowedDuringOnboarding = [
         "/social/onboarding",
+        "/social/linkedin",
         "/social/linkedin/callback",
         "/social/memory/onboarding",
+        "/social/post-studio",
+        "/social/dashboard",
       ];
 
       const isAllowedDuringOnboarding = allowedDuringOnboarding.some(
@@ -257,34 +250,27 @@ export const protectRoute = async (
       }
     }
 
-    // Check memory onboarding for social
-    const socialAllowedWhileMemoryIncomplete = [
-      "/social/memory/onboarding",
-      "/social/linkedin/callback",
-      "/social/onboarding",
-      "/social/pricing",
-    ];
-    const isMemoryExempt = socialAllowedWhileMemoryIncomplete.some(
-      (path) => pathname === path || pathname.startsWith(path + "/")
-    );
+    return null;
+  }
 
-    if (!isMemoryExempt && status.isCompleted) {
-      try {
-        const socialStatus = await getMemoryOnboardingStatus();
-        if (!socialStatus?.isComplete) {
-          return {
-            isCompleted: true,
-            currentStep: status.currentStep,
-            shouldRedirect: true,
-            redirectPath: "/social/memory/onboarding",
-            product: "socialsnipper",
-          };
-        }
-      } catch (error) {
-        console.error("Error checking social memory onboarding:", error);
-      }
-    }
+  // SocialSnipper users should never see LeadSnipper email onboarding
+  const user = await getCurrentUser();
+  const sessionProduct = getStoredAuthProduct();
+  if (
+    (pathname === "/onboarding" || pathname.startsWith("/onboarding/")) &&
+    isSocialSnipperUser(user, sessionProduct)
+  ) {
+    return {
+      isCompleted: false,
+      currentStep: 1,
+      shouldRedirect: true,
+      redirectPath: "/social/onboarding",
+      product: "socialsnipper",
+    };
+  }
 
+  // LeadSnipper email onboarding is only required when accessing /email/* routes
+  if (!requiresLeadSnipperOnboarding(pathname)) {
     return null;
   }
 
@@ -298,6 +284,6 @@ export const protectRoute = async (
     return null;
   }
 
-  // If onboarding is not completed, redirect to onboarding
+  // If onboarding is not completed, redirect to LeadSnipper onboarding
   return status;
 };

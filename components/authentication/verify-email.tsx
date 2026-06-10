@@ -7,20 +7,36 @@ import toast from "react-hot-toast";
 import GetLogo from "@/components/common/getLogo";
 import { useAuthContext } from "@/context/AuthContext";
 import {
+  getCurrentUser,
   resendVerificationCode,
+  UserProfile,
   verifyEmail as verifyEmailApi,
 } from "@/utils/api/authClient";
-import { IconMail, IconRefresh, IconShieldCheck } from "@tabler/icons-react";
+import {
+  getPostAuthRedirectPath,
+  getStoredAuthProduct,
+  parseProduct,
+  ProductType,
+} from "@/utils/auth/productIntent";
+import { IconMail, IconRefresh } from "@tabler/icons-react";
 
-function onboardingPathAfterVerify(searchParams: URLSearchParams): string {
-  const product = searchParams.get("product") || searchParams.get("app");
-  if (
-    product &&
-    ["social", "socialsnipper", "socialsniper"].includes(product.toLowerCase())
-  ) {
-    return `/onboarding?product=${encodeURIComponent(product)}`;
-  }
-  return "/onboarding";
+function onboardingPathAfterVerify(
+  searchParams: URLSearchParams,
+  user?: UserProfile | null
+): string {
+  const urlProduct = parseProduct(
+    searchParams.get("product") || searchParams.get("app")
+  );
+  const product: ProductType =
+    urlProduct ||
+    parseProduct(user?.signupProduct ?? null) ||
+    getStoredAuthProduct();
+
+  return getPostAuthRedirectPath(product, {
+    emailVerified: true,
+    onboardingCompleted: user?.onboardingCompleted ?? false,
+    socialOnboardingCompleted: user?.socialOnboardingCompleted ?? false,
+  });
 }
 
 const VerifyEmailComponent: React.FC = () => {
@@ -38,9 +54,9 @@ const VerifyEmailComponent: React.FC = () => {
   useEffect(() => {
     // If already verified, go to onboarding or dashboard
     if (user?.emailVerified) {
-      router.replace(onboardingPathAfterVerify(searchParams));
+      router.replace(onboardingPathAfterVerify(searchParams, user));
     }
-  }, [user?.emailVerified, router, searchParams]);
+  }, [user, router, searchParams]);
 
   // Session timeout for verification pending state (5 minutes)
   useEffect(() => {
@@ -94,8 +110,9 @@ const VerifyEmailComponent: React.FC = () => {
     try {
       await verifyEmailApi(code.trim().toUpperCase());
       await refreshUser();
+      const refreshedUser = await getCurrentUser();
       toast.success("Email verified successfully!");
-      router.replace(onboardingPathAfterVerify(searchParams));
+      router.replace(onboardingPathAfterVerify(searchParams, refreshedUser));
     } catch (err) {
       console.error(err);
       setError(

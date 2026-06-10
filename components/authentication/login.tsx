@@ -41,10 +41,12 @@ export function LoginComponent() {
   // Redirect based on authentication, email verification, and onboarding status
   useEffect(() => {
     if (isAuthenticated && user) {
-      const redirectPath = getPostAuthRedirectPath(product, {
+      const resolvedProduct =
+        product || parseProduct(user.signupProduct ?? null);
+      const redirectPath = getPostAuthRedirectPath(resolvedProduct, {
         emailVerified: user.emailVerified,
         onboardingCompleted: user.onboardingCompleted,
-        socialOnboardingCompleted: user.socialServiceEnabled, // Use social access as proxy until we have dedicated field
+        socialOnboardingCompleted: user.socialOnboardingCompleted,
       });
       router.push(redirectPath);
     }

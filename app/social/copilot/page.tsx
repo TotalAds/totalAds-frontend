@@ -21,19 +21,26 @@ import {
 	GeneratedLinkedinCalendarPost,
 	generateLinkedinCalendar,
 	getAccountPreferences,
-	getSocialAccess,
 	getCopilotSession,
 	HumanizerLevel,
 	LinkedinCalendarDurationDays,
 	listCopilotSessions,
 } from "@/utils/api/socialClient";
 import {
+	checkCopilotEligibility,
+	COPILOT_MEMORY_MIN_COMPLETION_SCORE,
+	CopilotEligibility,
+} from "@/utils/social/copilotEligibility";
+import {
 	IconArrowUp,
+	IconBrandLinkedin,
+	IconBrain,
 	IconBulb,
 	IconCalendarEvent,
 	IconChevronRight,
 	IconHistory,
 	IconLayoutSidebarRight,
+	IconLoader2,
 	IconMessages,
 	IconPhotoPlus,
 	IconRotateClockwise,
@@ -79,6 +86,8 @@ export default function SocialCopilotPage() {
 	const [generationStatus, setGenerationStatus] = useState<string | null>(null);
 	const [imageGenerationEnabled, setImageGenerationEnabled] = useState(true);
 	const [humanizerLevel, setHumanizerLevel] = useState<HumanizerLevel>("medium");
+	const [copilotAccess, setCopilotAccess] = useState<CopilotEligibility | null>(null);
+	const [copilotAccessLoading, setCopilotAccessLoading] = useState(true);
 	const sessionDraftsHref = chatId ? `/social/copilot/sessions/${chatId}/drafts` : null;
 
 	const selectedFramework =
@@ -126,16 +135,18 @@ export default function SocialCopilotPage() {
 		loadSessions();
 		(async () => {
 			try {
-				const [access, prefs] = await Promise.all([
-					getSocialAccess(),
+				const [eligibility, prefs] = await Promise.all([
+					checkCopilotEligibility(),
 					getAccountPreferences().catch(() => null),
 				]);
-				setImageGenerationEnabled(
-					access.linkedinImageGenerationEnabled !== false
-				);
+				setCopilotAccess(eligibility);
+				setImageGenerationEnabled(true);
 				if (prefs?.humanizerLevel) setHumanizerLevel(prefs.humanizerLevel);
 			} catch {
+				setCopilotAccess(null);
 				setImageGenerationEnabled(true);
+			} finally {
+				setCopilotAccessLoading(false);
 			}
 		})();
 	}, []);
@@ -328,6 +339,97 @@ export default function SocialCopilotPage() {
 			setGenerationStatus(null);
 		}
 	};
+
+	if (copilotAccessLoading) {
+		return (
+			<div className="min-h-screen flex items-center justify-center bg-bg-100">
+				<div className="text-center">
+					<IconLoader2 className="w-8 h-8 animate-spin text-brand-main mx-auto mb-3" />
+					<p className="text-text-200 text-sm">Loading Copilot...</p>
+				</div>
+			</div>
+		);
+	}
+
+	if (copilotAccess && !copilotAccess.eligible) {
+		return (
+			<div className="min-h-screen bg-bg-100 flex items-center justify-center p-6">
+				<div className="max-w-lg w-full bg-bg-200 rounded-2xl p-8 border border-bg-300">
+					<div className="text-center mb-6">
+						<div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-main/10 mb-4">
+							<IconSparkles className="w-7 h-7 text-brand-main" />
+						</div>
+						<h1 className="text-xl font-bold text-text-100 mb-2">
+							Unlock LinkedIn Copilot
+						</h1>
+						<p className="text-sm text-text-200">
+							Copilot builds multi-day LinkedIn schedules from your memory. Complete both steps below to get started.
+						</p>
+					</div>
+
+					<div className="space-y-3 mb-6">
+						<div
+							className={`flex items-start gap-3 rounded-xl p-4 ${
+								copilotAccess.linkedinConnected
+									? "bg-green-500/10 border border-green-500/20"
+									: "bg-bg-100 border border-bg-300"
+							}`}
+						>
+							<IconBrandLinkedin className="w-5 h-5 shrink-0 mt-0.5 text-blue-500" />
+							<div>
+								<p className="font-medium text-text-100 text-sm">Connect LinkedIn</p>
+								<p className="text-xs text-text-300 mt-1">
+									{copilotAccess.linkedinConnected
+										? "Connected"
+										: "Required to publish and schedule posts from Copilot."}
+								</p>
+							</div>
+						</div>
+
+						<div
+							className={`flex items-start gap-3 rounded-xl p-4 ${
+								copilotAccess.memoryReady
+									? "bg-green-500/10 border border-green-500/20"
+									: "bg-bg-100 border border-bg-300"
+							}`}
+						>
+							<IconBrain className="w-5 h-5 shrink-0 mt-0.5 text-purple-500" />
+							<div>
+								<p className="font-medium text-text-100 text-sm">Memory setup</p>
+								<p className="text-xs text-text-300 mt-1">
+									{copilotAccess.memoryReady
+										? `${copilotAccess.memoryCompletionScore}% complete`
+										: `${copilotAccess.memoryCompletionScore}% complete — reach ${COPILOT_MEMORY_MIN_COMPLETION_SCORE}% for Copilot.`}
+								</p>
+							</div>
+						</div>
+					</div>
+
+					<div className="flex flex-col gap-2">
+						{!copilotAccess.linkedinConnected && (
+							<Link href="/social/linkedin">
+								<PrimaryButton className="w-full justify-center">
+									Connect LinkedIn
+								</PrimaryButton>
+							</Link>
+						)}
+						{!copilotAccess.memoryReady && (
+							<Link href="/social/memory/onboarding">
+								<SecondaryButton className="w-full justify-center">
+									Complete memory setup
+								</SecondaryButton>
+							</Link>
+						)}
+						<Link href="/social/post-studio">
+							<SecondaryButton className="w-full justify-center">
+								Try Post Studio instead
+							</SecondaryButton>
+						</Link>
+					</div>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="min-h-screen w-full min-w-0 overflow-x-hidden bg-[radial-gradient(circle_at_top_left,#dbeafe_0,transparent_30%),linear-gradient(135deg,#f8fafc,#eef2ff)] px-3 py-3 md:px-4">

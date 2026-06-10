@@ -129,9 +129,25 @@ export function getPostAuthRedirectPath(
     return "/social/dashboard";
   }
 
-  // Default to LeadSnipper
-  if (!user.onboardingCompleted) {
-    return "/onboarding";
-  }
-  return "/email/dashboard";
+  // Unknown product — send to hub instead of forcing LeadSnipper onboarding
+  return "/dashboard";
+}
+
+/**
+ * Paths that require LeadSnipper email onboarding to be complete
+ */
+export function requiresLeadSnipperOnboarding(pathname: string): boolean {
+  return pathname.startsWith("/email");
+}
+
+/**
+ * Whether the user signed up for / is using SocialSnipper (not LeadSnipper-only)
+ */
+export function isSocialSnipperUser(
+  user?: { signupProduct?: string | null } | null,
+  sessionProduct?: ProductType
+): boolean {
+  const product =
+    sessionProduct || parseProduct(user?.signupProduct ?? null);
+  return product === "socialsnipper";
 }

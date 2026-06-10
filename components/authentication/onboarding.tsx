@@ -1,9 +1,15 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import React, { useEffect, useRef, useState } from "react";
 
 import GetLogo from "@/components/common/getLogo";
 import { useAuthContext } from "@/context/AuthContext";
+import {
+  getStoredAuthProduct,
+  isSocialSnipperUser,
+  parseProduct,
+} from "@/utils/auth/productIntent";
 
 import OnboardingStep1 from "./onboarding/step1";
 import OnboardingStep2Combined from "./onboarding/step2Combined";
@@ -32,12 +38,20 @@ export interface OnboardingData {
 }
 
 export function OnboardingComponent() {
+  const router = useRouter();
   const { state } = useAuthContext();
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading] = useState(false);
 
   const totalSteps = 3;
   const didInitFromUser = useRef(false);
+
+  useEffect(() => {
+    if (state.isLoading) return;
+    if (isSocialSnipperUser(state.user, getStoredAuthProduct())) {
+      router.replace("/social/onboarding");
+    }
+  }, [state.isLoading, state.user, router]);
 
   useEffect(() => {
     if (didInitFromUser.current) return;

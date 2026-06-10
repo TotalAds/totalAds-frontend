@@ -104,22 +104,16 @@ export function SignupComponent() {
       if (!user.emailVerified) {
         const verifyHref = buildUrlWithProduct("/verify-email", product);
         router.push(verifyHref);
-      } else if (!user.onboardingCompleted) {
-        // For social, use social onboarding; for email use regular onboarding
-        if (product === "socialsnipper") {
-          const onboardingHref = buildUrlWithProduct("/social/onboarding", product);
-          router.push(onboardingHref);
-        } else {
-          const onboardingHref = buildUrlWithProduct("/onboarding", product);
-          router.push(onboardingHref);
-        }
       } else {
-        // If both email and onboarding are complete, go to appropriate dashboard
-        if (product === "socialsnipper") {
-          router.push("/social/dashboard");
-        } else {
-          router.push("/email/dashboard");
-        }
+        const resolvedProduct =
+          product || parseProduct(user.signupProduct ?? null);
+        router.push(
+          getPostAuthRedirectPath(resolvedProduct, {
+            emailVerified: user.emailVerified,
+            onboardingCompleted: user.onboardingCompleted,
+            socialOnboardingCompleted: user.socialOnboardingCompleted,
+          })
+        );
       }
     } catch (error) {
       console.error("Registration error:", error);

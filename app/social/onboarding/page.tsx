@@ -1,58 +1,31 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
 
 import { useAuthContext } from "@/context/AuthContext";
-import { completeSocialOnboarding, getSocialAccess } from "@/utils/api/socialClient";
-import {
-  createSocialSubscription,
-  verifySocialPayment,
-  getSocialPricing,
-  SocialPricingTier,
-} from "@/utils/api/socialBillingClient";
+import { completeSocialOnboarding, getSocialAccess, SocialAccessResponse } from "@/utils/api/socialClient";
 import {
   IconBrandLinkedin,
   IconCheck,
   IconLoader2,
   IconBrain,
-  IconCreditCard,
+  IconSparkles,
+  IconRocket,
 } from "@tabler/icons-react";
-import { toast } from "react-hot-toast";
+
+const TOTAL_STEPS = 3;
 
 export default function SocialOnboardingPage() {
   const router = useRouter();
   const { state, refreshUser } = useAuthContext();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [hasSubscription, setHasSubscription] = useState(false);
-  const [linkedinConnected, setLinkedinConnected] = useState(false);
-  const [pricingTier, setPricingTier] = useState<SocialPricingTier | null>(null);
-  const [pricingLoading, setPricingLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
+  const [access, setAccess] = useState<SocialAccessResponse | null>(null);
+  const [finishing, setFinishing] = useState(false);
 
-  // Load Razorpay checkout script
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.Razorpay) {
-      setRazorpayLoaded(true);
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
-    script.onload = () => setRazorpayLoaded(true);
-    document.body.appendChild(script);
-
-    return () => {
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
-    };
-  }, []);
-
-  // Fetch access + pricing when authenticated
   useEffect(() => {
     const init = async () => {
       if (!state.isAuthenticated) {
@@ -61,129 +34,42 @@ export default function SocialOnboardingPage() {
       }
 
       try {
-        const [access, tiers] = await Promise.all([
-          getSocialAccess(),
-          getSocialPricing(),
-        ]);
+        const accessData = await getSocialAccess();
+        setAccess(accessData);
 
-        setHasSubscription(access.enabled);
-        setLinkedinConnected(access.linkedinConnected);
-
-        const linkedInTier = tiers.find((t) => t.includesLinkedIn) || tiers[0];
-        setPricingTier(linkedInTier || null);
-
-        if (access.enabled && access.linkedinConnected) {
-          if (!access.socialOnboardingCompleted) {
-            await completeSocialOnboarding();
-            await refreshUser();
-          }
+        if (accessData.socialOnboardingCompleted) {
           router.replace("/social/dashboard");
           return;
         }
 
-        if (access.enabled && !access.linkedinConnected) {
-          setStep(2);
+        if (accessData.linkedinConnected) {
+          setStep(3);
+        } else if (accessData.enabled) {
+          setStep(1);
         }
       } catch (error) {
         console.error("Error loading onboarding:", error);
         toast.error("Failed to load onboarding. Please refresh the page.");
       } finally {
-        setPricingLoading(false);
         setLoading(false);
       }
     };
 
     init();
-  }, [state.isAuthenticated, router, refreshUser]);
+  }, [state.isAuthenticated, router]);
 
-  // Handle Razorpay payment
-  const handleRazorpayPayment = useCallback(async () => {
-    if (!pricingTier || !razorpayLoaded) {
-      toast.error("Payment system not ready. Please try again.");
-      return;
-    }
-
-    setIsProcessing(true);
-
-    try {
-      // Create subscription on backend
-      const orderData = await createSocialSubscription(pricingTier.id);
-
-      const options = {
-        key: orderData.key,
-        amount: orderData.amount,
-        currency: orderData.currency,
-        name: "SocialSnipper",
-        description: `${pricingTier.displayName} - Monthly`,
-        order_id: orderData.orderId,
-        prefill: {
-          name: orderData.name || state.user?.name || "",
-          email: orderData.email || state.user?.email || "",
-        },
-        theme: {
-          color: "#3b82f6",
-        },
-        handler: async function (response: {
-          razorpay_payment_id: string;
-          razorpay_order_id: string;
-          razorpay_signature: string;
-        }) {
-          try {
-            await verifySocialPayment({
-              razorpayOrderId: response.razorpay_order_id,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpaySignature: response.razorpay_signature,
-              tierId: pricingTier.id,
-              paidAmountInPaise: orderData.amount,
-              lockedPriceInPaise: orderData.lockedPriceInPaise ?? orderData.amount,
-            });
-
-            toast.success("Payment successful! Welcome to SocialSnipper.");
-            setHasSubscription(true);
-            await refreshUser();
-            setStep(2);
-          } catch (verifyError) {
-            console.error("Payment verification failed:", verifyError);
-            toast.error("Payment verification failed. Please contact support.");
-          } finally {
-            setIsProcessing(false);
-          }
-        },
-        modal: {
-          ondismiss: function () {
-            setIsProcessing(false);
-            toast("Payment cancelled. You can try again when ready.", {
-              icon: "ℹ️",
-            });
-          },
-        },
-      };
-
-      const Razorpay = (window as Window & { Razorpay?: new (opts: object) => { open: () => void } })
-        .Razorpay;
-      if (!Razorpay) {
-        toast.error("Payment system not ready. Please refresh the page.");
-        setIsProcessing(false);
-        return;
-      }
-      const razorpay = new Razorpay(options);
-      razorpay.open();
-    } catch (error) {
-      console.error("Failed to initiate payment:", error);
-      toast.error("Failed to initiate payment. Please try again.");
-      setIsProcessing(false);
-    }
-  }, [pricingTier, razorpayLoaded, state.user, refreshUser]);
-
-  const handleCompleteOnboarding = async () => {
+  const handleCompleteOnboarding = async (destination = "/social/dashboard") => {
+    if (finishing) return;
+    setFinishing(true);
     try {
       await completeSocialOnboarding();
       await refreshUser();
       toast.success("Welcome to SocialSnipper!");
-      router.replace("/social/dashboard");
+      router.replace(destination);
     } catch (error) {
       console.error("Error completing onboarding:", error);
       toast.error("Could not save onboarding progress. Please try again.");
+      setFinishing(false);
     }
   };
 
@@ -198,19 +84,21 @@ export default function SocialOnboardingPage() {
     );
   }
 
-  const formatPrice = (paise: number) => `₹${(paise / 100).toFixed(0)}`;
+  const tierLabel =
+    access?.subscription?.tierDisplayName ||
+    (access?.subscription?.isFreeTier ? "Free" : "SocialSnipper");
+  const postsRemaining = access?.usage?.postsRemaining ?? 0;
+  const maxPosts = access?.limits?.maxMonthlyPosts ?? access?.subscription?.maxMonthlyPosts;
 
   return (
-    <>
-      <div className="min-h-screen bg-bg-100 py-12 px-4">
+    <div className="min-h-screen bg-bg-100 py-12 px-4">
       <div className="max-w-2xl mx-auto">
-        {/* Progress Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            {[1, 2, 3].map((s) => (
+            {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((s) => (
               <div
                 key={s}
-                className={`flex items-center ${s < 3 ? "flex-1" : ""}`}
+                className={`flex items-center ${s < TOTAL_STEPS ? "flex-1" : ""}`}
               >
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
@@ -221,7 +109,7 @@ export default function SocialOnboardingPage() {
                 >
                   {s < step ? <IconCheck className="w-5 h-5" /> : s}
                 </div>
-                {s < 3 && (
+                {s < TOTAL_STEPS && (
                   <div
                     className={`flex-1 h-1 mx-2 ${
                       s < step ? "bg-brand-main" : "bg-bg-200"
@@ -232,110 +120,74 @@ export default function SocialOnboardingPage() {
             ))}
           </div>
           <div className="flex justify-between text-sm text-text-300">
-            <span>Subscribe</span>
-            <span>Connect LinkedIn</span>
-            <span>Memory Setup</span>
+            <span>Free plan</span>
+            <span>LinkedIn</span>
+            <span>Get started</span>
           </div>
         </div>
 
-        {/* Step 1: Subscription */}
-        {step === 1 && !hasSubscription && (
+        {step === 1 && (
           <div className="bg-bg-200 rounded-2xl p-8">
             <div className="text-center mb-8">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-brand-main/10 rounded-2xl mb-4">
-                <IconCreditCard className="w-8 h-8 text-brand-main" />
+                <IconRocket className="w-8 h-8 text-brand-main" />
               </div>
               <h1 className="text-2xl font-bold text-text-100 mb-2">
-                Subscribe to SocialSnipper
+                Welcome to SocialSnipper
               </h1>
               <p className="text-text-200">
-                Get started with AI-powered LinkedIn automation
-                {pricingTier
-                  ? ` for just ${formatPrice(pricingTier.monthlyPriceInPaise)}/month.`
-                  : "."}
+                Your {tierLabel} plan is active. Start exploring AI-powered LinkedIn content.
               </p>
             </div>
 
-            <div className="bg-bg-100 rounded-xl p-6 mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="font-semibold text-text-100">
-                    {pricingTier?.displayName || "LinkedIn Monthly"}
-                  </h3>
-                  <p className="text-sm text-text-300">Full access to all features</p>
-                </div>
-                <div className="text-right">
-                  {pricingLoading ? (
-                    <span className="text-sm text-text-300">Loading...</span>
-                  ) : pricingTier ? (
-                    <>
-                      <span className="text-2xl font-bold text-text-100">
-                        {formatPrice(pricingTier.monthlyPriceInPaise)}
-                      </span>
-                      <span className="text-text-300">/month</span>
-                    </>
-                  ) : (
-                    <span className="text-sm text-red-400">Unavailable</span>
-                  )}
-                </div>
+            <div className="bg-bg-100 rounded-xl p-6 mb-6 space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-text-300">Plan</span>
+                <span className="font-medium text-text-100">{tierLabel}</span>
               </div>
-
-              <ul className="space-y-2 mb-6">
+              {typeof maxPosts === "number" && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-text-300">Posts this month</span>
+                  <span className="font-medium text-text-100">
+                    {postsRemaining} remaining
+                  </span>
+                </div>
+              )}
+              <ul className="space-y-2 pt-2 border-t border-bg-300">
                 {[
-                  "AI-generated LinkedIn posts",
-                  `Up to ${pricingTier?.maxDailyPosts || 2} posts per day`,
-                  "Smart scheduling & calendar",
-                  "Approval workflows",
-                  "Performance analytics",
+                  "Generate and preview LinkedIn posts with AI",
+                  "Optional LinkedIn connection for publishing",
+                  "Upgrade anytime from Billing",
                 ].map((feature) => (
                   <li
                     key={feature}
                     className="flex items-center gap-2 text-sm text-text-200"
                   >
-                    <IconCheck className="w-4 h-4 text-green-400" />
+                    <IconCheck className="w-4 h-4 text-green-400 shrink-0" />
                     {feature}
                   </li>
                 ))}
               </ul>
-
-              <button
-                onClick={handleRazorpayPayment}
-                disabled={isProcessing || !razorpayLoaded || pricingLoading || !pricingTier}
-                className="w-full py-3 bg-brand-main text-white rounded-xl font-semibold hover:bg-brand-main/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {!razorpayLoaded ? (
-                  <>
-                    <IconLoader2 className="w-5 h-5 animate-spin" />
-                    Loading payment...
-                  </>
-                ) : isProcessing ? (
-                  <>
-                    <IconLoader2 className="w-5 h-5 animate-spin" />
-                    Processing...
-                  </>
-                ) : pricingLoading ? (
-                  <>Loading pricing...</>
-                ) : pricingTier ? (
-                  <>Subscribe Now - {formatPrice(pricingTier.monthlyPriceInPaise)}/month</>
-                ) : (
-                  <>Pricing unavailable</>
-                )}
-              </button>
             </div>
 
-            <p className="text-center text-sm text-text-300">
-              Already subscribed?{" "}
-              <button
-                onClick={() => setStep(2)}
-                className="text-brand-main hover:underline"
-              >
-                Continue to LinkedIn setup
-              </button>
-            </p>
+            <button
+              onClick={() => setStep(2)}
+              className="w-full py-3 bg-brand-main text-white rounded-xl font-semibold hover:bg-brand-main/90 transition-colors"
+            >
+              Continue
+            </button>
+
+            {!access?.enabled && (
+              <p className="text-center text-sm text-text-300 mt-4">
+                No active plan found.{" "}
+                <Link href="/social/pricing" className="text-brand-main hover:underline">
+                  View pricing
+                </Link>
+              </p>
+            )}
           </div>
         )}
 
-        {/* Step 2: LinkedIn Connect */}
         {step === 2 && (
           <div className="bg-bg-200 rounded-2xl p-8">
             <div className="text-center mb-8">
@@ -343,125 +195,94 @@ export default function SocialOnboardingPage() {
                 <IconBrandLinkedin className="w-8 h-8 text-blue-500" />
               </div>
               <h1 className="text-2xl font-bold text-text-100 mb-2">
-                Connect Your LinkedIn
+                Connect LinkedIn
               </h1>
               <p className="text-text-200">
-                Link your LinkedIn account so we can publish posts on your behalf.
+                Optional — connect now to publish and schedule, or add it later from Settings.
               </p>
             </div>
 
-            {!linkedinConnected ? (
-              <div className="space-y-4">
-                <div className="bg-bg-100 rounded-xl p-6">
-                  <h3 className="font-semibold text-text-100 mb-4">
-                    What you&apos;ll get:
-                  </h3>
-                  <ul className="space-y-3">
-                    {[
-                      "Automated post publishing to your LinkedIn profile",
-                      "Engagement tracking and analytics",
-                      "AI-generated content tailored to your voice",
-                      "100% secure - we never store your password",
-                    ].map((item) => (
-                      <li
-                        key={item}
-                        className="flex items-start gap-3 text-sm text-text-200"
-                      >
-                        <IconCheck className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
+            {access?.linkedinConnected ? (
+              <div className="text-center space-y-4">
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-500/10 text-green-400 rounded-full">
+                  <IconCheck className="w-5 h-5" />
+                  LinkedIn Connected
                 </div>
-
+                <button
+                  onClick={() => setStep(3)}
+                  className="w-full py-3 bg-brand-main text-white rounded-xl font-semibold hover:bg-brand-main/90 transition-colors"
+                >
+                  Continue
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
                 <button
                   onClick={() => router.push("/social/linkedin")}
                   className="w-full py-3 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
                 >
                   <IconBrandLinkedin className="w-5 h-5" />
-                  Connect LinkedIn Account
+                  Connect LinkedIn
                 </button>
-
-                <p className="text-center text-xs text-text-300">
-                  You can revoke access anytime from your LinkedIn settings.
-                </p>
-              </div>
-            ) : (
-              <div className="text-center">
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-500/10 text-green-400 rounded-full mb-4">
-                  <IconCheck className="w-5 h-5" />
-                  LinkedIn Connected
-                </div>
-                <p className="text-text-200 mb-4">
-                  Your LinkedIn account is successfully connected!
-                </p>
                 <button
                   onClick={() => setStep(3)}
-                  className="px-6 py-3 bg-brand-main text-white rounded-xl font-semibold hover:bg-brand-main/90 transition-colors"
+                  className="w-full py-3 bg-transparent border border-bg-300 text-text-200 rounded-xl font-semibold hover:bg-bg-300 transition-colors"
                 >
-                  Continue to Memory Setup
+                  Skip for now
                 </button>
               </div>
             )}
           </div>
         )}
 
-        {/* Step 3: Memory Setup */}
         {step === 3 && (
           <div className="bg-bg-200 rounded-2xl p-8">
             <div className="text-center mb-8">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-500/10 rounded-2xl mb-4">
-                <IconBrain className="w-8 h-8 text-purple-500" />
+                <IconSparkles className="w-8 h-8 text-purple-500" />
               </div>
               <h1 className="text-2xl font-bold text-text-100 mb-2">
-                Set Up Your Memory
+                See what SocialSnipper can do
               </h1>
               <p className="text-text-200">
-                Tell us about yourself so our AI can create content that sounds like you.
+                Create a post to preview AI output, set up memory when you are ready, or go straight to your dashboard.
               </p>
             </div>
 
-            <div className="space-y-4">
-              <div className="bg-bg-100 rounded-xl p-6">
-                <h3 className="font-semibold text-text-100 mb-4">
-                  Memory helps SocialSnipper:
-                </h3>
-                <ul className="space-y-3">
-                  {[
-                    "Learn your writing style and tone",
-                    "Understand your industry and expertise",
-                    "Create relevant content your audience loves",
-                    "Remember what topics perform best",
-                  ].map((item) => (
-                    <li
-                      key={item}
-                      className="flex items-start gap-3 text-sm text-text-200"
-                    >
-                      <IconCheck className="w-5 h-5 text-purple-400 flex-shrink-0 mt-0.5" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
+            <div className="space-y-3">
               <button
-                onClick={() => router.push("/social/memory/onboarding")}
-                className="w-full py-3 bg-purple-500 text-white rounded-xl font-semibold hover:bg-purple-600 transition-colors"
+                onClick={() => handleCompleteOnboarding("/social/post-studio")}
+                disabled={finishing}
+                className="w-full py-3 bg-brand-main text-white rounded-xl font-semibold hover:bg-brand-main/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                Set Up Memory
+                <IconSparkles className="w-5 h-5" />
+                Create a post in Post Studio
               </button>
 
               <button
-                onClick={handleCompleteOnboarding}
-                className="w-full py-3 bg-transparent border border-bg-300 text-text-200 rounded-xl font-semibold hover:bg-bg-300 transition-colors"
+                onClick={() => handleCompleteOnboarding("/social/memory/onboarding")}
+                disabled={finishing}
+                className="w-full py-3 bg-purple-500 text-white rounded-xl font-semibold hover:bg-purple-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                Skip for now (you can set this up later)
+                <IconBrain className="w-5 h-5" />
+                Set up memory (optional)
+              </button>
+
+              <button
+                onClick={() => handleCompleteOnboarding("/social/dashboard")}
+                disabled={finishing}
+                className="w-full py-3 bg-transparent border border-bg-300 text-text-200 rounded-xl font-semibold hover:bg-bg-300 transition-colors disabled:opacity-50"
+              >
+                {finishing ? "Saving..." : "Go to dashboard"}
               </button>
             </div>
+
+            <p className="text-center text-xs text-text-300 mt-4">
+              Copilot scheduling unlocks after you connect LinkedIn and complete memory (80%+).
+            </p>
           </div>
         )}
 
-        {/* Navigation */}
         <div className="mt-8 flex justify-between">
           {step > 1 && (
             <button
@@ -471,15 +292,11 @@ export default function SocialOnboardingPage() {
               ← Back
             </button>
           )}
-          <button
-            onClick={() => router.push("/email/dashboard")}
-            className="text-text-300 hover:text-text-100 transition-colors text-sm"
-          >
-            Back to LeadSnipper →
-          </button>
+          <span className="text-text-300 text-sm ml-auto">
+            You can change these settings anytime from the sidebar.
+          </span>
         </div>
       </div>
     </div>
-    </>
   );
 }
