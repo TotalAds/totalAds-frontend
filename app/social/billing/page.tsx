@@ -103,7 +103,7 @@ export default function SocialBillingPage() {
 	if (loading) {
 		return (
 			<PageShell>
-				<LoadingCardGrid count={2} />
+				<LoadingCardGrid cards={2} />
 			</PageShell>
 		);
 	}
@@ -320,7 +320,10 @@ export default function SocialBillingPage() {
 				tier={checkoutTier}
 				open={Boolean(checkoutTier)}
 				onClose={() => setCheckoutTier(null)}
-				onSuccess={load}
+				onSuccess={async () => {
+					setLoading(true);
+					await load();
+				}}
 			/>
 		</PageShell>
 	);

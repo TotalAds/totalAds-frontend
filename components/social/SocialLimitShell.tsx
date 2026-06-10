@@ -8,6 +8,7 @@ import SocialPlanLimitModal from "@/components/social/SocialPlanLimitModal";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { getSocialAccess, SocialAccessResponse } from "@/utils/api/socialClient";
 import { getSocialPricing, SocialPricingTier } from "@/utils/api/socialBillingClient";
+import { SOCIAL_SUBSCRIPTION_UPDATED_EVENT } from "@/utils/social/socialSubscriptionEvents";
 
 interface SocialLimitShellProps {
 	children: React.ReactNode;
@@ -36,6 +37,16 @@ export default function SocialLimitShell({ children }: SocialLimitShellProps) {
 		if (!pathname?.startsWith("/social")) return;
 		load();
 	}, [pathname, load]);
+
+	useEffect(() => {
+		const onSubscriptionUpdated = () => {
+			void load();
+		};
+		window.addEventListener(SOCIAL_SUBSCRIPTION_UPDATED_EVENT, onSubscriptionUpdated);
+		return () => {
+			window.removeEventListener(SOCIAL_SUBSCRIPTION_UPDATED_EVENT, onSubscriptionUpdated);
+		};
+	}, [load]);
 
 	const postsRemaining = access?.usage?.postsRemaining ?? 1;
 	const imagesRemaining = access?.usage?.platformImagesRemaining ?? 1;

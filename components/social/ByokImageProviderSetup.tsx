@@ -184,7 +184,7 @@ export function ByokImageProviderSetup({
 					tone="success"
 					title="Your API key is active"
 					description={`Image generation uses ${providerLabel(activeProvider.provider)}${activeProvider.model ? ` · ${activeProvider.model}` : ""}. Platform keys are not used while this configuration is valid.`}
-					action={<StatusPill tone="success">BYOK active</StatusPill>}
+					action={<StatusPill tone="positive" label="BYOK active" />}
 				/>
 			)}
 

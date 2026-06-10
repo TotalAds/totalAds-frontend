@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { getSocialAccess, SocialAccessResponse } from "@/utils/api/socialClient";
+import { SOCIAL_SUBSCRIPTION_UPDATED_EVENT } from "@/utils/social/socialSubscriptionEvents";
 import { cn } from "@/utils/cn";
 import {
   IconBrandLinkedin,
@@ -68,9 +69,18 @@ const SidebarUserFooter: React.FC<SidebarUserFooterProps> = ({
 
   useEffect(() => {
     if (!state.isAuthenticated) return;
-    getSocialAccess()
-      .then(setSocialAccess)
-      .catch(() => setSocialAccess(null));
+
+    const loadSocialAccess = () => {
+      getSocialAccess()
+        .then(setSocialAccess)
+        .catch(() => setSocialAccess(null));
+    };
+
+    loadSocialAccess();
+    window.addEventListener(SOCIAL_SUBSCRIPTION_UPDATED_EVENT, loadSocialAccess);
+    return () => {
+      window.removeEventListener(SOCIAL_SUBSCRIPTION_UPDATED_EVENT, loadSocialAccess);
+    };
   }, [state.isAuthenticated]);
 
   const hasLeadSnipperAccess = Boolean(user?.onboardingCompleted);

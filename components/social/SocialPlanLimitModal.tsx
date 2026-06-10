@@ -98,7 +98,10 @@ export default function SocialPlanLimitModal({
 
 	const tierName = access?.subscription?.tierName ?? "free";
 	const tierDisplay = access?.subscription?.tierDisplayName ?? "Free";
-	const imageTierLabel = formatImageTierLabel(access?.subscription?.imageTier);
+	const rawImageTier = access?.subscription?.imageTier;
+	const imageTierLabel = formatImageTierLabel(
+		rawImageTier === "tier_1" || rawImageTier === "tier_2" ? rawImageTier : null
+	);
 	const periodEnd = access?.subscription?.currentPeriodEnd
 		? new Date(access.subscription.currentPeriodEnd).toLocaleDateString(undefined, {
 				month: "short",

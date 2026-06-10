@@ -53,6 +53,7 @@ export interface CreateSocialOrderResponse {
   email?: string;
   name?: string;
   tierId: number;
+  lockedPriceInPaise?: number | null;
   freeTier?: boolean;
   promoApplied?: boolean;
   freeMonths?: number;

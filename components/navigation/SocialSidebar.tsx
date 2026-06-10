@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 
 import { useAuthContext } from "@/context/AuthContext";
 import { getSocialAccess } from "@/utils/api/socialClient";
+import { SOCIAL_SUBSCRIPTION_UPDATED_EVENT } from "@/utils/social/socialSubscriptionEvents";
 import { cn } from "@/utils/cn";
 import {
 	IconActivity,
@@ -141,6 +142,14 @@ const SocialSidebar: React.FC<SocialSidebarProps> = ({ isOpen, onClose }) => {
 			}
 		};
 		loadPlan();
+
+		const onSubscriptionUpdated = () => {
+			void loadPlan();
+		};
+		window.addEventListener(SOCIAL_SUBSCRIPTION_UPDATED_EVENT, onSubscriptionUpdated);
+		return () => {
+			window.removeEventListener(SOCIAL_SUBSCRIPTION_UPDATED_EVENT, onSubscriptionUpdated);
+		};
 	}, [state.isAuthenticated]);
 
 	return (

@@ -65,6 +65,8 @@ export function openRazorpayCheckout(options: {
           return;
         }
 
+        let paymentCompleted = false;
+
         const instance = new Razorpay({
           key: options.key,
           amount: options.amount,
@@ -82,6 +84,7 @@ export function openRazorpayCheckout(options: {
             razorpay_signature: string;
           }) => {
             try {
+              paymentCompleted = true;
               await options.onSuccess(response);
               resolve();
             } catch (err) {
@@ -91,7 +94,9 @@ export function openRazorpayCheckout(options: {
           modal: {
             ondismiss: () => {
               options.onDismiss?.();
-              reject(new Error("Payment cancelled"));
+              if (!paymentCompleted) {
+                reject(new Error("Payment cancelled"));
+              }
             },
           },
         });

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
@@ -12,6 +13,7 @@ import {
 import { formatPriceInr } from "@/utils/social/formatPrice";
 import { tierFeatureLines } from "@/utils/social/planCopy";
 import { openRazorpayCheckout } from "@/utils/social/razorpayCheckout";
+import { dispatchSocialSubscriptionUpdated } from "@/utils/social/socialSubscriptionEvents";
 import { IconCheck, IconLoader2, IconX } from "@tabler/icons-react";
 
 interface SocialCheckoutModalProps {
@@ -27,6 +29,7 @@ export default function SocialCheckoutModal({
 	onClose,
 	onSuccess,
 }: SocialCheckoutModalProps) {
+	const router = useRouter();
 	const [hasPromo, setHasPromo] = useState<boolean | null>(null);
 	const [promoCode, setPromoCode] = useState("");
 	const [promoValid, setPromoValid] = useState<{
@@ -45,6 +48,12 @@ export default function SocialCheckoutModal({
 			setProcessing(false);
 		}
 	}, [open]);
+
+	const refreshAfterUpgrade = async () => {
+		await onSuccess?.();
+		dispatchSocialSubscriptionUpdated();
+		router.refresh();
+	};
 
 	const handleValidatePromo = async () => {
 		if (!tier || !promoCode.trim()) return;
@@ -79,7 +88,7 @@ export default function SocialCheckoutModal({
 						? `Promo applied — ${orderData.freeMonths} month(s) activated`
 						: "Plan updated"
 				);
-				onSuccess?.();
+				await refreshAfterUpgrade();
 				onClose();
 				return;
 			}
@@ -109,7 +118,7 @@ export default function SocialCheckoutModal({
 						paidAmountInPaise: tier.monthlyPriceInPaise,
 					});
 					toast.success("Plan upgraded!");
-					onSuccess?.();
+					await refreshAfterUpgrade();
 				},
 				onDismiss: () => setProcessing(false),
 			});
