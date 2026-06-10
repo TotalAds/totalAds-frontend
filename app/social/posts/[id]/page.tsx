@@ -1783,6 +1783,10 @@ function getAiPromptLaunchLinks(
   const encodedPrompt = encodeURIComponent(prompt);
   return [
     {
+      label: "Open in Gemini",
+      url: `https://gemini.google.com/app?q=${encodedPrompt}`,
+    },
+    {
       label: "Open in ChatGPT",
       url: `https://chatgpt.com/?q=${encodedPrompt}`,
     },

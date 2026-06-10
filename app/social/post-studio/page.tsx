@@ -117,6 +117,7 @@ export default function SocialPostStudioPage() {
 	const [manualTopic, setManualTopic] = useState("");
 	const [manualScheduleFor, setManualScheduleFor] = useState("");
 	const [imageGenerationEnabled, setImageGenerationEnabled] = useState(true);
+	const [hasValidByok, setHasValidByok] = useState(false);
 	const [humanizerLevel, setHumanizerLevel] = useState<HumanizerLevel>("medium");
 	const [manualBusy, setManualBusy] = useState<"save" | "schedule" | "post_now" | null>(
 		null
@@ -153,6 +154,7 @@ export default function SocialPostStudioPage() {
 				setImageGenerationEnabled(
 					access.linkedinImageGenerationEnabled !== false
 				);
+				setHasValidByok(!!access.hasValidByok);
 				if (prefs?.humanizerLevel) setHumanizerLevel(prefs.humanizerLevel);
 			} catch {
 				setImageGenerationEnabled(true);
@@ -570,12 +572,24 @@ export default function SocialPostStudioPage() {
 								</div>
 								<div className="grid grid-cols-1 gap-3">
 									{imageGenerationEnabled && (
-										<MediaOption
-											title="Create LinkedIn image"
-											description="Generate a professional feed image with the draft."
-											checked={form.createImage}
-											onChange={(checked) => setMedia("createImage", checked)}
-										/>
+										<>
+											<MediaOption
+												title="Create LinkedIn image"
+												description={
+													hasValidByok
+														? "Uses your connected API key and model from Settings → Integrations."
+														: "Generate a professional feed image with the draft."
+												}
+												checked={form.createImage}
+												onChange={(checked) => setMedia("createImage", checked)}
+											/>
+											{hasValidByok && form.createImage && (
+												<p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+													Your BYOK provider is active. Images bill your account
+													directly and do not use platform keys.
+												</p>
+											)}
+										</>
 									)}
 								</div>
 							</div>

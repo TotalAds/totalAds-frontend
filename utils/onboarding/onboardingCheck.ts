@@ -173,6 +173,7 @@ export const requiresSocialSubscription = (pathname: string): boolean => {
   // These paths are allowed without subscription
   const exemptPaths = [
     "/social/pricing",
+    "/social/billing",
     "/social/onboarding",
     "/social/linkedin/callback",
     "/social/settings", // Allow settings for subscription management

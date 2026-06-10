@@ -110,16 +110,54 @@ export interface SocialAccessResponse {
 		tierName: string | null;
 		tierDisplayName: string | null;
 		status: string | null;
+		currentPeriodStart?: string | null;
 		currentPeriodEnd: string | null;
 		nextBillingDate: string | null;
 		lockedPriceInPaise: number | null;
+		isTrial?: boolean;
+		maxMonthlyPosts?: number | null;
+		maxMonthlyImages?: number | null;
+		imageTier?: string | null;
+		includesByok?: boolean;
+		includesArticles?: boolean;
+		includesAdvancedAnalytics?: boolean;
+		isFreeTier?: boolean;
 	} | null;
+	usage?: {
+		monthlyPosts: number;
+		platformImages: number;
+		byokImages: number;
+		postsRemaining: number;
+		platformImagesRemaining: number;
+	};
+	postLimitReached?: boolean;
+	platformImageLimitReached?: boolean;
+	limits?: Record<string, unknown> | null;
 	linkedinConnected: boolean;
 	commentsApprovalMode: boolean;
 	linkedinImageGenerationEnabled: boolean;
+	hasValidByok?: boolean;
 	linkedinExternalUrl: string;
 	socialOnboardingCompleted: boolean;
-	_requiresSubscription?: boolean; // Internal flag indicating new subscription-based access
+	_requiresSubscription?: boolean;
+}
+
+export type SocialImageProviderType = "openai" | "gemini" | "openrouter";
+
+export interface SocialImageProviderRow {
+	id: number;
+	provider: SocialImageProviderType;
+	model: string | null;
+	isDefault: boolean;
+	isValid: boolean;
+	lastValidatedAt: string | null;
+	createdAt: string;
+}
+
+export interface DiscoveredImageModel {
+	id: string;
+	label: string;
+	description?: string;
 }
 
 export interface LinkedinConnection {
@@ -638,6 +676,7 @@ export const runAgent = async (input: {
 	scheduledFor?: string;
 	campaignId?: number | null;
 	createImage?: boolean;
+	useByok?: boolean;
 	createCarousel?: boolean;
 	humanizerLevel?: HumanizerLevel;
 }): Promise<AgentRunOutput> => {
@@ -1641,4 +1680,49 @@ export const listRawThoughts = async (
 		params: { limit },
 	});
 	return response.data?.data || [];
+};
+
+export const listSocialImageProviders = async (): Promise<SocialImageProviderRow[]> => {
+	const response = await socialClient.get("/api/v1/settings/image-providers");
+	return response.data?.data || [];
+};
+
+export const discoverSocialImageModels = async (params: {
+	provider: SocialImageProviderType;
+	apiKey: string;
+}): Promise<{ valid: boolean; models: DiscoveredImageModel[]; message?: string }> => {
+	try {
+		const response = await socialClient.post(
+			"/api/v1/settings/image-providers/discover",
+			params
+		);
+		return (
+			response.data?.data || {
+				valid: false,
+				models: [],
+				message: response.data?.message,
+			}
+		);
+	} catch (error) {
+		throw new Error(getSocialApiErrorMessage(error, "Failed to validate API key"));
+	}
+};
+
+export const saveSocialImageProvider = async (params: {
+	provider: SocialImageProviderType;
+	apiKey: string;
+	model: string;
+	isDefault?: boolean;
+}) => {
+	try {
+		const response = await socialClient.post("/api/v1/settings/image-providers", params);
+		return response.data;
+	} catch (error) {
+		throw new Error(getSocialApiErrorMessage(error, "Failed to save image provider"));
+	}
+};
+
+export const deleteSocialImageProvider = async (id: number) => {
+	const response = await socialClient.delete(`/api/v1/settings/image-providers/${id}`);
+	return response.data;
 };

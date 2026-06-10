@@ -18,6 +18,7 @@ import { cn } from "@/utils/cn";
 import {
   IconBrandLinkedin,
   IconChevronDown,
+  IconCreditCard,
   IconExternalLink,
   IconLogout,
   IconMail,
@@ -29,6 +30,7 @@ export type SidebarProduct = "leadsnipper" | "socialsnipper";
 interface SidebarUserFooterProps {
   product: SidebarProduct;
   planLabel?: string;
+  billingHref?: string;
   settingsHref: string;
   showExpandedChrome: boolean;
   onCloseSidebar?: () => void;
@@ -53,6 +55,7 @@ const CROSS_PRODUCT: Record<
 const SidebarUserFooter: React.FC<SidebarUserFooterProps> = ({
   product,
   planLabel = "Free Plan",
+  billingHref,
   settingsHref,
   showExpandedChrome,
   onCloseSidebar,
@@ -114,6 +117,15 @@ const SidebarUserFooter: React.FC<SidebarUserFooterProps> = ({
                     {user?.name || "User"}
                   </p>
                   <p className="truncate text-xs text-sidebar-muted">{planLabel}</p>
+            {billingHref && (
+              <Link
+                href={billingHref}
+                onClick={closeMobileSidebar}
+                className="mt-0.5 inline-block text-[11px] text-brand-main hover:underline"
+              >
+                Plan & billing →
+              </Link>
+            )}
                 </div>
                 <IconChevronDown className="ml-1 h-4 w-4 shrink-0 text-sidebar-muted" />
               </>
@@ -151,6 +163,19 @@ const SidebarUserFooter: React.FC<SidebarUserFooterProps> = ({
                 <span className="flex-1">{cross.name}</span>
                 <IconExternalLink className="h-3.5 w-3.5 shrink-0 text-text-300" />
               </a>
+            </DropdownMenuItem>
+          )}
+
+          {billingHref && product === "socialsnipper" && (
+            <DropdownMenuItem asChild className="cursor-pointer rounded-lg px-2.5 py-2.5">
+              <Link
+                href={billingHref}
+                onClick={closeMobileSidebar}
+                className="flex w-full items-center gap-2.5"
+              >
+                <IconCreditCard className="h-4 w-4 shrink-0" />
+                Plan & billing
+              </Link>
             </DropdownMenuItem>
           )}
 

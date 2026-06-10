@@ -18,6 +18,10 @@ const SocialSidebar = dynamic(
   () => import("@/components/navigation/SocialSidebar"),
   { ssr: false }
 );
+const SocialLimitShell = dynamic(
+  () => import("@/components/social/SocialLimitShell"),
+  { ssr: false }
+);
 
 interface ConditionalLayoutProps {
   children: React.ReactNode;
@@ -122,7 +126,11 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
               <EmailVerificationBanner variant="banner" />
             </div>
           )}
-          {children}
+          {isSocialRoute && isAuthenticated ? (
+            <SocialLimitShell>{children}</SocialLimitShell>
+          ) : (
+            children
+          )}
         </main>
       </div>
     </div>

@@ -29,7 +29,7 @@ export function LoginComponent() {
   // Get product from URL or stored session
   const product: ProductType = React.useMemo(() => {
     const urlProduct = parseProduct(
-      searchParams.get("product") || searchParams.get("app")
+      searchParams.get("product") || searchParams.get("app"),
     );
     if (urlProduct) {
       storeAuthProduct(urlProduct);
@@ -69,7 +69,7 @@ export function LoginComponent() {
   const getSignupUrl = () => {
     const params = new URLSearchParams(searchParams.toString());
     return appendUtmToPath(
-      params.toString() ? `/signup?${params.toString()}` : "/signup"
+      params.toString() ? `/signup?${params.toString()}` : "/signup",
     );
   };
 
@@ -78,7 +78,9 @@ export function LoginComponent() {
     if (product) {
       params.set("product", product);
     }
-    return params.toString() ? `/forgot-password?${params.toString()}` : "/forgot-password";
+    return params.toString()
+      ? `/forgot-password?${params.toString()}`
+      : "/forgot-password";
   };
 
   return (
@@ -106,7 +108,8 @@ export function LoginComponent() {
         <div className="relative z-10 text-center text-white max-w-md">
           <h2 className="text-2xl font-bold mb-4">Welcome back!</h2>
           <p className="text-base text-white/90">
-            Sign in to {product === "socialsnipper" ? "SocialSnipper" : "LeadSnipper"} to
+            Sign in to{" "}
+            {product === "socialsnipper" ? "SocialSnipper" : "LeadSnipper"} to
             continue growing your business.
           </p>
         </div>
@@ -144,7 +147,7 @@ export function LoginComponent() {
             <form className="space-y-4" onSubmit={handleSubmit}>
               {error && (
                 <div
-                  className="bg-red-500/20 border border-red-500/30 text-red-200 px-3 py-2 rounded-lg text-xs"
+                  className="bg-red-500/20 border border-red-500/30 text-red-600 px-3 py-2 rounded-lg text-xs"
                   role="alert"
                 >
                   <div className="flex items-center justify-between">

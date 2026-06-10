@@ -20,6 +20,7 @@ import {
 	IconSettings,
 	IconSparkles,
 	IconStack2,
+	IconCreditCard,
 	IconX,
 } from "@tabler/icons-react";
 
@@ -99,6 +100,11 @@ const buildSections = (): Array<{ label: string; items: NavItem[] }> => [
 				href: "/social/telegram",
 				icon: IconBrandTelegram,
 			},
+			{
+				name: "Plan & Billing",
+				href: "/social/billing",
+				icon: IconCreditCard,
+			},
 			{ name: "Settings", href: "/social/settings", icon: IconSettings },
 		],
 	},
@@ -141,15 +147,15 @@ const SocialSidebar: React.FC<SocialSidebarProps> = ({ isOpen, onClose }) => {
 		<>
 			{isOpen && (
 				<div
-					className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+					className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm md:hidden"
 					onClick={onClose}
 				/>
 			)}
 
 			<div
 				className={cn(
-					"fixed left-0 top-0 z-40 flex h-screen w-64 flex-shrink-0 flex-col bg-sidebar shadow-xl transition-all duration-300 ease-in-out md:relative",
-					isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+					"fixed left-0 top-0 flex h-screen w-64 flex-shrink-0 flex-col bg-sidebar shadow-xl transition-all duration-300 ease-in-out md:relative md:z-auto",
+					isOpen ? "z-[100] translate-x-0" : "-translate-x-full z-40 md:translate-x-0"
 				)}
 			>
 				<div className="border-b border-sidebar-border px-4 py-5">
@@ -236,6 +242,7 @@ const SocialSidebar: React.FC<SocialSidebarProps> = ({ isOpen, onClose }) => {
 				<SidebarUserFooter
 					product="socialsnipper"
 					planLabel={planLabel}
+					billingHref="/social/billing"
 					settingsHref="/social/settings"
 					showExpandedChrome
 					onCloseSidebar={onClose}

@@ -1,7 +1,6 @@
 "use client";
 
 import apiClient from "./apiClient";
-import emailClient from "./emailClient";
 
 export interface SocialPricingTier {
   id: number;
@@ -14,6 +13,13 @@ export interface SocialPricingTier {
   includesTwitter: boolean;
   includesAgent: boolean;
   maxDailyPosts: number;
+  maxMonthlyPosts: number | null;
+  maxMonthlyImages: number | null;
+  imageTier: "tier_1" | "tier_2" | null;
+  includesByok: boolean;
+  includesArticles: boolean;
+  includesAdvancedAnalytics: boolean;
+  isFreeTier: boolean;
   includesImageGeneration: boolean;
   includesApprovalWorkflows: boolean;
   includesAnalytics: boolean;
@@ -39,17 +45,18 @@ export interface SocialSubscriptionResponse {
   } | null;
 }
 
-/** Razorpay order checkout payload (same pattern as LeadSnipper) */
 export interface CreateSocialOrderResponse {
-  orderId: string;
-  amount: number;
-  currency: string;
-  key: string;
-  email: string;
+  orderId?: string;
+  amount?: number;
+  currency?: string;
+  key?: string;
+  email?: string;
   name?: string;
   tierId: number;
-  foundingMemberDiscount?: boolean;
-  lockedPriceInPaise?: number | null;
+  freeTier?: boolean;
+  promoApplied?: boolean;
+  freeMonths?: number;
+  subscriptionId?: number;
 }
 
 export interface VerifyPaymentRequest {
@@ -61,53 +68,67 @@ export interface VerifyPaymentRequest {
   lockedPriceInPaise?: number | null;
 }
 
-/** Unwrap API envelope: { payload: { success, data } } or { success, data } */
-function unwrapPayload<T>(response: { data?: Record<string, unknown> }): T {
+type ApiEnvelope<T> = {
+  success?: boolean;
+  data?: T;
+  message?: string;
+};
+
+function unwrapEnvelope<T>(response: { data?: Record<string, unknown> }): ApiEnvelope<T> {
   const body = response.data;
-  const payload = (body?.payload ?? body) as { data?: T; success?: boolean } | undefined;
-  return payload?.data as T;
+  const payload = (body?.payload ?? body) as ApiEnvelope<T> | undefined;
+  return payload ?? {};
 }
 
-/**
- * Get SocialSnipper pricing tiers (totalads-api)
- */
+function unwrapPayload<T>(response: { data?: Record<string, unknown> }): T {
+  return unwrapEnvelope<T>(response).data as T;
+}
+
 export const getSocialPricing = async (): Promise<SocialPricingTier[]> => {
   const response = await apiClient.get("/social/billing/pricing");
   return unwrapPayload<SocialPricingTier[]>(response) || [];
 };
 
-/**
- * Get current user's social subscription (totalads-api)
- */
 export const getSocialSubscription = async (): Promise<SocialSubscriptionResponse | null> => {
   const response = await apiClient.get("/social/billing/subscription");
   return unwrapPayload<SocialSubscriptionResponse | null>(response) ?? null;
 };
 
-/**
- * Create Razorpay order via email-service (same Razorpay path as LeadSnipper)
- */
 export const createSocialSubscription = async (
-  tierId: number
+  tierId: number,
+  promoCode?: string
 ): Promise<CreateSocialOrderResponse> => {
-  const response = await emailClient.post("/api/payment/social/create-order", {
+  const response = await apiClient.post("/social/billing/create-order", {
     tierId,
+    promoCode,
   });
-  if (!response.data?.success) {
-    throw new Error(response.data?.error || "Failed to create payment order");
+  const envelope = unwrapEnvelope<CreateSocialOrderResponse>(response);
+  if (!envelope.success || !envelope.data) {
+    throw new Error(envelope.message || "Failed to create payment order");
   }
-  return response.data.data;
+  return envelope.data;
 };
 
-/**
- * Verify Razorpay payment after successful checkout (email-service)
- */
+export const validateSocialCoupon = async (code: string, tierId?: number) => {
+  const response = await apiClient.post("/social/billing/validate-coupon", {
+    code,
+    tierId,
+  });
+  return unwrapPayload<{ valid: boolean; message?: string; freeMonths?: number }>(response);
+};
+
+export const redeemSocialCoupon = async (code: string) => {
+  const response = await apiClient.post("/social/billing/redeem-coupon", { code });
+  return unwrapPayload<{ subscriptionId: number; freeMonths: number }>(response);
+};
+
 export const verifySocialPayment = async (
   data: VerifyPaymentRequest
 ): Promise<{ subscriptionId: number; status: string }> => {
-  const response = await emailClient.post("/api/payment/social/verify-payment", data);
-  if (!response.data?.success) {
-    throw new Error(response.data?.error || "Failed to verify payment");
+  const response = await apiClient.post("/social/billing/verify-payment", data);
+  const envelope = unwrapEnvelope<{ subscriptionId: number; status: string }>(response);
+  if (!envelope.success || !envelope.data) {
+    throw new Error(envelope.message || "Failed to verify payment");
   }
-  return response.data.data;
+  return envelope.data;
 };

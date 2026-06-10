@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
@@ -17,8 +18,8 @@ import {
 } from "@/components/social/SocialUi";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ByokImageProviderSetup } from "@/components/social/ByokImageProviderSetup";
 import {
-	AccountPreferences,
 	getAccountPreferences,
 	getSocialAccess,
 	SocialAccessResponse,
@@ -27,7 +28,7 @@ import {
 } from "@/utils/api/socialClient";
 import { changePassword, updateProfile } from "@/utils/api/authClient";
 import apiClient from "@/utils/api/apiClient";
-import { IconShieldCheck, IconUser, IconLock, IconSettings, IconBuilding } from "@tabler/icons-react";
+import { IconShieldCheck, IconUser, IconLock, IconSettings, IconBuilding, IconPlug } from "@tabler/icons-react";
 
 // -----------------------------------------------------------------------
 // Types
@@ -81,8 +82,11 @@ const HUMANIZER_LEVELS = [
 // -----------------------------------------------------------------------
 
 export default function SocialSettingsPage() {
+	const searchParams = useSearchParams();
 	const [loading, setLoading] = useState(true);
-	const [activeTab, setActiveTab] = useState("profile");
+	const [activeTab, setActiveTab] = useState(
+		searchParams.get("tab") === "integrations" ? "integrations" : "profile"
+	);
 
 	// Data states
 	const [access, setAccess] = useState<SocialAccessResponse | null>(null);
@@ -146,6 +150,7 @@ export default function SocialSettingsPage() {
 					companyCountry: data.companyCountry || "",
 				}));
 			}
+
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : "Failed to load settings");
 		} finally {
@@ -324,6 +329,12 @@ export default function SocialSettingsPage() {
 						<IconBuilding className="h-4 w-4" />
 						Account
 					</TabsTrigger>
+					{access?.subscription?.includesByok && (
+						<TabsTrigger value="integrations" className="gap-2">
+							<IconPlug className="h-4 w-4" />
+							Integrations
+						</TabsTrigger>
+					)}
 				</TabsList>
 
 				{/* Profile Tab */}
@@ -749,6 +760,32 @@ export default function SocialSettingsPage() {
 				<TabsContent value="account" className="space-y-6">
 					<SurfaceCard>
 						<SectionTitle
+							title="Plan & billing"
+							description="View your tier, monthly usage, and upgrade options."
+							action={
+								<Link href="/social/billing">
+									<PrimaryButton type="button">Manage plan</PrimaryButton>
+								</Link>
+							}
+						/>
+						{access?.subscription && (
+							<p className="text-sm text-slate-600">
+								Current plan:{" "}
+								<span className="font-semibold text-slate-900">
+									{access.subscription.tierDisplayName ?? "Free"}
+								</span>
+								{access.usage && (
+									<span className="text-slate-500">
+										{" "}
+										· {access.usage.monthlyPosts} posts used this month
+									</span>
+								)}
+							</p>
+						)}
+					</SurfaceCard>
+
+					<SurfaceCard>
+						<SectionTitle
 							title="SocialSnipper access"
 							description="Only a TotalAds administrator can enable or disable SocialSnipper for your account."
 							action={
@@ -810,6 +847,21 @@ export default function SocialSettingsPage() {
 						</SurfaceCard>
 					)}
 				</TabsContent>
+
+				{access?.subscription?.includesByok && (
+					<TabsContent value="integrations" className="space-y-6">
+						<SurfaceCard>
+							<SectionTitle
+								title="Image generation (BYOK)"
+								description="Connect your own provider, validate the key, pick an image model, and we'll use your account for generation instead of platform keys."
+							/>
+							<ByokImageProviderSetup
+								platformImages={access.usage?.platformImages}
+								byokImages={access.usage?.byokImages}
+							/>
+						</SurfaceCard>
+					</TabsContent>
+				)}
 			</Tabs>
 		</PageShell>
 	);

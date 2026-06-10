@@ -30,11 +30,11 @@ export function PaywallBanner({
             </div>
             <div>
               <p className="font-medium text-text-100">Unlock SocialSnipper</p>
-              <p className="text-sm text-text-200">₹99/month for full access</p>
+              <p className="text-sm text-text-200">From ₹499/mo — Free tier available</p>
             </div>
           </div>
           <button
-            onClick={() => router.push("/social/pricing")}
+            onClick={() => router.push("/social/billing")}
             className="px-4 py-2 bg-brand-main text-white text-sm font-medium rounded-lg hover:bg-brand-main/90 transition-colors"
           >
             Subscribe
@@ -53,7 +53,7 @@ export function PaywallBanner({
           This feature requires an active subscription
         </p>
         <button
-          onClick={() => router.push("/social/pricing")}
+            onClick={() => router.push("/social/billing")}
           className="text-brand-main hover:underline text-sm font-medium"
         >
           Subscribe now →
@@ -86,16 +86,16 @@ export function PaywallBanner({
         </h3>
 
         <p className="text-text-200 mb-6">
-          Subscribe to ₹99/month plan to access AI-powered LinkedIn automation,
-          scheduling, and analytics.
+          Subscribe to a SocialSnipper plan for full access — AI posts, scheduling,
+          AI images, and analytics.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <button
-            onClick={() => router.push("/social/pricing")}
+            onClick={() => router.push("/social/billing")}
             className="px-6 py-3 bg-brand-main text-white font-semibold rounded-xl hover:bg-brand-main/90 transition-colors"
           >
-            Subscribe - ₹99/month
+            View plans
           </button>
           <button
             onClick={() => router.push("/email/dashboard")}
