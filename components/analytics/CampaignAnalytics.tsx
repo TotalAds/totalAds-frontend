@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { CampaignAnalyticsProps } from '@/types/analytics'
 import { HealthBanner } from './HealthBanner'
 import { DeliverabilityAlertBanner } from './DeliverabilityAlertBanner'
+import { DeliverabilityStatusCard } from './DeliverabilityStatusCard'
 import { HeroMetrics } from './HeroMetrics'
 import { CampaignHealthMetrics } from './CampaignHealthMetrics'
 import { EngagementFunnel } from './EngagementFunnel'
@@ -173,6 +174,11 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
           )}
         </div>
       </div>
+
+      {/* DELIVERABILITY STATUS */}
+      {deliverability?.alerts?.length ? (
+        <DeliverabilityStatusCard alerts={deliverability.alerts} />
+      ) : null}
 
       {/* DELIVERABILITY ALERTS */}
       {(deliverability?.alerts?.length || deliverability?.throttledPendingCount) ? (

@@ -10,11 +10,23 @@ interface DeliverabilityAlertBannerProps {
 }
 
 function alertTitle(alert: DeliverabilityAlert, isCritical: boolean): string {
+  if (alert.rollingBounceAction === "pause") {
+    return "Bad batch detected — sending paused";
+  }
   if (alert.type === "campaign_auto_paused") {
     return "Campaign auto-paused to protect deliverability";
   }
+  if (alert.deliverabilityAction === "emergency") {
+    return "Emergency deliverability stop";
+  }
   if (isCritical) {
     return "Sending paused to protect deliverability";
+  }
+  if (alert.deliverabilityAction === "slow") {
+    return "7-day sender cap slowed";
+  }
+  if (alert.deliverabilityAction === "warn" || alert.severity === "info") {
+    return "Deliverability monitoring — no pause yet";
   }
   return "Sender quota was automatically reduced";
 }
@@ -31,14 +43,31 @@ export const DeliverabilityAlertBanner: React.FC<DeliverabilityAlertBannerProps>
     alerts.find((alert) => alert.severity === "warning") ||
     alerts[0];
 
+  const isInfo = primary?.severity === "info" || primary?.deliverabilityAction === "warn";
   const isCritical =
-    primary?.severity === "critical" || primary?.type === "campaign_auto_paused";
+    primary?.severity === "critical" ||
+    primary?.type === "campaign_auto_paused" ||
+    primary?.rollingBounceAction === "pause";
   const containerClass = isCritical
     ? "border-rose-200 bg-rose-50"
-    : "border-amber-200 bg-amber-50";
-  const titleClass = isCritical ? "text-rose-900" : "text-amber-900";
-  const bodyClass = isCritical ? "text-rose-800" : "text-amber-800";
-  const iconClass = isCritical ? "text-rose-700" : "text-amber-700";
+    : isInfo
+      ? "border-sky-200 bg-sky-50"
+      : "border-amber-200 bg-amber-50";
+  const titleClass = isCritical
+    ? "text-rose-900"
+    : isInfo
+      ? "text-sky-900"
+      : "text-amber-900";
+  const bodyClass = isCritical
+    ? "text-rose-800"
+    : isInfo
+      ? "text-sky-800"
+      : "text-amber-800";
+  const iconClass = isCritical
+    ? "text-rose-700"
+    : isInfo
+      ? "text-sky-700"
+      : "text-amber-700";
 
   return (
     <div className={`mb-6 rounded-xl border p-5 ${containerClass}`}>

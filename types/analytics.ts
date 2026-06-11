@@ -10,6 +10,9 @@ export interface DeliverabilityAlert {
   healthStatus?: string
   bounceRate7d?: number
   complaintRate7d?: number
+  sent7d?: number
+  deliverabilityAction?: 'none' | 'warn' | 'slow' | 'pause' | 'emergency'
+  rollingBounceAction?: 'none' | 'warn' | 'slow' | 'pause' | 'emergency'
   reasons: string[]
   recordedAt: string
   source: 'live' | 'event'

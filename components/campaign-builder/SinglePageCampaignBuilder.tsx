@@ -234,6 +234,9 @@ interface EmailSender {
     healthStatus?: string;
     bounceRate7d?: number;
     complaintRate7d?: number;
+    sent7d?: number;
+    deliverabilityAction?: "none" | "warn" | "slow" | "pause" | "emergency";
+    rollingBounceAction?: "none" | "warn" | "slow" | "pause" | "emergency";
     domainTrustLevel?: DomainTrustLevel;
     domainAgeInDays?: number;
     quotaMode?: "byo" | "managed";
@@ -2703,7 +2706,9 @@ export default function SinglePageCampaignBuilder({
                                         ? senderHealthBadge(
                                             quota?.healthStatus,
                                             quota?.bounceRate7d,
-                                            quota?.complaintRate7d
+                                            quota?.complaintRate7d,
+                                            quota?.sent7d,
+                                            quota?.deliverabilityAction
                                           )
                                         : null;
 
@@ -2752,6 +2757,8 @@ export default function SinglePageCampaignBuilder({
                                                   className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
                                                     healthBadge.tone === "critical"
                                                       ? "bg-rose-100 text-rose-800"
+                                                      : healthBadge.tone === "monitoring"
+                                                      ? "bg-sky-100 text-sky-800"
                                                       : healthBadge.tone === "warn"
                                                       ? "bg-amber-100 text-amber-900"
                                                       : "bg-emerald-100 text-emerald-800"

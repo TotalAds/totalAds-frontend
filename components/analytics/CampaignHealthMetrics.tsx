@@ -1,6 +1,9 @@
 import React from 'react'
 import { CampaignRates } from '@/types/analytics'
-import { formatDeliverabilityRate } from '@/lib/deliverabilitySafeguards'
+import {
+  DELIVERABILITY_MIN_SAMPLE_WARN,
+  getBounceMetricStatus,
+} from '@/lib/deliverabilitySafeguards'
 
 interface CampaignHealthMetricsProps {
   rates?: CampaignRates
@@ -18,7 +21,7 @@ interface MetricCardProps {
   label: string
   value: string | number
   subtext?: string
-  status: 'good' | 'warning' | 'critical' | 'neutral'
+  status: 'good' | 'warning' | 'critical' | 'neutral' | 'monitoring'
   icon?: string
 }
 
@@ -51,6 +54,13 @@ const MetricCard: React.FC<MetricCardProps> = ({ label, value, subtext, status, 
       text: 'text-gray-900',
       subtext: 'text-gray-600',
       accent: 'bg-gray-400',
+    },
+    monitoring: {
+      border: 'border-sky-100',
+      bg: 'bg-sky-50/50',
+      text: 'text-sky-900',
+      subtext: 'text-sky-700',
+      accent: 'bg-sky-500',
     },
   }
 
@@ -88,18 +98,19 @@ export const CampaignHealthMetrics: React.FC<CampaignHealthMetricsProps> = ({
   const failureRate = rates?.failureRate ?? (metrics.sent > 0 ? (metrics.failed / metrics.sent) * 100 : 0)
   const deliveryRate = rates?.deliveryRate ?? (metrics.sent > 0 ? (metrics.delivered / metrics.sent) * 100 : 0)
 
-  // Determine status based on thresholds
-  const getBounceStatus = (rate: number): 'good' | 'warning' | 'critical' => {
-    if (rate > 8) return 'critical'
-    if (rate > 5) return 'warning'
-    if (rate > 3) return 'neutral' as any
-    return 'good'
-  }
+  const bounceStatus = getBounceMetricStatus(bounceRate, metrics.sent)
+  const bounceSubtext =
+    metrics.sent < DELIVERABILITY_MIN_SAMPLE_WARN && bounceRate > 3
+      ? `${metrics.bounced.toLocaleString()} bounced · monitoring (${metrics.sent} sends — small sample)`
+      : metrics.bounced > 0
+        ? `${metrics.bounced.toLocaleString()} bounced`
+        : 'No bounces'
 
-  const getComplaintStatus = (rate: number): 'good' | 'warning' | 'critical' => {
+  const getComplaintStatus = (rate: number): 'good' | 'warning' | 'critical' | 'monitoring' => {
+    if (metrics.sent < DELIVERABILITY_MIN_SAMPLE_WARN && rate > 0.1) return 'monitoring'
     if (rate > 1) return 'critical'
     if (rate > 0.3) return 'warning'
-    if (rate > 0.1) return 'neutral' as any
+    if (rate > 0.1) return 'neutral' as 'good'
     return 'good'
   }
 
@@ -128,8 +139,8 @@ export const CampaignHealthMetrics: React.FC<CampaignHealthMetricsProps> = ({
       <MetricCard
         label="Bounce Rate"
         value={`${bounceRate.toFixed(2)}%`}
-        subtext={metrics.bounced > 0 ? `${metrics.bounced.toLocaleString()} bounced` : 'No bounces'}
-        status={getBounceStatus(bounceRate)}
+        subtext={bounceSubtext}
+        status={bounceStatus === 'monitoring' ? 'monitoring' : bounceStatus}
         icon="⚠️"
       />
 

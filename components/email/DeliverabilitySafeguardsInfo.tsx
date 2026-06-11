@@ -19,6 +19,7 @@ const levelStyles: Record<
   string
 > = {
   safe: "bg-emerald-50 text-emerald-800 border-emerald-200",
+  monitoring: "bg-sky-50 text-sky-900 border-sky-200",
   warning: "bg-amber-50 text-amber-900 border-amber-200",
   degraded: "bg-orange-50 text-orange-900 border-orange-200",
   paused: "bg-rose-50 text-rose-900 border-rose-200",
