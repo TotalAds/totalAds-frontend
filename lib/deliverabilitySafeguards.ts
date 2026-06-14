@@ -65,6 +65,14 @@ export type DeliverabilityAction =
 
 export const DELIVERABILITY_MIN_SAMPLE_WARN = 100;
 
+export {
+  DELIVERABILITY_ACK_LABEL,
+  buildDeliverabilityUserMessage,
+  buildDeliverabilityTriggerExplanation,
+  computeDeliverabilityStats,
+  resolveEffectiveDeliverabilityAction,
+} from "./deliverabilityMessaging";
+
 export function formatDeliverabilityRate(rate?: number): string {
   if (typeof rate !== "number" || Number.isNaN(rate)) return "N/A";
   return `${(rate * 100).toFixed(2)}%`;

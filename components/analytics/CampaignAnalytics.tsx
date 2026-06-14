@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { CampaignAnalyticsProps } from '@/types/analytics'
 import { HealthBanner } from './HealthBanner'
 import { DeliverabilityAlertBanner } from './DeliverabilityAlertBanner'
@@ -15,6 +15,9 @@ import { TodayStatsCard } from './TodayStatsCard'
 import { ReoonSummaryCard } from './ReoonSummaryCard'
 import { OptimizationInsights } from './OptimizationInsights'
 import { DeliverabilitySafeguardsInfo } from '@/components/email/DeliverabilitySafeguardsInfo'
+import { DeliverabilityAcknowledgmentModal } from '@/components/campaign-builder/DeliverabilityAcknowledgmentModal'
+import { acknowledgeDeliverabilityPause } from '@/utils/api/emailClient'
+import toast from 'react-hot-toast'
 
 export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
   mode,
@@ -39,9 +42,12 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
   domainId,
   campaignId,
   onMarkReplied,
+  onDeliverabilityAcknowledged,
 }) => {
   const [activeTab, setActiveTab] = useState<'flow' | 'trends' | 'leads'>('flow')
   const [selectedStep, setSelectedStep] = useState<number | 'all'>('all')
+  const [showAckModal, setShowAckModal] = useState(false)
+  const [ackSubmitting, setAckSubmitting] = useState(false)
 
   // Computed values
   const openRate = metrics.delivered > 0 ? ((metrics.opened / metrics.delivered) * 100).toFixed(1) : '0.0'
@@ -61,6 +67,40 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
   const isPaused = campaign.status === 'paused'
   const isSending = campaign.status === 'sending' || campaign.status === 'live'
   const isCompleted = campaign.status === 'completed'
+  const requiresDeliverabilityAck = Boolean(campaign.requiresDeliverabilityAcknowledgment)
+  const deliverabilityUserMessage = useMemo(
+    () =>
+      deliverability?.alerts?.find((alert) => alert.userMessage)?.userMessage ||
+      deliverability?.alerts?.[0]?.userMessage,
+    [deliverability?.alerts]
+  )
+
+  const handleResumeAfterAck = async () => {
+    if (!domainId || !campaignId) {
+      toast.error('Missing campaign context')
+      return
+    }
+    setAckSubmitting(true)
+    try {
+      await acknowledgeDeliverabilityPause(domainId, campaignId)
+      toast.success('Acknowledgment recorded. You can resume sending.')
+      setShowAckModal(false)
+      onDeliverabilityAcknowledged?.()
+      onEditCampaign?.()
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to record acknowledgment')
+    } finally {
+      setAckSubmitting(false)
+    }
+  }
+
+  const handleResumeClick = () => {
+    if (requiresDeliverabilityAck) {
+      setShowAckModal(true)
+      return
+    }
+    onEditCampaign?.()
+  }
   
   const sequenceStepNumbers = Array.from(
     new Set((steps || []).map((step) => step.stepNumber))
@@ -160,6 +200,15 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
               className="px-4 py-2 text-xs font-medium bg-red-50 text-red-600 border border-red-100 rounded-lg shadow-sm hover:bg-red-100 transition-colors disabled:opacity-60"
             >
               {stopping ? 'Stopping...' : 'Stop campaign'}
+            </button>
+          )}
+
+          {isPaused && onEditCampaign && (
+            <button
+              onClick={handleResumeClick}
+              className="px-4 py-2 text-xs font-medium bg-amber-600 text-white border border-amber-700 rounded-lg shadow-sm hover:bg-amber-700 transition-colors"
+            >
+              Resume campaign
             </button>
           )}
           
@@ -405,6 +454,14 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
           sent={metrics.sent}
         />
       </div>
+
+      <DeliverabilityAcknowledgmentModal
+        open={showAckModal}
+        userMessage={deliverabilityUserMessage}
+        submitting={ackSubmitting}
+        onConfirm={handleResumeAfterAck}
+        onClose={() => setShowAckModal(false)}
+      />
     </div>
   )
 }

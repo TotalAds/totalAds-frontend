@@ -44,6 +44,9 @@ interface CampaignAnalytics {
     createdAt: string;
     startedAt?: string;
     updatedAt: string;
+    deliverabilityPauseReason?: string | null;
+    deliverabilityAcknowledgedAt?: string | null;
+    requiresDeliverabilityAcknowledgment?: boolean;
   };
   metrics: {
     totalLeads: number;
@@ -120,7 +123,7 @@ interface CampaignAnalytics {
   deliverability?: {
     alerts: Array<{
       id: string;
-      type: "quota_reduced" | "sender_paused" | "daily_limit_reached";
+      type: "quota_reduced" | "sender_paused" | "daily_limit_reached" | "campaign_auto_paused";
       severity: "info" | "warning" | "critical";
       senderId: string;
       senderEmail: string;
@@ -131,6 +134,7 @@ interface CampaignAnalytics {
       bounceRate7d?: number;
       complaintRate7d?: number;
       reasons: string[];
+      userMessage?: string;
       recordedAt: string;
       source: "live" | "event";
     }>;
@@ -576,6 +580,12 @@ export default function CampaignDetailsPage() {
             : "Not started yet",
           totalEmails: Math.max(metrics.totalLeads || 0, analytics.progress?.total || 0),
           sentEmails: metrics.totalSent || 0,
+          deliverabilityPauseReason: analytics.campaign?.deliverabilityPauseReason ?? null,
+          deliverabilityAcknowledgedAt: analytics.campaign?.deliverabilityAcknowledgedAt
+            ? String(analytics.campaign.deliverabilityAcknowledgedAt)
+            : null,
+          requiresDeliverabilityAcknowledgment:
+            analytics.campaign?.requiresDeliverabilityAcknowledgment ?? false,
         }}
         metrics={{
           sent: metrics.totalSent || 0,
@@ -611,6 +621,7 @@ export default function CampaignDetailsPage() {
         campaignId={campaignId}
         domainId={campaign.domainId}
         onMarkReplied={handleMarkReplied}
+        onDeliverabilityAcknowledged={() => fetchCampaignAnalytics({ silent: true })}
       />
     </>
   );

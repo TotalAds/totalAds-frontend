@@ -14,6 +14,7 @@ export interface DeliverabilityAlert {
   deliverabilityAction?: 'none' | 'warn' | 'slow' | 'pause' | 'emergency'
   rollingBounceAction?: 'none' | 'warn' | 'slow' | 'pause' | 'emergency'
   reasons: string[]
+  userMessage?: string
   recordedAt: string
   source: 'live' | 'event'
 }
@@ -114,6 +115,9 @@ export interface CampaignAnalyticsProps {
     startedAt: string
     totalEmails: number
     sentEmails: number
+    requiresDeliverabilityAcknowledgment?: boolean
+    deliverabilityPauseReason?: string | null
+    deliverabilityAcknowledgedAt?: string | null
   }
   metrics: {
     sent: number
@@ -156,4 +160,5 @@ export interface CampaignAnalyticsProps {
   domainId?: string
   campaignId?: string
   onMarkReplied?: (leadId: string) => Promise<void>
+  onDeliverabilityAcknowledged?: () => void
 }

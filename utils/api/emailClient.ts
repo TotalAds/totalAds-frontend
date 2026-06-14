@@ -379,7 +379,20 @@ export interface Campaign {
   };
   queuedForTodayCount?: number;
   scheduledForTomorrowCount?: number;
+  deliverabilityPauseReason?: string | null;
+  deliverabilityAcknowledgedAt?: string | null;
 }
+
+export const acknowledgeDeliverabilityPause = async (
+  domainId: string,
+  campaignId: string
+): Promise<{ acknowledgedAt: string }> => {
+  const response = await emailClient.post(
+    `/api/domains/${domainId}/campaigns/${campaignId}/deliverability-acknowledge`,
+    { confirmed: true }
+  );
+  return response.data?.data || response.data;
+};
 
 export const getCampaigns = async (
   domainId: string,

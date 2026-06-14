@@ -16,7 +16,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 import CreatableSelect from "@/components/common/CreatableSelect";
@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import emailClient, {
   AIGeneratedCampaignEmailStep,
   AIGeneratedCampaignResponse,
+  acknowledgeDeliverabilityPause,
   createList,
   EmailList,
   getCampaignById,
@@ -45,11 +46,19 @@ import {
   formatDeliverabilityRate,
   senderHealthBadge,
 } from "@/lib/deliverabilitySafeguards";
+import {
+  formatDailySendTimeHint,
+  localTimeToUtcHHMM,
+  utcTimeToLocalHHMM,
+} from "@/utils/campaignSendTime";
 import ReoonApiKeyRequiredModal from "./ReoonApiKeyRequiredModal";
 import AICampaignGeneratorModal from "./AICampaignGeneratorModal";
 import AIGeneratedCampaignPanel from "./AIGeneratedCampaignPanel";
 import CreateEmailModal from "./CreateEmailModal";
 import RecipientSelectionModal from "./RecipientSelectionModal";
+import { InboxGuardrailModal } from "./InboxGuardrailModal";
+import { DeliverabilityAcknowledgmentModal } from "./DeliverabilityAcknowledgmentModal";
+import { computeInboxGuardrail } from "@/lib/inboxGuardrail";
 import { type SpintaxPackId } from "./spintaxUtils";
 
 
@@ -180,27 +189,6 @@ function createDefaultSequenceSteps(): CampaignSequenceStep[] {
   ];
 }
 
-const padTime = (value: number) => String(value).padStart(2, "0");
-
-/**
- * UI shows local clock time, backend stores UTC HH:MM.
- */
-function localTimeToUtcHHMM(localTime: string): string {
-  if (!/^\d{2}:\d{2}$/.test(localTime)) return localTime;
-  const [hours, minutes] = localTime.split(":").map(Number);
-  const date = new Date();
-  date.setHours(hours, minutes, 0, 0);
-  return `${padTime(date.getUTCHours())}:${padTime(date.getUTCMinutes())}`;
-}
-
-function utcTimeToLocalHHMM(utcTime: string): string {
-  if (!/^\d{2}:\d{2}$/.test(utcTime)) return utcTime;
-  const [hours, minutes] = utcTime.split(":").map(Number);
-  const date = new Date();
-  date.setUTCHours(hours, minutes, 0, 0);
-  return `${padTime(date.getHours())}:${padTime(date.getMinutes())}`;
-}
-
 interface Domain {
   id: string;
   domain: string;
@@ -287,6 +275,19 @@ export default function SinglePageCampaignBuilder({
   const [requireLeadVerification, setRequireLeadVerification] = useState(false);
   const [showVerificationChoiceModal, setShowVerificationChoiceModal] =
     useState(false);
+  const [showInboxGuardrailModal, setShowInboxGuardrailModal] = useState(false);
+  const [showDeliverabilityAckModal, setShowDeliverabilityAckModal] =
+    useState(false);
+  const [ackSubmitting, setAckSubmitting] = useState(false);
+  const [deliverabilityPauseReason, setDeliverabilityPauseReason] = useState<
+    string | null
+  >(null);
+  const [deliverabilityAcknowledgedAt, setDeliverabilityAcknowledgedAt] = useState<
+    string | null
+  >(null);
+  const [pendingSendWithVerification, setPendingSendWithVerification] = useState<
+    boolean | null
+  >(null);
   const [showRecipientModal, setShowRecipientModal] = useState(false);
   const [listOptions, setListOptions] = useState<EmailList[]>([]);
   const [loadingLists, setLoadingLists] = useState(false);
@@ -614,6 +615,8 @@ export default function SinglePageCampaignBuilder({
           dailySendTime?: string;
           replyTo?: string;
           leadIds?: string[];
+          deliverabilityPauseReason?: string | null;
+          deliverabilityAcknowledgedAt?: string | null;
           attachment?: {
             s3Key?: string;
             fileName?: string;
@@ -677,6 +680,12 @@ export default function SinglePageCampaignBuilder({
         setSelectedSequenceStepId(normalizedSteps[0]?.id || "step-1");
 
         setResumeCampaignId(effectiveCampaignId);
+        setDeliverabilityPauseReason(rawC.deliverabilityPauseReason ?? null);
+        setDeliverabilityAcknowledgedAt(
+          rawC.deliverabilityAcknowledgedAt
+            ? String(rawC.deliverabilityAcknowledgedAt)
+            : null
+        );
         setRequireLeadVerification(
           c.reoonVerificationSummary?.requireLeadVerification === true
         );
@@ -893,6 +902,10 @@ export default function SinglePageCampaignBuilder({
   };
 
   const rotation = calculateRotation();
+  const dailySendTimeHint = useMemo(
+    () => formatDailySendTimeHint(state.dailySendTime),
+    [state.dailySendTime]
+  );
 
   /** Only show daily send window when this campaign cannot complete today (overflow to next day). */
   const showDailySendWindow =
@@ -1016,6 +1029,34 @@ export default function SinglePageCampaignBuilder({
   };
 
   const scheduleEstimate = computeScheduleEstimate();
+
+  const inboxGuardrail = useMemo(() => {
+    const customDailyCapacity =
+      sesProvider === "custom" && rotation?.totalCapacity
+        ? rotation.totalCapacity
+        : undefined;
+    return computeInboxGuardrail({
+      contactCount: state.selectedRecipients.count,
+      inboxCount: state.senderIds.length,
+      customDailyCapacity,
+    });
+  }, [
+    state.selectedRecipients.count,
+    state.senderIds.length,
+    rotation?.totalCapacity,
+    sesProvider,
+  ]);
+
+  const shouldShowInboxGuardrail =
+    state.selectedRecipients.count > 0 &&
+    state.senderIds.length > 0 &&
+    inboxGuardrail.estimatedDays > 1;
+
+  const requiresDeliverabilityAcknowledgment = Boolean(
+    resumeCampaignId &&
+      deliverabilityPauseReason &&
+      !deliverabilityAcknowledgedAt
+  );
 
   // Validation helpers
   const sequenceHasAllRequiredFields = isSequenceMode
@@ -1241,6 +1282,15 @@ export default function SinglePageCampaignBuilder({
 
   const executeCampaignSend = async (withVerification: boolean) => {
     setRequireLeadVerification(withVerification);
+    if (
+      resumeCampaignId &&
+      deliverabilityPauseReason &&
+      !deliverabilityAcknowledgedAt
+    ) {
+      setPendingSendWithVerification(withVerification);
+      setShowDeliverabilityAckModal(true);
+      return;
+    }
     if (!validation.recipients) {
       toast.error("Please select at least one recipient");
       return;
@@ -1514,11 +1564,50 @@ export default function SinglePageCampaignBuilder({
     }
 
     if (isLiveSequenceResume) {
+      if (requiresDeliverabilityAcknowledgment) {
+        setPendingSendWithVerification(requireLeadVerification);
+        setShowDeliverabilityAckModal(true);
+        return;
+      }
       void executeCampaignSend(requireLeadVerification);
       return;
     }
 
+    if (shouldShowInboxGuardrail) {
+      setShowInboxGuardrailModal(true);
+      return;
+    }
+
     setShowVerificationChoiceModal(true);
+  };
+
+  const proceedAfterInboxGuardrail = () => {
+    setShowInboxGuardrailModal(false);
+    setShowVerificationChoiceModal(true);
+  };
+
+  const handleDeliverabilityAckConfirm = async () => {
+    if (!state.domainId || !resumeCampaignId) return;
+    setAckSubmitting(true);
+    try {
+      const result = await acknowledgeDeliverabilityPause(
+        state.domainId,
+        resumeCampaignId
+      );
+      setDeliverabilityAcknowledgedAt(result.acknowledgedAt);
+      setShowDeliverabilityAckModal(false);
+      const withVerification =
+        pendingSendWithVerification ?? requireLeadVerification;
+      setPendingSendWithVerification(null);
+      await executeCampaignSend(withVerification);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast.error(
+        err?.response?.data?.message || "Failed to record acknowledgment"
+      );
+    } finally {
+      setAckSubmitting(false);
+    }
   };
 
   const handleAIGenerated = (data: AIGeneratedCampaignResponse) => {
@@ -2414,8 +2503,8 @@ export default function SinglePageCampaignBuilder({
                             className="mt-2 w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-text-100"
                           />
                           <p className="mt-2 text-[11px] text-text-200">
-                            Emails start at this local time. Sending continues after the window
-                            opens until the queue is done (subject to daily sender limits).
+                            Emails start at this time on your computer. We convert it to UTC for
+                            sending — {dailySendTimeHint || "pick a time above"}.
                           </p>
                         </div>
 
@@ -3441,7 +3530,8 @@ export default function SinglePageCampaignBuilder({
                     </p>
                   </div>
                   <p className="text-[11px] text-text-300 leading-snug">
-                    Campaign emails start at this local time (stored in UTC internally).
+                    Uses your computer&apos;s local time (24-hour picker; browser may show AM/PM).
+                    {dailySendTimeHint ? ` ${dailySendTimeHint}.` : ""}
                     {showDailySendWindow ? (
                       <>
                         {" "}
@@ -3449,13 +3539,13 @@ export default function SinglePageCampaignBuilder({
                         {state.selectedRecipients.count.toLocaleString()}) exceeds today&apos;s
                         combined sender capacity (
                         {rotation?.totalCapacity?.toLocaleString() ?? "—"}), overflow continues
-                        at this same time on later days until the queue is complete.
+                        at this same local time on later days until the queue is complete.
                       </>
                     ) : (
                       <>
                         {" "}
-                        This is the start time only — once it opens, sending continues until
-                        today&apos;s queue is done (or daily sender limits are reached).
+                        After this time, sending runs until today&apos;s sender limits are used
+                        (all pending emails up to remaining quota).
                       </>
                     )}
                   </p>
@@ -3492,8 +3582,25 @@ export default function SinglePageCampaignBuilder({
                   </div>
                   <p className="text-[10px] text-text-300">
                     Recommended: 09:00–10:00 or 14:00 in your local timezone.
+                    {dailySendTimeHint ? ` ${dailySendTimeHint}.` : ""}
                   </p>
                 </div>
+
+              {shouldShowInboxGuardrail && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 space-y-1.5">
+                  <p className="text-xs font-semibold text-amber-950">
+                    Inbox Guardrail
+                  </p>
+                  <p className="text-[11px] leading-relaxed text-amber-900">
+                    {state.selectedRecipients.count.toLocaleString()} contacts with{" "}
+                    {state.senderIds.length} inbox
+                    {state.senderIds.length !== 1 ? "es" : ""} ≈{" "}
+                    {inboxGuardrail.estimatedDays} days at safe limits. Need{" "}
+                    {inboxGuardrail.inboxesNeededForTarget} inboxes to finish in{" "}
+                    {inboxGuardrail.targetDays} days.
+                  </p>
+                </div>
+              )}
 
               {/* Send Button */}
               <Button
@@ -3769,6 +3876,27 @@ export default function SinglePageCampaignBuilder({
           </div>
         </BodyPortal>
       )}
+
+      <InboxGuardrailModal
+        open={showInboxGuardrailModal}
+        contactCount={state.selectedRecipients.count}
+        inboxCount={state.senderIds.length}
+        customDailyCapacity={
+          sesProvider === "custom" ? rotation?.totalCapacity : undefined
+        }
+        onContinue={proceedAfterInboxGuardrail}
+        onClose={() => setShowInboxGuardrailModal(false)}
+      />
+
+      <DeliverabilityAcknowledgmentModal
+        open={showDeliverabilityAckModal}
+        submitting={ackSubmitting}
+        onConfirm={handleDeliverabilityAckConfirm}
+        onClose={() => {
+          setShowDeliverabilityAckModal(false);
+          setPendingSendWithVerification(null);
+        }}
+      />
 
       <ReoonApiKeyRequiredModal
         open={showReoonKeyRequiredModal}
