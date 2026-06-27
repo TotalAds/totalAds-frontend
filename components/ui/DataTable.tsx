@@ -21,17 +21,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-interface Column {
+export interface Column<T = any> {
   key: string;
   label: string;
   sortable?: boolean;
   width?: string;
-  render?: (value: unknown, row: Record<string, unknown>) => React.ReactNode;
+  render?: (value: any, row: T) => React.ReactNode;
 }
 
-interface DataTableProps {
-  data: Record<string, unknown>[];
-  columns: Column[];
+interface DataTableProps<T> {
+  data: T[];
+  columns: Column<T>[];
   pageSize?: number;
   searchable?: boolean;
   sortable?: boolean;
@@ -41,7 +41,7 @@ interface DataTableProps {
   maxHeight?: string;
 }
 
-export default function DataTable({
+export default function DataTable<T extends Record<string, any>>({
   data,
   columns,
   pageSize = 10,
@@ -51,7 +51,7 @@ export default function DataTable({
   emptyMessage = "No data available",
   loading = false,
   maxHeight = "500px",
-}: DataTableProps) {
+}: DataTableProps<T>) {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortConfig, setSortConfig] = useState<{

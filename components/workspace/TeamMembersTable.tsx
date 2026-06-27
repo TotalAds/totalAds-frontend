@@ -6,7 +6,7 @@ import { toast } from "react-hot-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import DataTable from "@/components/ui/DataTable";
+import DataTable, { Column } from "@/components/ui/DataTable";
 import InviteMemberDialog from "@/components/workspace/InviteMemberDialog";
 import {
   Select,
@@ -78,7 +78,7 @@ export default function TeamMembersTable() {
   const seatsRemaining =
     seatsMax > 0 ? Math.max(0, seatsMax - seatsUsed) : null;
 
-  const memberColumns = [
+  const memberColumns: Column<WorkspaceMember>[] = [
     {
       key: "name",
       label: "Name",
@@ -209,7 +209,7 @@ export default function TeamMembersTable() {
       </div>
 
       <DataTable
-        data={members as unknown as Record<string, unknown>[]}
+        data={members}
         columns={memberColumns}
         loading={loading}
         searchable

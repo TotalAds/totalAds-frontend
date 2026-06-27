@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import DataTable from "@/components/ui/DataTable";
+import DataTable, { Column } from "@/components/ui/DataTable";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { AuditLogEntry, getAuditLogs } from "@/utils/api/workspaceClient";
 import { formatApiDate } from "@/utils/formatDate";
@@ -45,10 +45,7 @@ function formatAction(action: string) {
 }
 
 function actionBadgeClass(action: string) {
-  return (
-    ACTION_COLORS[action] ??
-    "bg-slate-100 text-slate-700"
-  );
+  return ACTION_COLORS[action] ?? "bg-slate-100 text-slate-700";
 }
 
 export default function ActivityLogTable() {
@@ -73,7 +70,7 @@ export default function ActivityLogTable() {
 
   if (!activeWorkspace) return null;
 
-  const columns = [
+  const columns: Column<AuditLogEntry>[] = [
     {
       key: "createdAt",
       label: "When",
@@ -134,7 +131,8 @@ export default function ActivityLogTable() {
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Activity log</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Recent actions in <span className="font-medium">{activeWorkspace.name}</span>
+            Recent actions in{" "}
+            <span className="font-medium">{activeWorkspace.name}</span>
           </p>
         </div>
         <Button
@@ -150,7 +148,7 @@ export default function ActivityLogTable() {
       </div>
 
       <DataTable
-        data={logs as unknown as Record<string, unknown>[]}
+        data={logs}
         columns={columns}
         loading={loading}
         searchable
