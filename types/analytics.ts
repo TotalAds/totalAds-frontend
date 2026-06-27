@@ -161,4 +161,6 @@ export interface CampaignAnalyticsProps {
   campaignId?: string
   onMarkReplied?: (leadId: string) => Promise<void>
   onDeliverabilityAcknowledged?: () => void
+  /** When true, hides stop/resume/download actions (e.g. inside campaign detail header). */
+  embedded?: boolean
 }

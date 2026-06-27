@@ -140,8 +140,7 @@ export default function EmailTemplateEditor({
             <div className="mb-6 max-w-md rounded-2xl border border-dashed border-border bg-bg-300/40 px-8 py-10">
               <p className="text-base font-medium text-text-100">Create your email</p>
               <p className="mt-2 text-sm text-text-200">
-                Choose a template or build from scratch in the editor — subject and inbox preview
-                stay on this page.
+                Write in the rich text editor or switch to HTML for designed layouts with live preview.
               </p>
             </div>
             <Button

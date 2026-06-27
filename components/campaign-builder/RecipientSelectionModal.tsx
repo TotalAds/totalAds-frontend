@@ -66,6 +66,51 @@ interface RecipientSelectionModalProps {
 
 type TabType = "lists" | "filter" | "individual" | "upload";
 
+type SelectedItemsState = {
+  lists: string[];
+  filterCriteria: {
+    tagIds: string[];
+    categoryIds: string[];
+    campaignIds: string[];
+    statuses: string[];
+    listIds: string[];
+  };
+  contacts: string[];
+  csvData: Array<Record<string, string>>;
+  csvColumns: string[];
+  csvEmailColumn: string;
+  csvUploadNote?: string;
+};
+
+function createEmptySelectedItems(): SelectedItemsState {
+  return {
+    lists: [],
+    filterCriteria: {
+      tagIds: [],
+      categoryIds: [],
+      campaignIds: [],
+      statuses: [],
+      listIds: [],
+    },
+    contacts: [],
+    csvData: [],
+    csvColumns: [],
+    csvEmailColumn: "email",
+  };
+}
+
+function hasFilterCriteria(
+  criteria: SelectedItemsState["filterCriteria"]
+): boolean {
+  return (
+    criteria.tagIds.length > 0 ||
+    criteria.categoryIds.length > 0 ||
+    criteria.campaignIds.length > 0 ||
+    criteria.statuses.length > 0 ||
+    criteria.listIds.length > 0
+  );
+}
+
 interface Campaign {
   id: string;
   name: string;
@@ -90,34 +135,8 @@ export default function RecipientSelectionModal({
 }: RecipientSelectionModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>("lists");
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedItems, setSelectedItems] = useState<{
-    lists: string[];
-    filterCriteria: {
-      tagIds: string[];
-      categoryIds: string[];
-      campaignIds: string[];
-      statuses: string[];
-      listIds: string[];
-    };
-    contacts: string[];
-    csvData: Array<Record<string, string>>;
-    csvColumns: string[];
-    csvEmailColumn: string;
-    csvUploadNote?: string;
-  }>({
-    lists: [],
-    filterCriteria: {
-      tagIds: [],
-      categoryIds: [],
-      campaignIds: [],
-      statuses: [],
-      listIds: [],
-    },
-    contacts: [],
-    csvData: [],
-    csvColumns: [],
-    csvEmailColumn: "email",
-  });
+  const [selectedItems, setSelectedItems] =
+    useState<SelectedItemsState>(createEmptySelectedItems);
 
   const [lists, setLists] = useState<EmailList[]>([]);
   const [tags, setTags] = useState<LeadTag[]>([]);
@@ -169,6 +188,23 @@ export default function RecipientSelectionModal({
   /** Distinct lead count for union of selected lists (Lists tab); avoids double-count when lists overlap */
   const [listsUnionCount, setListsUnionCount] = useState<number | null>(null);
   const [filterMatchLoading, setFilterMatchLoading] = useState(false);
+
+  // Fresh selection each time the modal opens (avoids stale list/filter state bleeding into a new add)
+  useEffect(() => {
+    if (!open) return;
+    setActiveTab("lists");
+    setSearchTerm("");
+    setContactsSearchTerm("");
+    setContactsPage(1);
+    setSelectedItems(createEmptySelectedItems());
+    setFilteredLeadIds([]);
+    setFilteredLeadCount(0);
+    setListsUnionCount(null);
+    setCsvFile(null);
+    setCsvResultModal(null);
+    setNewListName("");
+    setShowCreateList(false);
+  }, [open]);
 
   // Load data based on active tab
   useEffect(() => {
@@ -656,42 +692,60 @@ export default function RecipientSelectionModal({
     let emailColumn = "email";
     let csvUploadNote: string | undefined;
 
-    if (selectedItems.csvData.length > 0) {
-      type = "csv";
-      count = selectedItems.csvData.length;
-      csvData = selectedItems.csvData;
-      columns = selectedItems.csvColumns;
-      emailColumn = selectedItems.csvEmailColumn;
-      csvUploadNote = selectedItems.csvUploadNote;
-    } else if (selectedItems.lists.length > 0) {
-      type = "list";
-      try {
-        const result = await filterLeadsByCriteria({
-          listIds: selectedItems.lists,
-        });
-        ids = result.data.leadIds || [];
-        count = result.data.count ?? result.data.total ?? ids.length;
-        ids = [...new Set(ids)];
-      } catch (error: any) {
-        toast.error(
-          error.response?.data?.message || "Failed to resolve list recipients"
-        );
-        return;
-      }
-    } else if (
-      selectedItems.filterCriteria.tagIds.length > 0 ||
-      selectedItems.filterCriteria.categoryIds.length > 0 ||
-      selectedItems.filterCriteria.campaignIds.length > 0 ||
-      selectedItems.filterCriteria.statuses.length > 0 ||
-      selectedItems.filterCriteria.listIds.length > 0
-    ) {
-      type = "filter";
-      ids = filteredLeadIds;
-      count = filteredLeadCount;
-    } else if (selectedItems.contacts.length > 0) {
-      type = "individual";
-      ids = selectedItems.contacts;
-      count = selectedItems.contacts.length;
+    switch (activeTab) {
+      case "upload":
+        if (selectedItems.csvData.length === 0) {
+          toast.error("Please select at least one recipient");
+          return;
+        }
+        type = "csv";
+        count = selectedItems.csvData.length;
+        csvData = selectedItems.csvData;
+        columns = selectedItems.csvColumns;
+        emailColumn = selectedItems.csvEmailColumn;
+        csvUploadNote = selectedItems.csvUploadNote;
+        break;
+      case "lists":
+        if (selectedItems.lists.length === 0) {
+          toast.error("Please select at least one recipient");
+          return;
+        }
+        type = "list";
+        try {
+          const result = await filterLeadsByCriteria({
+            listIds: selectedItems.lists,
+          });
+          ids = [...new Set((result.data.leadIds || []).map(String))];
+          count = result.data.count ?? result.data.total ?? ids.length;
+        } catch (error: any) {
+          toast.error(
+            error.response?.data?.message || "Failed to resolve list recipients"
+          );
+          return;
+        }
+        break;
+      case "filter":
+        if (!hasFilterCriteria(selectedItems.filterCriteria)) {
+          toast.error("Please select at least one recipient");
+          return;
+        }
+        if (filterMatchLoading) {
+          toast.error("Still loading matching leads. Please wait a moment.");
+          return;
+        }
+        type = "filter";
+        ids = [...new Set(filteredLeadIds.map(String))];
+        count = filteredLeadCount;
+        break;
+      case "individual":
+        if (selectedItems.contacts.length === 0) {
+          toast.error("Please select at least one recipient");
+          return;
+        }
+        type = "individual";
+        ids = selectedItems.contacts.map(String);
+        count = ids.length;
+        break;
     }
 
     if (count === 0) {
@@ -711,28 +765,24 @@ export default function RecipientSelectionModal({
   };
 
   const getTotalSelected = () => {
-    if (selectedItems.csvData.length > 0) {
-      return selectedItems.csvData.length;
+    switch (activeTab) {
+      case "upload":
+        return selectedItems.csvData.length;
+      case "lists":
+        if (selectedItems.lists.length === 0) return 0;
+        if (listsUnionCount !== null) return listsUnionCount;
+        return selectedItems.lists.reduce((sum, listId) => {
+          const list = lists.find((l) => l.id === listId);
+          return sum + (list?.contactCount || 0);
+        }, 0);
+      case "filter":
+        if (!hasFilterCriteria(selectedItems.filterCriteria)) return 0;
+        return filteredLeadCount;
+      case "individual":
+        return selectedItems.contacts.length;
+      default:
+        return 0;
     }
-    if (selectedItems.lists.length > 0) {
-      if (listsUnionCount !== null) return listsUnionCount;
-      return selectedItems.lists.reduce((sum, listId) => {
-        const list = lists.find((l) => l.id === listId);
-        return sum + (list?.contactCount || 0);
-      }, 0);
-    }
-    // For filter criteria, use the filtered lead count
-    const hasFilterCriteria =
-      selectedItems.filterCriteria.tagIds.length > 0 ||
-      selectedItems.filterCriteria.categoryIds.length > 0 ||
-      selectedItems.filterCriteria.campaignIds.length > 0 ||
-      selectedItems.filterCriteria.statuses.length > 0 ||
-      selectedItems.filterCriteria.listIds.length > 0;
-    
-    if (hasFilterCriteria) {
-      return filteredLeadCount;
-    }
-    return selectedItems.contacts.length;
   };
 
   const filteredLists = lists.filter((list) =>

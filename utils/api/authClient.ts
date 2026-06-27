@@ -23,6 +23,7 @@ export interface RegisterCredentials {
   confirmPassword: string;
   referralCode?: string;
   product?: ProductType;
+  workspaceInviteToken?: string;
   acceptedLegal: true;
   acceptedLegalVersion: string;
 }
@@ -36,10 +37,30 @@ export interface UserProfile {
   onboardingCompleted: boolean;
   onboardingStep: number | null;
   onboardingSkipped: boolean;
+  useCase?: string | null;
+  businessGoals?: string | null;
+  company?: string | null;
+  companyWebsite?: string | null;
+  industry?: string | null;
+  companyAddress?: string | null;
+  companyZipcode?: string | null;
+  companyCity?: string | null;
+  companyCountry?: string | null;
+  companyDescription?: string | null;
+  brandLogoUrl?: string | null;
+  brandColor?: string | null;
+  timezone?: string | null;
   /** Present after /users/me; use for admin-only UI */
   userType?: "regular" | "admin";
   phoneVerified?: boolean | null;
   sesProvider?: "leadsnipper_managed" | "custom" | null;
+  primarySendingMethod?:
+    | "managed_ses"
+    | "byo_ses"
+    | "gmail"
+    | "outlook"
+    | "smtp"
+    | null;
   socialServiceEnabled?: boolean;
   socialLinkedinConnected?: boolean;
   socialCommentsApprovalMode?: boolean;
@@ -111,7 +132,7 @@ export const register = async (
 ): Promise<AuthResponse> => {
   try {
     // Extract referralCode and product, send rest as signup data
-    const { referralCode, product, ...signupData } = credentials;
+    const { referralCode, product, workspaceInviteToken, ...signupData } = credentials;
     const requestBody: Record<string, unknown> = { ...signupData };
     
     if (referralCode) {
@@ -119,6 +140,9 @@ export const register = async (
     }
     if (product) {
       requestBody.product = product;
+    }
+    if (workspaceInviteToken) {
+      requestBody.workspaceInviteToken = workspaceInviteToken;
     }
     
     const response = await apiClient.post("/auth/signup", requestBody);

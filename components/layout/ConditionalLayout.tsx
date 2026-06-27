@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import React, { useEffect, useState } from "react";
 
 import EmailVerificationBanner from "@/components/common/EmailVerificationBanner";
+import WorkspaceLimitBanner from "@/components/workspace/WorkspaceLimitBanner";
 import { useAuthContext } from "@/context/AuthContext";
 import { cn } from "@/utils/cn";
 import { IconMenu2 } from "@tabler/icons-react";
@@ -43,6 +44,7 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
     "/verify-email",
     "/email/unsubscribe",
     "/unsubscribe",
+    "/email/workspaces/invite",
   ];
 
   const isAuthPage = authPaths.some((path) => pathname.startsWith(path));
@@ -126,6 +128,7 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
               <EmailVerificationBanner variant="banner" />
             </div>
           )}
+          {isAuthenticated && !isSocialRoute && <WorkspaceLimitBanner />}
           {isSocialRoute && isAuthenticated ? (
             <SocialLimitShell>{children}</SocialLimitShell>
           ) : (

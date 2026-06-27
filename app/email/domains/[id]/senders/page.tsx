@@ -53,7 +53,7 @@ interface Domain {
 export default function EmailSendersPage() {
   const params = useParams();
   const domainId = params.id as string;
-  const { sesProvider, sesConnected } = useEmailProvider();
+  const { sesProvider, sesConnected, isByoSes } = useEmailProvider();
 
   const [senders, setSenders] = useState<EmailSender[]>([]);
   const [domain, setDomain] = useState<Domain | null>(null);
@@ -176,7 +176,7 @@ export default function EmailSendersPage() {
         displayName: newDisplayName,
         domainId,
       };
-      if (sesProvider === "custom" && newByoDailyCap.trim() !== "") {
+      if (isByoSes && newByoDailyCap.trim() !== "") {
         const n = parseInt(newByoDailyCap, 10);
         if (!Number.isFinite(n) || n < 1) {
           toast.error("Daily send cap must be a positive number");
@@ -397,7 +397,7 @@ export default function EmailSendersPage() {
                 {creating ? "Adding..." : "Add Sender"}
               </Button>
             </div>
-            {sesProvider === "custom" && (
+            {isByoSes && (
               <div>
                 <label className="block text-xs font-medium text-text-200 mb-1">
                   Target daily send cap (optional — defaults to{" "}
@@ -477,6 +477,15 @@ export default function EmailSendersPage() {
                           </Button>
                         )}
 
+                        <Link href={`/email/sending-accounts/${sender.id}/settings`}>
+                          <Button
+                            type="button"
+                            className="bg-brand-main/80 hover:bg-brand-main text-text-100 px-4 py-2 rounded-lg transition text-sm"
+                          >
+                            Settings
+                          </Button>
+                        </Link>
+
                         <Button
                           onClick={() => handleDeleteSender(sender.id)}
                           className="bg-brand-secondary hover:bg-brand-secondary/80 text-text-100 px-4 py-2 rounded-lg transition text-sm"
@@ -490,11 +499,11 @@ export default function EmailSendersPage() {
                     {isVerified && (
                       <div className="mt-4 pt-4 border-t border-brand-main/10">
                         <h4 className="text-sm font-semibold text-text-100 mb-3">
-                          {sesProvider === "custom"
+                          {isByoSes
                             ? "Daily send pacing (BYO SES)"
                             : "Daily Sending Quota"}
                         </h4>
-                        {sesProvider === "custom" && (
+                        {isByoSes && (
                           <div className="mb-4 p-3 rounded-lg bg-brand-main/5 border border-brand-main/15">
                             <p className="text-xs text-text-200 mb-2">
                               Set your target daily volume for this sender on the

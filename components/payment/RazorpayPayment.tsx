@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
-import { tierAllowedForSesProvider } from "@/lib/pricingTierSes";
+import { tierAllowedForSendingUser } from "@/lib/pricingTierSes";
 
 import emailClient, {
   getSubscriptionInfo,
@@ -76,12 +76,18 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
         const [tiersResponse, subInfo, provider] = await Promise.all([
           emailClient.get("/api/payment/pricing-tiers"),
           getSubscriptionInfo(),
-          getEmailProvider().catch(() => ({ sesProvider: null })),
+          getEmailProvider().catch(() => ({
+            sesProvider: null,
+            primarySendingMethod: null,
+          })),
         ]);
         const raw = tiersResponse.data.data || [];
-        const sp = provider.sesProvider ?? null;
+        const sendingCtx = {
+          sesProvider: provider.sesProvider ?? null,
+          primarySendingMethod: provider.primarySendingMethod ?? null,
+        };
         const fetchedTiers = raw.filter((t: PricingTier) =>
-          tierAllowedForSesProvider(t.name, sp as any)
+          tierAllowedForSendingUser(t.name, sendingCtx)
         );
 
         setTiers(fetchedTiers);

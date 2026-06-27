@@ -29,12 +29,11 @@ interface TrendsChartProps {
     stepNumber?: number;
   }>;
   metrics: {
-    delivered: number;
-    opened: number;
-    clicked: number;
-    bounced: number;
-    complained: number;
-    unsubscribed: number;
+    sent: number
+    opened: number
+    clicked: number
+    bounced: number
+    unsubscribed: number
   };
   sendVolume?: SendVolume;
   sequenceSteps?: number[];
@@ -84,28 +83,17 @@ export const TrendsChart: React.FC<TrendsChartProps> = ({
   selectedStep,
   onStepChange,
 }) => {
-  const deliveryRate =
-    metrics.delivered > 0
-      ? 100
-      : data.reduce((sum, d) => sum + d.sent, 0) > 0
-      ? Math.round(
-          (metrics.delivered /
-            data.reduce((sum, d) => sum + d.sent, 0)) *
-            100
-        )
-      : 0;
+  const totalSent = data.reduce((sum, d) => sum + d.sent, 0)
   const openRate =
-    metrics.delivered > 0
-      ? Math.round((metrics.opened / metrics.delivered) * 100)
-      : 0;
+    totalSent > 0 ? Math.round((metrics.opened / totalSent) * 100) : 0
   const clickRate =
     metrics.opened > 0
       ? Math.round((metrics.clicked / metrics.opened) * 100)
-      : 0;
+      : 0
 
   const hasNegativeMetrics = data.some(
-    (d) => (d.bounced || 0) > 0 || (d.complained || 0) > 0 || (d.unsubscribed || 0) > 0
-  );
+    (d) => (d.bounced || 0) > 0 || (d.unsubscribed || 0) > 0
+  )
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -122,7 +110,7 @@ export const TrendsChart: React.FC<TrendsChartProps> = ({
       {/* Summary Stats */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-xs font-medium text-blue-700">
-          Delivered: {metrics.delivered.toLocaleString()} ({deliveryRate}%)
+          Sent: {totalSent.toLocaleString()}
         </div>
         <div className="px-3 py-1.5 bg-green-50 border border-green-100 rounded-lg text-xs font-medium text-green-700">
           Opened: {metrics.opened.toLocaleString()} ({openRate}%)
@@ -133,11 +121,6 @@ export const TrendsChart: React.FC<TrendsChartProps> = ({
         {metrics.bounced > 0 && (
           <div className="px-3 py-1.5 bg-red-50 border border-red-100 rounded-lg text-xs font-medium text-red-700">
             Bounced: {metrics.bounced.toLocaleString()}
-          </div>
-        )}
-        {metrics.complained > 0 && (
-          <div className="px-3 py-1.5 bg-orange-50 border border-orange-100 rounded-lg text-xs font-medium text-orange-700">
-            Complaints: {metrics.complained.toLocaleString()}
           </div>
         )}
         {sequenceSteps.length > 0 && onStepChange && (
@@ -251,26 +234,15 @@ export const TrendsChart: React.FC<TrendsChartProps> = ({
                   strokeWidth={2}
                 />
                 {hasNegativeMetrics && (
-                  <>
-                    <Area
-                      type="monotone"
-                      dataKey="bounced"
-                      name="Bounced"
-                      stroke={COLORS.bounced}
-                      fill="transparent"
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="complained"
-                      name="Complained"
-                      stroke={COLORS.complained}
-                      fill="transparent"
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                    />
-                  </>
+                  <Area
+                    type="monotone"
+                    dataKey="bounced"
+                    name="Bounced"
+                    stroke={COLORS.bounced}
+                    fill="transparent"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                  />
                 )}
               </AreaChart>
             </ResponsiveContainer>

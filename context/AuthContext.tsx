@@ -66,7 +66,8 @@ interface AuthContextType {
     confirmPassword: string,
     referralCode?: string,
     product?: ProductType,
-    acceptedLegal?: boolean
+    acceptedLegal?: boolean,
+    workspaceInviteToken?: string
   ) => Promise<UserProfile>;
   logoutUser: () => void;
   clearError: () => void;
@@ -182,7 +183,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     confirmPassword: string,
     referralCode?: string,
     product?: ProductType,
-    acceptedLegal?: boolean
+    acceptedLegal?: boolean,
+    workspaceInviteToken?: string
   ) => {
     try {
       if (!acceptedLegal) {
@@ -202,6 +204,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         confirmPassword,
         referralCode,
         product,
+        workspaceInviteToken,
         acceptedLegal: true,
         acceptedLegalVersion: LEGAL_VERSION,
       });

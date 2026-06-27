@@ -28,8 +28,8 @@ import {
 } from "@/utils/api/socialClient";
 import {
 	checkCopilotEligibility,
-	COPILOT_MEMORY_MIN_COMPLETION_SCORE,
 	CopilotEligibility,
+	formatCopilotMemoryStatus,
 } from "@/utils/social/copilotEligibility";
 import {
 	IconArrowUp,
@@ -61,6 +61,16 @@ const starterPrompts = [
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
+const estimateGenerationProgress = (
+	status: "started" | "pending" | "completed" | "failed",
+	attempt: number
+) => {
+	if (status === "completed") return 100;
+	if (status === "failed") return 0;
+	if (status === "started") return 10;
+	return Math.min(92, 15 + attempt * 5);
+};
+
 const initialMessage: ChatMessage = {
 	role: "assistant",
 	content:
@@ -84,6 +94,7 @@ export default function SocialCopilotPage() {
 	const [isThinking, setIsThinking] = useState(false);
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [generationStatus, setGenerationStatus] = useState<string | null>(null);
+	const [generationProgress, setGenerationProgress] = useState(0);
 	const [imageGenerationEnabled, setImageGenerationEnabled] = useState(true);
 	const [humanizerLevel, setHumanizerLevel] = useState<HumanizerLevel>("medium");
 	const [copilotAccess, setCopilotAccess] = useState<CopilotEligibility | null>(null);
@@ -143,7 +154,16 @@ export default function SocialCopilotPage() {
 				setImageGenerationEnabled(true);
 				if (prefs?.humanizerLevel) setHumanizerLevel(prefs.humanizerLevel);
 			} catch {
-				setCopilotAccess(null);
+				setCopilotAccess({
+					eligible: false,
+					linkedinConnected: false,
+					memoryCompletionScore: null,
+					memoryReady: false,
+					brainLoadFailed: true,
+					brainLoadError: "Unexpected error checking Copilot access.",
+					accessLoadFailed: true,
+					accessLoadError: "Unexpected error checking Copilot access.",
+				});
 				setImageGenerationEnabled(true);
 			} finally {
 				setCopilotAccessLoading(false);
@@ -260,6 +280,7 @@ export default function SocialCopilotPage() {
 		}
 		try {
 			setIsGenerating(true);
+			setGenerationProgress(0);
 			setGenerationStatus("Starting draft generation...");
 			setDetailsOpen(true);
 			const questionAnswers = Object.fromEntries(
@@ -292,11 +313,12 @@ export default function SocialCopilotPage() {
 			}, {
 				timeoutMs: 8 * 60 * 1000,
 				onStatus: ({ status, attempt }) => {
+					setGenerationProgress(estimateGenerationProgress(status, attempt));
 					if (status === "started") {
 						setGenerationStatus("Generation started. Creating strategy and drafts...");
 					} else if (status === "pending") {
 						setGenerationStatus(
-							`Still generating drafts${attempt > 1 ? ` (${attempt})` : ""}...`
+							`Still generating drafts${attempt > 1 ? ` (poll ${attempt})` : ""}...`
 						);
 					} else if (status === "completed") {
 						setGenerationStatus("Drafts generated. Loading preview...");
@@ -337,6 +359,7 @@ export default function SocialCopilotPage() {
 		} finally {
 			setIsGenerating(false);
 			setGenerationStatus(null);
+			setGenerationProgress(0);
 		}
 	};
 
@@ -346,6 +369,47 @@ export default function SocialCopilotPage() {
 				<div className="text-center">
 					<IconLoader2 className="w-8 h-8 animate-spin text-brand-main mx-auto mb-3" />
 					<p className="text-text-200 text-sm">Loading Copilot...</p>
+				</div>
+			</div>
+		);
+	}
+
+	if (copilotAccess && (copilotAccess.accessLoadFailed || copilotAccess.brainLoadFailed) && !copilotAccess.eligible) {
+		const serviceError =
+			copilotAccess.brainLoadError ||
+			copilotAccess.accessLoadError ||
+			"SocialSnipper services are unavailable.";
+		return (
+			<div className="min-h-screen bg-bg-100 flex items-center justify-center p-6">
+				<div className="max-w-lg w-full bg-bg-200 rounded-2xl p-8 border border-amber-500/30">
+					<div className="text-center mb-6">
+						<div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-500/10 mb-4">
+							<IconLoader2 className="w-7 h-7 text-amber-600" />
+						</div>
+						<h1 className="text-xl font-bold text-text-100 mb-2">
+							Copilot services unavailable
+						</h1>
+						<p className="text-sm text-text-200">{serviceError}</p>
+					</div>
+					<div className="rounded-xl border border-bg-300 bg-bg-100 p-4 text-xs text-text-300 space-y-2">
+						<p className="font-medium text-text-200">Local dev checklist</p>
+						<p>1. Run <code className="text-text-100">pnpm run start:dev:server</code> in <code className="text-text-100">totalads-social-service</code> (port 3005).</p>
+						<p>2. Set <code className="text-text-100">SOCIAL_BACKGROUND_JOBS_DISABLED=false</code> in <code className="text-text-100">totalads-shared/.env.local</code> for scheduled publishing.</p>
+						<p>3. Refresh this page after the service is up.</p>
+					</div>
+					<div className="mt-6 flex flex-col gap-2">
+						<PrimaryButton
+							className="w-full justify-center"
+							onClick={() => window.location.reload()}
+						>
+							Retry
+						</PrimaryButton>
+						<Link href="/social/post-studio">
+							<SecondaryButton className="w-full justify-center">
+								Try Post Studio instead
+							</SecondaryButton>
+						</Link>
+					</div>
 				</div>
 			</div>
 		);
@@ -397,9 +461,7 @@ export default function SocialCopilotPage() {
 							<div>
 								<p className="font-medium text-text-100 text-sm">Memory setup</p>
 								<p className="text-xs text-text-300 mt-1">
-									{copilotAccess.memoryReady
-										? `${copilotAccess.memoryCompletionScore}% complete`
-										: `${copilotAccess.memoryCompletionScore}% complete — reach ${COPILOT_MEMORY_MIN_COMPLETION_SCORE}% for Copilot.`}
+									{formatCopilotMemoryStatus(copilotAccess)}
 								</p>
 							</div>
 						</div>
@@ -589,6 +651,7 @@ export default function SocialCopilotPage() {
 							onGenerate={generateApprovedPlan}
 							isGenerating={isGenerating}
 							generationStatus={generationStatus}
+							generationProgress={generationProgress}
 						/>
 					</aside>
 				</main>
@@ -623,6 +686,7 @@ export default function SocialCopilotPage() {
 					onGenerate={generateApprovedPlan}
 					isGenerating={isGenerating}
 					generationStatus={generationStatus}
+					generationProgress={generationProgress}
 				/>
 			</DetailsDrawer>
 		</div>
@@ -661,6 +725,7 @@ function WorkspacePanel({
 	onGenerate,
 	isGenerating,
 	generationStatus,
+	generationProgress,
 }: {
 	chatId: string | null;
 	brief: CopilotBriefResponse | null;
@@ -676,6 +741,7 @@ function WorkspacePanel({
 	onGenerate: () => void;
 	isGenerating: boolean;
 	generationStatus: string | null;
+	generationProgress: number;
 }) {
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[26px] border border-white/80 bg-white shadow-[0_20px_70px_rgba(15,23,42,0.09)]">
@@ -695,6 +761,7 @@ function WorkspacePanel({
 						onGenerate={onGenerate}
 						isGenerating={isGenerating}
 						generationStatus={generationStatus}
+						generationProgress={generationProgress}
 					/>
 				) : (
 					<PromptActionCard />
@@ -737,6 +804,7 @@ function BriefingPanel({
 	onGenerate,
 	isGenerating,
 	generationStatus,
+	generationProgress,
 }: {
 	brief: CopilotBriefResponse;
 	imageGenerationEnabled: boolean;
@@ -747,6 +815,7 @@ function BriefingPanel({
 	onGenerate: () => void;
 	isGenerating: boolean;
 	generationStatus: string | null;
+	generationProgress: number;
 }) {
 	const [fullPlanOpen, setFullPlanOpen] = useState(false);
 
@@ -865,11 +934,20 @@ function BriefingPanel({
 			</PrimaryButton>
 			{isGenerating && generationStatus ? (
 				<div className="rounded-2xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800">
-					<div className="flex items-center gap-2 font-semibold">
-						<IconRotateClockwise className="h-3.5 w-3.5 animate-spin" />
-						{generationStatus}
+					<div className="mb-2 flex items-center justify-between gap-2">
+						<div className="flex items-center gap-2 font-semibold">
+							<IconRotateClockwise className="h-3.5 w-3.5 animate-spin" />
+							{generationStatus}
+						</div>
+						<span className="tabular-nums text-blue-700">{generationProgress}%</span>
 					</div>
-					<p className="mt-1 text-blue-700/90">
+					<div className="h-1.5 overflow-hidden rounded-full bg-blue-100">
+						<div
+							className="h-full rounded-full bg-blue-500 transition-all duration-500 ease-out"
+							style={{ width: `${generationProgress}%` }}
+						/>
+					</div>
+					<p className="mt-2 text-blue-700/90">
 						You can keep this page open. If the network drops, the copilot will try
 						to reload the generated drafts from the saved session.
 					</p>

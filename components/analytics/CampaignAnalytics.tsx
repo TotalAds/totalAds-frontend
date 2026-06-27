@@ -43,6 +43,7 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
   campaignId,
   onMarkReplied,
   onDeliverabilityAcknowledged,
+  embedded = false,
 }) => {
   const [activeTab, setActiveTab] = useState<'flow' | 'trends' | 'leads'>('flow')
   const [selectedStep, setSelectedStep] = useState<number | 'all'>('all')
@@ -50,10 +51,9 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
   const [ackSubmitting, setAckSubmitting] = useState(false)
 
   // Computed values
-  const openRate = metrics.delivered > 0 ? ((metrics.opened / metrics.delivered) * 100).toFixed(1) : '0.0'
-  const deliveryRate = metrics.sent > 0 ? ((metrics.delivered / metrics.sent) * 100).toFixed(1) : '0.0'
+  const openRate = metrics.sent > 0 ? ((metrics.opened / metrics.sent) * 100).toFixed(1) : '0.0'
   const clickRate = metrics.opened > 0 ? ((metrics.clicked / metrics.opened) * 100).toFixed(1) : '0.0'
-  const replyRate = metrics.delivered > 0 ? ((metrics.replied / metrics.delivered) * 100).toFixed(1) : '0.0'
+  const replyRate = metrics.sent > 0 ? ((metrics.replied / metrics.sent) * 100).toFixed(1) : '0.0'
   
   const industryAvgOpenRate = 21
   const openRateMultiplier = (parseFloat(openRate) / industryAvgOpenRate).toFixed(1)
@@ -190,38 +190,40 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
           </div>
         </div>
         
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <DeliverabilitySafeguardsInfo variant="compact" />
-          
-          {!isCancelled && onStopCampaign && (
-            <button
-              onClick={onStopCampaign}
-              disabled={stopping}
-              className="px-4 py-2 text-xs font-medium bg-red-50 text-red-600 border border-red-100 rounded-lg shadow-sm hover:bg-red-100 transition-colors disabled:opacity-60"
-            >
-              {stopping ? 'Stopping...' : 'Stop campaign'}
-            </button>
-          )}
+        {!embedded && (
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <DeliverabilitySafeguardsInfo variant="compact" />
 
-          {isPaused && onEditCampaign && (
-            <button
-              onClick={handleResumeClick}
-              className="px-4 py-2 text-xs font-medium bg-amber-600 text-white border border-amber-700 rounded-lg shadow-sm hover:bg-amber-700 transition-colors"
-            >
-              Resume campaign
-            </button>
-          )}
-          
-          {showDownload && onDownloadReport && (
-            <button
-              onClick={onDownloadReport}
-              disabled={downloading}
-              className="px-4 py-2 text-xs font-medium bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-60"
-            >
-              {downloading ? 'Downloading...' : 'Download report'}
-            </button>
-          )}
-        </div>
+            {!isCancelled && onStopCampaign && (
+              <button
+                onClick={onStopCampaign}
+                disabled={stopping}
+                className="px-4 py-2 text-xs font-medium bg-red-50 text-red-600 border border-red-100 rounded-lg shadow-sm hover:bg-red-100 transition-colors disabled:opacity-60"
+              >
+                {stopping ? 'Stopping...' : 'Stop campaign'}
+              </button>
+            )}
+
+            {isPaused && onEditCampaign && (
+              <button
+                onClick={handleResumeClick}
+                className="px-4 py-2 text-xs font-medium bg-amber-600 text-white border border-amber-700 rounded-lg shadow-sm hover:bg-amber-700 transition-colors"
+              >
+                Resume campaign
+              </button>
+            )}
+
+            {showDownload && onDownloadReport && (
+              <button
+                onClick={onDownloadReport}
+                disabled={downloading}
+                className="px-4 py-2 text-xs font-medium bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-60"
+              >
+                {downloading ? 'Downloading...' : 'Download report'}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* DELIVERABILITY STATUS */}
@@ -254,7 +256,7 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
           <div className="flex items-center gap-2">
             <span className="text-blue-500">ℹ</span>
             <span>
-              Daily sender caps and bounce/complaint rates can change automatically during sending.
+              Daily sender caps and bounce rates can change automatically during sending.
             </span>
           </div>
           <DeliverabilitySafeguardsInfo variant="link" />
@@ -264,7 +266,6 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
       {/* HEALTH BANNER */}
       {showHealthBanner && parseFloat(openRate) > 0 && (
         <HealthBanner
-          deliveryRate={deliveryRate}
           openRate={openRate}
           openRateMultiplier={openRateMultiplier}
           pending={metrics.pending}
@@ -296,12 +297,9 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
         <HeroMetrics
           openRate={openRate}
           openRateMultiplier={openRateMultiplier}
-          deliveryRate={deliveryRate}
           clickRate={clickRate}
           replyRate={replyRate}
           pending={metrics.pending}
-          sent={metrics.sent}
-          delivered={metrics.delivered}
           replied={metrics.replied}
         />
       </div>
@@ -447,7 +445,6 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
       <div className="mt-8 pb-12">
         <OptimizationInsights
           mode={mode}
-          deliveryRate={Number(deliveryRate)}
           openRate={Number(openRate)}
           clickRate={Number(clickRate)}
           replied={metrics.replied}

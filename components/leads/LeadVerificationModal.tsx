@@ -82,9 +82,9 @@ export function LeadVerificationModal({
       return "bg-red-500/20 text-red-300";
     }
     if (["catch_all", "role_account"].includes(normalized)) {
-      return "bg-amber-500/20 text-amber-300";
+      return "bg-amber-100 text-amber-800";
     }
-    return "bg-blue-500/20 text-blue-300";
+    return "bg-blue-100 text-blue-800";
   };
 
   const renderFlag = (label: string, value: boolean | null | undefined) => {

@@ -6,6 +6,7 @@ import { Toaster } from "react-hot-toast";
 
 import OnboardingProtectionWrapper from "@/components/layout/OnboardingProtectionWrapper";
 import { AuthProvider, useAuthContext } from "@/context/AuthContext";
+import { WorkspaceProvider } from "@/context/WorkspaceContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { identifyUser, resetIdentity } from "@/utils/analytics/track";
 import { getUtmForAnalytics, initUtmTracking } from "@/utils/analytics/utm";
@@ -78,6 +79,7 @@ const Provider = ({ children }: { children: React.ReactNode }) => {
     <PostHogProvider client={posthog}>
       <ThemeProvider>
         <AuthProvider>
+          <WorkspaceProvider>
           <PageViewTracker />
           <UtmInitializer />
           <AuthIdentify />
@@ -107,6 +109,7 @@ const Provider = ({ children }: { children: React.ReactNode }) => {
               },
             }}
           />
+          </WorkspaceProvider>
         </AuthProvider>
       </ThemeProvider>
     </PostHogProvider>

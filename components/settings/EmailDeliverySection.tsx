@@ -4,67 +4,37 @@ import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 import { SesAwsIdentitiesImportSection } from "@/components/email/SesAwsIdentitiesImportSection";
-import {
+import { SesSnsTrackingSection } from "@/components/email/SesSnsTrackingSection";
+import emailClient, {
   deleteSesCredentials,
   getDomains,
   getEmailSendersTotalCount,
   getSesCredentialsStatus,
-  saveManualConfigSet,
-  setupSnsTracking,
   storeSesCredentials,
   testSesCredentials,
-  verifySnsTracking,
 } from "@/utils/api/emailClient";
-import { getEmailProvider, type SesProvider } from "@/utils/api/apiClient";
+import { getEmailProvider, type PrimarySendingMethod, type SesProvider } from "@/utils/api/apiClient";
+import { AWS_SES_REGIONS, getAwsSesRegionLabel } from "@/lib/awsSesRegions";
 import {
-  IconActivityHeartbeat,
-  IconAlertTriangle,
   IconCheck,
-  IconChevronDown,
-  IconChevronUp,
   IconCircleDot,
-  IconCopy,
   IconExternalLink,
   IconLock,
   IconMail,
   IconShieldCheck,
 } from "@tabler/icons-react";
 
-const SNS_WEBHOOK_EVENTS = [
-  { key: "send", label: "Sends" },
-  { key: "reject", label: "Rejects" },
-  { key: "bounce", label: "Bounces" },
-  { key: "complaint", label: "Complaints" },
-  { key: "delivery", label: "Deliveries" },
-] as const;
-
-const AWS_REGIONS: { value: string; label: string }[] = [
-  { value: "us-east-1", label: "US East (N. Virginia) — us-east-1" },
-  { value: "us-east-2", label: "US East (Ohio) — us-east-2" },
-  { value: "us-west-1", label: "US West (N. California) — us-west-1" },
-  { value: "us-west-2", label: "US West (Oregon) — us-west-2" },
-  { value: "af-south-1", label: "Africa (Cape Town) — af-south-1" },
-  { value: "ap-south-1", label: "Asia Pacific (Mumbai) — ap-south-1" },
-  { value: "ap-northeast-1", label: "Asia Pacific (Tokyo) — ap-northeast-1" },
-  { value: "ap-northeast-2", label: "Asia Pacific (Seoul) — ap-northeast-2" },
-  { value: "ap-northeast-3", label: "Asia Pacific (Osaka) — ap-northeast-3" },
-  { value: "ap-southeast-1", label: "Asia Pacific (Singapore) — ap-southeast-1" },
-  { value: "ap-southeast-2", label: "Asia Pacific (Sydney) — ap-southeast-2" },
-  { value: "ca-central-1", label: "Canada (Central) — ca-central-1" },
-  { value: "eu-central-1", label: "Europe (Frankfurt) — eu-central-1" },
-  { value: "eu-west-1", label: "Europe (Ireland) — eu-west-1" },
-  { value: "eu-west-2", label: "Europe (London) — eu-west-2" },
-  { value: "eu-west-3", label: "Europe (Paris) — eu-west-3" },
-  { value: "eu-north-1", label: "Europe (Stockholm) — eu-north-1" },
-  { value: "eu-south-1", label: "Europe (Milan) — eu-south-1" },
-  { value: "il-central-1", label: "Israel (Tel Aviv) — il-central-1" },
-  { value: "me-south-1", label: "Middle East (Bahrain) — me-south-1" },
-  { value: "me-central-1", label: "Middle East (UAE) — me-central-1" },
-  { value: "sa-east-1", label: "South America (São Paulo) — sa-east-1" },
-];
-
 export default function EmailDeliverySection() {
   const [sesProvider, setSesProvider] = useState<SesProvider | null>(null);
+  const [primarySendingMethod, setPrimarySendingMethod] =
+    useState<PrimarySendingMethod | null>(null);
+  const [sesServiceEnabled, setSesServiceEnabled] = useState(false);
+  const [sesServiceMode, setSesServiceMode] = useState<"managed_ses" | "byo_ses" | null>(null);
+  const [customPlanLimits, setCustomPlanLimits] = useState<{
+    monthlyEmailLimit: number;
+    maxContacts: number;
+    planName: string | null;
+  } | null>(null);
   const [providerSetAt, setProviderSetAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [creds, setCreds] = useState<{
@@ -85,15 +55,6 @@ export default function EmailDeliverySection() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
 
-  // SNS setup state
-  const [settingUpSns, setSettingUpSns] = useState(false);
-  const [verifyingSns, setVerifyingSns] = useState(false);
-  const [showManualSns, setShowManualSns] = useState(false);
-  const [manualConfigSetName, setManualConfigSetName] = useState("");
-  const [savingConfigSet, setSavingConfigSet] = useState(false);
-  /** Full multiline error from auto-setup (toast is too short for IAM instructions) */
-  const [snsSetupError, setSnsSetupError] = useState<string | null>(null);
-
   const [appDomainCount, setAppDomainCount] = useState(0);
   const [appSenderCount, setAppSenderCount] = useState(0);
 
@@ -101,8 +62,21 @@ export default function EmailDeliverySection() {
     try {
       const status = await getEmailProvider();
       setSesProvider((status.sesProvider as SesProvider) || null);
-      setProviderSetAt(status.sesProviderSetAt || null);
-      if (status.sesProvider === "custom") {
+      setPrimarySendingMethod(status.primarySendingMethod ?? null);
+      setSesServiceEnabled(!!status.sesServiceEnabled);
+      setSesServiceMode(status.sesServiceMode ?? null);
+      setCustomPlanLimits(status.customPlanLimits ?? null);
+      setProviderSetAt(
+        status.sesServiceEnabledAt ||
+          status.primarySendingMethodSetAt ||
+          status.sesProviderSetAt ||
+          null
+      );
+      const isByoSes =
+        (status.sesServiceEnabled && status.sesServiceMode === "byo_ses") ||
+        status.primarySendingMethod === "byo_ses" ||
+        status.sesProvider === "custom";
+      if (isByoSes) {
         try {
           const c = await getSesCredentialsStatus();
           setCreds(c);
@@ -187,74 +161,57 @@ export default function EmailDeliverySection() {
     }
   };
 
-  const handleAutoSetupSns = async () => {
-    setSettingUpSns(true);
-    setSnsSetupError(null);
-    try {
-      const result = await setupSnsTracking();
-      if (result.success) {
-        setSnsSetupError(null);
-        toast.success("SNS event tracking configured successfully");
-        load();
-      } else {
-        const msg = result.message || "SNS setup failed";
-        setSnsSetupError(msg);
-        toast.error("SNS auto-setup failed — see instructions below.");
-        const failed = result.data?.steps?.some((s) => s.status === "failed");
-        if (failed) setShowManualSns(true);
-      }
-    } catch (e: any) {
-      const msg =
-        e?.response?.data?.message || e?.message || "SNS setup failed";
-      setSnsSetupError(typeof msg === "string" ? msg : String(msg));
-      toast.error("SNS auto-setup failed — see instructions below.");
-      setShowManualSns(true);
-    } finally {
-      setSettingUpSns(false);
-    }
-  };
+  const isManagedSesActive =
+    (sesServiceEnabled && sesServiceMode === "managed_ses") ||
+    primarySendingMethod === "managed_ses" ||
+    sesProvider === "leadsnipper_managed";
+  const isByoSesActive =
+    (sesServiceEnabled && sesServiceMode === "byo_ses") ||
+    primarySendingMethod === "byo_ses" ||
+    sesProvider === "custom";
+  const isInboxOnly =
+    !sesServiceEnabled &&
+    (primarySendingMethod === "gmail" ||
+      primarySendingMethod === "outlook" ||
+      primarySendingMethod === "smtp");
 
-  const handleVerifySns = async () => {
-    setVerifyingSns(true);
-    try {
-      const result = await verifySnsTracking();
-      if (result.data?.configurationSetExists && result.data?.eventDestinationExists) {
-        toast.success("SNS event tracking verified successfully");
-        load();
-      } else {
-        const issues: string[] = [];
-        if (!result.data?.configurationSetExists) issues.push("Configuration Set not found");
-        if (!result.data?.eventDestinationExists) issues.push("Event destination not configured");
-        if (!result.data?.snsTopicExists) issues.push("SNS topic not found");
-        if (!result.data?.subscriptionConfirmed) issues.push("Webhook subscription pending");
-        toast.error(`Issues: ${issues.join(", ")}`);
-      }
-    } catch (e: any) {
-      toast.error(e?.message || "Verification failed");
-    } finally {
-      setVerifyingSns(false);
-    }
-  };
+  const [sesRequestOpen, setSesRequestOpen] = useState(false);
+  const [sesRequestSubmitting, setSesRequestSubmitting] = useState(false);
+  const [sesRequestForm, setSesRequestForm] = useState({
+    requestedSesMode: "managed_ses" as "managed_ses" | "byo_ses",
+    expectedMonthlyEmails: "10000",
+    expectedContacts: "5000",
+    useCase: "",
+    budgetRange: "₹5,000 - ₹10,000/month",
+    contactPhone: "",
+  });
 
-  const handleSaveManualConfigSet = async () => {
-    if (!manualConfigSetName.trim()) {
-      toast.error("Enter a Configuration Set name");
+  const submitSesRequest = async () => {
+    if (!sesRequestForm.useCase.trim() || sesRequestForm.useCase.trim().length < 10) {
+      toast.error("Describe your use case (at least 10 characters).");
       return;
     }
-    setSavingConfigSet(true);
+    setSesRequestSubmitting(true);
     try {
-      const result = await saveManualConfigSet(manualConfigSetName.trim());
-      if (result.success) {
-        toast.success("Configuration Set saved and verified");
-        setShowManualSns(false);
-        load();
-      } else {
-        toast.error(result.message || "Failed to verify Configuration Set");
-      }
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || e?.message || "Failed to save");
+      await emailClient.post("/api/custom-plan/ses-request", {
+        requestedSesMode: sesRequestForm.requestedSesMode,
+        expectedMonthlyEmails: Number(sesRequestForm.expectedMonthlyEmails),
+        expectedContacts: Number(sesRequestForm.expectedContacts),
+        useCase: sesRequestForm.useCase.trim(),
+        budgetRange: sesRequestForm.budgetRange,
+        contactPhone: sesRequestForm.contactPhone || undefined,
+      });
+      toast.success("SES service request submitted. Our team will contact you shortly.");
+      setSesRequestOpen(false);
+    } catch (error: unknown) {
+      const msg =
+        error && typeof error === "object" && "response" in error
+          ? (error as { response?: { data?: { error?: string } } }).response?.data
+              ?.error
+          : undefined;
+      toast.error(msg || "Failed to submit request");
     } finally {
-      setSavingConfigSet(false);
+      setSesRequestSubmitting(false);
     }
   };
 
@@ -274,13 +231,21 @@ export default function EmailDeliverySection() {
           Email delivery
         </h2>
         <p className="text-sm text-text-200 mt-1">
-          {sesProvider === "leadsnipper_managed" &&
-            "You selected LeadSnipper Managed SES during onboarding. We manage SES, reputation, throttling, and safety. This is a one-time choice and cannot be changed later."}
-          {sesProvider === "custom" &&
-            "You selected Bring Your Own SES during onboarding. You connect your own AWS SES account and manage reputation and limits. This is a one-time choice and cannot be changed later."}
-          {sesProvider === null &&
-            "Complete onboarding to choose your email delivery option. Once selected, it cannot be changed later."}
+          {isManagedSesActive &&
+            "LeadSnipper Managed SES is enabled for your account. We manage reputation, throttling, and safety."}
+          {isByoSesActive &&
+            !isManagedSesActive &&
+            "Bring Your Own SES is enabled. Connect AWS credentials below, then add domains and senders."}
+          {isInboxOnly &&
+            "You send through connected inboxes (Gmail, Outlook, or SMTP). AWS SES is available as a paid add-on — request access below."}
         </p>
+        {customPlanLimits && sesServiceEnabled && (
+          <p className="text-xs text-text-300 mt-2">
+            Your SES plan: {customPlanLimits.planName || "Custom"} — up to{" "}
+            {customPlanLimits.monthlyEmailLimit.toLocaleString()} emails/month and{" "}
+            {customPlanLimits.maxContacts.toLocaleString()} contacts.
+          </p>
+        )}
         {providerSetAt && (
           <p className="text-xs text-text-300 mt-1">
             Selected on {new Date(providerSetAt).toLocaleString()}
@@ -288,13 +253,122 @@ export default function EmailDeliverySection() {
         )}
       </div>
 
-      {sesProvider === null && (
-        <p className="text-sm text-text-200">
-          Complete onboarding to set your email delivery option.
-        </p>
+      {isInboxOnly && (
+        <div className="p-4 rounded-lg bg-bg-300 border border-bg-200 space-y-3">
+          <p className="font-medium text-text-100">Connected inbox sending</p>
+          <p className="text-sm text-text-200">
+            Add or manage Gmail, Outlook, and SMTP accounts from Sending Accounts.
+          </p>
+          <a
+            href="/email/sending-accounts"
+            className="inline-flex items-center gap-1 text-sm text-brand-main hover:underline font-medium"
+          >
+            Open Sending Accounts
+            <IconExternalLink className="w-4 h-4" />
+          </a>
+        </div>
       )}
 
-      {sesProvider === "leadsnipper_managed" && (
+      {!sesServiceEnabled && (
+        <div className="p-4 rounded-lg border border-dashed border-brand-main/40 bg-brand-main/5 space-y-3">
+          <p className="font-medium text-text-100">Request AWS SES access</p>
+          <p className="text-sm text-text-200">
+            High-volume sending through LeadSnipper Managed SES or your own AWS account
+            is a custom service. Tell us your volume needs and we will enable SES on your account.
+          </p>
+          {!sesRequestOpen ? (
+            <button
+              type="button"
+              onClick={() => setSesRequestOpen(true)}
+              className="text-sm font-medium text-brand-main hover:underline"
+            >
+              Request SES service →
+            </button>
+          ) : (
+            <div className="space-y-3 pt-2">
+              <div>
+                <label className="text-xs text-text-200">Preferred SES type</label>
+                <select
+                  value={sesRequestForm.requestedSesMode}
+                  onChange={(e) =>
+                    setSesRequestForm((f) => ({
+                      ...f,
+                      requestedSesMode: e.target.value as "managed_ses" | "byo_ses",
+                    }))
+                  }
+                  className="mt-1 w-full rounded-md border border-bg-200 bg-bg-100 px-3 py-2 text-sm"
+                >
+                  <option value="managed_ses">LeadSnipper Managed SES</option>
+                  <option value="byo_ses">Bring Your Own SES</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-text-200">Monthly emails</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={sesRequestForm.expectedMonthlyEmails}
+                    onChange={(e) =>
+                      setSesRequestForm((f) => ({
+                        ...f,
+                        expectedMonthlyEmails: e.target.value,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-md border border-bg-200 bg-bg-100 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-text-200">Contacts</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={sesRequestForm.expectedContacts}
+                    onChange={(e) =>
+                      setSesRequestForm((f) => ({
+                        ...f,
+                        expectedContacts: e.target.value,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-md border border-bg-200 bg-bg-100 px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-text-200">Use case</label>
+                <textarea
+                  rows={3}
+                  value={sesRequestForm.useCase}
+                  onChange={(e) =>
+                    setSesRequestForm((f) => ({ ...f, useCase: e.target.value }))
+                  }
+                  className="mt-1 w-full rounded-md border border-bg-200 bg-bg-100 px-3 py-2 text-sm"
+                  placeholder="Describe your outreach volume, domains, and deliverability needs…"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={sesRequestSubmitting}
+                  onClick={submitSesRequest}
+                  className="px-4 py-2 rounded-md bg-brand-main text-white text-sm font-medium disabled:opacity-50"
+                >
+                  {sesRequestSubmitting ? "Submitting…" : "Submit request"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSesRequestOpen(false)}
+                  className="px-4 py-2 rounded-md border border-bg-200 text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {isManagedSesActive && (
         <div className="p-4 rounded-lg bg-brand-main/10 border border-brand-main/20 space-y-2">
           <p className="font-medium text-text-100">LeadSnipper Managed SES</p>
           <p className="text-sm text-text-200">
@@ -306,10 +380,17 @@ export default function EmailDeliverySection() {
             Each verified sender has its own smart daily cap. If reputation drops or global SES
             risk increases, we automatically slow or pause sending to protect your deliverability.
           </p>
+          <a
+            href="/email/domains"
+            className="inline-flex items-center gap-1 text-sm text-brand-main hover:underline font-medium"
+          >
+            Manage domains & senders
+            <IconExternalLink className="w-4 h-4" />
+          </a>
         </div>
       )}
 
-      {sesProvider === "custom" && (
+      {isByoSesActive && (
         <>
           <div className="p-4 rounded-lg bg-bg-300 border border-bg-200">
             <div className="flex items-center gap-2 mb-1">
@@ -384,9 +465,9 @@ export default function EmailDeliverySection() {
                   }
                   className="w-full px-3 py-2 border border-bg-200 rounded-lg bg-bg-100 text-text-100 text-sm"
                 >
-                  {AWS_REGIONS.map((r) => (
+                  {AWS_SES_REGIONS.map((r) => (
                     <option key={r.value} value={r.value}>
-                      {r.label}
+                      {r.label} — {r.value}
                     </option>
                   ))}
                 </select>
@@ -452,7 +533,7 @@ export default function EmailDeliverySection() {
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                   <span className="text-text-300">Region</span>
                   <span className="text-text-100">
-                    {AWS_REGIONS.find((r) => r.value === creds.awsRegion)?.label || creds.awsRegion}
+                    {getAwsSesRegionLabel(creds.awsRegion)}
                   </span>
                   {creds.accessKeyIdHint && (
                     <>
@@ -518,249 +599,11 @@ export default function EmailDeliverySection() {
 
           {/* ── SNS Event Tracking Setup ── */}
           {creds.connected && creds.isVerified && (
-            <div className="space-y-4 max-w-lg">
-              <div className="border-t border-bg-200 pt-5">
-                <div className="flex items-center gap-2 mb-1">
-                  <IconActivityHeartbeat className="w-5 h-5 text-brand-main" />
-                  <h3 className="font-medium text-text-100">
-                    SNS event tracking
-                  </h3>
-                </div>
-                <p className="text-sm text-text-200 mb-3">
-                  Required for email analytics — bounces, complaints, deliveries,
-                  and reputation metrics are tracked through AWS SNS notifications
-                  to our HTTPS webhook.
-                </p>
-
-                {/* Webhook endpoint (same URL auto-setup subscribes for SNS → SES events) */}
-                <div className="p-3 rounded-lg bg-bg-300/50 border border-bg-200 mb-4 space-y-2">
-                  <p className="text-xs font-medium text-text-100">
-                    SNS HTTPS subscription (send, reject, bounce, complaint, delivery)
-                  </p>
-                  <p className="text-[11px] text-text-300">
-                    Auto-setup creates an SNS topic and subscribes this endpoint so SES
-                    can publish delivery events we use for analytics and suppression.
-                    Events: {SNS_WEBHOOK_EVENTS.map((e) => e.label).join(", ")}.
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <code className="text-[11px] break-all bg-bg-100 px-2 py-1.5 rounded border border-bg-200 flex-1 min-w-0">
-                      {typeof window !== "undefined"
-                        ? `${process.env.NEXT_PUBLIC_EMAIL_SERVICE_URL || "http://localhost:3001"}/api/webhooks/sns`
-                        : "/api/webhooks/sns"}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const url = `${process.env.NEXT_PUBLIC_EMAIL_SERVICE_URL || "http://localhost:3001"}/api/webhooks/sns`;
-                        void navigator.clipboard.writeText(url).then(
-                          () => toast.success("Webhook URL copied"),
-                          () => toast.error("Could not copy")
-                        );
-                      }}
-                      className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-text-100 bg-bg-200 rounded-lg hover:bg-bg-300 shrink-0"
-                    >
-                      <IconCopy className="w-3.5 h-3.5" />
-                      Copy
-                    </button>
-                  </div>
-                </div>
-
-                {!creds.snsSetupComplete ? (
-                  <>
-                    {/* Warning banner */}
-                    <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 mb-4">
-                      <div className="flex gap-2">
-                        <IconAlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium text-text-100">
-                            Analytics not available yet
-                          </p>
-                          <p className="text-xs text-text-200">
-                            Without SNS event tracking, you won&apos;t see bounce rates,
-                            complaint rates, or delivery confirmations. This also affects
-                            sender reputation tracking and warm-up accuracy.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Why this is needed */}
-                    <div className="p-3 rounded-lg bg-bg-300/50 border border-bg-200 mb-4 space-y-2">
-                      <p className="text-xs font-medium text-text-100">Why is this required?</p>
-                      <ul className="text-xs text-text-200 space-y-1 list-disc pl-4">
-                        <li>AWS SES sends bounce, complaint, and delivery events via SNS</li>
-                        <li>We need an SNS topic in your account subscribed to our webhook</li>
-                        <li>A Configuration Set in SES routes events to that SNS topic</li>
-                        <li>This lets us track delivery stats, protect your sender reputation, and auto-suppress bad addresses</li>
-                      </ul>
-                    </div>
-
-                    {/* What it creates */}
-                    <div className="p-3 rounded-lg bg-bg-300/50 border border-bg-200 mb-4 space-y-2">
-                      <p className="text-xs font-medium text-text-100">What auto-setup creates in your AWS account</p>
-                      <ol className="text-xs text-text-200 space-y-1 list-decimal pl-4">
-                        <li>An SNS topic named <code className="bg-bg-300 px-1 py-0.5 rounded">leadsniper-ses-events</code></li>
-                        <li>An HTTPS subscription pointing to our webhook endpoint</li>
-                        <li>An SES Configuration Set named <code className="bg-bg-300 px-1 py-0.5 rounded">{process.env.AWS_SES_CONFIGURATION_SET_NAME || 'leadsnipper'}</code></li>
-                        <li>Event destinations for bounces, complaints, deliveries, sends, and rejects</li>
-                      </ol>
-                      <p className="text-[11px] text-text-300 mt-1">
-                        Your IAM user needs both <code className="bg-bg-300 px-1 py-0.5 rounded text-[11px]">AmazonSESFullAccess</code> and{" "}
-                        <code className="bg-bg-300 px-1 py-0.5 rounded text-[11px]">AmazonSNSFullAccess</code> policies for auto-setup.
-                      </p>
-                    </div>
-
-                    {/* Auto-setup button */}
-                    <div className="flex gap-2 mb-3">
-                      <button
-                        type="button"
-                        onClick={handleAutoSetupSns}
-                        disabled={settingUpSns}
-                        className="px-4 py-2 text-sm font-medium text-white bg-brand-main rounded-lg hover:bg-brand-main/90 disabled:opacity-50"
-                      >
-                        {settingUpSns ? "Setting up..." : "Auto-setup SNS tracking"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleVerifySns}
-                        disabled={verifyingSns}
-                        className="px-4 py-2 text-sm font-medium text-text-100 bg-bg-200 rounded-lg hover:bg-bg-300 disabled:opacity-50"
-                      >
-                        {verifyingSns ? "Verifying..." : "Verify setup"}
-                      </button>
-                    </div>
-
-                    {snsSetupError && (
-                      <div className="mb-4 p-4 rounded-lg bg-red-500/10 border border-red-500/30 space-y-2">
-                        <div className="flex gap-2">
-                          <IconAlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-text-100 mb-2">
-                              SNS auto-setup could not finish
-                            </p>
-                            <pre className="text-xs text-text-200 whitespace-pre-wrap font-sans break-words m-0">
-                              {snsSetupError}
-                            </pre>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setSnsSetupError(null)}
-                          className="text-xs text-text-300 hover:text-text-100"
-                        >
-                          Dismiss
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Manual setup toggle */}
-                    <button
-                      type="button"
-                      onClick={() => setShowManualSns(!showManualSns)}
-                      className="flex items-center gap-1 text-xs text-text-300 hover:text-text-100 transition-colors"
-                    >
-                      {showManualSns ? <IconChevronUp className="w-3 h-3" /> : <IconChevronDown className="w-3 h-3" />}
-                      {showManualSns ? "Hide manual setup" : "Set up manually instead"}
-                    </button>
-
-                    {showManualSns && (
-                      <div className="mt-3 p-4 rounded-lg border border-bg-200 bg-bg-100 space-y-3">
-                        <p className="text-sm font-medium text-text-100">Manual setup instructions</p>
-                        <div className="text-xs text-text-200 space-y-3">
-                          <div>
-                            <p className="font-medium text-text-100 mb-1">Step 1: Create an SNS topic</p>
-                            <ol className="list-decimal pl-4 space-y-0.5">
-                              <li>Go to <a href="https://console.aws.amazon.com/sns/v3/home" target="_blank" rel="noopener noreferrer" className="text-brand-main hover:underline">AWS SNS Console <IconExternalLink className="w-3 h-3 inline" /></a></li>
-                              <li>Make sure you&apos;re in the same region as your SES ({creds.awsRegion || "your region"})</li>
-                              <li>Click &quot;Create topic&quot; → Type: Standard → Name: <code className="bg-bg-300 px-1 py-0.5 rounded">leadsniper-ses-events</code></li>
-                              <li>Click &quot;Create topic&quot; and copy the Topic ARN</li>
-                            </ol>
-                          </div>
-                          <div>
-                            <p className="font-medium text-text-100 mb-1">Step 2: Subscribe our webhook</p>
-                            <ol className="list-decimal pl-4 space-y-0.5">
-                              <li>On the topic page, click &quot;Create subscription&quot;</li>
-                              <li>Protocol: <strong>HTTPS</strong></li>
-                              <li>Endpoint: <code className="bg-bg-300 px-1 py-0.5 rounded break-all">{typeof window !== "undefined" ? `${process.env.NEXT_PUBLIC_EMAIL_SERVICE_URL || ""}/api/webhooks/sns` : "/api/webhooks/sns"}</code></li>
-                              <li>Click &quot;Create subscription&quot; — we auto-confirm it</li>
-                            </ol>
-                          </div>
-                          <div>
-                            <p className="font-medium text-text-100 mb-1">Step 3: Create SES Configuration Set</p>
-                            <ol className="list-decimal pl-4 space-y-0.5">
-                              <li>Go to <a href="https://console.aws.amazon.com/ses/home#/configuration-sets" target="_blank" rel="noopener noreferrer" className="text-brand-main hover:underline">SES Configuration Sets <IconExternalLink className="w-3 h-3 inline" /></a></li>
-                              <li>Click &quot;Create set&quot; → Name it (e.g., <code className="bg-bg-300 px-1 py-0.5 rounded">{process.env.AWS_SES_CONFIGURATION_SET_NAME || 'leadsnipper'}</code>)</li>
-                              <li>Add an event destination → SNS → select the topic from Step 1</li>
-                              <li>Enable events: Sends, Rejects, Bounces, Complaints, Deliveries</li>
-                            </ol>
-                          </div>
-                          <div>
-                            <p className="font-medium text-text-100 mb-1">Step 4: Enter your Configuration Set name below</p>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={manualConfigSetName}
-                            onChange={(e) => setManualConfigSetName(e.target.value)}
-                            placeholder={`e.g. ${process.env.AWS_SES_CONFIGURATION_SET_NAME || 'leadsnipper'}`}
-                            className="flex-1 px-3 py-2 border border-bg-200 rounded-lg bg-bg-100 text-text-100 text-sm font-mono"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleSaveManualConfigSet}
-                            disabled={savingConfigSet || !manualConfigSetName.trim()}
-                            className="px-4 py-2 text-sm font-medium text-white bg-brand-main rounded-lg hover:bg-brand-main/90 disabled:opacity-50"
-                          >
-                            {savingConfigSet ? "Verifying..." : "Save & verify"}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  /* SNS setup complete */
-                  <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-                    <div className="flex items-center gap-2 mb-2">
-                      <IconCheck className="w-4 h-4 text-green-600" />
-                      <p className="text-sm font-medium text-text-100">
-                        SNS event tracking active
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                      {creds.configurationSetName && (
-                        <>
-                          <span className="text-text-300">Configuration Set</span>
-                          <span className="text-text-100 font-mono text-xs">
-                            {creds.configurationSetName}
-                          </span>
-                        </>
-                      )}
-                      {creds.snsTopicArn && (
-                        <>
-                          <span className="text-text-300">SNS Topic</span>
-                          <span className="text-text-100 font-mono text-xs truncate" title={creds.snsTopicArn}>
-                            {creds.snsTopicArn.split(":").pop()}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                    <p className="text-xs text-text-300 mt-2">
-                      Bounces, complaints, and deliveries are being tracked via SNS webhooks.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleVerifySns}
-                      disabled={verifyingSns}
-                      className="mt-2 text-xs text-brand-main hover:underline disabled:opacity-50"
-                    >
-                      {verifyingSns ? "Verifying..." : "Re-verify setup"}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
+            <SesSnsTrackingSection
+              creds={creds}
+              onStatusChange={load}
+              className="max-w-lg border-t border-bg-200 pt-5"
+            />
           )}
         </>
       )}

@@ -125,15 +125,14 @@ export function exportLeadsnipperCampaignReportPDF(
   const colGap = 4;
   const chipW = (pageWidth - margin * 2 - colGap * 2) / 3;
   drawMetricChip("Sent", String(data.metrics.sent), margin, chipW);
-  drawMetricChip("Delivered", String(data.metrics.delivered), margin + chipW + colGap, chipW);
-  drawMetricChip("Opened", String(data.metrics.opened), margin + (chipW + colGap) * 2, chipW);
+  drawMetricChip("Opened", String(data.metrics.opened), margin + chipW + colGap, chipW);
+  drawMetricChip("Clicked", String(data.metrics.clicked), margin + (chipW + colGap) * 2, chipW);
   y += 22;
-  drawMetricChip("Clicked", String(data.metrics.clicked), margin, chipW);
-  drawMetricChip("Replied", String(data.metrics.replied), margin + chipW + colGap, chipW);
+  drawMetricChip("Replied", String(data.metrics.replied), margin, chipW);
   drawMetricChip(
     "Queued",
     `${data.metrics.pending} leads`,
-    margin + (chipW + colGap) * 2,
+    margin + chipW + colGap,
     chipW
   );
   y += 24;
@@ -283,11 +282,6 @@ export async function exportCampaignAnalyticsToPDF(
       ["Metric", "Count", "Rate"],
       ["Total Sent", analytics.summary.totalSent.toString(), "-"],
       [
-        "Delivered",
-        analytics.summary.totalDelivered.toString(),
-        `${analytics.rates.deliveryRate}%`,
-      ],
-      [
         "Opened",
         analytics.summary.totalOpened.toString(),
         `${analytics.rates.openRate}%`,
@@ -301,11 +295,6 @@ export async function exportCampaignAnalyticsToPDF(
         "Bounced",
         analytics.summary.totalBounced.toString(),
         `${analytics.rates.bounceRate}%`,
-      ],
-      [
-        "Complained",
-        analytics.summary.totalComplained.toString(),
-        `${analytics.rates.complaintRate}%`,
       ],
       [
         "Unsubscribed",

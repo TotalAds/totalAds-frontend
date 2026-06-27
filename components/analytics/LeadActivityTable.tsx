@@ -55,13 +55,11 @@ type FilterStatus =
   | "all"
   | "pending"
   | "sent"
-  | "delivered"
   | "opened"
   | "clicked"
   | "replied"
   | "failed"
   | "bounced"
-  | "complained"
   | "unsubscribed";
 
 interface LeadData {
@@ -91,13 +89,11 @@ const STATUS_OPTIONS: { value: FilterStatus; label: string; color: string }[] = 
   { value: "all", label: "All Status", color: "bg-gray-100" },
   { value: "pending", label: "Pending", color: "bg-amber-100" },
   { value: "sent", label: "Sent", color: "bg-blue-100" },
-  { value: "delivered", label: "Delivered", color: "bg-cyan-100" },
   { value: "opened", label: "Opened", color: "bg-green-100" },
   { value: "clicked", label: "Clicked", color: "bg-purple-100" },
   { value: "replied", label: "Replied", color: "bg-indigo-100" },
   { value: "failed", label: "Failed", color: "bg-orange-100" },
   { value: "bounced", label: "Bounced", color: "bg-rose-100" },
-  { value: "complained", label: "Complained", color: "bg-red-100" },
   { value: "unsubscribed", label: "Unsubscribed", color: "bg-gray-200" },
 ];
 
@@ -116,14 +112,13 @@ const StatusBadge: React.FC<{ status: string; engagementStatus?: string }> = ({
       case "opened":
       case "read":
         return "bg-green-50 text-green-700 border-green-200";
-      case "delivered":
-        return "bg-cyan-50 text-cyan-700 border-cyan-200";
       case "sent":
+      case "delivered":
         return "bg-blue-50 text-blue-700 border-blue-200";
       case "bounced":
         return "bg-rose-50 text-rose-700 border-rose-200";
       case "complained":
-        return "bg-red-50 text-red-700 border-red-200";
+        return "bg-rose-50 text-rose-700 border-rose-200";
       case "unsubscribed":
         return "bg-gray-100 text-gray-700 border-gray-300";
       case "failed":
@@ -174,11 +169,6 @@ const ActionIcons: React.FC<{
       {lead.bouncedAt && (
         <span className="text-rose-500" title="Bounced">
           <XCircle size={14} />
-        </span>
-      )}
-      {lead.complaintAt && (
-        <span className="text-red-500" title="Complained">
-          <AlertTriangle size={14} />
         </span>
       )}
       {lead.unsubscribedAt && (

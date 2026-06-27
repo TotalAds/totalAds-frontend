@@ -5,6 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
+import {
+  clearCampaignOAuthSettings,
+  clearOnboardingOAuthReturnPath,
+  readOnboardingOAuthReturnPath,
+  readCampaignOAuthSettings,
+} from "@/lib/senderDisplayName";
 import { tokenStorage } from "@/utils/auth/tokenStorage";
 import { IconAlertTriangle, IconArrowLeft } from "@tabler/icons-react";
 import Link from "next/link";
@@ -17,7 +23,6 @@ export default function OAuthCallbackPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Prevent double execution in React strict mode
     if (hasProcessed) return;
     setHasProcessed(true);
 
@@ -26,6 +31,7 @@ export default function OAuthCallbackPage() {
         const code = searchParams.get("code");
         const state = searchParams.get("state");
         let provider = searchParams.get("provider");
+        const context = searchParams.get("context");
 
         let decodedState: any | null = null;
         if (state) {
@@ -41,17 +47,16 @@ export default function OAuthCallbackPage() {
           provider = decodedState.provider;
         }
 
+        const oauthContext = context || decodedState?.context || "warmup";
+
         if (!code || !state || !provider) {
           throw new Error("Missing OAuth parameters");
         }
 
-        // Validate provider
-        // Note: "yahoo" is temporarily disabled in frontend but backend support exists
         if (!["gmail", "outlook", "zoho"].includes(provider)) {
           throw new Error("Invalid provider");
         }
 
-        // Get access token from storage
         const accessToken = tokenStorage.getAccessToken();
         if (!accessToken) {
           throw new Error("Not authenticated. Please login first.");
@@ -60,16 +65,50 @@ export default function OAuthCallbackPage() {
         const emailServiceUrl =
           process.env.NEXT_PUBLIC_EMAIL_SERVICE_URL || "http://localhost:3001";
 
-        // Prevent duplicate submissions across remounts (React Strict Mode)
-        const dedupeKey = `oauth:${provider}:${code}`;
+        const dedupeKey = `oauth:${oauthContext}:${provider}:${code}`;
         if (typeof window !== "undefined") {
           if (sessionStorage.getItem(dedupeKey)) {
-            return; // already processed
+            return;
           }
           sessionStorage.setItem(dedupeKey, "1");
         }
 
-        // Read OAuth warmup settings from sessionStorage (set on connect page)
+        const payload: Record<string, unknown> = { code, state };
+
+        if (oauthContext === "campaign") {
+          const campaignSettings = readCampaignOAuthSettings(provider);
+          if (campaignSettings?.displayName?.trim()) {
+            payload.displayName = campaignSettings.displayName.trim();
+          }
+
+          const { data } = await axios.post(
+            `${emailServiceUrl}/api/sending-accounts/oauth/${provider}/callback`,
+            payload,
+            {
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`,
+              },
+            }
+          );
+
+          if (!data?.success) {
+            throw new Error(data?.message || "Failed to connect account");
+          }
+
+          clearCampaignOAuthSettings(provider);
+          toast.success("Sending account connected successfully!");
+          const onboardingReturnPath = readOnboardingOAuthReturnPath();
+          if (onboardingReturnPath) {
+            clearOnboardingOAuthReturnPath();
+            router.push(`${onboardingReturnPath}&connected=${provider}`);
+          } else {
+            router.push("/email/sending-accounts");
+          }
+          return;
+        }
+
+        // Warmup flow (existing)
         let displayName: string | undefined;
         let username: string | undefined;
         let timezone: string | undefined;
@@ -78,9 +117,7 @@ export default function OAuthCallbackPage() {
 
         if (typeof window !== "undefined") {
           try {
-            const raw = sessionStorage.getItem(
-              `warmup:oauth:settings:${provider}`
-            );
+            const raw = sessionStorage.getItem(`warmup:oauth:settings:${provider}`);
             if (raw) {
               const parsed = JSON.parse(raw);
               displayName = parsed.displayName || undefined;
@@ -89,30 +126,19 @@ export default function OAuthCallbackPage() {
               if (typeof parsed.dailyLimit === "number") {
                 dailyLimit = parsed.dailyLimit;
               }
-              // Get expected email for validation (from verified sender selection)
               expectedEmail = parsed.email || undefined;
             }
           } catch (settingsError) {
-            console.error(
-              "Failed to read OAuth settings from sessionStorage:",
-              settingsError
-            );
+            console.error("Failed to read OAuth settings:", settingsError);
           }
         }
-
-        const payload: any = {
-          code,
-          state,
-        };
 
         if (displayName) payload.displayName = displayName;
         if (username) payload.username = username;
         if (timezone) payload.timezone = timezone;
         if (typeof dailyLimit === "number") payload.dailyLimit = dailyLimit;
-        // Pass expected email for backend validation
         if (expectedEmail) payload.expectedEmail = expectedEmail;
 
-        // Send callback to backend using axios (project convention)
         const { data } = await axios.post(
           `${emailServiceUrl}/api/warmup/oauth/${provider}/callback`,
           payload,
@@ -125,26 +151,18 @@ export default function OAuthCallbackPage() {
         );
 
         if (!data?.success) {
-          throw new Error(
-            data?.error || data?.message || "Failed to connect account"
-          );
+          throw new Error(data?.error || data?.message || "Failed to connect account");
         }
 
-        if (data.success) {
-          toast.success("Email account connected successfully!");
-          // Redirect to warmup accounts page
-          router.push("/email/warmup/accounts");
-        } else {
-          throw new Error(data.message || "Failed to connect account");
-        }
+        toast.success("Email account connected successfully!");
+        router.push("/email/warmup/accounts");
       } catch (error: any) {
         console.error("OAuth callback error:", error);
-        // Show backend error message if available (e.g., email mismatch)
-        const errorMessage = 
-          error.response?.data?.message || 
-          error.message || 
+        const errorMessage =
+          error.response?.data?.message ||
+          error.message ||
           "Failed to connect email account";
-        
+
         setError(errorMessage);
         setLoading(false);
       }
@@ -153,7 +171,18 @@ export default function OAuthCallbackPage() {
     handleOAuthCallback();
   }, [hasProcessed, router, searchParams]);
 
-  // Show error state with proper UI
+  const isCampaign =
+    searchParams.get("context") === "campaign" ||
+    (() => {
+      const state = searchParams.get("state");
+      if (!state) return false;
+      try {
+        return JSON.parse(atob(state))?.context === "campaign";
+      } catch {
+        return false;
+      }
+    })();
+
   if (error) {
     return (
       <div className="min-h-screen bg-bg-100 flex items-center justify-center p-6">
@@ -161,14 +190,10 @@ export default function OAuthCallbackPage() {
           <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
             <IconAlertTriangle className="w-8 h-8 text-red-400" />
           </div>
-          <h1 className="text-xl font-bold text-text-100 mb-3">
-            Connection Failed
-          </h1>
-          <p className="text-text-200 mb-6">
-            {error}
-          </p>
+          <h1 className="text-xl font-bold text-text-100 mb-3">Connection Failed</h1>
+          <p className="text-text-200 mb-6">{error}</p>
           <Link
-            href="/email/warmup/connect"
+            href={isCampaign ? "/email/sending-accounts" : "/email/warmup/connect"}
             className="inline-flex items-center gap-2 px-6 py-3 bg-brand-main hover:bg-brand-main/90 text-white font-medium rounded-xl transition"
           >
             <IconArrowLeft className="w-4 h-4" />
@@ -185,9 +210,7 @@ export default function OAuthCallbackPage() {
         <div className="animate-spin mb-4">
           <div className="w-12 h-12 border-4 border-brand-main/20 border-t-brand-main rounded-full"></div>
         </div>
-        <h1 className="text-2xl font-bold text-text-100 mb-2">
-          Connecting your email account...
-        </h1>
+        <h1 className="text-2xl font-bold text-text-100 mb-2">Connecting your email account...</h1>
         <p className="text-text-200">Please wait while we complete the setup</p>
       </div>
     </div>

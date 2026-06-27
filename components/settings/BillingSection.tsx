@@ -8,6 +8,7 @@ import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { BodyPortal } from "@/components/ui/BodyPortal";
 import { useAuthContext } from "@/context/AuthContext";
+import { useWorkspace } from "@/context/WorkspaceContext";
 import { getBillingInfo } from "@/utils/api/billingClient";
 import {
   cancelSubscription,
@@ -36,6 +37,7 @@ interface BillingOverview {
 
 const BillingSection = () => {
   const { state } = useAuthContext();
+  const { billingAccount, activeWorkspace } = useWorkspace();
   const [billingData, setBillingData] = useState<BillingOverview | null>(null);
   const [subscriptionData, setSubscriptionData] =
     useState<SubscriptionStatus | null>(null);
@@ -196,6 +198,37 @@ const BillingSection = () => {
 
   return (
     <div className="space-y-8">
+      {billingAccount && activeWorkspace && (
+        <div className="rounded-xl border border-brand-main/10 bg-bg-300/40 p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-text-100 mb-4">
+            Workspace & seat limits
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 text-sm">
+            <div className="flex justify-between rounded-lg bg-bg-200/60 px-4 py-3">
+              <span className="text-text-200">Seats (this workspace)</span>
+              <span className="font-medium text-text-100">
+                {activeWorkspace.seatsUsed} /{" "}
+                {activeWorkspace.maxSeats === 0
+                  ? "∞"
+                  : activeWorkspace.maxSeats}
+              </span>
+            </div>
+            <div className="flex justify-between rounded-lg bg-bg-200/60 px-4 py-3">
+              <span className="text-text-200">Workspaces (plan)</span>
+              <span className="font-medium text-text-100">
+                {billingAccount.workspacesUsed} /{" "}
+                {billingAccount.maxWorkspaces === 0
+                  ? "∞"
+                  : billingAccount.maxWorkspaces}
+              </span>
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-text-200">
+            Plan: {billingAccount.tierName ?? "trial"}
+          </p>
+        </div>
+      )}
+
       {/* Early Signup Bonus Badge */}
       {state.user?.foundingMember && (
         <div className="rounded-xl border-2 border-brand-main bg-gradient-to-r from-brand-main/10 to-brand-secondary/10 p-6 shadow-lg">

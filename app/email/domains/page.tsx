@@ -9,6 +9,7 @@ import { toast } from "react-hot-toast";
 import AGGridWrapper from "@/components/common/AGGridWrapper";
 import { SesAwsIdentitiesImportSection } from "@/components/email/SesAwsIdentitiesImportSection";
 import { Button } from "@/components/ui/button";
+import { useCanEdit } from "@/context/WorkspaceContext";
 import { EmailDeliveryBanner } from "@/components/email/EmailDeliveryBanner";
 import {
   deleteDomain,
@@ -21,10 +22,16 @@ import { useEmailProvider } from "@/hooks/useEmailProvider";
 
 export default function DomainsPage() {
   const router = useRouter();
+  const canEdit = useCanEdit();
   const {
     sesProvider,
     sesConnected,
     sesVerified,
+    usesSesDomains: showSesDomains,
+    isByoSes,
+    isManagedSes,
+    isConnectedInboxUser,
+    hasConnectedSendingAccount,
     loading: emailProviderLoading,
     refetch: refetchEmailProvider,
   } = useEmailProvider();
@@ -291,18 +298,37 @@ export default function DomainsPage() {
               Manage your sending domains
             </p>
           </div>
-          <Link href="/email/domains/create">
-            <Button className="bg-brand-main hover:bg-brand-main/80 text-white px-6 py-2 rounded-lg transition">
-              + Add Domain
-            </Button>
-          </Link>
+          {showSesDomains && canEdit && (
+            <Link href="/email/domains/create">
+              <Button className="bg-brand-main hover:bg-brand-main/80 text-white px-6 py-2 rounded-lg transition">
+                + Add Domain
+              </Button>
+            </Link>
+          )}
         </div>
       </header>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {!emailProviderLoading && !showSesDomains ? (
+          <div className="backdrop-blur-xl bg-brand-main/10 border border-brand-main/20 rounded-2xl p-12 text-center">
+            <h3 className="text-xl font-semibold text-text-100 mb-2">
+              Domains are for AWS SES only
+            </h3>
+            <p className="text-text-200 mb-6 max-w-lg mx-auto">
+              Your account sends through connected inboxes (Gmail, Outlook, or SMTP).
+              Manage sending accounts instead of domains.
+            </p>
+            <Link href="/email/sending-accounts">
+              <Button className="bg-brand-main hover:bg-brand-main/80 text-text-100 px-6 py-2 rounded-lg transition">
+                Go to Sending Accounts
+              </Button>
+            </Link>
+          </div>
+        ) : (
+          <>
         <EmailDeliveryBanner sesProvider={sesProvider} sesConnected={sesConnected} />
-        {sesProvider === "custom" &&
+        {isByoSes &&
           sesConnected &&
           sesVerified &&
           !emailProviderLoading && (
@@ -345,11 +371,13 @@ export default function DomainsPage() {
             <p className="text-text-200 mb-6">
               Get started by adding your first sending domain
             </p>
+            {canEdit && (
             <Link href="/email/domains/create">
               <Button className="bg-brand-main hover:bg-brand-main/80 text-text-100 px-6 py-2 rounded-lg transition">
                 Create Your First Domain
               </Button>
             </Link>
+            )}
           </div>
         ) : (
           <>
@@ -369,6 +397,8 @@ export default function DomainsPage() {
               pageSizeOptions={[10, 25, 50, 100]}
               onPageChange={(newPage) => setPage(newPage)}
             />
+          </>
+        )}
           </>
         )}
       </main>

@@ -9,9 +9,7 @@ interface CampaignHealthMetricsProps {
   rates?: CampaignRates
   metrics: {
     sent: number
-    delivered: number
     bounced: number
-    complained: number
     unsubscribed: number
     failed: number
   }
@@ -91,12 +89,9 @@ export const CampaignHealthMetrics: React.FC<CampaignHealthMetricsProps> = ({
   rates,
   metrics,
 }) => {
-  // Calculate derived rates if full rates not provided
   const bounceRate = rates?.bounceRate ?? (metrics.sent > 0 ? (metrics.bounced / metrics.sent) * 100 : 0)
-  const complaintRate = rates?.complaintRate ?? (metrics.sent > 0 ? (metrics.complained / metrics.sent) * 100 : 0)
-  const unsubscribeRate = rates?.unsubscribeRate ?? (metrics.delivered > 0 ? (metrics.unsubscribed / metrics.delivered) * 100 : 0)
+  const unsubscribeRate = rates?.unsubscribeRate ?? (metrics.sent > 0 ? (metrics.unsubscribed / metrics.sent) * 100 : 0)
   const failureRate = rates?.failureRate ?? (metrics.sent > 0 ? (metrics.failed / metrics.sent) * 100 : 0)
-  const deliveryRate = rates?.deliveryRate ?? (metrics.sent > 0 ? (metrics.delivered / metrics.sent) * 100 : 0)
 
   const bounceStatus = getBounceMetricStatus(bounceRate, metrics.sent)
   const bounceSubtext =
@@ -105,14 +100,6 @@ export const CampaignHealthMetrics: React.FC<CampaignHealthMetricsProps> = ({
       : metrics.bounced > 0
         ? `${metrics.bounced.toLocaleString()} bounced`
         : 'No bounces'
-
-  const getComplaintStatus = (rate: number): 'good' | 'warning' | 'critical' | 'monitoring' => {
-    if (metrics.sent < DELIVERABILITY_MIN_SAMPLE_WARN && rate > 0.1) return 'monitoring'
-    if (rate > 1) return 'critical'
-    if (rate > 0.3) return 'warning'
-    if (rate > 0.1) return 'neutral' as 'good'
-    return 'good'
-  }
 
   const getUnsubscribeStatus = (rate: number): 'good' | 'warning' | 'neutral' => {
     if (rate > 2) return 'warning'
@@ -127,29 +114,13 @@ export const CampaignHealthMetrics: React.FC<CampaignHealthMetricsProps> = ({
   }
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-      <MetricCard
-        label="Delivery Rate"
-        value={`${deliveryRate.toFixed(1)}%`}
-        subtext={`${metrics.delivered.toLocaleString()} of ${metrics.sent.toLocaleString()}`}
-        status={deliveryRate >= 95 ? 'good' : deliveryRate >= 90 ? 'neutral' : 'warning'}
-        icon="📬"
-      />
-
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
       <MetricCard
         label="Bounce Rate"
         value={`${bounceRate.toFixed(2)}%`}
         subtext={bounceSubtext}
         status={bounceStatus === 'monitoring' ? 'monitoring' : bounceStatus}
         icon="⚠️"
-      />
-
-      <MetricCard
-        label="Complaint Rate"
-        value={`${complaintRate.toFixed(2)}%`}
-        subtext={metrics.complained > 0 ? `${metrics.complained.toLocaleString()} complaints` : 'No complaints'}
-        status={getComplaintStatus(complaintRate)}
-        icon="🚩"
       />
 
       <MetricCard

@@ -11,19 +11,22 @@ export function getCampaignBuilderMode(
 }
 
 export function buildCampaignBuilderHref(options: {
-  domainId: string;
+  domainId?: string | null;
   campaignId: string;
   mode?: CampaignBuilderMode;
   sequence?: CampaignSequenceStep[] | null;
   liveSequenceEdit?: boolean;
 }): string {
-  const mode = options.mode ?? getCampaignBuilderMode(options.sequence);
   const params = new URLSearchParams({
-    mode,
-    domainId: options.domainId,
+    mode: "sequence",
     id: options.campaignId,
   });
-  if (options.liveSequenceEdit && mode === "sequence") {
+  if (options.domainId && options.domainId !== "0") {
+    params.set("domainId", options.domainId);
+  }
+  const hasMultipleSteps =
+    (Array.isArray(options.sequence) ? options.sequence.length : 0) > 1;
+  if (options.liveSequenceEdit && hasMultipleSteps) {
     params.set("liveSequenceEdit", "1");
   }
   return `/email/campaigns/builder?${params.toString()}`;

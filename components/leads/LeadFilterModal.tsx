@@ -222,7 +222,7 @@ export default function LeadFilterModal({
                 <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                 Status
                 {tempStatusFilter.length > 0 && (
-                  <span className="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full">
+                  <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
                     {tempStatusFilter.length}
                   </span>
                 )}

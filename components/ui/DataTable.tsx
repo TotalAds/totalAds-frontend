@@ -1,6 +1,17 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo, useState } from "react";
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconFilter,
+  IconSearch,
+  IconSortAscending,
+  IconSortDescending,
+} from "@tabler/icons-react";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -9,27 +20,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { 
-  IconChevronLeft, 
-  IconChevronRight, 
-  IconSearch,
-  IconSortAscending,
-  IconSortDescending,
-  IconFilter
-} from "@tabler/icons-react";
 
 interface Column {
   key: string;
   label: string;
   sortable?: boolean;
   width?: string;
-  render?: (value: any, row: any) => React.ReactNode;
+  render?: (value: unknown, row: Record<string, unknown>) => React.ReactNode;
 }
 
 interface DataTableProps {
-  data: any[];
+  data: Record<string, unknown>[];
   columns: Column[];
   pageSize?: number;
   searchable?: boolean;
@@ -49,7 +50,7 @@ export default function DataTable({
   className = "",
   emptyMessage = "No data available",
   loading = false,
-  maxHeight = "500px"
+  maxHeight = "500px",
 }: DataTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
@@ -58,39 +59,32 @@ export default function DataTable({
     direction: "asc" | "desc";
   } | null>(null);
 
-  // Filter data based on search term
   const filteredData = useMemo(() => {
     if (!searchTerm) return data;
-    
     return data.filter((row) =>
       columns.some((column) => {
         const value = row[column.key];
-        return String(value || "")
+        return String(value ?? "")
           .toLowerCase()
           .includes(searchTerm.toLowerCase());
       })
     );
   }, [data, searchTerm, columns]);
 
-  // Sort data
   const sortedData = useMemo(() => {
     if (!sortConfig) return filteredData;
-
     return [...filteredData].sort((a, b) => {
       const aValue = a[sortConfig.key];
       const bValue = b[sortConfig.key];
-
-      if (aValue < bValue) {
-        return sortConfig.direction === "asc" ? -1 : 1;
-      }
-      if (aValue > bValue) {
-        return sortConfig.direction === "asc" ? 1 : -1;
-      }
+      if (aValue == null && bValue == null) return 0;
+      if (aValue == null) return 1;
+      if (bValue == null) return -1;
+      if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
       return 0;
     });
   }, [filteredData, sortConfig]);
 
-  // Paginate data
   const paginatedData = useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize;
     return sortedData.slice(startIndex, startIndex + pageSize);
@@ -100,7 +94,6 @@ export default function DataTable({
 
   const handleSort = (key: string) => {
     if (!sortable) return;
-    
     setSortConfig((current) => {
       if (current?.key === key) {
         return current.direction === "asc"
@@ -117,63 +110,67 @@ export default function DataTable({
 
   if (loading) {
     return (
-      <div className={`backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-2xl ${className}`}>
-        <div className="p-8 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-300 mx-auto"></div>
-          <p className="text-white/70 mt-4">Loading data...</p>
+      <div
+        className={`overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ${className}`}
+      >
+        <div className="p-10 text-center">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-brand-main" />
+          <p className="mt-4 text-sm text-slate-600">Loading…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-2xl ${className}`}>
-      {/* Header with Search */}
+    <div
+      className={`overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ${className}`}
+    >
       {searchable && (
-        <div className="p-4 border-b border-white/10 bg-white/5">
+        <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-3">
           <div className="relative">
-            <IconSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-white/50" />
+            <IconSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
-              placeholder="Search data..."
+              placeholder="Search…"
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-purple-400"
+              className="border-slate-200 bg-white pl-10 text-slate-900 placeholder:text-slate-400 focus-visible:ring-brand-main"
             />
           </div>
         </div>
       )}
 
-      {/* Table */}
       <div className="overflow-auto" style={{ maxHeight }}>
         <Table className="w-full">
           <TableHeader>
-            <TableRow className="border-b border-white/20 hover:bg-transparent">
+            <TableRow className="border-b border-slate-200 bg-slate-50 hover:bg-slate-50">
               {columns.map((column) => (
                 <TableHead
                   key={column.key}
-                  className={`text-white/90 font-semibold bg-white/5 ${
-                    column.sortable !== false && sortable ? "cursor-pointer hover:bg-white/10" : ""
+                  className={`text-xs font-semibold uppercase tracking-wide text-slate-600 ${
+                    column.sortable !== false && sortable
+                      ? "cursor-pointer select-none hover:text-slate-900"
+                      : ""
                   }`}
                   style={{ width: column.width }}
                   onClick={() => column.sortable !== false && handleSort(column.key)}
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <span>{column.label}</span>
                     {column.sortable !== false && sortable && (
-                      <div className="flex flex-col">
+                      <>
                         {sortConfig?.key === column.key ? (
                           sortConfig.direction === "asc" ? (
-                            <IconSortAscending className="h-3 w-3 text-purple-300" />
+                            <IconSortAscending className="h-3.5 w-3.5 text-brand-main" />
                           ) : (
-                            <IconSortDescending className="h-3 w-3 text-purple-300" />
+                            <IconSortDescending className="h-3.5 w-3.5 text-brand-main" />
                           )
                         ) : (
-                          <IconFilter className="h-3 w-3 text-white/40" />
+                          <IconFilter className="h-3 w-3 text-slate-300" />
                         )}
-                      </div>
+                      </>
                     )}
                   </div>
                 </TableHead>
@@ -185,7 +182,7 @@ export default function DataTable({
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
-                  className="text-center py-8 text-white/70"
+                  className="py-12 text-center text-sm text-slate-500"
                 >
                   {emptyMessage}
                 </TableCell>
@@ -194,23 +191,23 @@ export default function DataTable({
               paginatedData.map((row, index) => (
                 <TableRow
                   key={index}
-                  className="border-b border-white/10 hover:bg-white/5 transition-colors"
+                  className="border-b border-slate-100 transition-colors hover:bg-slate-50/80"
                 >
                   {columns.map((column) => (
                     <TableCell
                       key={column.key}
-                      className="text-white/90 py-3"
+                      className="py-3 text-sm text-slate-800"
                     >
-                      {column.render
-                        ? column.render(row[column.key], row)
-                        : (
-                          <div
-                            className="truncate max-w-[200px]"
-                            title={String(row[column.key] ?? "")}
-                          >
-                            {String(row[column.key] ?? "")}
-                          </div>
-                        )}
+                      {column.render ? (
+                        column.render(row[column.key], row)
+                      ) : (
+                        <div
+                          className="max-w-[240px] truncate"
+                          title={String(row[column.key] ?? "")}
+                        >
+                          {String(row[column.key] ?? "")}
+                        </div>
+                      )}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -220,12 +217,11 @@ export default function DataTable({
         </Table>
       </div>
 
-      {/* Pagination */}
       {totalPages > 1 && (
-        <div className="px-4 py-3 border-t border-white/10 bg-white/5 flex items-center justify-between">
-          <div className="text-sm text-white/70">
-            Showing {Math.min((currentPage - 1) * pageSize + 1, sortedData.length)} to{" "}
-            {Math.min(currentPage * pageSize, sortedData.length)} of {sortedData.length} entries
+        <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50/80 px-4 py-3">
+          <div className="text-sm text-slate-600">
+            Showing {Math.min((currentPage - 1) * pageSize + 1, sortedData.length)}–
+            {Math.min(currentPage * pageSize, sortedData.length)} of {sortedData.length}
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -233,19 +229,19 @@ export default function DataTable({
               size="sm"
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+              className="border-slate-200 text-slate-700"
             >
               <IconChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-sm text-white/90 px-3">
-              Page {currentPage} of {totalPages}
+            <span className="px-2 text-sm font-medium text-slate-700">
+              {currentPage} / {totalPages}
             </span>
             <Button
               variant="outline"
               size="sm"
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+              className="border-slate-200 text-slate-700"
             >
               <IconChevronRight className="h-4 w-4" />
             </Button>

@@ -1,23 +1,11 @@
 "use client";
 
-import {
-  Loader2,
-  OctagonX,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
-import { CampaignAnalytics } from "@/components/analytics/CampaignAnalytics";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { CampaignDetailPage } from "@/components/campaigns/CampaignDetailPage";
 import emailClient, {
   AnalyticsReportType,
   EnhancedCampaignAnalytics,
@@ -26,12 +14,10 @@ import emailClient, {
   getSubscriptionInfo,
   getEnhancedCampaignAnalytics,
   markLeadRepliedInCampaign,
-  stopCampaign,
 } from "@/utils/api/emailClient";
-import { buildCampaignBuilderHref } from "@/utils/campaignBuilder";
 import { exportLeadsnipperCampaignReportPDF } from "@/utils/pdfExport";
 
-interface CampaignAnalytics {
+interface CampaignAnalyticsData {
   campaign: {
     id: string;
     name: string;
@@ -47,6 +33,7 @@ interface CampaignAnalytics {
     deliverabilityPauseReason?: string | null;
     deliverabilityAcknowledgedAt?: string | null;
     requiresDeliverabilityAcknowledgment?: boolean;
+    reoonVerificationSummary?: { requireLeadVerification?: boolean };
   };
   metrics: {
     totalLeads: number;
@@ -123,8 +110,8 @@ interface CampaignAnalytics {
   deliverability?: {
     alerts: Array<{
       id: string;
-      type: "quota_reduced" | "sender_paused" | "daily_limit_reached" | "campaign_auto_paused";
-      severity: "info" | "warning" | "critical";
+      type: string;
+      severity: string;
       senderId: string;
       senderEmail: string;
       currentCap: number;
@@ -147,48 +134,42 @@ export default function CampaignDetailsPage() {
   const router = useRouter();
   const params = useParams();
   const campaignId = params.id as string;
-  const [analytics, setAnalytics] = useState<CampaignAnalytics | null>(null);
-  const [enhancedAnalytics, setEnhancedAnalytics] =
-    useState<EnhancedCampaignAnalytics | null>(null);
+
+  const [analytics, setAnalytics] = useState<CampaignAnalyticsData | null>(null);
+  const [enhancedAnalytics, setEnhancedAnalytics] = useState<EnhancedCampaignAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailedAnalyticsAllowed, setDetailedAnalyticsAllowed] = useState(false);
-  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
-  const [activeReportDownload, setActiveReportDownload] = useState<AnalyticsReportType | null>(
-    null
-  );
+  const [activeReportDownload, setActiveReportDownload] = useState<AnalyticsReportType | null>(null);
   const [downloadingAllReports, setDownloadingAllReports] = useState(false);
   const [stopping, setStopping] = useState(false);
-  const [stopDialogOpen, setStopDialogOpen] = useState(false);
   const [, setMarkingReplied] = useState<string | null>(null);
+
   const campaignStatusRef = useRef<string | null>(null);
   const initialLoadedRef = useRef(false);
   const lastRefreshRef = useRef<number>(Date.now());
 
-  const fetchCampaignAnalytics = useCallback(async (options?: { silent?: boolean }) => {
-    const silent = options?.silent === true;
-    try {
-      // Show fullscreen loader only on first load, not during background polling.
-      if (!silent && !initialLoadedRef.current) {
-        setLoading(true);
+  // ──────────── Data fetching ────────────
+  const fetchCampaignAnalytics = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent === true;
+      try {
+        if (!silent && !initialLoadedRef.current) setLoading(true);
+        const response = await emailClient.get(
+          `/api/analytics/campaigns/${campaignId}/analytics`
+        );
+        if (response.data.success) {
+          setAnalytics(response.data.data);
+          campaignStatusRef.current = response.data.data?.campaign?.status || null;
+          initialLoadedRef.current = true;
+        }
+      } catch (error: any) {
+        if (!silent) toast.error(error.response?.data?.message || "Failed to fetch campaign");
+      } finally {
+        if (!silent) setLoading(false);
       }
-      const response = await emailClient.get(
-        `/api/analytics/campaigns/${campaignId}/analytics`
-      );
-      if (response.data.success) {
-        setAnalytics(response.data.data);
-        campaignStatusRef.current = response.data.data?.campaign?.status || null;
-        initialLoadedRef.current = true;
-      }
-    } catch (error: any) {
-      if (!silent) {
-        toast.error(error.response?.data?.message || "Failed to fetch campaign");
-      }
-    } finally {
-      if (!silent) {
-        setLoading(false);
-      }
-    }
-  }, [campaignId]);
+    },
+    [campaignId]
+  );
 
   const fetchEnhancedAnalytics = useCallback(async () => {
     if (!detailedAnalyticsAllowed) return;
@@ -196,91 +177,50 @@ export default function CampaignDetailsPage() {
       const data = await getEnhancedCampaignAnalytics(campaignId, { dateRange: "30d" });
       setEnhancedAnalytics(data);
     } catch (error: any) {
-      console.error("Failed to fetch enhanced analytics:", error);
-      if (error?.response?.status !== 403) {
-        toast.error("Failed to fetch trend data");
-      }
+      if (error?.response?.status !== 403) console.error("Failed to fetch trend data:", error);
       setEnhancedAnalytics(null);
     }
   }, [campaignId, detailedAnalyticsAllowed]);
 
   const fetchAnalyticsAccess = useCallback(async () => {
     try {
-      setSubscriptionLoading(true);
       const sub = await getSubscriptionInfo();
       const tierName = String(sub?.tierName || "").toLowerCase();
       const subStatus = String(sub?.status || "").toLowerCase();
       const isTrialTier = tierName === "trial" || tierName === "byo_trial";
-      const inactive =
-        subStatus === "expired" ||
-        subStatus === "cancelled" ||
-        subStatus === "paused";
-      const allowed = !isTrialTier && !inactive;
-      setDetailedAnalyticsAllowed(Boolean(allowed));
-      if (!allowed) {
-        setEnhancedAnalytics(null);
-      }
-    } catch (error) {
+      const inactive = ["expired", "cancelled", "paused"].includes(subStatus);
+      setDetailedAnalyticsAllowed(!isTrialTier && !inactive);
+    } catch {
       setDetailedAnalyticsAllowed(false);
-      setEnhancedAnalytics(null);
-    } finally {
-      setSubscriptionLoading(false);
     }
   }, []);
-
 
   useEffect(() => {
     fetchAnalyticsAccess();
   }, [fetchAnalyticsAccess]);
 
-  // Initial data load - only runs once when campaignId changes
   useEffect(() => {
     fetchCampaignAnalytics({ silent: false });
-    if (detailedAnalyticsAllowed) {
-      fetchEnhancedAnalytics();
-    } else {
-      setEnhancedAnalytics(null);
-    }
-  }, [
-    campaignId,
-    detailedAnalyticsAllowed,
-    fetchCampaignAnalytics,
-    fetchEnhancedAnalytics,
-  ]);
+    if (detailedAnalyticsAllowed) fetchEnhancedAnalytics();
+    else setEnhancedAnalytics(null);
+  }, [campaignId, detailedAnalyticsAllowed, fetchCampaignAnalytics, fetchEnhancedAnalytics]);
 
-  // Lightweight polling only for active campaigns - refreshes main analytics
-  // LeadActivityTable handles its own data fetching with server pagination
+  // Polling for active campaigns
   useEffect(() => {
     const interval = setInterval(() => {
       const st = campaignStatusRef.current;
-      // Only poll if campaign is actively sending/processing
-      if (
-        st === "sending" ||
-        st === "verifying_leads" ||
-        st === "scheduled" ||
-        st === "verification_failed"
-      ) {
-        // Limit polling to once per minute max to reduce server load
+      if (["sending", "verifying_leads", "scheduled", "verification_failed"].includes(st || "")) {
         const now = Date.now();
         if (now - lastRefreshRef.current > 60000) {
           lastRefreshRef.current = now;
           fetchCampaignAnalytics({ silent: true });
-          // Enhanced analytics updates less frequently (every 5 min)
-          if (detailedAnalyticsAllowed && now - lastRefreshRef.current > 300000) {
-            fetchEnhancedAnalytics();
-          }
         }
       }
-    }, 30000); // Check every 30 seconds but only refresh based on time limits
-
+    }, 30000);
     return () => clearInterval(interval);
-  }, [
-    campaignId,
-    detailedAnalyticsAllowed,
-    fetchCampaignAnalytics,
-    fetchEnhancedAnalytics,
-  ]);
+  }, [campaignId, fetchCampaignAnalytics]);
 
+  // ──────────── Action handlers ────────────
   const handleMarkReplied = async (leadId: string) => {
     if (!analytics?.campaign?.domainId) return;
     setMarkingReplied(leadId);
@@ -299,9 +239,7 @@ export default function CampaignDetailsPage() {
     setDownloadingAllReports(true);
     try {
       setActiveReportDownload("overall_summary");
-      if (!analytics) {
-        throw new Error("Campaign analytics not loaded");
-      }
+      if (!analytics) throw new Error("Campaign analytics not loaded");
 
       const reportSteps =
         analytics.sequenceSteps?.map((step) => ({
@@ -312,16 +250,16 @@ export default function CampaignDetailsPage() {
           replied: step.replied || 0,
         })) || [];
 
-      // Fetch sample of leads for report (first 100)
       let reportLeads: any[] = [];
       try {
         const leadsResponse = await getCampaignLeadSequence(campaignId, 1, 100);
-        reportLeads = leadsResponse.leads?.map((row: any) => ({
-          email: row.toEmail,
-          stepLabel: `Email ${Number(row.sequenceStepIndex || 0) + 1}`,
-          status: String(row.status || "unknown"),
-          nextSend: row.nextRetryAt ? new Date(row.nextRetryAt).toLocaleString() : undefined,
-        })) || [];
+        reportLeads =
+          leadsResponse.leads?.map((row: any) => ({
+            email: row.toEmail,
+            stepLabel: `Email ${Number(row.sequenceStepIndex || 0) + 1}`,
+            status: String(row.status || "unknown"),
+            nextSend: row.nextRetryAt ? new Date(row.nextRetryAt).toLocaleString() : undefined,
+          })) || [];
       } catch {
         reportLeads = [];
       }
@@ -366,41 +304,13 @@ export default function CampaignDetailsPage() {
     }
   };
 
-  const executeStopCampaign = async () => {
-    if (!analytics?.campaign?.domainId) {
-      toast.error("Missing domain for this campaign; cannot stop from here.");
-      setStopDialogOpen(false);
-      return;
-    }
-    setStopping(true);
-    try {
-      const result = await stopCampaign(analytics.campaign.domainId, campaignId);
-      const msg =
-        typeof result?.message === "string"
-          ? result.message
-          : "Campaign stopped. No further emails will be sent.";
-      toast.success(msg);
-      const nextStatus =
-        (result as { campaign?: { status?: string } })?.campaign?.status;
-      campaignStatusRef.current =
-        typeof nextStatus === "string" ? nextStatus : "cancelled";
-      setStopDialogOpen(false);
-      await fetchCampaignAnalytics({ silent: false });
-    } catch (error: unknown) {
-      toast.error(getEmailServiceErrorMessage(error, "Could not stop this campaign"));
-    } finally {
-      setStopping(false);
-    }
-  };
-
+  // ──────────── Loading / error states ────────────
   if (loading) {
     return (
       <div className="min-h-screen bg-bg-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-slate-700 text-lg font-medium">
-            Loading campaign analytics...
-          </p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
+          <p className="text-slate-700 text-lg font-medium">Loading campaign…</p>
         </div>
       </div>
     );
@@ -410,9 +320,8 @@ export default function CampaignDetailsPage() {
     return (
       <div className="min-h-screen bg-bg-100 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-slate-700 text-xl font-semibold mb-4">
-            Campaign not found
-          </p>
+          <Loader2 className="h-10 w-10 animate-spin text-slate-400 mx-auto mb-4" />
+          <p className="text-slate-700 text-xl font-semibold mb-4">Campaign not found</p>
           <button
             onClick={() => router.back()}
             className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
@@ -424,205 +333,19 @@ export default function CampaignDetailsPage() {
     );
   }
 
-  const campaign = analytics.campaign;
-  const metrics = analytics.metrics;
-  const sendVolume = analytics.sendVolume;
-  const isSequenceCampaign = (analytics.sequenceSteps?.length || 0) > 1;
-
-  const campaignStatusNorm = String(campaign.status || "").trim();
-  const canStopCampaign =
-    !!campaign.domainId &&
-    ["draft", "sending", "scheduled", "verifying_leads", "paused", "verification_failed"].includes(
-      campaignStatusNorm
-    );
-  const campaignEditHref = campaign.domainId
-    ? buildCampaignBuilderHref({
-        domainId: campaign.domainId,
-        campaignId: campaign.id,
-        mode: isSequenceCampaign ? "sequence" : "single",
-        liveSequenceEdit: isSequenceCampaign,
-      })
-    : null;
-  const mappedSteps =
-    analytics.sequenceSteps?.map((step) => {
-      const hasSent = (step.sent || 0) > 0;
-      const hasPending = (step.pending || 0) > 0 || (step.remaining || 0) > 0;
-      return {
-        stepNumber: Number(step.stepIndex || 0) + 1,
-        dayOffset: Math.max(0, Math.round((step.delayMinutes || 0) / 1440)),
-        subject: step.subject || "Untitled step",
-        totalInStep: step.total || 0,
-        sent: step.sent || 0,
-        delivered: step.delivered || 0,
-        opened: step.opened || 0,
-        replied: step.replied || 0,
-        failed: step.failed || 0,
-        bounced: (step as any).bounced || 0,
-        complained: (step as any).complained || 0,
-        unsubscribed: (step as any).unsubscribed || 0,
-        pending: step.pending || 0,
-        nextSendAt: step.nextPlannedSendAt
-          ? new Date(step.nextPlannedSendAt).toLocaleString()
-          : undefined,
-        status: hasSent ? "done" : hasPending ? "pending" : "waiting",
-      } as const;
-    }) || [];
-
-  // Lead activity table fetches its own data via server pagination
-  // Empty initial leads - table will load data when rendered
-  const mappedLeads: any[] = [];
-
-  // Trend data from API sources (enhanced analytics or send volume)
-  const trendData =
-    enhancedAnalytics?.timeSeries?.map((point) => ({
-      date: point.date,
-      sent: point.sent || 0,
-      opened: point.opened || 0,
-      clicked: point.clicked || 0,
-    })) ||
-    sendVolume?.sendsByDay?.map((day) => ({
-      date: day.date,
-      sent: day.count || 0,
-      opened: 0,
-      clicked: 0,
-    })) ||
-    [];
-
-  const campaignMode = isSequenceCampaign ? "sequence" : "single";
-
   return (
-    <>
-      <Dialog
-        open={stopDialogOpen}
-        onOpenChange={(open) => {
-          if (!open && stopping) return;
-          setStopDialogOpen(open);
-        }}
-      >
-        <DialogContent className="border-slate-200 bg-white sm:max-w-md">
-          <DialogHeader>
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100">
-                <OctagonX className="h-5 w-5 text-rose-700" aria-hidden />
-              </div>
-              <div className="min-w-0 flex-1 space-y-3 text-left">
-                <DialogTitle className="text-lg font-semibold leading-snug text-slate-900">
-                  Stop this campaign?
-                </DialogTitle>
-                <DialogDescription asChild>
-                  <div className="space-y-3 text-sm text-slate-600">
-                    <p>
-                      This ends the campaign for this audience. No further steps or emails will
-                      send, including any scheduled for later days.
-                    </p>
-                    <ul className="list-disc space-y-1.5 pl-5">
-                      <li>Queued and unsent messages are cancelled.</li>
-                      <li>Emails already delivered are not recalled.</li>
-                      <li>You can still view analytics for this campaign.</li>
-                    </ul>
-                  </div>
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              className="border-slate-200"
-              onClick={() => setStopDialogOpen(false)}
-              disabled={stopping}
-            >
-              Keep campaign
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => void executeStopCampaign()}
-              disabled={stopping}
-            >
-              {stopping ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Stopping…
-                </>
-              ) : (
-                <>
-                  <OctagonX className="h-4 w-4 mr-2" />
-                  Stop campaign
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <CampaignAnalytics
-        mode={campaignMode}
-        campaign={{
-          id: campaign.id,
-          name: campaign.name,
-          status:
-            campaign.status === "paused" ||
-            campaign.status === "completed" ||
-            campaign.status === "sending" ||
-            campaign.status === "scheduled" ||
-            campaign.status === "draft" ||
-            campaign.status === "cancelled"
-              ? campaign.status
-              : "live",
-          sender: campaign.fromName || campaign.fromEmail,
-          subject: campaign.subject,
-          fromEmail: campaign.fromEmail,
-          replyTo: campaign.fromEmail,
-          createdAt: new Date(campaign.createdAt).toLocaleString(),
-          startedAt: campaign.startedAt
-            ? new Date(campaign.startedAt).toLocaleString()
-            : "Not started yet",
-          totalEmails: Math.max(metrics.totalLeads || 0, analytics.progress?.total || 0),
-          sentEmails: metrics.totalSent || 0,
-          deliverabilityPauseReason: analytics.campaign?.deliverabilityPauseReason ?? null,
-          deliverabilityAcknowledgedAt: analytics.campaign?.deliverabilityAcknowledgedAt
-            ? String(analytics.campaign.deliverabilityAcknowledgedAt)
-            : null,
-          requiresDeliverabilityAcknowledgment:
-            analytics.campaign?.requiresDeliverabilityAcknowledgment ?? false,
-        }}
-        metrics={{
-          sent: metrics.totalSent || 0,
-          delivered: metrics.totalDelivered || 0,
-          opened: metrics.totalOpened || 0,
-          clicked: metrics.totalClicked || 0,
-          replied: metrics.totalReplied || 0,
-          bounced: metrics.totalBounced || 0,
-          complained: metrics.totalComplained || 0,
-          unsubscribed: metrics.totalUnsubscribed || 0,
-          pending: metrics.pending || 0,
-          failed: (metrics.totalFailed || 0) + (metrics.totalRejected || 0),
-          rejected: metrics.totalRejected || 0,
-        }}
-        rates={analytics.rates}
-        steps={mappedSteps}
-        leads={mappedLeads}
-        trendData={trendData}
-        onStopCampaign={canStopCampaign ? () => setStopDialogOpen(true) : undefined}
-        onEditCampaign={
-          campaignEditHref ? () => router.push(campaignEditHref) : undefined
-        }
-        onDownloadReport={() => void handleDownloadFullReport()}
-        onBack={() => router.push("/email/campaigns")}
-        showDownload
-        downloading={downloadingAllReports || !!activeReportDownload}
-        stopping={stopping}
-        deliverability={analytics.deliverability || null}
-        sendVolume={analytics.sendVolume}
-        reoon={analytics.reoon}
-        todayVerification={analytics.todayVerification}
-        progress={analytics.progress}
-        campaignId={campaignId}
-        domainId={campaign.domainId}
-        onMarkReplied={handleMarkReplied}
-        onDeliverabilityAcknowledged={() => fetchCampaignAnalytics({ silent: true })}
-      />
-    </>
+    <CampaignDetailPage
+      campaignId={campaignId}
+      analytics={analytics}
+      enhancedAnalytics={enhancedAnalytics}
+      onBack={() => router.push("/email/campaigns")}
+      onRefresh={() => fetchCampaignAnalytics({ silent: true })}
+      stopping={stopping}
+      setStopping={setStopping}
+      downloading={downloadingAllReports || !!activeReportDownload}
+      onDownloadReport={() => void handleDownloadFullReport()}
+      onMarkReplied={handleMarkReplied}
+      onDeliverabilityAcknowledged={() => void fetchCampaignAnalytics({ silent: true })}
+    />
   );
 }

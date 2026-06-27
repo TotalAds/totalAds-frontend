@@ -12,6 +12,7 @@ import {
   isSocialProductOnboardingIntent,
   parseProduct,
   ProductType,
+  resolvePostAuthPath,
   storeAuthProduct,
 } from "@/utils/auth/productIntent";
 import { IconUserCircle } from "@tabler/icons-react";
@@ -43,14 +44,14 @@ export function LoginComponent() {
     if (isAuthenticated && user) {
       const resolvedProduct =
         product || parseProduct(user.signupProduct ?? null);
-      const redirectPath = getPostAuthRedirectPath(resolvedProduct, {
+      const redirectPath = resolvePostAuthPath(searchParams, resolvedProduct, {
         emailVerified: user.emailVerified,
         onboardingCompleted: user.onboardingCompleted,
         socialOnboardingCompleted: user.socialOnboardingCompleted,
       });
       router.push(redirectPath);
     }
-  }, [isAuthenticated, user, router, product]);
+  }, [isAuthenticated, user, router, product, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

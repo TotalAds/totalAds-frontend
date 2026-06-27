@@ -16,6 +16,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
@@ -31,7 +32,12 @@ import emailClient, {
   getCampaignEligibility,
   getDomains,
   getEmailServiceErrorMessage,
+  getLeads,
+  getLeadsBatch,
   getLists,
+  addLeadsToCampaign,
+  createCampaignLeadsFromCsv,
+  LeadBatchItem,
   LeadCategory,
   LeadTag,
 } from "@/utils/api/emailClient";
@@ -51,6 +57,7 @@ import {
   localTimeToUtcHHMM,
   utcTimeToLocalHHMM,
 } from "@/utils/campaignSendTime";
+import { CampaignSenderPicker } from "./CampaignSenderPicker";
 import ReoonApiKeyRequiredModal from "./ReoonApiKeyRequiredModal";
 import AICampaignGeneratorModal from "./AICampaignGeneratorModal";
 import AIGeneratedCampaignPanel from "./AIGeneratedCampaignPanel";
@@ -58,7 +65,25 @@ import CreateEmailModal from "./CreateEmailModal";
 import RecipientSelectionModal from "./RecipientSelectionModal";
 import { InboxGuardrailModal } from "./InboxGuardrailModal";
 import { DeliverabilityAcknowledgmentModal } from "./DeliverabilityAcknowledgmentModal";
+import { LargeDailyEmailCapModal } from "@/components/email/LargeDailyEmailCapModal";
+import {
+  SenderPacingSettingsForm,
+} from "@/components/email/SenderPacingSettingsForm";
+import {
+  buildCampaignPacingOverridePayload,
+  getSenderConfiguredDailyCap,
+  isAboveRecommendedDailyEmailCap,
+  resolveCampaignPacingFormValues,
+  SENDER_PACING_DEFAULTS,
+  type SenderPacingFormValues,
+} from "@/lib/senderPacing";
+import { providerDisplayName } from "@/lib/senderProviderEducation";
 import { computeInboxGuardrail } from "@/lib/inboxGuardrail";
+import {
+  campaignRequiresSesDomain,
+  INBOX_CAMPAIGN_DOMAIN_ID,
+  resolveEffectiveCampaignDomainId,
+} from "@/lib/campaignDomain";
 import { type SpintaxPackId } from "./spintaxUtils";
 
 
@@ -121,6 +146,15 @@ interface CampaignState {
   sequenceSteps: CampaignSequenceStep[];
 }
 
+const DEFAULT_SENDER_PACING: SenderPacingFormValues = { ...SENDER_PACING_DEFAULTS };
+
+function buildCampaignPacingApiPayload(
+  values: SenderPacingFormValues,
+  senderDefaults: SenderPacingFormValues
+) {
+  return buildCampaignPacingOverridePayload(values, senderDefaults);
+}
+
 interface CampaignSequenceStep {
   id: string;
   delayDays: number;
@@ -134,7 +168,7 @@ interface CampaignSequenceStep {
   strictGrammarMode: boolean;
 }
 
-const DEFAULT_STEP_DELAYS = [0, 2, 5, 8];
+const DEFAULT_STEP_DELAYS = [0];
 
 function createDefaultSequenceSteps(): CampaignSequenceStep[] {
   return [
@@ -145,42 +179,6 @@ function createDefaultSequenceSteps(): CampaignSequenceStep[] {
       body: "Hi {{first_name | there}},\n\nQuick question - are you the right person to discuss outbound growth at {{company}}?\n\nI have one idea that could help your team book more qualified meetings.\n\nWorth sharing?",
       previewText: "A quick idea for {{company}}",
       condition: "always",
-      bodyEditor: "simple",
-      useSpintax: false,
-      spintaxPackId: "general",
-      strictGrammarMode: false,
-    },
-    {
-      id: "step-2",
-      delayDays: 2,
-      subject: "Worth a look?",
-      body: "Hi {{first_name | there}},\n\nFollowing up in case this got buried.\n\nTeams similar to {{company}} usually reply once we tighten follow-ups and improve first-line hooks.\n\nShould I send a 2-minute breakdown?",
-      previewText: "Following up on my last note",
-      condition: "if_not_replied",
-      bodyEditor: "simple",
-      useSpintax: false,
-      spintaxPackId: "general",
-      strictGrammarMode: false,
-    },
-    {
-      id: "step-3",
-      delayDays: 5,
-      subject: "Last nudge",
-      body: "Hi {{first_name | there}},\n\nLast nudge from me.\n\nIf improving reply rates and booked meetings is a priority this quarter, I can share exactly what we'd test first for {{company}}.\n\nOpen to it?",
-      previewText: "Last nudge before I close this",
-      condition: "if_not_replied",
-      bodyEditor: "simple",
-      useSpintax: false,
-      spintaxPackId: "general",
-      strictGrammarMode: false,
-    },
-    {
-      id: "step-4",
-      delayDays: 8,
-      subject: "Should I close your file?",
-      body: "Hi {{first_name | there}},\n\nI haven't heard back, so I'll close this out for now.\n\nIf you'd like me to reopen it later, just reply with \"revisit\" and I'll send over a tailored plan for {{company}}.",
-      previewText: "Close the loop?",
-      condition: "if_not_replied",
       bodyEditor: "simple",
       useSpintax: false,
       spintaxPackId: "general",
@@ -208,8 +206,15 @@ interface EmailSender {
   id: string;
   email: string;
   displayName?: string;
-  domainId: string;
+  domainId?: string | null;
+  domainName?: string | null;
+  provider?: "ses" | "gmail" | "outlook" | "smtp";
+  accountType?: string | null;
+  status?: string;
   verificationStatus: "pending" | "verified" | "failed";
+  campaignDailyLimit?: number | null;
+  minWaitMinutes?: number | null;
+  slowRampEnabled?: boolean | null;
   quota?: {
     dailyCap: number;
     used: number;
@@ -228,6 +233,11 @@ interface EmailSender {
     domainTrustLevel?: DomainTrustLevel;
     domainAgeInDays?: number;
     quotaMode?: "byo" | "managed";
+    provider?: string;
+    accountType?: string | null;
+    status?: string;
+    pauseReason?: string | null;
+    configuredDailyLimit?: number | null;
   };
 }
 
@@ -251,12 +261,12 @@ export default function SinglePageCampaignBuilder({
   onSuccess,
   campaignId,
   initialDomainId = "",
-  campaignMode = "single",
+  campaignMode = "sequence",
 }: SinglePageCampaignBuilderProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isSequenceMode = campaignMode === "sequence";
-  const { sesProvider } = useEmailProvider();
+  const { isManagedSes, isByoSes, usesSesDomains } = useEmailProvider();
   const [eligibility, setEligibility] = useState<null | {
     eligible: boolean;
     verifiedDomainCount: number;
@@ -276,6 +286,7 @@ export default function SinglePageCampaignBuilder({
   const [showVerificationChoiceModal, setShowVerificationChoiceModal] =
     useState(false);
   const [showInboxGuardrailModal, setShowInboxGuardrailModal] = useState(false);
+  const [showLargeDailyCapModal, setShowLargeDailyCapModal] = useState(false);
   const [showDeliverabilityAckModal, setShowDeliverabilityAckModal] =
     useState(false);
   const [ackSubmitting, setAckSubmitting] = useState(false);
@@ -289,6 +300,8 @@ export default function SinglePageCampaignBuilder({
     boolean | null
   >(null);
   const [showRecipientModal, setShowRecipientModal] = useState(false);
+  const [recipientLeadPreview, setRecipientLeadPreview] = useState<LeadBatchItem[]>([]);
+  const [loadingRecipientPreview, setLoadingRecipientPreview] = useState(false);
   const [listOptions, setListOptions] = useState<EmailList[]>([]);
   const [loadingLists, setLoadingLists] = useState(false);
   const [showReoonKeyRequiredModal, setShowReoonKeyRequiredModal] =
@@ -304,6 +317,12 @@ export default function SinglePageCampaignBuilder({
   const [sequenceStepDeleteId, setSequenceStepDeleteId] = useState<string | null>(null);
   const [sequenceEditorOpen, setSequenceEditorOpen] = useState(false);
   const prevDomainIdRef = useRef<string>(initialDomainId);
+  const campaignPacingOverridesRef = useRef<{
+    campaignDailyLimitOverride?: number | null;
+    minWaitMinutesOverride?: number | null;
+    slowRampEnabledOverride?: boolean | null;
+  } | null>(null);
+  const lastPacingSyncKeyRef = useRef<string | null>(null);
 
   const idFromQuery = searchParams.get("id");
   const effectiveCampaignId = campaignId || idFromQuery || undefined;
@@ -312,6 +331,9 @@ export default function SinglePageCampaignBuilder({
 
   const [sendVolume, setSendVolume] = useState<CampaignSendVolume | null>(null);
   const [sendVolumeLoading, setSendVolumeLoading] = useState(false);
+  const [campaignPacing, setCampaignPacing] = useState<SenderPacingFormValues>({
+    ...DEFAULT_SENDER_PACING,
+  });
 
   const [state, setState] = useState<CampaignState>({
     campaignName: "",
@@ -437,8 +459,8 @@ export default function SinglePageCampaignBuilder({
 
         let domainToSelect = initialDomainId;
 
-        // If no domainId in URL, select the first verified domain as default
-        if (!initialDomainId && verifiedDomains.length > 0) {
+        // SES users: default to first verified domain. Inbox-only users skip domain.
+        if (!initialDomainId && verifiedDomains.length > 0 && usesSesDomains) {
           // Select the first verified domain (most recently created)
           domainToSelect = verifiedDomains[0].id;
           console.log(
@@ -520,12 +542,16 @@ export default function SinglePageCampaignBuilder({
   // Resume a draft / scheduled / failed campaign from ?id= (same flow as new campaign, optional skip verify).
   // For sequence campaigns, ?liveSequenceEdit=1 also allows editing while status is "sending".
   useEffect(() => {
-    if (!state.domainId || !effectiveCampaignId) return;
+    if (!effectiveCampaignId) return;
     let cancelled = false;
     const load = async () => {
       setLoadingExistingCampaign(true);
       try {
-        const c = await getCampaignById(state.domainId, effectiveCampaignId);
+        const domainForLoad =
+          state.domainId ||
+          initialDomainId ||
+          INBOX_CAMPAIGN_DOMAIN_ID;
+        const c = await getCampaignById(domainForLoad, effectiveCampaignId);
         if (cancelled) return;
 
         if (c.status === "verifying_leads") {
@@ -613,6 +639,9 @@ export default function SinglePageCampaignBuilder({
         const rawC = c as unknown as {
           description?: string;
           dailySendTime?: string;
+          campaignDailyLimitOverride?: number | null;
+          minWaitMinutesOverride?: number | null;
+          slowRampEnabledOverride?: boolean | null;
           replyTo?: string;
           leadIds?: string[];
           deliverabilityPauseReason?: string | null;
@@ -639,8 +668,14 @@ export default function SinglePageCampaignBuilder({
               ? "simple"
               : inferBodyEditorFromHtml(loadedBody);
 
+        const loadedDomainId =
+          (c as { domainId?: string | number }).domainId != null
+            ? String((c as { domainId?: string | number }).domainId)
+            : domainForLoad;
+
         setState((prev) => ({
           ...prev,
+          domainId: loadedDomainId,
           campaignName: c.name || prev.campaignName,
           campaignDescription: rawC.description || prev.campaignDescription,
           sequenceSteps: normalizedSteps,
@@ -689,6 +724,19 @@ export default function SinglePageCampaignBuilder({
         setRequireLeadVerification(
           c.reoonVerificationSummary?.requireLeadVerification === true
         );
+
+        setCampaignPacing(
+          resolveCampaignPacingFormValues(DEFAULT_SENDER_PACING, {
+            campaignDailyLimitOverride: rawC.campaignDailyLimitOverride,
+            minWaitMinutesOverride: rawC.minWaitMinutesOverride,
+            slowRampEnabledOverride: rawC.slowRampEnabledOverride,
+          })
+        );
+        campaignPacingOverridesRef.current = {
+          campaignDailyLimitOverride: rawC.campaignDailyLimitOverride,
+          minWaitMinutesOverride: rawC.minWaitMinutesOverride,
+          slowRampEnabledOverride: rawC.slowRampEnabledOverride,
+        };
       } catch (e) {
         console.error(e);
         toast.error("Could not load this campaign for editing.");
@@ -700,7 +748,7 @@ export default function SinglePageCampaignBuilder({
     return () => {
       cancelled = true;
     };
-  }, [state.domainId, effectiveCampaignId, canResumeSendingCampaign]);
+  }, [effectiveCampaignId, canResumeSendingCampaign, initialDomainId, state.domainId]);
 
   // Send activity (today / yesterday / by day) when editing or viewing a campaign by id
   useEffect(() => {
@@ -735,6 +783,59 @@ export default function SinglePageCampaignBuilder({
     };
   }, [effectiveCampaignId]);
 
+  // Load a preview of selected recipients (synced from backend when campaign exists)
+  useEffect(() => {
+    const recipientCount = state.selectedRecipients.count;
+    const recipientIds = state.selectedRecipients.ids;
+
+    if (recipientCount === 0) {
+      setRecipientLeadPreview([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadPreview = async () => {
+      setLoadingRecipientPreview(true);
+      try {
+        if (effectiveCampaignId) {
+          const result = await getLeads(1, 50, undefined, undefined, undefined, effectiveCampaignId);
+          if (!cancelled) {
+            setRecipientLeadPreview(
+              (result.data.leads || []).map((lead) => ({
+                id: lead.id,
+                email: lead.email,
+              }))
+            );
+          }
+          return;
+        }
+
+        if (recipientIds.length > 0) {
+          const previewIds = recipientIds.slice(0, 50);
+          const batch = await getLeadsBatch(previewIds);
+          if (!cancelled) setRecipientLeadPreview(batch);
+          return;
+        }
+
+        if (!cancelled) setRecipientLeadPreview([]);
+      } catch {
+        if (!cancelled) setRecipientLeadPreview([]);
+      } finally {
+        if (!cancelled) setLoadingRecipientPreview(false);
+      }
+    };
+
+    void loadPreview();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    effectiveCampaignId,
+    state.selectedRecipients.count,
+    state.selectedRecipients.ids,
+  ]);
+
   // Clear sender selections when domain changes
   useEffect(() => {
     const currentDomainId = state.domainId;
@@ -765,20 +866,28 @@ export default function SinglePageCampaignBuilder({
       const allSenders = response.data?.data?.senders || [];
       // Filter only verified senders (from any domain)
       const verifiedSenders = allSenders.filter(
-        (sender: EmailSender) => sender.verificationStatus === "verified"
+        (sender: EmailSender) =>
+          sender.verificationStatus === "verified" && sender.status !== "error"
       );
 
       // Fetch quota for each verified sender
       const sendersWithQuota = await Promise.all(
         verifiedSenders.map(async (sender: EmailSender) => {
+          const configuredCap = getSenderConfiguredDailyCap(sender);
           try {
             const quotaResponse = await emailClient.get(
               `/api/email-senders/${sender.id}/quota`
             );
             if (quotaResponse.data.success) {
+              const data = quotaResponse.data.data;
               return {
                 ...sender,
-                quota: quotaResponse.data.data,
+                quota: {
+                  ...data,
+                  dailyCap: configuredCap,
+                  remaining:
+                    data?.remaining != null ? data.remaining : configuredCap,
+                },
               };
             }
           } catch (error) {
@@ -787,7 +896,13 @@ export default function SinglePageCampaignBuilder({
               error
             );
           }
-          return sender;
+          return {
+            ...sender,
+            quota: {
+              dailyCap: configuredCap,
+              remaining: configuredCap,
+            },
+          };
         })
       );
 
@@ -806,9 +921,17 @@ export default function SinglePageCampaignBuilder({
       return null;
     }
 
-    const selectedSenders = senders.filter((s) =>
-      state.senderIds.includes(s.id)
-    );
+    const selectedSenders = senders
+      .filter((s) => state.senderIds.includes(s.id))
+      .sort((a, b) => {
+        const bounceA = a.quota?.bounceRate7d ?? 0;
+        const bounceB = b.quota?.bounceRate7d ?? 0;
+        if (bounceA !== bounceB) return bounceA - bounceB;
+        const remA = a.quota?.remaining ?? a.quota?.dailyCap ?? 0;
+        const remB = b.quota?.remaining ?? b.quota?.dailyCap ?? 0;
+        if (remA !== remB) return remB - remA;
+        return (a.provider || "ses").localeCompare(b.provider || "ses");
+      });
     const leadCount = state.selectedRecipients.count;
 
     if (selectedSenders.length === 0 || leadCount === 0) {
@@ -821,15 +944,12 @@ export default function SinglePageCampaignBuilder({
     // by the backend warmup/quota logic.
     // BYO SES: no artificial minimum weight — senders without a configured cap contribute 0.
     const weightedSenders = selectedSenders.map((sender) => {
-      if (sesProvider === "custom") {
+      if (isByoSes) {
         const cap =
           sender.quota?.dailyCap || sender.quota?.remaining || 0;
         return { sender, weight: Math.max(0, cap) };
       }
-      const cap =
-        sender.quota?.dailyCap ||
-        sender.quota?.remaining ||
-        1; // ensure every sender has at least minimal weight
+      const cap = getSenderConfiguredDailyCap(sender);
       return {
         sender,
         weight: Math.max(1, cap),
@@ -889,7 +1009,8 @@ export default function SinglePageCampaignBuilder({
     const totalCapacity = weightedSenders.reduce(
       (sum, w) =>
         sum +
-        (w.sender.quota?.remaining || w.sender.quota?.dailyCap || 0),
+        (w.sender.quota?.remaining ??
+          getSenderConfiguredDailyCap(w.sender)),
       0
     );
 
@@ -902,6 +1023,48 @@ export default function SinglePageCampaignBuilder({
   };
 
   const rotation = calculateRotation();
+
+  const requiresSesDomain = useMemo(
+    () => campaignRequiresSesDomain(senders, state.senderIds),
+    [senders, state.senderIds]
+  );
+
+  const effectiveCampaignDomainId = useMemo(
+    () =>
+      resolveEffectiveCampaignDomainId({
+        selectedSenderIds: state.senderIds,
+        senders,
+        selectedDomainId: state.domainId,
+      }),
+    [state.senderIds, senders, state.domainId]
+  );
+
+  const primarySenderDefaults = useMemo((): SenderPacingFormValues => {
+    const primaryId = state.senderIds[0];
+    if (!primaryId) return DEFAULT_SENDER_PACING;
+    const sender = senders.find((s) => s.id === primaryId);
+    if (!sender) return DEFAULT_SENDER_PACING;
+    return {
+      campaignDailyLimit: sender.campaignDailyLimit ?? DEFAULT_SENDER_PACING.campaignDailyLimit,
+      minWaitMinutes: sender.minWaitMinutes ?? DEFAULT_SENDER_PACING.minWaitMinutes,
+      slowRampEnabled: sender.slowRampEnabled ?? DEFAULT_SENDER_PACING.slowRampEnabled,
+    };
+  }, [state.senderIds, senders]);
+
+  useEffect(() => {
+    const primaryId = state.senderIds[0];
+    if (!primaryId || senders.length === 0) return;
+    const syncKey = `${effectiveCampaignId ?? "new"}:${primaryId}`;
+    if (lastPacingSyncKeyRef.current === syncKey) return;
+    lastPacingSyncKeyRef.current = syncKey;
+    setCampaignPacing(
+      resolveCampaignPacingFormValues(
+        primarySenderDefaults,
+        effectiveCampaignId ? campaignPacingOverridesRef.current ?? undefined : undefined
+      )
+    );
+  }, [primarySenderDefaults, state.senderIds, senders.length, effectiveCampaignId]);
+
   const dailySendTimeHint = useMemo(
     () => formatDailySendTimeHint(state.dailySendTime),
     [state.dailySendTime]
@@ -962,7 +1125,7 @@ export default function SinglePageCampaignBuilder({
     if (baseCap <= 0) return 0;
 
     // BYO SES: no LeadSnipper reputation warmup forecast — use your effective cap each day.
-    if (sesProvider === "custom") {
+    if (isByoSes) {
       return baseCap;
     }
 
@@ -1030,11 +1193,19 @@ export default function SinglePageCampaignBuilder({
 
   const scheduleEstimate = computeScheduleEstimate();
 
+  const selectedDailyCapacity = useMemo(() => {
+    const selected = senders.filter((s) => state.senderIds.includes(s.id));
+    const sum = selected.reduce(
+      (acc, s) => acc + getSenderConfiguredDailyCap(s),
+      0
+    );
+    return sum > 0 ? sum : undefined;
+  }, [senders, state.senderIds]);
+
   const inboxGuardrail = useMemo(() => {
     const customDailyCapacity =
-      sesProvider === "custom" && rotation?.totalCapacity
-        ? rotation.totalCapacity
-        : undefined;
+      selectedDailyCapacity ??
+      (isByoSes && rotation?.totalCapacity ? rotation.totalCapacity : undefined);
     return computeInboxGuardrail({
       contactCount: state.selectedRecipients.count,
       inboxCount: state.senderIds.length,
@@ -1043,8 +1214,9 @@ export default function SinglePageCampaignBuilder({
   }, [
     state.selectedRecipients.count,
     state.senderIds.length,
+    selectedDailyCapacity,
     rotation?.totalCapacity,
-    sesProvider,
+    isByoSes,
   ]);
 
   const shouldShowInboxGuardrail =
@@ -1091,7 +1263,7 @@ export default function SinglePageCampaignBuilder({
     subject: sequenceHasAllRequiredFields,
     content: sequenceHasAllRequiredFields,
     campaignName: state.campaignName.trim().length > 0,
-    domain: state.domainId.length > 0,
+    domain: !requiresSesDomain || effectiveCampaignDomainId.length > 0,
     sender: state.senderIds.length > 0,
     // Capacity now means: "do selected senders have *any* daily capacity so we can start?"
     // We allow campaigns that will take multiple days; backend warmup handles pacing.
@@ -1104,7 +1276,7 @@ export default function SinglePageCampaignBuilder({
   const isFormValid = Object.values(validation).every((v) => v === true);
   const isLiveSequenceResume = Boolean(resumeCampaignId) && canResumeSendingCampaign;
 
-  const handleRecipientsSelected = (data: {
+  const handleRecipientsSelected = async (data: {
     type: "list" | "filter" | "individual" | "csv";
     ids: string[];
     count: number;
@@ -1127,6 +1299,70 @@ export default function SinglePageCampaignBuilder({
       selectedLists: data.type === "csv" ? prev.selectedLists : [],
     }));
     setShowRecipientModal(false);
+
+    if (!effectiveCampaignId || !effectiveCampaignDomainId) return;
+
+    try {
+      let leadIds: string[] = [];
+
+      if (data.type === "csv" && data.csvData && data.csvData.length > 0) {
+        const emailColumn = data.emailColumn || state.emailColumn || "email";
+        const csvDataForApi = data.csvData.map((row) => {
+          if (emailColumn !== "email" && row[emailColumn]) {
+            return { ...row, email: row[emailColumn] };
+          }
+          return row;
+        });
+
+        const created = await createCampaignLeadsFromCsv(effectiveCampaignDomainId, {
+          csvData: csvDataForApi,
+          tagIds: state.selectedTags?.map((t) => String(t.id)) || [],
+          categoryIds: state.selectedCategories?.map((c) => String(c.id)) || [],
+          listIds:
+            state.selectedLists
+              ?.map((l) => String(l.id))
+              .filter((id) => id.length > 0 && id !== "undefined" && id !== "null") || [],
+        });
+        leadIds = created.leadIds || [];
+      } else {
+        leadIds = data.ids;
+      }
+
+      if (leadIds.length === 0) return;
+
+      const result = await addLeadsToCampaign(
+        effectiveCampaignDomainId,
+        effectiveCampaignId,
+        leadIds
+      );
+
+      if (result.newLeadsAdded > 0) {
+        toast.success(
+          `Saved ${result.newLeadsAdded} lead${result.newLeadsAdded !== 1 ? "s" : ""} to campaign`
+        );
+      } else if (result.duplicatesSkipped > 0) {
+        toast.success("Selected leads are already on this campaign");
+      }
+
+      const refreshed = await getCampaignById(
+        effectiveCampaignDomainId,
+        effectiveCampaignId
+      );
+      const refreshedLeadIds = (refreshed.leadIds || []).map(String);
+
+      setState((prev) => ({
+        ...prev,
+        selectedRecipients: {
+          type: "individual",
+          ids: refreshedLeadIds,
+          count: refreshedLeadIds.length || result.totalLeads,
+        },
+      }));
+    } catch (error: unknown) {
+      toast.error(
+        getEmailServiceErrorMessage(error, "Could not save leads to campaign")
+      );
+    }
   };
 
   const finalizeCampaignSend = async (
@@ -1134,11 +1370,16 @@ export default function SinglePageCampaignBuilder({
     idsToUse: string[],
     withVerification: boolean
   ) => {
-    const domainId = state.domainId;
+    const domainId = effectiveCampaignDomainId;
+    if (!domainId) {
+      toast.error("Select a verified SES domain for your SES senders.");
+      throw new Error("Missing campaign domain");
+    }
     toast.loading("Saving campaign…");
     try {
       await emailClient.patch(`/api/domains/${domainId}/campaigns/${campaignId}`, {
         sequence: buildSequencePayload(),
+        ...buildCampaignPacingApiPayload(campaignPacing, primarySenderDefaults),
       });
     } catch (patchErr: unknown) {
       toast.dismiss();
@@ -1260,6 +1501,7 @@ export default function SinglePageCampaignBuilder({
         dailySendTime: state.dailySendTime
           ? localTimeToUtcHHMM(state.dailySendTime)
           : undefined,
+        ...buildCampaignPacingApiPayload(campaignPacing, primarySenderDefaults),
         requireLeadVerification: withVerification,
       }
     );
@@ -1307,8 +1549,10 @@ export default function SinglePageCampaignBuilder({
       toast.error("Please enter a campaign name");
       return;
     }
-    if (!validation.domain) {
-      toast.error("Please select a domain");
+    if (requiresSesDomain && !effectiveCampaignDomainId) {
+      toast.error(
+        "Select a verified SES domain — required when using AWS SES senders."
+      );
       return;
     }
     if (!validation.sender) {
@@ -1317,7 +1561,7 @@ export default function SinglePageCampaignBuilder({
     }
     if (!validation.capacity) {
       toast.error(
-        sesProvider === "custom"
+        isByoSes
           ? `Your selected senders have no daily send cap configured (or capacity is zero). Set a daily send cap per sender under Email → Domains → Senders.`
           : `Your selected senders have no daily sending capacity. Please warm up senders or add more senders.`
       );
@@ -1358,7 +1602,7 @@ export default function SinglePageCampaignBuilder({
           });
 
           const leadsResponse = await emailClient.post(
-            `/api/domains/${state.domainId}/campaigns/leads/create-from-csv`,
+            `/api/domains/${effectiveCampaignDomainId}/campaigns/leads/create-from-csv`,
             {
               csvData: csvDataForApi,
               tagIds: state.selectedTags?.map((t: any) => String(t.id)) || [],
@@ -1473,7 +1717,7 @@ export default function SinglePageCampaignBuilder({
         }
 
         const response = await emailClient.post(
-          `/api/domains/${state.domainId}/campaigns/send`,
+          `/api/domains/${effectiveCampaignDomainId}/campaigns/send`,
           {
             campaignType: isSequenceMode ? "sequence" : "single",
             name: state.campaignName,
@@ -1492,6 +1736,7 @@ export default function SinglePageCampaignBuilder({
               dailySendTime: state.dailySendTime
                 ? localTimeToUtcHHMM(state.dailySendTime)
                 : undefined,
+              ...buildCampaignPacingApiPayload(campaignPacing, primarySenderDefaults),
               requireLeadVerification: withVerification,
             },
           }
@@ -1529,40 +1774,7 @@ export default function SinglePageCampaignBuilder({
     }
   };
 
-  const handleSend = () => {
-    if (!validation.recipients) {
-      toast.error("Please select at least one recipient");
-      return;
-    }
-    if (!validation.subject) {
-      toast.error("Please fill subject for every sequence step");
-      return;
-    }
-    if (!validation.content) {
-      toast.error("Please fill email body for every sequence step");
-      return;
-    }
-    if (!validation.campaignName) {
-      toast.error("Please enter a campaign name");
-      return;
-    }
-    if (!validation.domain) {
-      toast.error("Please select a domain");
-      return;
-    }
-    if (!validation.sender) {
-      toast.error("Please select at least one email sender");
-      return;
-    }
-    if (!validation.capacity) {
-      toast.error(
-        sesProvider === "custom"
-          ? `Your selected senders have no daily send cap configured (or capacity is zero). Set a daily send cap per sender under Email → Domains → Senders.`
-          : `Your selected senders have no daily sending capacity. Please warm up senders or add more senders.`
-      );
-      return;
-    }
-
+  const proceedAfterSendValidations = () => {
     if (isLiveSequenceResume) {
       if (requiresDeliverabilityAcknowledgment) {
         setPendingSendWithVerification(requireLeadVerification);
@@ -1581,17 +1793,61 @@ export default function SinglePageCampaignBuilder({
     setShowVerificationChoiceModal(true);
   };
 
+  const handleSend = () => {
+    if (!validation.recipients) {
+      toast.error("Please select at least one recipient");
+      return;
+    }
+    if (!validation.subject) {
+      toast.error("Please fill subject for every sequence step");
+      return;
+    }
+    if (!validation.content) {
+      toast.error("Please fill email body for every sequence step");
+      return;
+    }
+    if (!validation.campaignName) {
+      toast.error("Please enter a campaign name");
+      return;
+    }
+    if (requiresSesDomain && !effectiveCampaignDomainId) {
+      toast.error(
+        "Select a verified SES domain — required when using AWS SES senders."
+      );
+      return;
+    }
+    if (!validation.sender) {
+      toast.error("Please select at least one email sender");
+      return;
+    }
+    if (!validation.capacity) {
+      toast.error(
+        isByoSes
+          ? `Your selected senders have no daily send cap configured (or capacity is zero). Set a daily send cap per sender under Email → Domains → Senders.`
+          : `Your selected senders have no daily sending capacity. Please warm up senders or add more senders.`
+      );
+      return;
+    }
+
+    if (isAboveRecommendedDailyEmailCap(campaignPacing.campaignDailyLimit)) {
+      setShowLargeDailyCapModal(true);
+      return;
+    }
+
+    proceedAfterSendValidations();
+  };
+
   const proceedAfterInboxGuardrail = () => {
     setShowInboxGuardrailModal(false);
     setShowVerificationChoiceModal(true);
   };
 
   const handleDeliverabilityAckConfirm = async () => {
-    if (!state.domainId || !resumeCampaignId) return;
+    if (!effectiveCampaignDomainId || !resumeCampaignId) return;
     setAckSubmitting(true);
     try {
       const result = await acknowledgeDeliverabilityPause(
-        state.domainId,
+        effectiveCampaignDomainId,
         resumeCampaignId
       );
       setDeliverabilityAcknowledgedAt(result.acknowledgedAt);
@@ -1643,7 +1899,7 @@ export default function SinglePageCampaignBuilder({
           spintaxPackId: "general",
           strictGrammarMode: false,
         }];
-    const nextSteps = aiSteps.length > 0 ? aiSteps : createDefaultSequenceSteps().slice(0, isSequenceMode ? 4 : 1);
+    const nextSteps = aiSteps.length > 0 ? aiSteps : createDefaultSequenceSteps();
 
     setAiGeneratedData(data);
 
@@ -1755,6 +2011,8 @@ export default function SinglePageCampaignBuilder({
   }
 
   if (eligibility && !eligibility.eligible) {
+    const needsSesCreds =
+      eligibility.ineligibleReason?.toLowerCase().includes("aws ses credentials");
     return (
       <div className="min-h-screen bg-bg-100 flex items-center justify-center p-4">
         <div className="max-w-3xl w-full">
@@ -1763,50 +2021,36 @@ export default function SinglePageCampaignBuilder({
               You&apos;re almost ready to send
             </h2>
             <p className="text-text-200 mb-6">
-              {eligibility.ineligibleReason
-                ? eligibility.ineligibleReason
-                : "To build a campaign, you&apos;ll need at least one verified domain with DKIM and one verified sender."}
+              {eligibility.ineligibleReason ||
+                "Connect at least one verified sending account (Gmail, Microsoft, SMTP, or AWS SES) before launching a campaign."}
             </p>
-            <div className="space-y-2 text-left max-w-md mx-auto mb-6">
-              {eligibility.ineligibleReason && (
-                <p className="text-text-200">
-                  <a
-                    href="/email/settings"
-                    className="text-brand-main hover:underline font-medium"
-                  >
-                    Go to Settings → Email delivery
-                  </a>{" "}
-                  to connect your AWS SES credentials.
-                </p>
-              )}
-              {!eligibility.ineligibleReason && eligibility.verifiedDomainCount === 0 && (
-                <p className="text-text-200">
-                  • No verified domains found. Verify your domain first.
-                </p>
-              )}
-              {!eligibility.ineligibleReason && eligibility.verifiedSenderCount === 0 && (
-                <p className="text-text-200">
-                  • No verified senders found. Add and verify a sender.
-                </p>
-              )}
-            </div>
-            <div className="flex items-center justify-center gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-3">
               <Button
-                onClick={() =>
-                  window.location.href = eligibility.ineligibleReason
-                    ? "/email/settings"
-                    : "/email/domains"
-                }
+                onClick={() => {
+                  window.location.href = "/email/sending-accounts";
+                }}
                 className="px-4 py-2 rounded-lg bg-brand-main text-text-100"
               >
-                {eligibility.ineligibleReason ? "Settings" : "Manage Domains"}
+                Add sending account
               </Button>
-              {!eligibility.ineligibleReason && (
+              {needsSesCreds && (
                 <Button
-                  onClick={() => (window.location.href = "/email/domains")}
+                  onClick={() => {
+                    window.location.href = "/email/settings?tab=email-delivery";
+                  }}
                   className="px-4 py-2 rounded-lg bg-brand-main/20 text-text-100 border border-brand-main/30"
                 >
-                  Add Sender
+                  AWS SES settings
+                </Button>
+              )}
+              {!needsSesCreds && (
+                <Button
+                  onClick={() => {
+                    window.location.href = "/email/domains";
+                  }}
+                  className="px-4 py-2 rounded-lg bg-brand-main/20 text-text-100 border border-brand-main/30"
+                >
+                  Manage SES domains
                 </Button>
               )}
             </div>
@@ -1961,8 +2205,15 @@ export default function SinglePageCampaignBuilder({
                             selected
                           </p>
                         </div>
-                        <p className="text-xs text-text-200">
-                          Type: {state.selectedRecipients.type}
+                        <p className="text-xs text-text-200 capitalize">
+                          Source:{" "}
+                          {state.selectedRecipients.type === "csv"
+                            ? "CSV upload"
+                            : state.selectedRecipients.type === "individual"
+                              ? "Individual selection"
+                              : state.selectedRecipients.type === "list"
+                                ? "Lead lists"
+                                : "Filtered selection"}
                         </p>
                       </div>
                       <Button
@@ -1974,6 +2225,40 @@ export default function SinglePageCampaignBuilder({
                       </Button>
                     </div>
                   </div>
+
+                  {(loadingRecipientPreview || recipientLeadPreview.length > 0) && (
+                    <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50/80 overflow-hidden">
+                      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 bg-white">
+                        <p className="text-xs font-semibold text-slate-700">
+                          Recipients preview
+                        </p>
+                        {state.selectedRecipients.count > recipientLeadPreview.length && (
+                          <p className="text-[11px] text-slate-500">
+                            Showing {recipientLeadPreview.length} of{" "}
+                            {state.selectedRecipients.count.toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                      {loadingRecipientPreview ? (
+                        <p className="px-3 py-4 text-xs text-slate-500 text-center">
+                          Loading recipients…
+                        </p>
+                      ) : (
+                        <ul className="max-h-44 overflow-y-auto divide-y divide-slate-100">
+                          {recipientLeadPreview.map((lead) => (
+                            <li
+                              key={lead.id}
+                              className="flex items-center gap-2 px-3 py-2 text-xs text-slate-700"
+                            >
+                              <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                              <span className="truncate">{lead.email}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
                   {state.csvUploadNote && (
                     <div className="bg-brand-main/10 border border-brand-main/20 rounded-lg p-3 mb-3">
                       <p className="text-xs text-text-200">
@@ -2707,219 +2992,22 @@ export default function SinglePageCampaignBuilder({
                     )}
                   </div> */}
                   <div>
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
-                      <label className="block text-xs font-medium text-text-200">
-                        Select Email Senders (Multi-Domain Rotation) *
-                      </label>
-                      {sesProvider !== "custom" && (
-                        <DeliverabilitySafeguardsInfo variant="compact" />
-                      )}
-                    </div>
-                    {loadingSenders ? (
-                      <div className="text-text-200 text-xs py-2">
-                        Loading senders...
-                      </div>
-                    ) : senders.length === 0 ? (
-                      <div className="bg-warning/10 border border-warning/30 rounded-lg p-3">
-                        <p className="text-xs text-text-200">
-                          No verified senders found. Please verify at least one
-                          sender from any domain.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {/* Helper text */}
-                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-2">
-                          <p className="text-xs text-text-200">
-                            💡 You can select senders from{" "}
-                            <strong>multiple domains</strong> for automatic
-                            rotation. Leads will be distributed based on each
-                            sender&apos;s{" "}
-                            {sesProvider === "custom"
-                              ? "configured daily send cap (BYO SES)."
-                              : "daily capacity."}
-                          </p>
-                          {sesProvider !== "custom" && (
-                            <p className="text-[11px] text-text-200/80 mt-1.5 leading-relaxed">
-                              High bounce or complaint rates can reduce daily caps automatically.
-                              Critical reputation pauses the sender and{" "}
-                              <strong>auto-pauses running campaigns</strong> (your account is not
-                              blocked).{" "}
-                              <DeliverabilitySafeguardsInfo variant="link" className="inline" />
-                            </p>
-                          )}
-                        </div>
+                    <label className="block text-xs font-medium text-text-200 mb-1.5">
+                      Sending accounts (rotation) *
+                    </label>
+                    <CampaignSenderPicker
+                      senders={senders}
+                      domains={domains}
+                      selectedIds={state.senderIds}
+                      onChange={(ids) =>
+                        setState((prev) => ({ ...prev, senderIds: ids }))
+                      }
+                      loading={loadingSenders}
+                      isManagedSes={isManagedSes}
+                    />
 
-                        {/* Multi-select checkboxes - Grouped by domain */}
-                        <div className="max-h-64 overflow-y-auto space-y-3 border border-brand-main/20 rounded-lg p-3 bg-brand-main/5">
-                          {(() => {
-                            // Group senders by domain
-                            const sendersByDomain = senders.reduce(
-                              (acc, sender) => {
-                                const domain = domains.find(
-                                  (d) => d.id === sender.domainId
-                                );
-                                const domainName =
-                                  domain?.domain || `Domain ${sender.domainId}`;
-                                if (!acc[domainName]) {
-                                  acc[domainName] = [];
-                                }
-                                acc[domainName].push(sender);
-                                return acc;
-                              },
-                              {} as Record<string, EmailSender[]>
-                            );
-
-                            return Object.entries(sendersByDomain).map(
-                              ([domainName, domainSenders]) => (
-                                <div key={domainName} className="space-y-2">
-                                  <div className="flex items-center gap-2 pb-1 border-b border-brand-main/10">
-                                    <div className="w-2 h-2 rounded-full bg-brand-main"></div>
-                                    <p className="text-xs font-semibold text-text-100">
-                                      {domainName}
-                                    </p>
-                                    <span className="text-xs text-text-200/60">
-                                      ({domainSenders.length} sender
-                                      {domainSenders.length > 1 ? "s" : ""})
-                                    </span>
-                                  </div>
-                                  {domainSenders.map((sender) => {
-                                    const isSelected = state.senderIds.includes(
-                                      sender.id
-                                    );
-                                    const quota = sender.quota;
-                                    const remaining =
-                                      quota?.remaining ?? quota?.dailyCap ?? 0;
-                                    const healthBadge =
-                                      sesProvider !== "custom"
-                                        ? senderHealthBadge(
-                                            quota?.healthStatus,
-                                            quota?.bounceRate7d,
-                                            quota?.complaintRate7d,
-                                            quota?.sent7d,
-                                            quota?.deliverabilityAction
-                                          )
-                                        : null;
-
-                                    return (
-                                      <label
-                                        key={sender.id}
-                                        className={`flex items-start gap-3 p-2 rounded-lg cursor-pointer transition-all ml-4 ${
-                                          isSelected
-                                            ? "bg-brand-main/20 border-2 border-brand-main"
-                                            : "bg-transparent border-2 border-transparent hover:bg-brand-main/10"
-                                        }`}
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={isSelected}
-                                          onChange={(e) => {
-                                            if (e.target.checked) {
-                                              setState((prev) => ({
-                                                ...prev,
-                                                senderIds: [
-                                                  ...prev.senderIds,
-                                                  sender.id,
-                                                ],
-                                              }));
-                                            } else {
-                                              setState((prev) => ({
-                                                ...prev,
-                                                senderIds:
-                                                  prev.senderIds.filter(
-                                                    (id) => id !== sender.id
-                                                  ),
-                                              }));
-                                            }
-                                          }}
-                                          className="mt-1 w-4 h-4 rounded border-brand-main/20 text-brand-main focus:ring-brand-main"
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-center justify-between">
-                                            <p className="text-xs font-medium text-text-100">
-                                              {sender.displayName ||
-                                                sender.email}
-                                            </p>
-                                            <div className="flex items-center gap-1.5 ml-2 shrink-0">
-                                              {healthBadge && (
-                                                <span
-                                                  className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-                                                    healthBadge.tone === "critical"
-                                                      ? "bg-rose-100 text-rose-800"
-                                                      : healthBadge.tone === "monitoring"
-                                                      ? "bg-sky-100 text-sky-800"
-                                                      : healthBadge.tone === "warn"
-                                                      ? "bg-amber-100 text-amber-900"
-                                                      : "bg-emerald-100 text-emerald-800"
-                                                  }`}
-                                                  title={
-                                                    quota
-                                                      ? `7d bounce ${formatDeliverabilityRate(quota.bounceRate7d)} · complaints ${formatDeliverabilityRate(quota.complaintRate7d)}`
-                                                      : undefined
-                                                  }
-                                                >
-                                                  {healthBadge.label}
-                                                </span>
-                                              )}
-                                              {quota && (
-                                                <span className="text-xs text-text-200 whitespace-nowrap">
-                                                  {remaining.toLocaleString()} /{" "}
-                                                  {quota.dailyCap.toLocaleString()}{" "}
-                                                  left
-                                                </span>
-                                              )}
-                                            </div>
-                                          </div>
-                                          {sender.displayName && (
-                                            <p className="text-xs text-text-200/60 mt-0.5">
-                                              {sender.email}
-                                            </p>
-                                          )}
-                                          {quota &&
-                                            sesProvider !== "custom" &&
-                                            (quota.healthStatus === "warning" ||
-                                              quota.healthStatus === "critical") && (
-                                              <p className="text-[10px] text-amber-800 mt-1 leading-snug">
-                                                Cap may be reduced; critical health auto-pauses
-                                                campaigns.
-                                              </p>
-                                            )}
-                                          {quota && (
-                                            <div className="mt-1.5">
-                                              <div className="w-full bg-brand-main/10 rounded-full h-1.5">
-                                                <div
-                                                  className={`h-1.5 rounded-full ${
-                                                    remaining === 0
-                                                      ? "bg-red-500"
-                                                      : remaining <
-                                                        quota.dailyCap * 0.2
-                                                      ? "bg-yellow-500"
-                                                      : "bg-green-500"
-                                                  }`}
-                                                  style={{
-                                                    width: `${Math.min(
-                                                      ((quota.dailyCap -
-                                                        remaining) /
-                                                        quota.dailyCap) *
-                                                        100,
-                                                      100
-                                                    )}%`,
-                                                  }}
-                                                ></div>
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </label>
-                                    );
-                                  })}
-                                </div>
-                              )
-                            );
-                          })()}
-                        </div>
-
-                        {/* Rotation Preview */}
+                    {senders.length > 0 && (
+                      <div className="space-y-3 mt-3">
                         {state.senderIds.length > 0 &&
                           state.selectedRecipients.count > 0 &&
                           rotation && (
@@ -2940,8 +3028,8 @@ export default function SinglePageCampaignBuilder({
                                     className="flex items-center justify-between text-xs"
                                   >
                                     <span className="text-text-200">
-                                      {dist.sender.displayName ||
-                                        dist.sender.email}
+                                      {providerDisplayName(dist.sender.provider)} ·{" "}
+                                      {dist.sender.displayName || dist.sender.email}
                                     </span>
                                     <span className="font-medium text-success">
                                       {dist.leads.toLocaleString()} leads
@@ -2972,36 +3060,52 @@ export default function SinglePageCampaignBuilder({
                                       </p>
                                     )}
                                   {scheduleEstimate &&
-                                    scheduleEstimate.estimatedDays > 1 && (
+                                    scheduleEstimate.estimatedDays >= 1 && (
                                     <div className="mt-1 bg-brand-main/5 border border-brand-main/20 rounded-md p-2">
                                       <p className="text-xs font-medium text-text-100 mb-1">
-                                        Estimated sending schedule
+                                        Pre-launch volume check
                                       </p>
                                       <p className="text-xs text-text-200">
-                                        With your current{" "}
-                                        {sesProvider === "custom"
-                                          ? "BYO daily send caps"
-                                          : "warmup caps"}
-                                        , this campaign is expected to complete in{" "}
+                                        Campaign:{" "}
+                                        <span className="font-semibold">
+                                          {state.selectedRecipients.count.toLocaleString()} contacts
+                                        </span>
+                                        . Combined remaining capacity today:{" "}
+                                        <span className="font-semibold">
+                                          {rotation.totalCapacity.toLocaleString()}/day
+                                        </span>
+                                        . At current capacity, this campaign will take{" "}
                                         <span className="font-semibold">
                                           {scheduleEstimate.estimatedDays} day
-                                          {scheduleEstimate.estimatedDays > 1
-                                            ? "s"
-                                            : ""}
+                                          {scheduleEstimate.estimatedDays > 1 ? "s" : ""}
                                         </span>
                                         .
+                                        {scheduleEstimate.estimatedDays > 1 && (
+                                          <>
+                                            {" "}
+                                            <Link
+                                              href="/email/sending-accounts"
+                                              className="text-brand-main hover:underline font-medium"
+                                            >
+                                              Add more inboxes
+                                            </Link>{" "}
+                                            to finish faster.
+                                          </>
+                                        )}
                                       </p>
-                                      <ul className="mt-1 text-xs text-text-200 space-y-0.5">
-                                        {scheduleEstimate.breakdown.map((d) => (
-                                          <li key={d.day}>
-                                            Day {d.day}: approx.{" "}
-                                            <span className="font-semibold">
-                                              {d.count.toLocaleString()}
-                                            </span>{" "}
-                                            emails
-                                          </li>
-                                        ))}
-                                      </ul>
+                                      {scheduleEstimate.estimatedDays > 1 && (
+                                        <ul className="mt-1 text-xs text-text-200 space-y-0.5">
+                                          {scheduleEstimate.breakdown.map((d) => (
+                                            <li key={d.day}>
+                                              Day {d.day}: approx.{" "}
+                                              <span className="font-semibold">
+                                                {d.count.toLocaleString()}
+                                              </span>{" "}
+                                              emails
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
                                     </div>
                                   )}
                                 </div>
@@ -3050,6 +3154,33 @@ export default function SinglePageCampaignBuilder({
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* Daily email cap for this campaign */}
+                <div className="space-y-3 pt-3 border-t border-brand-main/10">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-sm font-medium text-text-100">Daily email cap</h3>
+                    {state.senderIds[0] && (
+                      <Link
+                        href={`/email/sending-accounts/${state.senderIds[0]}/settings`}
+                        className="text-xs text-brand-main hover:underline"
+                      >
+                        Inbox settings
+                      </Link>
+                    )}
+                  </div>
+                  {state.senderIds.length === 0 ? (
+                    <p className="text-xs text-text-200">
+                      Pick a sender above to set how many emails this campaign sends per day,
+                      how long to wait between campaigns, and whether volume should grow slowly.
+                    </p>
+                  ) : (
+                    <SenderPacingSettingsForm
+                      mode="campaign"
+                      values={campaignPacing}
+                      onChange={setCampaignPacing}
+                    />
+                  )}
                 </div>
 
                 {/* Email Settings */}
@@ -3380,22 +3511,34 @@ export default function SinglePageCampaignBuilder({
                     </div>
                   </div>
 
-                  {/* Domain */}
+                  {/* Domain — required for AWS SES only */}
                   <div>
                     <p className="text-xs text-text-200 mb-1">Domain</p>
                     <div className="flex items-center gap-2">
-                      {validation.domain ? (
-                        <CheckCircle2 size={14} className="text-success" />
+                      {requiresSesDomain ? (
+                        validation.domain ? (
+                          <CheckCircle2 size={14} className="text-success" />
+                        ) : (
+                          <AlertCircle size={14} className="text-error" />
+                        )
                       ) : (
-                        <AlertCircle size={14} className="text-error" />
+                        <CheckCircle2 size={14} className="text-success" />
                       )}
                       <p
                         className={`text-xs font-medium truncate ${
-                          validation.domain ? "text-text-100" : "text-error"
+                          requiresSesDomain && !validation.domain
+                            ? "text-error"
+                            : "text-text-100"
                         }`}
                       >
-                        {domains.find((d) => d.id === state.domainId)?.domain ||
-                          "Not selected"}
+                        {requiresSesDomain
+                          ? domains.find((d) => d.id === state.domainId)?.domain ||
+                            effectiveCampaignDomainId
+                            ? domains.find(
+                                (d) => d.id === effectiveCampaignDomainId
+                              )?.domain || "SES domain"
+                            : "Not selected"
+                          : "Not required (connected inbox)"}
                       </p>
                     </div>
                   </div>
@@ -3589,15 +3732,18 @@ export default function SinglePageCampaignBuilder({
               {shouldShowInboxGuardrail && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 space-y-1.5">
                   <p className="text-xs font-semibold text-amber-950">
-                    Inbox Guardrail
+                    Sending capacity warning
                   </p>
                   <p className="text-[11px] leading-relaxed text-amber-900">
-                    {state.selectedRecipients.count.toLocaleString()} contacts with{" "}
-                    {state.senderIds.length} inbox
-                    {state.senderIds.length !== 1 ? "es" : ""} ≈{" "}
-                    {inboxGuardrail.estimatedDays} days at safe limits. Need{" "}
-                    {inboxGuardrail.inboxesNeededForTarget} inboxes to finish in{" "}
-                    {inboxGuardrail.targetDays} days.
+                    {state.selectedRecipients.count.toLocaleString()} contacts across{" "}
+                    {state.senderIds.length} account
+                    {state.senderIds.length !== 1 ? "s" : ""} ≈{" "}
+                    {inboxGuardrail.estimatedDays} day
+                    {inboxGuardrail.estimatedDays !== 1 ? "s" : ""} at combined daily caps
+                    {selectedDailyCapacity
+                      ? ` (${selectedDailyCapacity.toLocaleString()}/day)`
+                      : ""}
+                    . Daily email caps from inbox settings are enforced — add accounts or expect multi-day sending.
                   </p>
                 </div>
               )}
@@ -3882,10 +4028,18 @@ export default function SinglePageCampaignBuilder({
         contactCount={state.selectedRecipients.count}
         inboxCount={state.senderIds.length}
         customDailyCapacity={
-          sesProvider === "custom" ? rotation?.totalCapacity : undefined
+          selectedDailyCapacity ?? rotation?.totalCapacity
         }
+        isManagedSes={isManagedSes}
         onContinue={proceedAfterInboxGuardrail}
         onClose={() => setShowInboxGuardrailModal(false)}
+      />
+
+      <LargeDailyEmailCapModal
+        open={showLargeDailyCapModal}
+        onOpenChange={setShowLargeDailyCapModal}
+        dailyCap={campaignPacing.campaignDailyLimit}
+        onConfirm={proceedAfterSendValidations}
       />
 
       <DeliverabilityAcknowledgmentModal
@@ -3930,7 +4084,7 @@ export default function SinglePageCampaignBuilder({
       <CreateEmailModal
         open={sequenceEditorOpen}
         onOpenChange={setSequenceEditorOpen}
-        domainId={state.domainId}
+        domainId={effectiveCampaignDomainId || INBOX_CAMPAIGN_DOMAIN_ID}
         excludeCampaignId={resumeCampaignId || effectiveCampaignId || null}
         availableVariables={availableVariables}
         seedSubject={selectedStep?.subject || ""}

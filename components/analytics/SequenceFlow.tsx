@@ -190,10 +190,10 @@ export const SequenceFlow: React.FC<SequenceFlowProps> = ({
                   {/* Metrics Row */}
                   <div className="flex flex-wrap gap-2 mb-3">
                     <MetricBadge label="Sent" value={step.sent} />
-                    {step.delivered > 0 ? (
-                      <MetricBadge 
-                        label="Opened" 
-                        value={step.opened} 
+                    {step.opened > 0 ? (
+                      <MetricBadge
+                        label="Opened"
+                        value={step.opened}
                         color="bg-green-50 text-green-700 border-green-200"
                       />
                     ) : null}
@@ -214,27 +214,20 @@ export const SequenceFlow: React.FC<SequenceFlowProps> = ({
                   </div>
 
                   {/* Negative Metrics */}
-                  {(step.failed || step.bounced || step.complained || step.unsubscribed) && (
+                  {(step.failed || step.bounced || step.unsubscribed) && (
                     <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-100">
                       {step.failed && step.failed > 0 ? (
-                        <MetricBadge 
-                          label="Failed" 
-                          value={step.failed} 
+                        <MetricBadge
+                          label="Failed"
+                          value={step.failed}
                           color="bg-orange-50 text-orange-700 border-orange-200"
                         />
                       ) : null}
                       {step.bounced && step.bounced > 0 ? (
-                        <MetricBadge 
-                          label="Bounced" 
-                          value={step.bounced} 
+                        <MetricBadge
+                          label="Bounced"
+                          value={step.bounced}
                           color="bg-rose-50 text-rose-700 border-rose-200"
-                        />
-                      ) : null}
-                      {step.complained && step.complained > 0 ? (
-                        <MetricBadge 
-                          label="Complaints" 
-                          value={step.complained} 
-                          color="bg-red-50 text-red-700 border-red-200"
                         />
                       ) : null}
                       {step.unsubscribed && step.unsubscribed > 0 ? (

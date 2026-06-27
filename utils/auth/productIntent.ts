@@ -100,6 +100,54 @@ export function buildUrlWithProduct(
 /**
  * Get redirect path after successful auth based on product
  */
+export function getSafeRedirectPath(
+  searchParams: URLSearchParams | { get: (key: string) => string | null }
+): string | null {
+  const raw = searchParams.get("redirect");
+  if (!raw) return null;
+
+  try {
+    const decoded = decodeURIComponent(raw);
+    if (decoded.startsWith("/") && !decoded.startsWith("//")) {
+      return decoded;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+export function buildInviteAuthQuery(token: string, email?: string) {
+  const invitePath = `/email/workspaces/invite?token=${encodeURIComponent(token)}`;
+  const params = new URLSearchParams();
+  params.set("redirect", invitePath);
+  params.set("product", "leadsnipper");
+  params.set("inviteToken", token);
+  if (email) params.set("inviteEmail", email);
+  return params;
+}
+
+/**
+ * Prefer explicit redirect (e.g. workspace invite) over default product onboarding.
+ */
+export function resolvePostAuthPath(
+  searchParams: URLSearchParams,
+  product: ProductType,
+  user: {
+    emailVerified: boolean;
+    onboardingCompleted: boolean;
+    socialOnboardingCompleted?: boolean;
+  }
+): string {
+  const redirect = getSafeRedirectPath(searchParams);
+  if (redirect) return redirect;
+  return getPostAuthRedirectPath(product, user);
+}
+
+/**
+ * Get redirect path after successful auth based on product
+ */
 export function getPostAuthRedirectPath(
   product: ProductType,
   user: {

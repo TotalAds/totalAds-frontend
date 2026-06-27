@@ -166,7 +166,7 @@ const IntegrationsSection = () => {
               Connected
             </span>
           ) : (
-            <span className="inline-flex shrink-0 items-center gap-1.5 self-start px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-300 border border-amber-500/40">
+            <span className="inline-flex shrink-0 items-center gap-1.5 self-start px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-300">
               <IconAlertCircle className="w-3.5 h-3.5" />
               Not connected
             </span>

@@ -2,7 +2,6 @@ import React from 'react'
 
 interface OptimizationInsightsProps {
   mode: 'sequence' | 'single'
-  deliveryRate: number
   openRate: number
   clickRate: number
   replied: number
@@ -11,21 +10,12 @@ interface OptimizationInsightsProps {
 
 export const OptimizationInsights: React.FC<OptimizationInsightsProps> = ({
   mode,
-  deliveryRate,
   openRate,
   clickRate,
   replied,
   sent,
 }) => {
   const insights: string[] = []
-
-  if (deliveryRate === 100) {
-    insights.push('Perfect deliverability: all emails are landing successfully.')
-  } else if (deliveryRate < 95) {
-    insights.push('Deliverability is below target; review sender health and list quality.')
-  } else {
-    insights.push('Deliverability is stable; keep sender pacing consistent.')
-  }
 
   if (openRate >= 30) {
     insights.push('Subject line performance is strong and cutting through inbox noise.')

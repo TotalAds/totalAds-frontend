@@ -12,6 +12,8 @@ import ContactPlanLimitBanner from "@/components/leads/ContactPlanLimitBanner";
 // import LeadFilterModal from "@/components/leads/LeadFilterModal"; // Removed - using AG Grid built-in filters
 import { LeadVerificationModal } from "@/components/leads/LeadVerificationModal";
 import { BodyPortal } from "@/components/ui/BodyPortal";
+import { useCanEdit, useIsViewer } from "@/context/WorkspaceContext";
+import WorkspaceRoleBanner from "@/components/workspace/WorkspaceRoleBanner";
 import emailClient, {
   Campaign,
   checkActiveBulkUploadJobs,
@@ -71,6 +73,8 @@ interface FilterOptions {
 
 export default function LeadsPage() {
   const router = useRouter();
+  const canEdit = useCanEdit();
+  const isViewer = useIsViewer();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -499,7 +503,7 @@ export default function LeadsPage() {
   const ActionsCellRenderer = useCallback(
     (params: ICellRendererParams<Lead>) => {
       const lead = params.data;
-      if (!lead) return null;
+      if (!lead || !canEdit) return null;
       return (
         <div className="flex items-center gap-3">
           <button
@@ -519,7 +523,7 @@ export default function LeadsPage() {
         </div>
       );
     },
-    []
+    [canEdit]
   );
 
   // AG Grid Column Definitions
@@ -581,7 +585,7 @@ export default function LeadsPage() {
         field: "name",
         flex: 1,
         minWidth: 120,
-        valueFormatter: (params) => params.value || "-",
+        valueFormatter: (params: any) => params.value || "-",
         sortable: true,
         filter: "agTextColumnFilter",
         filterParams: {
@@ -715,7 +719,7 @@ export default function LeadsPage() {
         sortable: false,
         filter: false,
       },
-    ],
+    ].filter((col) => canEdit || col.headerName !== "Actions") as ColDef<Lead>[],
     [
       EmailCellRenderer,
       VerificationCellRenderer,
@@ -724,6 +728,7 @@ export default function LeadsPage() {
       ListsCellRenderer,
       CampaignCellRenderer,
       ActionsCellRenderer,
+      canEdit,
     ]
   );
 
@@ -737,13 +742,14 @@ export default function LeadsPage() {
 
   // Row selection configuration for AG Grid v34+
   const rowSelection = useMemo(() => {
+    if (!canEdit) return undefined;
     return {
       mode: "multiRow" as const,
       checkboxes: true,
       headerCheckbox: true,
       enableClickSelection: false,
     };
-  }, []);
+  }, [canEdit]);
 
   return (
     <div className="min-h-screen bg-bg-100 p-6">
@@ -759,8 +765,10 @@ export default function LeadsPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={async () => {
+            {canEdit && (
+              <>
+                <button
+                  onClick={async () => {
                 // Check for active jobs before opening modal (user-specific)
                 try {
                   const activeJobsResult = await checkActiveBulkUploadJobs();
@@ -805,8 +813,14 @@ export default function LeadsPage() {
               <IconPlus size={20} />
               Add Lead
             </button>
+              </>
+            )}
           </div>
         </div>
+
+        {isViewer && (
+          <WorkspaceRoleBanner variant="viewer-action" className="mb-6" />
+        )}
 
         <ContactPlanLimitBanner metrics={contactMetrics} className="mb-6" />
 
@@ -904,7 +918,7 @@ export default function LeadsPage() {
         </div>
 
         {/* Bulk Actions Bar */}
-        {selectedLeadsForCampaign.size > 0 && (
+        {canEdit && selectedLeadsForCampaign.size > 0 && (
           <div className="bg-brand-main/10 border border-brand-main/30 rounded-xl p-4 mb-6 flex items-center justify-between">
             <div className="text-text-100">
               <span className="font-semibold">

@@ -101,12 +101,30 @@ export const TIMEZONES: TimezoneOption[] = [
   { value: "UTC", label: "UTC (Coordinated Universal Time)", offset: "UTC+0" },
 ];
 
+const TIMEZONE_ALIASES: Record<string, string> = {
+  "Asia/Calcutta": "Asia/Kolkata",
+  "Europe/Kiev": "Europe/Kyiv",
+  "America/Fort_Wayne": "America/Indiana/Indianapolis",
+  "America/Indianapolis": "America/Indiana/Indianapolis",
+};
+
+/**
+ * Normalize IANA timezone ids (aliases + trim). Does not modify other characters.
+ */
+export function normalizeTimezoneValue(value: string | null | undefined): string {
+  const raw = String(value || "").trim();
+  if (!raw) return "UTC";
+  return TIMEZONE_ALIASES[raw] || raw;
+}
+
 /**
  * Get browser's detected timezone
  */
 export function getBrowserTimezone(): string {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    return normalizeTimezoneValue(
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+    );
   } catch {
     return "UTC";
   }
@@ -116,14 +134,56 @@ export function getBrowserTimezone(): string {
  * Find timezone option by value
  */
 export function findTimezoneOption(value: string): TimezoneOption | undefined {
-  return TIMEZONES.find((tz) => tz.value === value);
+  const normalized = normalizeTimezoneValue(value);
+  return TIMEZONES.find(
+    (tz) => tz.value === normalized || tz.value === value
+  );
+}
+
+/**
+ * Option for select lists — includes unknown IANA zones so the value can pre-fill.
+ */
+export function resolveTimezoneOption(value: string): TimezoneOption {
+  const normalized = normalizeTimezoneValue(value);
+  const known = findTimezoneOption(normalized);
+  if (known) return known;
+  return {
+    value: normalized,
+    label: normalized,
+    offset: "",
+  };
+}
+
+/**
+ * Build timezone options for a searchable select, always including the saved value.
+ */
+export function buildTimezoneSelectOptions(
+  selectedValue: string | undefined,
+  searchQuery: string
+): TimezoneOption[] {
+  const query = searchQuery.trim().toLowerCase();
+  const base = !query
+    ? [...TIMEZONES]
+    : TIMEZONES.filter(
+        (tz) =>
+          tz.label.toLowerCase().includes(query) ||
+          tz.value.toLowerCase().includes(query) ||
+          tz.offset.toLowerCase().includes(query)
+      );
+
+  if (!selectedValue) return base;
+
+  const normalized = normalizeTimezoneValue(selectedValue);
+  if (base.some((tz) => tz.value === normalized)) return base;
+
+  return [resolveTimezoneOption(normalized), ...base];
 }
 
 /**
  * Get timezone label for display
  */
 export function getTimezoneLabel(value: string): string {
-  const option = findTimezoneOption(value);
-  return option ? option.label : value;
+  const option = resolveTimezoneOption(value);
+  return option.label;
 }
 

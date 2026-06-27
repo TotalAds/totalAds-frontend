@@ -109,38 +109,36 @@ const EmailVerificationBanner: React.FC<EmailVerificationBannerProps> = ({
     );
   }
 
-  // Banner variant - Short and compact design
+  // Banner variant - readable on light page backgrounds
   return (
-    <div className="backdrop-blur-xl bg-brand-secondary/20 border border-brand-secondary/30 rounded-xl p-3 mb-4 shadow-lg">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-8 h-8 bg-amber-500/20 rounded-full">
-            <IconMail className="h-4 w-4 text-amber-300" />
+    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100">
+            <IconMail className="h-4 w-4 text-amber-700" />
           </div>
-          <div className="flex-1">
-            <p className="text-sm text-white font-medium">
-              📧 Verify your email to unlock all features
-            </p>
-          </div>
+          <p className="text-sm font-medium text-amber-950">
+            Verify your email to unlock all features
+          </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <button
             onClick={handleVerifyEmail}
-            className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+            className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-700"
           >
             Verify Now
           </button>
           <button
             onClick={handleResendCode}
             disabled={isResending}
-            className="text-amber-300 hover:text-amber-200 text-xs font-medium transition-colors disabled:opacity-50"
+            className="text-xs font-medium text-amber-800 transition-colors hover:text-amber-950 disabled:opacity-50"
           >
             {isResending ? "Sending..." : "Resend"}
           </button>
           <button
             onClick={handleDismiss}
-            className="text-white/60 hover:text-white transition-colors ml-1"
+            className="ml-1 text-amber-700/70 transition-colors hover:text-amber-900"
           >
             <IconX className="h-4 w-4" />
           </button>

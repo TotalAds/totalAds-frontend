@@ -11,12 +11,15 @@ import { SendingHeatmap } from "@/components/email-dashboard/SendingHeatmap";
 import { SendingTrendChart } from "@/components/email-dashboard/SendingTrendChart";
 import { TopCampaignsChart } from "@/components/email-dashboard/TopCampaignsChart";
 import ContactPlanLimitBanner from "@/components/leads/ContactPlanLimitBanner";
+import WorkspaceRoleBanner from "@/components/workspace/WorkspaceRoleBanner";
 import { useAuthContext } from "@/context/AuthContext";
+import { useWorkspace } from "@/context/WorkspaceContext";
 import {
   AnalyticsSummary,
   ContactMetrics,
   DailyCounterRow,
   default as emailClient,
+  EMPTY_ANALYTICS_SUMMARY,
   getAnalyticsSummary,
   getContactMetrics,
   getDailyCounters,
@@ -25,6 +28,7 @@ import {
   QuotaCardData,
 } from "@/utils/api/emailClient";
 import { getEmailProvider, type SesProvider } from "@/utils/api/apiClient";
+import { useEmailProvider } from "@/hooks/useEmailProvider";
 import {
   IconAlertTriangle,
   IconArrowUpRight,
@@ -42,6 +46,15 @@ type RangeDays = 7 | 30;
 export default function DashboardPage() {
   const router = useRouter();
   const { state } = useAuthContext();
+  const { role, activeWorkspace, isLoading: workspaceLoading } = useWorkspace();
+  const {
+    isByoSes,
+    isManagedSes,
+    isConnectedInboxUser,
+    hasConnectedSendingAccount,
+    primarySendingMethod,
+    sesConnected: byoSesConnected,
+  } = useEmailProvider();
   const [loading, setLoading] = useState(true);
   const [quota, setQuota] = useState<QuotaCardData | null>(null);
   const [counters, setCounters] = useState<DailyCounterRow[]>([]);
@@ -61,6 +74,16 @@ export default function DashboardPage() {
 
   const summary = analyticsSummary?.summary;
   const rates = analyticsSummary?.rates;
+  const savedGoals = useMemo(() => {
+    const raw = state.user?.businessGoals;
+    if (!raw) return [] as string[];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }, [state.user?.businessGoals]);
 
   const dashboardMetrics = useMemo(() => {
     const totalSent = summary?.totalSent ?? 0;
@@ -98,6 +121,60 @@ export default function DashboardPage() {
     };
   }, [summary, rates, contactMetrics]);
 
+  const quickActions = useMemo(() => {
+    const items = [
+      {
+        id: "campaigns",
+        title: "Create campaign",
+        description: "Launch a single send or multi-step sequence",
+        href: "/email/campaigns",
+        icon: <IconMail className="h-6 w-6" />,
+      },
+      {
+        id: "leads",
+        title: "Upload leads",
+        description: "Import contacts and verify before sending",
+        href: "/email/leads",
+        icon: <IconUpload className="h-6 w-6" />,
+      },
+      {
+        id: "domains",
+        title: "Domain health",
+        description: "Verify domains and monitor deliverability",
+        href: "/email/domains",
+        icon: <IconWorld className="h-6 w-6" />,
+      },
+      {
+        id: "inbox",
+        title: "Manage replies",
+        description: "Track and manage your campaign conversations",
+        href: "/email/inbox",
+        icon: <IconUsers className="h-6 w-6" />,
+      },
+    ];
+
+    const preferred = new Set<string>();
+    for (const goal of savedGoals) {
+      if (goal === "find_new_leads") preferred.add("leads");
+      if (goal === "send_cold_emails") preferred.add("campaigns");
+      if (goal === "verify_email_lists") preferred.add("leads");
+      if (goal === "manage_replies") preferred.add("inbox");
+      if (goal === "everything") {
+        preferred.add("campaigns");
+        preferred.add("leads");
+        preferred.add("inbox");
+      }
+    }
+
+    const ordered = [...items].sort((a, b) => {
+      const aWeight = preferred.has(a.id) ? 0 : 1;
+      const bWeight = preferred.has(b.id) ? 0 : 1;
+      return aWeight - bWeight;
+    });
+
+    return ordered.slice(0, 3);
+  }, [savedGoals]);
+
   useEffect(() => {
     if (!state.isLoading && state.isAuthenticated && state.user) {
       if (!state.user.onboardingCompleted) {
@@ -107,8 +184,9 @@ export default function DashboardPage() {
   }, [state.isLoading, state.isAuthenticated, state.user, router]);
 
   useEffect(() => {
+    if (workspaceLoading || !activeWorkspace) return;
     fetchDashboardData(range);
-  }, [range]);
+  }, [range, workspaceLoading, activeWorkspace?.id]);
 
   const fetchDashboardData = async (days: RangeDays) => {
     try {
@@ -117,7 +195,10 @@ export default function DashboardPage() {
         await Promise.all([
           getQuotaCardData(),
           getDailyCounters(days),
-          getAnalyticsSummary().catch(() => null),
+          getAnalyticsSummary().catch((err) => {
+            console.error("Failed to fetch analytics summary:", err);
+            return EMPTY_ANALYTICS_SUMMARY;
+          }),
           getContactMetrics().catch(() => null),
         ]);
 
@@ -130,15 +211,16 @@ export default function DashboardPage() {
       try {
         const provider = await getEmailProvider();
         const prov = (provider.sesProvider as SesProvider) || null;
+        const method = provider.primarySendingMethod ?? null;
         setSesProvider(prov);
-        if (prov === "custom") {
+        if (prov === "custom" || method === "byo_ses") {
           try {
             const creds = await getSesCredentialsStatus();
             setSesConnected(creds.connected);
           } catch {
             setSesConnected(false);
           }
-        } else if (prov === "leadsnipper_managed") {
+        } else if (prov === "leadsnipper_managed" || method === "managed_ses") {
           try {
             const sendersResp = await emailClient.get("/api/email-senders", {
               params: { page: 1, limit: 100 },
@@ -195,9 +277,9 @@ export default function DashboardPage() {
     );
   }
 
-  const sesNotConfigured = sesProvider === "custom" && !sesConnected;
+  const sesNotConfigured = isByoSes && !byoSesConnected;
   const displayedQuota =
-    sesProvider === "leadsnipper_managed" && managedSenderQuota
+    isManagedSes && managedSenderQuota
       ? managedSenderQuota
       : quota;
 
@@ -220,6 +302,9 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-bg-100 to-bg-100">
       <main className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+        {role && role !== "admin" && (
+          <WorkspaceRoleBanner variant="dashboard" />
+        )}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-brand-main">
@@ -248,7 +333,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {sesProvider === "custom" && !sesConnected && (
+        {sesNotConfigured && (
           <div className="flex items-start gap-4 rounded-xl border border-amber-300 bg-amber-50 p-5 shadow-sm">
             <IconAlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
             <div className="min-w-0 flex-1">
@@ -256,15 +341,48 @@ export default function DashboardPage() {
                 Connect AWS SES to unlock sending
               </h3>
               <p className="mb-3 text-sm text-gray-700">
-                Add your credentials in Settings → Email Delivery to send campaigns
-                and see live quota data.
+                Connect AWS SES and import your verified domains and senders to
+                start campaigns.
               </p>
               <Link
-                href="/email/settings?tab=email-delivery"
+                href="/email/sending-accounts?showSes=true"
                 className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
               >
                 <IconSettings className="h-4 w-4" />
-                Email delivery settings
+                Connect AWS SES
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {isConnectedInboxUser && !hasConnectedSendingAccount && (
+          <div className="flex items-start gap-4 rounded-xl border border-amber-300 bg-amber-50 p-5 shadow-sm">
+            <IconAlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div className="min-w-0 flex-1">
+              <h3 className="mb-1 text-base font-semibold text-gray-900">
+                Connect your sending account
+              </h3>
+              <p className="mb-3 text-sm text-gray-700">
+                Finish setup by connecting your{" "}
+                {primarySendingMethod === "gmail"
+                  ? "Google"
+                  : primarySendingMethod === "outlook"
+                    ? "Microsoft"
+                    : "SMTP"}{" "}
+                account before launching campaigns.
+              </p>
+              <Link
+                href={
+                  primarySendingMethod === "gmail"
+                    ? "/email/sending-accounts?connect=gmail"
+                    : primarySendingMethod === "outlook"
+                      ? "/email/sending-accounts?connect=outlook"
+                      : "/email/sending-accounts?showSmtp=true"
+                }
+                className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
+              >
+                <IconMail className="h-4 w-4" />
+                Set up sending account
               </Link>
             </div>
           </div>
@@ -556,28 +674,9 @@ export default function DashboardPage() {
             Quick actions
           </h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {[
-              {
-                title: "Create campaign",
-                description: "Launch a single send or multi-step sequence",
-                href: "/email/campaigns",
-                icon: <IconMail className="h-6 w-6" />,
-              },
-              {
-                title: "Upload leads",
-                description: "Import contacts and verify before sending",
-                href: "/email/leads",
-                icon: <IconUpload className="h-6 w-6" />,
-              },
-              {
-                title: "Domain health",
-                description: "Verify domains and monitor deliverability",
-                href: "/email/domains",
-                icon: <IconWorld className="h-6 w-6" />,
-              },
-            ].map((action) => (
+            {quickActions.map((action) => (
               <Link
-                key={action.title}
+                key={action.id}
                 href={action.href}
                 className="group rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm transition hover:border-brand-main/40 hover:shadow-md"
               >

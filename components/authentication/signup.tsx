@@ -13,6 +13,7 @@ import {
   isSocialProductOnboardingIntent,
   parseProduct,
   ProductType,
+  resolvePostAuthPath,
   storeAuthProduct,
 } from "@/utils/auth/productIntent";
 import { IconLogin } from "@tabler/icons-react";
@@ -30,9 +31,13 @@ export function SignupComponent() {
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [acceptedLegal, setAcceptedLegal] = useState(false);
+  const inviteToken = searchParams.get("inviteToken");
+  const inviteEmail = searchParams.get("inviteEmail");
 
-  // Get product from URL or stored session
+  // Get product from URL or stored session; workspace invites always use LeadSnipper
   const product: ProductType = React.useMemo(() => {
+    if (inviteToken) return "leadsnipper";
+
     const urlProduct = parseProduct(
       searchParams.get("product") || searchParams.get("app")
     );
@@ -41,7 +46,7 @@ export function SignupComponent() {
       return urlProduct;
     }
     return getStoredAuthProduct();
-  }, [searchParams]);
+  }, [searchParams, inviteToken]);
 
   // Extract referral code from URL query parameter
   useEffect(() => {
@@ -50,6 +55,12 @@ export function SignupComponent() {
       setReferralCode(ref);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (inviteEmail && !email) {
+      setEmail(inviteEmail);
+    }
+  }, [inviteEmail, email]);
 
   const validateForm = () => {
     const errors: { [key: string]: string } = {};
@@ -97,18 +108,25 @@ export function SignupComponent() {
         confirmPassword,
         referralCode || undefined,
         product || undefined,
-        acceptedLegal
+        acceptedLegal,
+        inviteToken || undefined
       );
 
       // Check if email verification is required
       if (!user.emailVerified) {
-        const verifyHref = buildUrlWithProduct("/verify-email", product);
+        const verifyParams = new URLSearchParams();
+        if (product) verifyParams.set("product", product);
+        const redirect = searchParams.get("redirect");
+        if (redirect) verifyParams.set("redirect", redirect);
+        const verifyHref = verifyParams.toString()
+          ? `/verify-email?${verifyParams.toString()}`
+          : buildUrlWithProduct("/verify-email", product);
         router.push(verifyHref);
       } else {
         const resolvedProduct =
           product || parseProduct(user.signupProduct ?? null);
         router.push(
-          getPostAuthRedirectPath(resolvedProduct, {
+          resolvePostAuthPath(searchParams, resolvedProduct, {
             emailVerified: user.emailVerified,
             onboardingCompleted: user.onboardingCompleted,
             socialOnboardingCompleted: user.socialOnboardingCompleted,
@@ -257,10 +275,16 @@ export function SignupComponent() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  disabled={isLoading}
+                  disabled={isLoading || Boolean(inviteEmail)}
                   required
+                  readOnly={Boolean(inviteEmail)}
                   className="w-full px-4 py-2.5 bg-gray-100 dark:bg-brand-main/10 border border-gray-300 dark:border-brand-main/20 rounded-lg text-gray-900 dark:text-text-100 placeholder-gray-500 dark:placeholder-text-200 focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent transition-all duration-200 text-sm"
                 />
+                {inviteEmail && (
+                  <p className="text-xs text-slate-500">
+                    This email was used for your workspace invitation.
+                  </p>
+                )}
                 {formErrors.email && (
                   <p className="text-red-400 text-xs mt-1">
                     {formErrors.email}

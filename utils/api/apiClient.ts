@@ -4,6 +4,7 @@ import axios from "axios";
 
 import { refreshAccessToken } from "../auth/refreshAccessToken";
 import { tokenStorage } from "../auth/tokenStorage";
+import { getActiveWorkspaceId } from "../workspace/storage";
 
 // API base URLs
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -25,6 +26,11 @@ apiClient.interceptors.request.use(
     const accessToken = tokenStorage.getAccessToken();
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const workspaceId = getActiveWorkspaceId();
+    if (workspaceId) {
+      config.headers["X-Workspace-Id"] = workspaceId;
     }
 
     // Add request timestamp for debugging
@@ -242,19 +248,63 @@ apiClient.interceptors.response.use(
 
 export default apiClient;
 
+/** Unwrap totalads-api responses: `{ payload: { data } }` or `{ data }`. */
+export function extractApiData<T>(response: { data?: unknown }): T {
+  const root = response.data as Record<string, unknown> | undefined;
+  if (!root) {
+    return undefined as T;
+  }
+  const payload = root.payload as Record<string, unknown> | undefined;
+  if (payload?.data !== undefined) {
+    return payload.data as T;
+  }
+  if (root.data !== undefined) {
+    return root.data as T;
+  }
+  if (payload !== undefined) {
+    return payload as T;
+  }
+  return root as T;
+}
+
 /** Email delivery provider (onboarding step 5). One-time choice. */
 export type SesProvider = "leadsnipper_managed" | "custom";
+
+export type PrimarySendingMethod =
+  | "managed_ses"
+  | "byo_ses"
+  | "gmail"
+  | "outlook"
+  | "smtp";
+
+export type OnboardingSendingMethod = "gmail" | "outlook" | "smtp";
+export type OnboardingGoal =
+  | "find_new_leads"
+  | "send_cold_emails"
+  | "manage_replies"
+  | "verify_email_lists"
+  | "everything";
 
 export interface EmailProviderStatus {
   sesProvider: SesProvider | null;
   sesProviderSetAt: string | null;
+  primarySendingMethod: PrimarySendingMethod | null;
+  primarySendingMethodSetAt: string | null;
+  sesServiceEnabled?: boolean;
+  sesServiceMode?: "managed_ses" | "byo_ses" | null;
+  sesServiceEnabledAt?: string | null;
+  customPlanLimits?: {
+    monthlyEmailLimit: number;
+    maxContacts: number;
+    source: "tier" | "custom";
+    planName: string | null;
+  } | null;
 }
 
-/** GET /onboarding/email-provider - current user's email delivery mode */
+/** GET /onboarding/email-provider - current user's sending setup */
 export const getEmailProvider = async (): Promise<EmailProviderStatus> => {
   const res = await apiClient.get("/onboarding/email-provider");
   const data = res.data;
-  // Backend shape: { status, message, payload: { success, payload: { sesProvider, sesProviderSetAt } } }
   const inner =
     data?.payload?.payload ??
     data?.payload ??
@@ -262,10 +312,47 @@ export const getEmailProvider = async (): Promise<EmailProviderStatus> => {
   return inner as EmailProviderStatus;
 };
 
-/** POST /onboarding/step/5 - set email delivery and mark onboarding complete */
+/** POST /onboarding/step/5 - set primary sending method and mark onboarding complete */
+export const setPrimarySendingMethodStep5 = async (
+  primarySendingMethod: OnboardingSendingMethod
+): Promise<{ redirectTo: string; onboardingCompleted: boolean }> => {
+  const res = await apiClient.post("/onboarding/step/5", { primarySendingMethod });
+  return res.data?.payload ?? res.data;
+};
+
+export const saveOnboardingGoals = async (
+  goals: OnboardingGoal[]
+): Promise<{ nextStep: number }> => {
+  const res = await apiClient.post("/onboarding/goals", { goals });
+  return res.data?.payload ?? res.data;
+};
+
+export const completeOnboardingWithoutSending = async (payload: {
+  company?: string;
+  companyWebsite?: string;
+  industry?: string;
+  companyAddress?: string;
+  companyZipcode?: string;
+  companyCity?: string;
+  companyCountry?: string;
+}): Promise<{ redirectTo: string; onboardingCompleted: boolean }> => {
+  const res = await apiClient.post("/onboarding/complete", payload);
+  return res.data?.payload ?? res.data;
+};
+
+export const skipOnboarding = async (): Promise<{
+  redirectTo: string;
+  onboardingCompleted: boolean;
+}> => {
+  const res = await apiClient.post("/onboarding/skip", {});
+  return res.data?.payload ?? res.data;
+};
+
+/** @deprecated Use setPrimarySendingMethodStep5 */
 export const setEmailProviderStep5 = async (
   sesProvider: SesProvider
 ): Promise<{ redirectTo: string; onboardingCompleted: boolean }> => {
-  const res = await apiClient.post("/onboarding/step/5", { sesProvider });
-  return res.data?.payload ?? res.data;
+  const primarySendingMethod: OnboardingSendingMethod =
+    sesProvider === "custom" ? "smtp" : "smtp";
+  return setPrimarySendingMethodStep5(primarySendingMethod);
 };

@@ -87,6 +87,20 @@ const features = [
     custom: "Unlimited",
   },
   {
+    name: "Workspaces",
+    trial: "1",
+    starter: "1",
+    business: "3",
+    custom: "Custom",
+  },
+  {
+    name: "Team seats / workspace",
+    trial: "1",
+    starter: "3",
+    business: "10",
+    custom: "Custom",
+  },
+  {
     name: "Email Warmup",
     trial: false,
     starter: "50/day",

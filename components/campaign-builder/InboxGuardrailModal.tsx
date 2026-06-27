@@ -11,12 +11,14 @@ import {
   INBOX_GUARDRAIL_DEFAULT_TARGET_DAYS,
   INBOX_GUARDRAIL_TABLE,
 } from "@/lib/inboxGuardrail";
+import { capResponsibilityNote } from "@/lib/senderProviderEducation";
 
 interface InboxGuardrailModalProps {
   open: boolean;
   contactCount: number;
   inboxCount: number;
   customDailyCapacity?: number;
+  isManagedSes?: boolean;
   onContinue: () => void;
   onClose: () => void;
 }
@@ -26,6 +28,7 @@ export function InboxGuardrailModal({
   contactCount,
   inboxCount,
   customDailyCapacity,
+  isManagedSes = false,
   onContinue,
   onClose,
 }: InboxGuardrailModalProps) {
@@ -43,6 +46,8 @@ export function InboxGuardrailModal({
   );
 
   if (!open) return null;
+
+  const usingActualCaps = customDailyCapacity != null && customDailyCapacity > 0;
 
   return (
     <BodyPortal>
@@ -67,10 +72,11 @@ export function InboxGuardrailModal({
                     id="inbox-guardrail-title"
                     className="text-lg font-semibold tracking-tight text-slate-900"
                   >
-                    Inbox Guardrail
+                    Sending capacity warning
                   </h2>
                   <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                    Safe cold-email sending depends on inbox count, not list size alone.
+                    Your list is larger than today&apos;s safe send capacity across selected
+                    accounts.
                   </p>
                 </div>
               </div>
@@ -86,6 +92,33 @@ export function InboxGuardrailModal({
           </div>
 
           <div className="space-y-4 p-5 sm:p-6">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 space-y-2">
+              <p>
+                <span className="font-semibold">{guardrail.contactCount.toLocaleString()}</span>{" "}
+                contacts ·{" "}
+                <span className="font-semibold">{guardrail.inboxCount}</span> sending account
+                {guardrail.inboxCount !== 1 ? "s" : ""} selected
+              </p>
+              <p>
+                Estimated completion:{" "}
+                <span className="font-semibold">{guardrail.estimatedDays}</span> day
+                {guardrail.estimatedDays !== 1 ? "s" : ""}
+                {usingActualCaps && (
+                  <>
+                    {" "}
+                    at{" "}
+                    <span className="font-semibold">
+                      {guardrail.dailyCapacity.toLocaleString()}
+                    </span>{" "}
+                    emails/day combined cap
+                  </>
+                )}
+              </p>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                {capResponsibilityNote(isManagedSes)}
+              </p>
+            </div>
+
             <div className="overflow-hidden rounded-xl border border-slate-200">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-600">
@@ -114,17 +147,6 @@ export function InboxGuardrailModal({
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
                 <div className="space-y-2 text-sm text-amber-950">
                   <p>
-                    Your campaign has{" "}
-                    <span className="font-semibold">
-                      {guardrail.contactCount.toLocaleString()}
-                    </span>{" "}
-                    contacts. With{" "}
-                    <span className="font-semibold">{guardrail.inboxCount}</span>{" "}
-                    inbox{guardrail.inboxCount !== 1 ? "es" : ""}, this will take{" "}
-                    <span className="font-semibold">{guardrail.estimatedDays}</span>{" "}
-                    day{guardrail.estimatedDays !== 1 ? "s" : ""} at safe sending limits.
-                  </p>
-                  <p>
                     To finish in{" "}
                     <label className="inline-flex items-center gap-1">
                       <input
@@ -138,24 +160,24 @@ export function InboxGuardrailModal({
                         className="w-14 rounded border border-amber-300 bg-white px-1.5 py-0.5 text-center text-sm font-semibold text-amber-950"
                       />
                     </label>{" "}
-                    days you need{" "}
+                    days you need about{" "}
                     <span className="font-semibold">
                       {guardrail.inboxesNeededForTarget}
                     </span>{" "}
                     inbox{guardrail.inboxesNeededForTarget !== 1 ? "es" : ""}.
                   </p>
+                  <p className="text-xs">
+                    Sending too fast on too few inboxes hurts inbox placement — even with a clean
+                    list. This is a warning, not a block, but provider limits are enforced during
+                    send.
+                  </p>
                 </div>
               </div>
             </div>
 
-            <p className="text-xs leading-relaxed text-slate-500">
-              You can continue with your current setup — this is a warning, not a block.
-              Sending too fast on too few inboxes hurts deliverability even with a clean list.
-            </p>
-
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" asChild>
-                <Link href="/email/domains">Add more inboxes</Link>
+                <Link href="/email/sending-accounts">Add more accounts</Link>
               </Button>
               <Button type="button" onClick={onContinue}>
                 Continue anyway

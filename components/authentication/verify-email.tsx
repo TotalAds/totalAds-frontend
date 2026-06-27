@@ -17,6 +17,7 @@ import {
   getStoredAuthProduct,
   parseProduct,
   ProductType,
+  resolvePostAuthPath,
 } from "@/utils/auth/productIntent";
 import { IconMail, IconRefresh } from "@tabler/icons-react";
 
@@ -32,7 +33,7 @@ function onboardingPathAfterVerify(
     parseProduct(user?.signupProduct ?? null) ||
     getStoredAuthProduct();
 
-  return getPostAuthRedirectPath(product, {
+  return resolvePostAuthPath(searchParams, product, {
     emailVerified: true,
     onboardingCompleted: user?.onboardingCompleted ?? false,
     socialOnboardingCompleted: user?.socialOnboardingCompleted ?? false,

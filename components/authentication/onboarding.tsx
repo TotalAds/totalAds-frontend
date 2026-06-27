@@ -1,50 +1,41 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect } from "react";
 
 import GetLogo from "@/components/common/getLogo";
 import { useAuthContext } from "@/context/AuthContext";
+import type { OnboardingGoal } from "@/utils/api/apiClient";
 import {
   getStoredAuthProduct,
   isSocialSnipperUser,
-  parseProduct,
 } from "@/utils/auth/productIntent";
 
+import GoalStep from "./onboarding/goalStep";
+import { useOnboardingWizard } from "./onboarding/hooks/useOnboardingWizard";
 import OnboardingStep1 from "./onboarding/step1";
 import OnboardingStep2Combined from "./onboarding/step2Combined";
 import OnboardingStep3Combined from "./onboarding/step3Combined";
 
-export interface OnboardingData {
-  // Step 1
-  company?: string;
-  companyWebsite?: string;
-  hasWebsite?: boolean;
-
-  // Step 2 (combined)
-  teamSize?: string;
-  contactsNeeded?: string;
-  sellOnline?: boolean;
-  marketingUpdatesOptIn?: boolean;
-
-  // Step 2 (combined)
-  companyAddress?: string;
-  companyZipcode?: string;
-  companyCity?: string;
-  companyCountry?: string;
-
-  // Step 3 (combined)
-  phoneNumber?: string;
-}
-
 export function OnboardingComponent() {
   const router = useRouter();
   const { state } = useAuthContext();
-  const [currentStep, setCurrentStep] = useState(1);
-  const [isLoading] = useState(false);
-
-  const totalSteps = 3;
-  const didInitFromUser = useRef(false);
+  const {
+    currentStepIndex,
+    totalSteps,
+    isSubmitting,
+    goals,
+    setGoals,
+    companyForm,
+    setCompanyForm,
+    goBack,
+    goNext,
+    saveGoals,
+    saveCompany,
+    completeWithSending,
+    completeWithoutSending,
+    skipAllOnboarding,
+  } = useOnboardingWizard();
 
   useEffect(() => {
     if (state.isLoading) return;
@@ -53,30 +44,16 @@ export function OnboardingComponent() {
     }
   }, [state.isLoading, state.user, router]);
 
-  useEffect(() => {
-    if (didInitFromUser.current) return;
-    if (state.isLoading) return;
-    const step = state.user?.onboardingStep ?? 0;
-
-    // Backend step mapping -> UI steps (3-step wizard)
-    // 0: nothing saved -> UI 1
-    // 1 or 2: step 1/2 saved -> UI 2 (our combined step)
-    // 3+: address saved (and beyond) -> UI 3 (phone + email)
-    const uiStep = step >= 3 ? 3 : step >= 1 ? 2 : 1;
-    setCurrentStep(uiStep);
-    didInitFromUser.current = true;
-  }, [state.isLoading, state.user]);
-
-  const handleStepComplete = (_stepData: Partial<OnboardingData>) => {
-    if (currentStep < totalSteps) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
+  const toggleGoal = (goal: OnboardingGoal) => {
+    setGoals((prev) => {
+      if (goal === "everything") {
+        return prev.includes("everything") ? [] : ["everything"];
+      }
+      const next = prev.includes(goal)
+        ? prev.filter((item) => item !== goal && item !== "everything")
+        : [...prev.filter((item) => item !== "everything"), goal];
+      return next;
+    });
   };
 
   return (
@@ -88,7 +65,11 @@ export function OnboardingComponent() {
       </div>
 
       {/* Main content */}
-      <div className="h-full relative z-10 w-full max-w-md ">
+      <div
+        className={`h-full relative z-10 w-full ${
+          currentStepIndex === 3 ? "max-w-2xl" : "max-w-md"
+        }`}
+      >
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-4">
@@ -100,7 +81,7 @@ export function OnboardingComponent() {
             Welcome to LeadSnipper
           </h1>
           <p className="text-text-200 text-sm">
-            Step {currentStep} of {totalSteps} - Let’s get you set up
+            Step {currentStepIndex + 1} of {totalSteps} - Let&apos;s get you set up
           </p>
         </div>
 
@@ -110,7 +91,7 @@ export function OnboardingComponent() {
             <div
               key={step}
               className={`h-1 flex-1 rounded-full transition-colors ${
-                step <= currentStep ? "bg-brand-main" : "bg-bg-200"
+                step <= currentStepIndex + 1 ? "bg-brand-main" : "bg-bg-200"
               }`}
             />
           ))}
@@ -118,23 +99,40 @@ export function OnboardingComponent() {
 
         {/* Step content */}
         <div className="bg-white dark:bg-bg-100 rounded-lg p-6 shadow-lg">
-          {currentStep === 1 && (
+          {currentStepIndex === 0 && (
             <OnboardingStep1
-              onComplete={handleStepComplete}
-              isLoading={isLoading}
+              isLoading={isSubmitting}
+              onContinue={goNext}
+              onSkip={async () => {
+                const redirectTo = await skipAllOnboarding();
+                if (redirectTo) router.push(redirectTo);
+              }}
             />
           )}
-          {currentStep === 2 && (
+          {currentStepIndex === 1 && (
+            <GoalStep
+              goals={goals}
+              onToggleGoal={toggleGoal}
+              onBack={goBack}
+              onContinue={saveGoals}
+              isLoading={isSubmitting}
+            />
+          )}
+          {currentStepIndex === 2 && (
             <OnboardingStep2Combined
-              onComplete={handleStepComplete}
-              onBack={handleBack}
-              isLoading={isLoading}
+              formData={companyForm}
+              onChange={(data) => setCompanyForm((prev) => ({ ...prev, ...data }))}
+              onComplete={saveCompany}
+              onBack={goBack}
+              isLoading={isSubmitting}
             />
           )}
-          {currentStep === 3 && (
+          {currentStepIndex === 3 && (
             <OnboardingStep3Combined
-              onBack={handleBack}
-              isLoading={isLoading}
+              onBack={goBack}
+              onCompleteWithMethod={completeWithSending}
+              onSkipForNow={completeWithoutSending}
+              isLoading={isSubmitting}
             />
           )}
         </div>

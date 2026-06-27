@@ -4,6 +4,7 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 
 import {
+	InlineAlert,
 	LoadingCardGrid,
 	PageHeader,
 	PageShell,
@@ -13,6 +14,10 @@ import {
 	SurfaceCard,
 } from "@/components/social/SocialUi";
 import { getMemoryBrain, type MemoryBrainPayload } from "@/utils/api/socialClient";
+import {
+	isSocialServiceUnreachable,
+	SOCIAL_SERVICE_UNAVAILABLE_MESSAGE,
+} from "@/utils/social/socialServiceErrors";
 import { useEffect, useState } from "react";
 import { IconSparkles } from "@tabler/icons-react";
 
@@ -22,6 +27,7 @@ import { MemorySetupWizard } from "./MemorySetupWizard";
 export default function SocialMemoryPage() {
 	const [loading, setLoading] = useState(true);
 	const [brain, setBrain] = useState<MemoryBrainPayload | null>(null);
+	const [loadError, setLoadError] = useState<string | null>(null);
 	const [showCompulsoryModal, setShowCompulsoryModal] = useState(false);
 
 	const COMPULSORY_KEYS = [
@@ -42,10 +48,18 @@ export default function SocialMemoryPage() {
 	const load = async () => {
 		try {
 			setLoading(true);
+			setLoadError(null);
 			const data = await getMemoryBrain();
 			setBrain(data);
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Failed to load memory brain");
+			const message = isSocialServiceUnreachable(error)
+				? SOCIAL_SERVICE_UNAVAILABLE_MESSAGE
+				: error instanceof Error
+					? error.message
+					: "Failed to load memory brain";
+			setLoadError(message);
+			setBrain(null);
+			toast.error(message);
 		} finally {
 			setLoading(false);
 		}
@@ -80,8 +94,36 @@ export default function SocialMemoryPage() {
 				}
 			/>
 
+			{loadError ? (
+				<InlineAlert
+					tone="warning"
+					title="Memory brain unavailable"
+					description={loadError}
+					action={
+						<PrimaryButton onClick={load} className="mt-2">
+							Retry
+						</PrimaryButton>
+					}
+				/>
+			) : null}
+
 			{loading ? (
 				<LoadingCardGrid cards={3} />
+			) : loadError ? (
+				<SurfaceCard className="p-6 text-sm text-slate-600">
+					<p className="font-medium text-slate-900">Start the SocialSnipper backend</p>
+					<p className="mt-2">
+						Run{" "}
+						<code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
+							pnpm run start:dev:server
+						</code>{" "}
+						in{" "}
+						<code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
+							totalads-social-service
+						</code>{" "}
+						(port 3005), then click Refresh.
+					</p>
+				</SurfaceCard>
 			) : (
 				<>
 					<MemorySetupWizard

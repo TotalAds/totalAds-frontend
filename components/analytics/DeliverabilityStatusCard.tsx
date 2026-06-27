@@ -88,9 +88,6 @@ export const DeliverabilityStatusCard: React.FC<DeliverabilityStatusCardProps> =
               7-day bounce: <strong>{formatDeliverabilityRate(primary.bounceRate7d)}</strong>
             </span>
             <span>
-              7-day complaints: <strong>{formatDeliverabilityRate(primary.complaintRate7d)}</strong>
-            </span>
-            <span>
               Today&apos;s cap: <strong>{primary.currentCap}/day</strong> ({primary.usedToday} used)
             </span>
           </div>

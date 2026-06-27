@@ -6,23 +6,27 @@ import { usePathname } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuthContext } from "@/context/AuthContext";
+import { useWorkspace } from "@/context/WorkspaceContext";
+import { useEmailProvider } from "@/hooks/useEmailProvider";
 import { getSubscriptionInfo, SubscriptionInfo } from "@/utils/api/emailClient";
 import { cn } from "@/utils/cn";
 import {
   IconChevronLeft,
   IconChevronRight,
   IconCreditCard,
-  IconGift,
   IconLayoutDashboard,
   IconMail,
   IconSettings,
   IconUsers,
   IconWorld,
   IconX,
+  IconBuilding,
+  IconHelp,
 } from "@tabler/icons-react";
 
 import GetLogo from "../common/getLogo";
 import SidebarUserFooter from "./SidebarUserFooter";
+import WorkspaceSwitcher from "@/components/workspace/WorkspaceSwitcher";
 
 interface NavItem {
   name: string;
@@ -51,6 +55,8 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
   const { state } = useAuthContext();
   const { user } = state;
+  const { canManageMembers } = useWorkspace();
+  const { usesSesDomains: showDomainsNav } = useEmailProvider();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHoverExpanded, setIsHoverExpanded] = useState(false);
   const hoverCollapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -101,38 +107,61 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
     const sections: NavSection[] = [];
 
     if (user?.onboardingCompleted) {
-      sections.push({
-        items: [
-          {
-            name: "Dashboard",
-            href: "/email/dashboard",
-            icon: <IconLayoutDashboard className="w-5 h-5" />,
-          },
-          {
-            name: "Campaigns",
-            href: "/email/campaigns",
-            icon: <IconMail className="w-5 h-5" />,
-          },
-          {
-            name: "Leads",
-            href: "/email/leads",
-            icon: <IconUsers className="w-5 h-5" />,
-          },
-          {
-            name: "Domains",
-            href: "/email/domains",
-            icon: <IconWorld className="w-5 h-5" />,
-          },
-          {
-            name: "Pricing",
-            href: "/email/pricing",
-            icon: <IconCreditCard className="w-5 h-5" />,
-          },
-        ],
+      const mainItems = [
+        {
+          name: "Dashboard",
+          href: "/email/dashboard",
+          icon: <IconLayoutDashboard className="w-5 h-5" />,
+        },
+        {
+          name: "Campaigns",
+          href: "/email/campaigns",
+          icon: <IconMail className="w-5 h-5" />,
+        },
+        {
+          name: "Leads",
+          href: "/email/leads",
+          icon: <IconUsers className="w-5 h-5" />,
+        },
+      ];
+
+      if (showDomainsNav) {
+        mainItems.push({
+          name: "Domains",
+          href: "/email/domains",
+          icon: <IconWorld className="w-5 h-5" />,
+        });
+      }
+
+      mainItems.push({
+        name: "Sending Accounts",
+        href: "/email/sending-accounts",
+        icon: <IconMail className="w-5 h-5" />,
       });
+
+      mainItems.push({
+        name: "Pricing",
+        href: "/email/pricing",
+        icon: <IconCreditCard className="w-5 h-5" />,
+      });
+
+      if (canManageMembers) {
+        mainItems.push({
+          name: "Team & Workspaces",
+          href: "/email/workspaces",
+          icon: <IconBuilding className="w-5 h-5" />,
+        });
+      }
+
+      sections.push({ items: mainItems });
     }
 
     const supportItems: NavItem[] = [
+      {
+        name: "Help",
+        href: "/help",
+        icon: <IconHelp className="w-5 h-5" />,
+      },
       {
         name: "Settings",
         href: "/email/settings",
@@ -140,23 +169,13 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
       },
     ];
 
-    if (user?.onboardingCompleted) {
-      supportItems.push({
-        name: "Affiliate",
-        href: "/email/affiliate",
-        icon: <IconGift className="w-5 h-5" />,
-        badge: "NEW",
-        badgeColor: "green",
-      });
-    }
-
     sections.push({
       title: "Support",
       items: supportItems,
     });
 
     return sections;
-  }, [user?.onboardingCompleted]);
+  }, [user?.onboardingCompleted, showDomainsNav, canManageMembers]);
 
   const getBadgeClasses = (color?: "green" | "yellow" | "blue") => {
     switch (color) {
@@ -270,6 +289,15 @@ const MainSidebar: React.FC<MainSidebarProps> = ({ isOpen, onClose }) => {
               >
                 <IconX className="h-5 w-5" />
               </button>
+
+              {user?.onboardingCompleted && (
+                <div className={cn("mt-4", !showExpandedChrome && "px-0")}>
+                  <WorkspaceSwitcher
+                    collapsed={!showExpandedChrome}
+                    variant="sidebar"
+                  />
+                </div>
+              )}
             </motion.div>
 
             <nav
