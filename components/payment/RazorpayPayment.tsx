@@ -12,6 +12,7 @@ import emailClient, {
 import { getEmailProvider } from "@/utils/api/apiClient";
 
 import CustomPlanRequestModal from "./CustomPlanRequestModal";
+import EmailCheckoutModal from "./EmailCheckoutModal";
 
 declare global {
   interface Window {
@@ -57,6 +58,8 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
   const [currentSubscription, setCurrentSubscription] =
     useState<SubscriptionInfo | null>(null);
   const [showCustomPlanModal, setShowCustomPlanModal] = useState(false);
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+  const [selectedTierForCheckout, setSelectedTierForCheckout] = useState<PricingTier | null>(null);
 
   // Load Razorpay SDK
   useEffect(() => {
@@ -109,6 +112,11 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
           : "The managed free trial is started automatically when you sign up. No separate checkout is required.",
         { icon: "ℹ️", duration: 6000 }
       );
+      return;
+    }
+
+    if (tierMeta) {
+      setSelectedTierForCheckout(tierMeta);
       return;
     }
 
@@ -245,6 +253,37 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Billing Cycle Toggle */}
+      <div className="flex justify-center mb-8">
+        <div className="inline-flex bg-bg-200/80 backdrop-blur-md p-1 rounded-xl border border-white/5 shadow-inner">
+          <button
+            type="button"
+            onClick={() => setBillingCycle("monthly")}
+            className={`px-6 py-2 text-sm font-semibold rounded-lg transition-all ${
+              billingCycle === "monthly"
+                ? "bg-primary-100 text-white shadow-lg shadow-primary-100/25"
+                : "text-text-200 hover:text-text-100 hover:bg-white/5"
+            }`}
+          >
+            Monthly
+          </button>
+          <button
+            type="button"
+            onClick={() => setBillingCycle("yearly")}
+            className={`px-6 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+              billingCycle === "yearly"
+                ? "bg-primary-100 text-white shadow-lg shadow-primary-100/25"
+                : "text-text-200 hover:text-text-100 hover:bg-white/5"
+            }`}
+          >
+            Yearly
+            <span className="text-[10px] bg-green-500/20 text-green-400 font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
+              2 Months Free!
+            </span>
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {tiers.map((tier) => {
           const isTierMatch =
@@ -327,22 +366,33 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
               {/* Pricing */}
               <div className="py-6">
                 {/* Original price with strikethrough */}
-                {tier.originalPriceInPaise && tier.originalPriceInPaise > 0 && (
+                {billingCycle === "yearly" ? (
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-text-200 line-through text-lg">
-                      ₹{(tier.originalPriceInPaise / 100).toFixed(0)}
+                      ₹{(((tier.originalPriceInPaise || tier.monthlyPriceInPaise) * 12) / 100).toFixed(0)}
                     </span>
                     <span className="inline-flex items-center gap-1 bg-green-500/20 text-green-400 text-xs font-bold px-2 py-0.5 rounded-full">
-                      Save{" "}
-                      {Math.round(
-                        ((tier.originalPriceInPaise -
-                          tier.monthlyPriceInPaise) /
-                          tier.originalPriceInPaise) *
-                          100
-                      )}
-                      %
+                      2 Months Free!
                     </span>
                   </div>
+                ) : (
+                  tier.originalPriceInPaise && tier.originalPriceInPaise > 0 && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-text-200 line-through text-lg">
+                        ₹{(tier.originalPriceInPaise / 100).toFixed(0)}
+                      </span>
+                      <span className="inline-flex items-center gap-1 bg-green-500/20 text-green-400 text-xs font-bold px-2 py-0.5 rounded-full">
+                        Save{" "}
+                        {Math.round(
+                          ((tier.originalPriceInPaise -
+                            tier.monthlyPriceInPaise) /
+                            tier.originalPriceInPaise) *
+                            100
+                        )}
+                        %
+                      </span>
+                    </div>
+                  )
                 )}
 
                 <div className="flex items-baseline gap-1">
@@ -365,9 +415,11 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
                   ) : (
                     <>
                       <span className="text-4xl font-bold text-text-100">
-                        ₹{(tier.monthlyPriceInPaise / 100).toFixed(0)}
+                        ₹{((billingCycle === "yearly" ? tier.monthlyPriceInPaise * 10 : tier.monthlyPriceInPaise) / 100).toFixed(0)}
                       </span>
-                      <span className="text-text-200 text-sm">/month</span>
+                      <span className="text-text-200 text-sm">
+                        /{billingCycle === "yearly" ? "year" : "month"}
+                      </span>
                     </>
                   )}
                 </div>
@@ -752,6 +804,20 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
       <CustomPlanRequestModal
         isOpen={showCustomPlanModal}
         onClose={() => setShowCustomPlanModal(false)}
+      />
+
+      {/* Email Checkout Modal */}
+      <EmailCheckoutModal
+        tier={selectedTierForCheckout}
+        initialBillingCycle={billingCycle}
+        open={Boolean(selectedTierForCheckout)}
+        onClose={() => setSelectedTierForCheckout(null)}
+        onSuccess={() => {
+          setSelectedTierForCheckout(null);
+          if (onSuccess && selectedTierForCheckout) {
+            onSuccess(selectedTierForCheckout);
+          }
+        }}
       />
     </div>
   );

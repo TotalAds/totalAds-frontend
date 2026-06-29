@@ -84,7 +84,7 @@ const handleBillingError = (error: unknown, defaultMessage: string): never => {
 export const getBillingInfo = async (): Promise<any> => {
   try {
     // Use settings-specific endpoint which includes subscription tier mapping
-    const response = await apiClient.get("/billing/info", {
+    const response = await apiClient.get("/settings/billing", {
       withCredentials: true,
     });
     // Handle multiple server envelopes

@@ -137,12 +137,6 @@ const SettingsPage = () => {
         description: "Manage workspaces on your plan",
         adminOnly: true,
       },
-      {
-        id: "roadmap",
-        label: "Roadmap",
-        icon: <IconRoadSign className="w-5 h-5" />,
-        description: "Product roadmap",
-      },
     ];
     return items.filter((item) => {
       if (!item.adminOnly) return true;
