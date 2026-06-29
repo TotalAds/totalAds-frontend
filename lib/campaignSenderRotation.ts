@@ -4,6 +4,7 @@ export interface SenderQuotaInfo {
   dailyCap: number;
   remaining: number;
   used?: number;
+  targetDailyCap?: number;
 }
 
 export interface RotationSender {
@@ -14,6 +15,7 @@ export interface RotationSender {
   status?: string;
   verificationStatus?: string;
   campaignDailyLimit?: number | null;
+  slowRampEnabled?: boolean | null;
   quota?: SenderQuotaInfo;
 }
 
@@ -31,16 +33,18 @@ export interface RotationResult {
 
 export function getSenderDailyCapDisplay(sender: RotationSender): {
   configuredCap: number;
+  effectiveCap: number;
   remaining: number;
   usedToday: number;
 } {
   const configuredCap = getSenderConfiguredDailyCap(sender);
-  const remaining = sender.quota?.remaining ?? configuredCap;
+  const effectiveCap = sender.quota?.dailyCap ?? configuredCap;
+  const remaining = sender.quota?.remaining ?? effectiveCap;
   const usedToday = Math.max(
     0,
-    sender.quota?.used ?? configuredCap - remaining
+    sender.quota?.used ?? effectiveCap - remaining
   );
-  return { configuredCap, remaining, usedToday };
+  return { configuredCap, effectiveCap, remaining, usedToday };
 }
 
 export function calculateSenderRotationDistribution(

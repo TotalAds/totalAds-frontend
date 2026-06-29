@@ -60,7 +60,8 @@ interface EmailSender {
     pauseReason?: string | null;
     configuredDailyLimit?: number | null;
   };
-  campaignDailyLimit?: number | null;
+   campaignDailyLimit?: number | null;
+  slowRampEnabled?: boolean | null;
 }
 
 interface CampaignSenderPickerProps {
@@ -157,8 +158,9 @@ export function CampaignSenderPicker({
                 quota?.status === "paused" ||
                 quota?.status === "error";
               const configuredCap = getSenderConfiguredDailyCap(full);
-              const remaining = quota?.remaining ?? configuredCap;
-              const usedToday = Math.max(0, quota?.used ?? configuredCap - remaining);
+              const effectiveCap = quota?.dailyCap ?? configuredCap;
+              const remaining = quota?.remaining ?? effectiveCap;
+              const usedToday = Math.max(0, quota?.used ?? effectiveCap - remaining);
               const healthBadge =
                 isManagedSes && quota
                   ? senderHealthBadge(
@@ -234,14 +236,21 @@ export function CampaignSenderPicker({
                             {healthBadge.label}
                           </span>
                         )}
-                        <span className="text-[10px] text-text-200 whitespace-nowrap text-right">
-                          Cap {configuredCap.toLocaleString()}/day
+                         <span className="text-[10px] text-text-200 whitespace-nowrap text-right">
+                          Cap {effectiveCap.toLocaleString()}/day
+                          {effectiveCap !== configuredCap && ` (target ${configuredCap.toLocaleString()}/day)`}
                         </span>
                         <span className="text-[10px] text-text-200 whitespace-nowrap text-right">
                           {remaining.toLocaleString()} left · {usedToday.toLocaleString()} sent
                         </span>
                       </div>
                     </div>
+
+                    {effectiveCap !== configuredCap && full?.slowRampEnabled && (
+                      <p className="text-[10px] text-amber-700 mt-1">
+                        ℹ️ Warming up (starts at 30/day and increases slowly). Disable &quot;Increase volume slowly&quot; in Inbox Settings to send {configuredCap.toLocaleString()}/day immediately.
+                      </p>
+                    )}
 
                     {usageWarning && isSelected && (
                       <p className="text-[10px] text-amber-800 mt-1 leading-snug">

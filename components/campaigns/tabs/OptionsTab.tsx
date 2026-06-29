@@ -203,14 +203,11 @@ export function OptionsTab({
       minWaitMinutes: SENDER_PACING_DEFAULTS.minWaitMinutes,
       slowRampEnabled: SENDER_PACING_DEFAULTS.slowRampEnabled,
     };
-    const pacingPayload = buildCampaignPacingOverridePayload(
-      {
-        campaignDailyLimit: dailyLimit,
-        minWaitMinutes: senderDefaults.minWaitMinutes,
-        slowRampEnabled: senderDefaults.slowRampEnabled,
-      },
-      senderDefaults
-    );
+    const pacingPayload = {
+      campaignDailyLimitOverride: dailyLimit,
+      minWaitMinutesOverride: null,
+      slowRampEnabledOverride: null,
+    };
 
     const rotationDistribution = rotation?.distribution.map((entry) => ({
       senderId: entry.sender.id,
@@ -328,7 +325,7 @@ export function OptionsTab({
             <div className="space-y-2">
               {senders.map((sender) => {
                 const isSelected = selectedSenderIds.includes(sender.id);
-                const { configuredCap, remaining, usedToday } =
+                const { configuredCap, effectiveCap, remaining, usedToday } =
                   getSenderDailyCapDisplay(sender);
                 const assignedLeads = leadsBySenderId.get(sender.id);
 
@@ -373,8 +370,13 @@ export function OptionsTab({
                         <p className="text-[11px] text-slate-500 mt-1">
                           Daily cap{" "}
                           <span className="font-semibold text-slate-700">
-                            {configuredCap.toLocaleString()}/day
+                            {effectiveCap.toLocaleString()}/day
                           </span>
+                          {effectiveCap !== configuredCap && (
+                            <span className="text-slate-400 font-normal">
+                              {" "}(target {configuredCap.toLocaleString()}/day)
+                            </span>
+                          )}
                           {" · "}
                           <span className="text-slate-600">
                             {usedToday.toLocaleString()} sent
@@ -390,8 +392,13 @@ export function OptionsTab({
                             {remaining.toLocaleString()} left today
                           </span>
                         </p>
+                        {effectiveCap !== configuredCap && sender.slowRampEnabled && (
+                          <p className="text-[10px] text-amber-600 mt-0.5">
+                            ℹ️ Warming up (starts at 30/day and increases slowly). Disable &quot;Increase volume slowly&quot; in Inbox Settings to send {configuredCap.toLocaleString()}/day immediately.
+                          </p>
+                        )}
                         <SenderDailyCapBar
-                          configuredCap={configuredCap}
+                          configuredCap={effectiveCap}
                           remaining={remaining}
                         />
                       </div>

@@ -17,7 +17,8 @@ async function attachQuotaToSenders(senders: RotationSender[]): Promise<Rotation
             ...sender,
             quota: {
               ...data,
-              dailyCap: configuredCap,
+              targetDailyCap: configuredCap,
+              dailyCap: data?.dailyCap != null ? data.dailyCap : configuredCap,
               remaining: data?.remaining != null ? data.remaining : configuredCap,
               used: data?.used,
             },
