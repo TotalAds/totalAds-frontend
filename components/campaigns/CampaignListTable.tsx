@@ -3,6 +3,7 @@
 import {
   BarChart3,
   ChevronDown,
+  Copy,
   Download,
   MoreVertical,
   Pencil,
@@ -34,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import {
   Campaign,
   downloadCampaignAnalyticsReport,
+  duplicateCampaign,
   updateCampaign,
 } from "@/utils/api/emailClient";
 import { INBOX_CAMPAIGN_DOMAIN_ID } from "@/lib/campaignDomain";
@@ -151,6 +153,21 @@ export function CampaignListTable({
   const [renameValue, setRenameValue] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+
+  const handleDuplicate = async (campaign: Campaign) => {
+    const domainId = campaign.domainId || INBOX_CAMPAIGN_DOMAIN_ID;
+    try {
+      setDuplicatingId(campaign.id);
+      await duplicateCampaign(domainId, campaign.id);
+      toast.success("Campaign duplicated successfully!");
+      onRefresh();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to duplicate campaign");
+    } finally {
+      setDuplicatingId(null);
+    }
+  };
 
   const filteredCampaigns = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -444,6 +461,15 @@ export function CampaignListTable({
                                   {downloadingId === campaign.id
                                     ? "Downloading…"
                                     : "Download analytics"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  disabled={duplicatingId === campaign.id}
+                                  onClick={() => void handleDuplicate(campaign)}
+                                >
+                                  <Copy className="mr-2 h-4 w-4" />
+                                  {duplicatingId === campaign.id
+                                    ? "Duplicating…"
+                                    : "Duplicate campaign"}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem

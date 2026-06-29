@@ -566,6 +566,21 @@ export const deleteCampaign = async (
   }
 };
 
+export const duplicateCampaign = async (
+  domainId: string,
+  campaignId: string
+): Promise<Campaign> => {
+  try {
+    const response = await emailClient.post(
+      `/api/domains/${domainId}/campaigns/${campaignId}/duplicate`
+    );
+    return response.data?.data || response.data;
+  } catch (error: any) {
+    console.error("Failed to duplicate campaign:", error);
+    throw error;
+  }
+};
+
 export const startCampaign = async (
   domainId: string,
   campaignId: string,
