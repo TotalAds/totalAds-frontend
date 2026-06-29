@@ -572,7 +572,8 @@ export const duplicateCampaign = async (
 ): Promise<Campaign> => {
   try {
     const response = await emailClient.post(
-      `/api/domains/${domainId}/campaigns/${campaignId}/duplicate`
+      `/api/domains/${domainId}/campaigns/${campaignId}/duplicate`,
+      {}
     );
     return response.data?.data || response.data;
   } catch (error: any) {
