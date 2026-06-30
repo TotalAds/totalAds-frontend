@@ -15,7 +15,19 @@ import {
   IconBuilding,
   IconChevronRight,
   IconUsers,
+  IconPencil,
 } from "@tabler/icons-react";
+import { renameWorkspace } from "@/utils/api/workspaceClient";
+import { toast } from "react-hot-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type WorkspaceTab = "team" | "workspaces" | "activity";
 
@@ -31,7 +43,28 @@ export default function WorkspacesPage() {
     canManageMembers,
     canCreateWorkspaces,
     canViewAuditLog,
+    refreshWorkspaces,
   } = useWorkspace();
+
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameName, setRenameName] = useState("");
+  const [renameLoading, setRenameLoading] = useState(false);
+
+  const handleRenameActive = async () => {
+    if (!activeWorkspace || !renameName.trim()) return;
+    setRenameLoading(true);
+    try {
+      await renameWorkspace(activeWorkspace.id, renameName.trim());
+      toast.success("Workspace renamed");
+      setRenameOpen(false);
+      setRenameName("");
+      await refreshWorkspaces();
+    } catch {
+      toast.error("Failed to rename workspace");
+    } finally {
+      setRenameLoading(false);
+    }
+  };
 
   const tabFromUrl = searchParams.get("tab") as WorkspaceTab | null;
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(
@@ -111,16 +144,31 @@ export default function WorkspacesPage() {
           <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
             Team & workspaces
           </h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-600 flex items-center gap-2 flex-wrap">
             {activeWorkspace ? (
               <>
-                Active workspace:{" "}
-                <span className="font-semibold text-slate-900">
-                  {activeWorkspace.name}
+                <span>
+                  Active workspace:{" "}
+                  <span className="font-semibold text-slate-900">
+                    {activeWorkspace.name}
+                  </span>
+                  <span className="ml-2 capitalize text-slate-500">
+                    ({activeWorkspace.role})
+                  </span>
                 </span>
-                <span className="ml-2 capitalize text-slate-500">
-                  ({activeWorkspace.role})
-                </span>
+                {activeWorkspace.role === "admin" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRenameName(activeWorkspace.name);
+                      setRenameOpen(true);
+                    }}
+                    className="inline-flex items-center justify-center rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                    title="Rename workspace"
+                  >
+                    <IconPencil className="h-4 w-4" />
+                  </button>
+                )}
               </>
             ) : (
               "Select a workspace from the sidebar"
@@ -198,6 +246,28 @@ export default function WorkspacesPage() {
           </div>
         )}
       </div>
+
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename workspace</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renameName}
+            onChange={(e) => setRenameName(e.target.value)}
+            placeholder="Workspace name"
+            className="border-slate-200"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRenameActive} disabled={renameLoading || !renameName.trim()}>
+              {renameLoading ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

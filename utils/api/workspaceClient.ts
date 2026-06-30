@@ -72,6 +72,15 @@ export async function createWorkspace(name: string) {
   return extractApiData(res);
 }
 
+export async function renameWorkspace(workspaceId: number, name: string) {
+  const res = await apiClient.patch(
+    `/workspaces/${workspaceId}`,
+    { name },
+    { headers: { "X-Workspace-Id": String(workspaceId) } }
+  );
+  return extractApiData(res);
+}
+
 export async function switchWorkspace(workspaceId: number) {
   const res = await apiClient.post(`/workspaces/${workspaceId}/switch`);
   return extractApiData(res);

@@ -17,8 +17,9 @@ import { useWorkspace } from "@/context/WorkspaceContext";
 import {
   createWorkspace,
   listBillingAccountWorkspaces,
+  renameWorkspace,
 } from "@/utils/api/workspaceClient";
-import { IconBuilding, IconPlus } from "@tabler/icons-react";
+import { IconBuilding, IconPlus, IconPencil } from "@tabler/icons-react";
 
 export default function WorkspacesSection() {
   const { activeWorkspace, billingAccount, canCreateWorkspaces, refreshWorkspaces } =
@@ -30,6 +31,12 @@ export default function WorkspacesSection() {
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(true);
+
+  // States for renaming workspace
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<{ id: number; name: string } | null>(null);
+  const [renameName, setRenameName] = useState("");
+  const [renameLoading, setRenameLoading] = useState(false);
 
   const load = async () => {
     setListLoading(true);
@@ -76,6 +83,24 @@ export default function WorkspacesSection() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRename = async () => {
+    if (!selectedWorkspace || !renameName.trim()) return;
+    setRenameLoading(true);
+    try {
+      await renameWorkspace(selectedWorkspace.id, renameName.trim());
+      toast.success("Workspace renamed");
+      setRenameOpen(false);
+      setSelectedWorkspace(null);
+      setRenameName("");
+      await load();
+      await refreshWorkspaces();
+    } catch (err: unknown) {
+      toast.error("Failed to rename workspace");
+    } finally {
+      setRenameLoading(false);
     }
   };
 
@@ -147,25 +172,39 @@ export default function WorkspacesSection() {
                     : "border-slate-200 bg-white hover:shadow-sm"
                 }`}
               >
-                <div className="flex items-start gap-3">
-                  <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                      isActive ? "bg-brand-main/15" : "bg-slate-100"
-                    }`}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                        isActive ? "bg-brand-main/15" : "bg-slate-100"
+                      }`}
+                    >
+                      <IconBuilding
+                        className={`h-5 w-5 ${isActive ? "text-brand-main" : "text-slate-500"}`}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold text-slate-900">{ws.name}</p>
+                      <p className="text-xs text-slate-500">ID {ws.id}</p>
+                      {isActive && (
+                        <span className="mt-2 inline-flex rounded-full bg-brand-main/15 px-2 py-0.5 text-xs font-medium text-brand-main">
+                          Current workspace
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-slate-400 hover:text-slate-600 hover:bg-slate-50 shrink-0"
+                    onClick={() => {
+                      setSelectedWorkspace(ws);
+                      setRenameName(ws.name);
+                      setRenameOpen(true);
+                    }}
                   >
-                    <IconBuilding
-                      className={`h-5 w-5 ${isActive ? "text-brand-main" : "text-slate-500"}`}
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-slate-900">{ws.name}</p>
-                    <p className="text-xs text-slate-500">ID {ws.id}</p>
-                    {isActive && (
-                      <span className="mt-2 inline-flex rounded-full bg-brand-main/15 px-2 py-0.5 text-xs font-medium text-brand-main">
-                        Current workspace
-                      </span>
-                    )}
-                  </div>
+                    <IconPencil className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             );
@@ -190,6 +229,28 @@ export default function WorkspacesSection() {
             </Button>
             <Button onClick={handleCreate} disabled={loading || !name.trim()}>
               {loading ? "Creating…" : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename workspace</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renameName}
+            onChange={(e) => setRenameName(e.target.value)}
+            placeholder="Workspace name"
+            className="border-slate-200"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRename} disabled={renameLoading || !renameName.trim()}>
+              {renameLoading ? "Saving…" : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
