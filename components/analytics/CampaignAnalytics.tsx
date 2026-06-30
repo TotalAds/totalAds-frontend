@@ -243,11 +243,17 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
             <span className="text-amber-600 mt-0.5">⏸</span>
             <div>
               <p className="font-medium">Campaign is paused</p>
-              <p className="text-amber-800/80 text-xs mt-1">
-                If this was due to deliverability issues, fix list quality or wait for sender
-                health to recover, then resume sending.{' '}
-                <DeliverabilitySafeguardsInfo variant="link" className="inline" />
-              </p>
+              {campaign.deliverabilityPauseReason ? (
+                <p className="text-amber-800/90 text-xs mt-1 font-medium">
+                  {campaign.deliverabilityPauseReason}
+                </p>
+              ) : (
+                <p className="text-amber-800/80 text-xs mt-1">
+                  If this was due to deliverability issues, fix list quality or wait for sender
+                  health to recover, then resume sending.{' '}
+                  <DeliverabilitySafeguardsInfo variant="link" className="inline" />
+                </p>
+              )}
             </div>
           </div>
         </div>

@@ -695,7 +695,11 @@ export default function SinglePageCampaignBuilder({
             : prev.dailySendTime,
           replyTo: rawC.replyTo || prev.replyTo,
           useReplyTo: Boolean(rawC.replyTo),
-          senderIds: c.senderId ? [String(c.senderId)] : prev.senderIds,
+          senderIds: c.senderConfig?.senderIds?.length
+            ? c.senderConfig.senderIds.map(String)
+            : c.senderId
+              ? [String(c.senderId)]
+              : prev.senderIds,
           useAttachment: Boolean(serverAtt?.s3Key),
           persistedAttachment:
             serverAtt?.s3Key && serverAtt.fileName
@@ -749,6 +753,22 @@ export default function SinglePageCampaignBuilder({
       cancelled = true;
     };
   }, [effectiveCampaignId, canResumeSendingCampaign, initialDomainId, state.domainId]);
+
+  // Filter out any selected sender IDs that are no longer available/verified (e.g. deleted)
+  // Run this only after senders and campaign have finished loading.
+  useEffect(() => {
+    if (loadingSenders || loadingExistingCampaign) return;
+    if (senders.length === 0 && state.senderIds.length === 0) return;
+
+    const validIds = state.senderIds.filter((id) =>
+      senders.some((s) => String(s.id) === String(id))
+    );
+
+    if (validIds.length !== state.senderIds.length) {
+      setState((prev) => ({ ...prev, senderIds: validIds }));
+    }
+  }, [senders, state.senderIds, loadingSenders, loadingExistingCampaign]);
+
 
   // Send activity (today / yesterday / by day) when editing or viewing a campaign by id
   useEffect(() => {
