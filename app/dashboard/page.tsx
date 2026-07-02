@@ -107,27 +107,12 @@ export default function DashboardHubPage() {
       return;
     }
 
-    const fetchData = async () => {
-      try {
-        const [emailData, socialData] = await Promise.all([
-          getSubscriptionInfo(),
-          getSocialAccess(),
-        ]);
-        setEmailSub(emailData);
-        setSocialAccess(socialData);
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     if (isAuthenticated) {
-      fetchData();
+      router.replace("/email/dashboard");
     }
   }, [isAuthenticated, isLoading, router]);
 
-  if (isLoading || loading) {
+  if (isLoading || loading || isAuthenticated) {
     return (
       <div className="min-h-screen bg-bg-100 flex items-center justify-center">
         <div className="text-center">

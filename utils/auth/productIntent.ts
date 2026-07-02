@@ -183,8 +183,8 @@ export function getPostAuthRedirectPath(
     return "/social/dashboard";
   }
 
-  // Unknown product — send to hub instead of forcing LeadSnipper onboarding
-  return "/dashboard";
+  // Unknown product — redirect to email dashboard since hub is disabled
+  return "/email/dashboard";
   */
 }
 
