@@ -10,6 +10,7 @@ import { parseProduct } from "@/utils/auth/productIntent";
 const Signup = () => {
   const searchParams = useSearchParams();
 
+  /*
   // Check if product is specified in URL
   const product = parseProduct(
     searchParams.get("product") || searchParams.get("app")
@@ -19,6 +20,7 @@ const Signup = () => {
   if (!product) {
     return <ProductChooser mode="signup" />;
   }
+  */
 
   // Otherwise show the signup form
   return <SignupComponent />;

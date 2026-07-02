@@ -183,15 +183,24 @@ export const requiresSocialSubscription = (pathname: string): boolean => {
 export const protectRoute = async (
   pathname: string
 ): Promise<OnboardingStatus | null> => {
+  // Redirect all social paths immediately to leadsnipper dashboard
+  if (pathname.startsWith("/social")) {
+    return {
+      isCompleted: true,
+      currentStep: 1,
+      shouldRedirect: true,
+      redirectPath: "/email/dashboard",
+      product: "leadsnipper",
+    };
+  }
+
   // If the current path doesn't require email verification, allow access
   if (!requiresEmailVerification(pathname)) {
     return null;
   }
 
   // Determine product context from path
-  const productContext: ProductType = pathname.startsWith("/social")
-    ? "socialsnipper"
-    : "leadsnipper";
+  const productContext: ProductType = "leadsnipper";
 
   // Check onboarding status with product context
   const status = await checkOnboardingStatus(productContext);

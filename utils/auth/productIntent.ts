@@ -158,9 +158,15 @@ export function getPostAuthRedirectPath(
 ): string {
   // Not verified - go to verify email
   if (!user.emailVerified) {
-    return buildUrlWithProduct("/verify-email", product);
+    return buildUrlWithProduct("/verify-email", "leadsnipper");
   }
 
+  // Treat all products as LeadSnipper to bypass SocialSnipper flow
+  if (!user.onboardingCompleted) {
+    return buildUrlWithProduct("/onboarding", "leadsnipper");
+  }
+  return "/email/dashboard";
+  /*
   // LeadSnipper flow
   if (product === "leadsnipper") {
     if (!user.onboardingCompleted) {
@@ -179,6 +185,7 @@ export function getPostAuthRedirectPath(
 
   // Unknown product — send to hub instead of forcing LeadSnipper onboarding
   return "/dashboard";
+  */
 }
 
 /**
@@ -195,7 +202,11 @@ export function isSocialSnipperUser(
   user?: { signupProduct?: string | null } | null,
   sessionProduct?: ProductType
 ): boolean {
+  // Force all checks to return false to hide SocialSnipper content
+  return false;
+  /*
   const product =
     sessionProduct || parseProduct(user?.signupProduct ?? null);
   return product === "socialsnipper";
+  */
 }

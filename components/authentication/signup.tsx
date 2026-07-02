@@ -36,6 +36,9 @@ export function SignupComponent() {
 
   // Get product from URL or stored session; workspace invites always use LeadSnipper
   const product: ProductType = React.useMemo(() => {
+    // Force leadsnipper to hide all social sniper references
+    return "leadsnipper" as ProductType;
+    /*
     if (inviteToken) return "leadsnipper";
 
     const urlProduct = parseProduct(
@@ -46,6 +49,7 @@ export function SignupComponent() {
       return urlProduct;
     }
     return getStoredAuthProduct();
+    */
   }, [searchParams, inviteToken]);
 
   // Extract referral code from URL query parameter

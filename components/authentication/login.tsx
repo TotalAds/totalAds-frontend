@@ -29,6 +29,9 @@ export function LoginComponent() {
 
   // Get product from URL or stored session
   const product: ProductType = React.useMemo(() => {
+    // Force leadsnipper to hide all social sniper references
+    return "leadsnipper" as ProductType;
+    /*
     const urlProduct = parseProduct(
       searchParams.get("product") || searchParams.get("app"),
     );
@@ -37,6 +40,7 @@ export function LoginComponent() {
       return urlProduct;
     }
     return getStoredAuthProduct();
+    */
   }, [searchParams]);
 
   // Redirect based on authentication, email verification, and onboarding status

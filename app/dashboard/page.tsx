@@ -178,7 +178,7 @@ export default function DashboardHubPage() {
             ]}
           />
 
-          {/* SocialSnipper Card */}
+          {/* SocialSnipper Card - Commented out
           <ProductCard
             title="SocialSnipper"
             description="AI-powered LinkedIn automation for consistent social presence and personal brand growth."
@@ -225,6 +225,7 @@ export default function DashboardHubPage() {
               "₹99/month",
             ]}
           />
+          */}
         </div>
 
         {/* Quick Actions */}
@@ -240,6 +241,7 @@ export default function DashboardHubPage() {
                 New Email Campaign
               </Link>
             )}
+            {/*
             {hasSocialSubscription && socialOnboardingComplete && (
               <Link
                 href="/social/post-studio"
@@ -249,6 +251,7 @@ export default function DashboardHubPage() {
                 Create LinkedIn Post
               </Link>
             )}
+            */}
             <Link
               href="/email/settings"
               className="inline-flex items-center gap-2 px-4 py-2 bg-bg-100 text-text-200 rounded-xl hover:bg-bg-300 transition-colors"

@@ -30,47 +30,14 @@ export default function Home() {
           return;
         }
 
-        // Get product preference from URL, storage, or signup
-        const preferredProduct: ProductType =
-          parseProduct(user?.signupProduct || null) || getStoredAuthProduct();
-
-        // Check onboarding status for BOTH products independently
+        // Force user to LeadSnipper onboarding or email dashboard
         const emailOnboardingComplete = user.onboardingCompleted;
-        const socialOnboardingComplete = user.socialOnboardingCompleted;
 
-        // If user has completed both onboardings, go to product hub
-        if (emailOnboardingComplete && socialOnboardingComplete) {
-          router.push("/dashboard");
-          return;
-        }
-
-        // If user started with SocialSnipper and hasn't completed social onboarding
-        if (preferredProduct === "socialsnipper" && !socialOnboardingComplete) {
-          router.push("/social/onboarding");
-          return;
-        }
-
-        // If user started with LeadSnipper and hasn't completed email onboarding
-        if (preferredProduct === "leadsnipper" && !emailOnboardingComplete) {
+        if (!emailOnboardingComplete) {
           router.push("/onboarding");
-          return;
+        } else {
+          router.push("/email/dashboard");
         }
-
-        // If user has completed one onboarding but not the other
-        if (emailOnboardingComplete && !socialOnboardingComplete) {
-          // Can go to social onboarding or email dashboard
-          router.push("/dashboard");
-          return;
-        }
-
-        if (socialOnboardingComplete && !emailOnboardingComplete) {
-          // Can go to email onboarding or social dashboard
-          router.push("/dashboard");
-          return;
-        }
-
-        // Default fallback
-        router.push("/dashboard");
       } else {
         router.push(appendUtmToPath("/login"));
       }

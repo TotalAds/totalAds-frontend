@@ -89,7 +89,7 @@ const SidebarUserFooter: React.FC<SidebarUserFooterProps> = ({
   );
 
   const showCrossProductLink =
-    product === "leadsnipper" ? hasSocialSnipperAccess : hasLeadSnipperAccess;
+    product === "leadsnipper" ? false : hasLeadSnipperAccess;
 
   const handleLogout = async () => {
     await logoutUser();
