@@ -74,6 +74,15 @@ export interface AuthResponse {
   user: UserProfile;
 }
 
+async function resolveAuthUser(
+  user: UserProfile | null | undefined
+): Promise<UserProfile> {
+  if (user?.id && user.email) {
+    return user;
+  }
+  return getCurrentUser();
+}
+
 export interface ChangePasswordData {
   currentPassword: string;
   newPassword: string;
@@ -100,9 +109,11 @@ export const login = async (
       );
     }
 
+    const resolvedUser = await resolveAuthUser(user);
+
     return {
       token: accessToken || "",
-      user: user,
+      user: resolvedUser,
     };
   } catch (error: unknown) {
     console.error("Login error:", error);
@@ -147,9 +158,11 @@ export const register = async (
       tokenStorage.setTokens(accessToken, expiresIn, true); // Default to remember me for signup
     }
 
+    const resolvedUser = await resolveAuthUser(user);
+
     return {
       token: accessToken || "",
-      user: user,
+      user: resolvedUser,
     };
   } catch (error: unknown) {
     console.error("Registration error:", error);

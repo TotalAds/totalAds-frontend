@@ -162,8 +162,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         rememberMe,
         product,
       });
+      if (!user?.email) {
+        throw new Error("Login succeeded but user profile could not be loaded");
+      }
       dispatch({ type: "LOGIN_SUCCESS", payload: user });
-      trackEvent("login_success", { email: user.email, product: product || "unknown" });
+      trackEvent("login_success", {
+        email: user.email,
+        product: product || "unknown",
+      });
       return user; // Return user data for successful redirect
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login failed";
@@ -208,6 +214,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         acceptedLegal: true,
         acceptedLegalVersion: LEGAL_VERSION,
       });
+      if (!user?.email) {
+        throw new Error("Signup succeeded but user profile could not be loaded");
+      }
       dispatch({ type: "REGISTER_SUCCESS", payload: user });
       trackEvent("register_success", {
         email: user.email,
