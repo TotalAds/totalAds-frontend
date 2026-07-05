@@ -140,12 +140,12 @@ export function SesConnectionStep({
     return <p className="text-sm text-slate-500">Loading SES setup…</p>;
   }
 
-  if (isConnectedInboxUser) {
+  if (isConnectedInboxUser && !isManagedSes && !isByoSes) {
     return (
       <div className="space-y-4">
         <p className="text-sm text-slate-600">
           Your account sends through connected inboxes (Gmail, Outlook, or SMTP).
-          Campaigns use those mailboxes directly — AWS SES credentials are not used.
+          AWS SES is not enabled on this account — use the inbox options to add another mailbox.
         </p>
         <div className="flex gap-2">
           <Button variant="outline" onClick={onBack}>
@@ -159,10 +159,17 @@ export function SesConnectionStep({
   if (isManagedSes) {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-slate-600">
-          Your account uses LeadSnipper managed AWS SES. Verify domains and add senders from the
-          Domains page — no AWS credentials needed.
-        </p>
+        {isConnectedInboxUser ? (
+          <p className="text-sm text-slate-600">
+            AWS SES works alongside your connected inboxes. Verify domains and add SES senders
+            from the Domains page — no AWS credentials needed for managed SES.
+          </p>
+        ) : (
+          <p className="text-sm text-slate-600">
+            Your account uses LeadSnipper managed AWS SES. Verify domains and add senders from the
+            Domains page — no AWS credentials needed.
+          </p>
+        )}
         <div className="flex gap-2">
           <Button asChild>
             <Link href="/email/domains" onClick={() => onComplete?.()}>
@@ -193,6 +200,12 @@ export function SesConnectionStep({
 
   return (
     <div className="space-y-6">
+      {isConnectedInboxUser ? (
+        <p className="text-sm text-slate-600">
+          AWS SES works alongside your connected inboxes. Finish the steps below to import SES
+          senders in addition to your existing mailboxes.
+        </p>
+      ) : null}
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
         <p className="mb-2 text-sm font-medium text-slate-900">Setup checklist</p>
         <div className="space-y-2">

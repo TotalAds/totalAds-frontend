@@ -25,11 +25,6 @@ export interface SubscriptionStatus {
   cancelAtCycleEnd: boolean;
   failedPaymentCount: number;
   gracePeriodEndsAt: string | null;
-  // Early signup bonus (formerly founding member)
-  foundingMember: boolean; // Kept for backward compatibility
-  earlySignupBonus?: boolean;
-  lockedPrice: number | null; // Deprecated, use discountedPrice
-  discountedPrice?: number | null;
 }
 
 export interface PaymentHistoryRecord {

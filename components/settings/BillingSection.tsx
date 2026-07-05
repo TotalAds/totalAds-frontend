@@ -20,7 +20,6 @@ import {
   SubscriptionStatus,
 } from "@/utils/api/subscriptionClient";
 import {
-  IconAward,
   IconDownload,
   IconLoader,
   IconPlayerPlay,
@@ -229,48 +228,6 @@ const BillingSection = () => {
         </div>
       )}
 
-      {/* Early Signup Bonus Badge */}
-      {state.user?.foundingMember && (
-        <div className="rounded-xl border-2 border-brand-main bg-gradient-to-r from-brand-main/10 to-brand-secondary/10 p-6 shadow-lg">
-          <div className="flex items-center gap-3 mb-3">
-            <IconAward className="w-8 h-8 text-brand-main" />
-            <div>
-              <h3 className="text-xl font-bold text-text-100">
-                🎉 Early Signup Bonus
-              </h3>
-              <p className="text-sm text-text-200">
-                Early Adopter - Special Discounted Pricing
-              </p>
-            </div>
-          </div>
-          <div className="bg-bg-300/60 rounded-lg p-4 mt-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm text-text-200 mb-1">
-                  Your Discounted Price
-                </p>
-                <p className="text-3xl font-bold text-brand-main">
-                  ₹
-                  {((state.user.foundingTierLockedPrice || 0) / 100).toFixed(0)}
-                  <span className="text-sm text-text-200 ml-2">/month</span>
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-text-200 mb-1">Status</p>
-                <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-900/30 text-green-400 rounded-full text-sm font-medium">
-                  <span className="w-2 h-2 bg-green-400 rounded-full"></span>
-                  Active
-                </span>
-              </div>
-            </div>
-            <p className="text-xs text-text-200/70 mt-3">
-              You're enjoying our Early Signup Bonus pricing. Thank you for
-              being an early supporter! 🚀
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Subscription Status */}
       {subscriptionData && (
         <div>
@@ -412,9 +369,6 @@ const BillingSection = () => {
                 <p className="text-2xl font-bold text-brand-main">
                   {billingData.currentPlan || "—"}
                 </p>
-                {state.user?.foundingMember && (
-                  <IconAward className="w-5 h-5 text-brand-main" />
-                )}
               </div>
             </div>
 

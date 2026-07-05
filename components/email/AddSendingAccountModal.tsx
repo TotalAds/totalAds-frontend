@@ -240,13 +240,12 @@ export function AddSendingAccountModal({
 
   const visibleConnectOptions = CONNECT_FLOW_CATEGORIES.filter((item) => {
     if (item.provider === "ses") return usesSesDomains;
-    return isConnectedInboxUser || !usesSesDomains;
+    // SES is an add-on — inbox providers stay available alongside it
+    return true;
   });
 
   const pickStepDescription = usesSesDomains
-    ? isConnectedInboxUser
-      ? "Connect another inbox for this workspace."
-      : "Connect AWS SES for domain-based sending."
+    ? "Connect Gmail, Outlook, SMTP, or AWS SES. Inbox and SES can both be active on the same account."
     : "Connect Gmail, Outlook, or SMTP — campaigns send from the inbox you connect.";
 
   const oauthTitle =
@@ -283,7 +282,7 @@ export function AddSendingAccountModal({
                 <li className="flex items-center gap-2 text-sm text-slate-600">
                   <IconCheck className="h-4 w-4 shrink-0 text-emerald-500" />
                   {usesSesDomains
-                    ? "Use AWS SES or connect an inbox, depending on your plan"
+                    ? "Use connected inboxes and/or AWS SES — add whichever you need"
                     : "Connect Google, Microsoft, or custom SMTP"}
                 </li>
                 <li className="flex items-center gap-2 text-sm text-slate-600">

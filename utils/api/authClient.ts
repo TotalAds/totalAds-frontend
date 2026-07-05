@@ -65,14 +65,7 @@ export interface UserProfile {
   socialLinkedinConnected?: boolean;
   socialCommentsApprovalMode?: boolean;
   socialLinkedinExternalUrl?: string | null;
-  // Early signup bonus (formerly founding member)
-  foundingMember?: boolean; // Kept for backward compatibility
-  foundingTierLockedPrice?: number; // Kept for backward compatibility
-  earlySignupBonus?: boolean;
-  discountedPrice?: number;
-  // Social onboarding status (new)
   socialOnboardingCompleted?: boolean;
-  // Signup product tracking
   signupProduct?: "leadsnipper" | "socialsnipper" | null;
 }
 
