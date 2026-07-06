@@ -48,10 +48,14 @@ const BillingSection = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
 
-  const formatCurrency = (amount: number, currency: string = "INR") =>
-    new Intl.NumberFormat("en-IN", { style: "currency", currency }).format(
-      amount
-    );
+  const formatCurrency = (amount: number, currency: string = "INR") => {
+    const normalized = currency.toUpperCase();
+    const locale = normalized === "USD" ? "en-US" : "en-IN";
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: normalized,
+    }).format(amount);
+  };
   const formatCents = (cents: number, currency: string = "INR") =>
     formatCurrency(cents / 100, currency);
 
@@ -452,7 +456,7 @@ const BillingSection = () => {
                       {payment.description}
                     </td>
                     <td className="py-3 px-4 text-text-100 font-medium">
-                      {formatCents(payment.amount)}
+                      {formatCents(payment.amount, payment.currency || "INR")}
                     </td>
                     <td className="py-3 px-4">
                       <span

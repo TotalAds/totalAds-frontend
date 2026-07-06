@@ -4,6 +4,13 @@ import React, { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
 import { tierAllowedForSendingUser } from "@/lib/pricingTierSes";
+import {
+  detectDisplayCurrency,
+  detectIsIndiaUser,
+  formatTierPrice,
+  type DisplayCurrency,
+  type PaymentMethod,
+} from "@/lib/currency";
 
 import emailClient, {
   getSubscriptionInfo,
@@ -26,6 +33,7 @@ interface PricingTier {
   displayName: string;
   description: string;
   monthlyPriceInPaise: number;
+  monthlyPriceUsdCents?: number | null;
   originalPriceInPaise?: number | null;
   trialDurationDays?: number | null;
   monthlyEmailLimit: number;
@@ -60,6 +68,87 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
   const [showCustomPlanModal, setShowCustomPlanModal] = useState(false);
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [selectedTierForCheckout, setSelectedTierForCheckout] = useState<PricingTier | null>(null);
+  const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("INR");
+  const [isIndiaUser, setIsIndiaUser] = useState(true);
+  const [confirmingCryptoPayment, setConfirmingCryptoPayment] = useState(false);
+  const [checkoutPaymentMethod, setCheckoutPaymentMethod] =
+    useState<PaymentMethod>("razorpay");
+
+  // When checkout is open, match card prices to the selected payment method
+  const cardCurrency: DisplayCurrency = selectedTierForCheckout
+    ? checkoutPaymentMethod === "cryptomus"
+      ? "USD"
+      : isIndiaUser
+        ? "INR"
+        : "USD"
+    : displayCurrency;
+
+  useEffect(() => {
+    setIsIndiaUser(detectIsIndiaUser());
+    setDisplayCurrency(detectDisplayCurrency());
+  }, []);
+
+  // Poll Cryptomus payment after user returns from checkout
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("payment") !== "cryptomus") return;
+
+    const orderId = params.get("order_id");
+    if (!orderId) return;
+
+    setConfirmingCryptoPayment(true);
+    let attempts = 0;
+    const maxAttempts = 30;
+
+    const poll = async () => {
+      try {
+        const res = await emailClient.get("/api/payment/cryptomus/status", {
+          params: { order_id: orderId },
+        });
+        const status = res.data?.data?.status;
+
+        if (status === "succeeded") {
+          toast.success("Payment confirmed! Subscription updated.");
+          setConfirmingCryptoPayment(false);
+          window.history.replaceState({}, "", "/email/pricing");
+          const subInfo = await getSubscriptionInfo();
+          setCurrentSubscription(subInfo);
+          return;
+        }
+
+        if (status === "failed" || status === "cancelled") {
+          toast.error("Payment was not completed.");
+          setConfirmingCryptoPayment(false);
+          window.history.replaceState({}, "", "/email/pricing");
+          return;
+        }
+
+        attempts += 1;
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 3000);
+        } else {
+          toast(
+            "Payment is still processing. Your plan will activate once payment is confirmed.",
+            { icon: "⏳", duration: 6000 }
+          );
+          setConfirmingCryptoPayment(false);
+          window.history.replaceState({}, "", "/email/pricing");
+        }
+      } catch (err) {
+        console.error("Cryptomus status poll error:", err);
+        attempts += 1;
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 3000);
+        } else {
+          setConfirmingCryptoPayment(false);
+        }
+      }
+    };
+
+    poll();
+  }, []);
 
   // Load Razorpay SDK
   useEffect(() => {
@@ -253,6 +342,26 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
 
   return (
     <div className="space-y-6">
+      {confirmingCryptoPayment && (
+        <div className="rounded-xl border border-primary-100/30 bg-primary-100/10 px-4 py-3 text-center text-sm text-primary-100">
+          Confirming your payment…
+        </div>
+      )}
+
+      {!isIndiaUser && (
+        <div className="rounded-xl border border-white/10 bg-bg-200/80 px-4 py-3 text-center text-sm text-text-200">
+          Pricing in <strong className="text-text-100">USD</strong>. Pay with
+          cryptocurrency at checkout.
+        </div>
+      )}
+
+      {isIndiaUser && !selectedTierForCheckout && (
+        <div className="rounded-xl border border-white/10 bg-bg-200/80 px-4 py-3 text-center text-sm text-text-200">
+          Indian pricing in <strong className="text-text-100">INR</strong>. At
+          checkout you can pay in rupees or cryptocurrency.
+        </div>
+      )}
+
       {/* Billing Cycle Toggle */}
       <div className="flex justify-center mb-8">
         <div className="inline-flex bg-bg-200/80 backdrop-blur-md p-1 rounded-xl border border-white/5 shadow-inner">
@@ -365,11 +474,16 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
 
               {/* Pricing */}
               <div className="py-6">
-                {/* Original price with strikethrough */}
                 {billingCycle === "yearly" ? (
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-text-200 line-through text-lg">
-                      ₹{(((tier.originalPriceInPaise || tier.monthlyPriceInPaise) * 12) / 100).toFixed(0)}
+                      {formatTierPrice(
+                        (tier.originalPriceInPaise || tier.monthlyPriceInPaise) * 12,
+                        tier.monthlyPriceUsdCents
+                          ? tier.monthlyPriceUsdCents * 12
+                          : null,
+                        cardCurrency
+                      )}
                     </span>
                     <span className="inline-flex items-center gap-1 bg-green-500/20 text-green-400 text-xs font-bold px-2 py-0.5 rounded-full">
                       2 Months Free!
@@ -379,7 +493,11 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
                   tier.originalPriceInPaise && tier.originalPriceInPaise > 0 && (
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-text-200 line-through text-lg">
-                        ₹{(tier.originalPriceInPaise / 100).toFixed(0)}
+                        {formatTierPrice(
+                          tier.originalPriceInPaise,
+                          tier.monthlyPriceUsdCents,
+                          cardCurrency
+                        )}
                       </span>
                       <span className="inline-flex items-center gap-1 bg-green-500/20 text-green-400 text-xs font-bold px-2 py-0.5 rounded-full">
                         Save{" "}
@@ -403,7 +521,7 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
                   ) : tier.monthlyPriceInPaise === 0 ? (
                     <>
                       <span className="text-4xl font-bold text-text-100">
-                        ₹0
+                        {cardCurrency === "INR" ? "₹0" : "$0"}
                       </span>
                       <span className="text-text-200 text-sm">/month</span>
                       {isTrialPlan && tier.trialDurationDays && (
@@ -415,7 +533,12 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
                   ) : (
                     <>
                       <span className="text-4xl font-bold text-text-100">
-                        ₹{((billingCycle === "yearly" ? tier.monthlyPriceInPaise * 10 : tier.monthlyPriceInPaise) / 100).toFixed(0)}
+                        {formatTierPrice(
+                          tier.monthlyPriceInPaise,
+                          tier.monthlyPriceUsdCents,
+                          cardCurrency,
+                          billingCycle === "yearly" ? 10 : 1
+                        )}
                       </span>
                       <span className="text-text-200 text-sm">
                         /{billingCycle === "yearly" ? "year" : "month"}
@@ -812,6 +935,8 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
         initialBillingCycle={billingCycle}
         open={Boolean(selectedTierForCheckout)}
         onClose={() => setSelectedTierForCheckout(null)}
+        paymentMethod={checkoutPaymentMethod}
+        onPaymentMethodChange={setCheckoutPaymentMethod}
         onSuccess={() => {
           setSelectedTierForCheckout(null);
           if (onSuccess && selectedTierForCheckout) {
