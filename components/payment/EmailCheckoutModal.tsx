@@ -40,8 +40,8 @@ interface EmailCheckoutModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess?: () => void;
-  paymentMethod: PaymentMethod;
-  onPaymentMethodChange: (method: PaymentMethod) => void;
+  paymentMethod: "razorpay" | "cryptomus";
+  onPaymentMethodChange: (method: "razorpay" | "cryptomus") => void;
 }
 
 export default function EmailCheckoutModal({
@@ -53,7 +53,9 @@ export default function EmailCheckoutModal({
   paymentMethod,
   onPaymentMethodChange,
 }: EmailCheckoutModalProps) {
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">(initialBillingCycle);
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">(
+    initialBillingCycle,
+  );
   const [showPromoInput, setShowPromoInput] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [promoValid, setPromoValid] = useState<{
@@ -105,13 +107,20 @@ export default function EmailCheckoutModal({
   if (showPromoInput && promoValid?.valid && promoValid.promo) {
     const promo = promoValid.promo;
     if (promo.discountType === "percentage") {
-      discountInr = Math.round(basePriceInr * (promo.discountValue ?? 0) / 100);
-      discountUsd = Math.round(basePriceUsd * (promo.discountValue ?? 0) / 100);
+      discountInr = Math.round(
+        (basePriceInr * (promo.discountValue ?? 0)) / 100,
+      );
+      discountUsd = Math.round(
+        (basePriceUsd * (promo.discountValue ?? 0)) / 100,
+      );
       finalPriceInr = basePriceInr - discountInr;
       finalPriceUsd = basePriceUsd - discountUsd;
     } else if (promo.discountType === "flat") {
       discountInr = Math.min(basePriceInr, promo.discountValue ?? 0);
-      discountUsd = Math.min(basePriceUsd, Math.round((promo.discountValue ?? 0) / 50));
+      discountUsd = Math.min(
+        basePriceUsd,
+        Math.round((promo.discountValue ?? 0) / 50),
+      );
       finalPriceInr = basePriceInr - discountInr;
       finalPriceUsd = basePriceUsd - discountUsd;
     } else if (promo.discountType === "bogo") {
@@ -132,7 +141,9 @@ export default function EmailCheckoutModal({
   }
 
   const paysWithCryptocurrency = paymentMethod === "cryptomus";
-  const activeCurrency: DisplayCurrency = paysWithCryptocurrency ? "USD" : displayCurrency;
+  const activeCurrency: DisplayCurrency = paysWithCryptocurrency
+    ? "USD"
+    : displayCurrency;
   const finalMinor = activeCurrency === "USD" ? finalPriceUsd : finalPriceInr;
   const baseMinor = activeCurrency === "USD" ? basePriceUsd : basePriceInr;
   const discountMinor = activeCurrency === "USD" ? discountUsd : discountInr;
@@ -184,15 +195,20 @@ export default function EmailCheckoutModal({
         showPromoInput && promoValid?.valid
           ? promoCode.trim().toUpperCase()
           : undefined;
-      const orderResponse = await emailClient.post("/api/payment/create-order", {
-        tierId: tier.id,
-        promoCode: codeToSend,
-        billingCycle,
-        paymentMethod,
-      });
+      const orderResponse = await emailClient.post(
+        "/api/payment/create-order",
+        {
+          tierId: tier.id,
+          promoCode: codeToSend,
+          billingCycle,
+          paymentMethod,
+        },
+      );
 
       if (!orderResponse.data.success) {
-        throw new Error(orderResponse.data.error || "Failed to initiate checkout");
+        throw new Error(
+          orderResponse.data.error || "Failed to initiate checkout",
+        );
       }
 
       const orderData = orderResponse.data.data;
@@ -201,7 +217,7 @@ export default function EmailCheckoutModal({
         toast.success(
           orderData.promoApplied
             ? `Promo applied — ${orderData.freeMonths} month(s) activated!`
-            : "Subscription activated successfully!"
+            : "Subscription activated successfully!",
         );
         onClose();
         onSuccess?.();
@@ -215,7 +231,9 @@ export default function EmailCheckoutModal({
       }
 
       if (!orderData.orderId || !orderData.key) {
-        throw new Error("Checkout could not be started — missing order details");
+        throw new Error(
+          "Checkout could not be started — missing order details",
+        );
       }
 
       onClose();
@@ -231,12 +249,15 @@ export default function EmailCheckoutModal({
         prefillName: orderData.name,
         onSuccess: async (response) => {
           try {
-            const verifyResponse = await emailClient.post("/api/payment/verify-payment", {
-              razorpayOrderId: response.razorpay_order_id,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpaySignature: response.razorpay_signature,
-              tierId: tier.id,
-            });
+            const verifyResponse = await emailClient.post(
+              "/api/payment/verify-payment",
+              {
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+                tierId: tier.id,
+              },
+            );
 
             if (verifyResponse.data.success) {
               toast.success("Payment successful! Subscription updated.");
@@ -306,7 +327,9 @@ export default function EmailCheckoutModal({
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 sm:px-5 sm:py-4 space-y-3">
           {/* Payment method */}
           <div>
-            <p className="mb-1.5 text-xs font-medium text-text-200">How do you want to pay?</p>
+            <p className="mb-1.5 text-xs font-medium text-text-200">
+              How do you want to pay?
+            </p>
             <div
               className={`grid gap-1.5 ${paymentMethods.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}
             >
@@ -353,7 +376,9 @@ export default function EmailCheckoutModal({
 
           {/* Billing period */}
           <div>
-            <p className="mb-1.5 text-xs font-medium text-text-200">Billing period</p>
+            <p className="mb-1.5 text-xs font-medium text-text-200">
+              Billing period
+            </p>
             <div className="grid grid-cols-2 gap-1 rounded-lg bg-bg-100 p-0.5 border border-white/5">
               <button
                 type="button"
