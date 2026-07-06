@@ -6,6 +6,7 @@ import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SmtpImapRequiredCallout } from "@/components/email/SendingProviderCapabilitiesTable";
 import {
   formatSenderFromPreview,
   isValidSenderDisplayName,
@@ -302,6 +303,7 @@ export function SmtpAccountConnectWizard({
             subtitle="IMAP / SMTP"
           />
           <FieldError message={stepError} />
+          <SmtpImapRequiredCallout />
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-slate-700">
@@ -348,9 +350,9 @@ export function SmtpAccountConnectWizard({
           </div>
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-4">
             <p className="text-sm text-slate-600">
-              Most providers use the same username and password for both IMAP
-              and SMTP. Enter your mail login once here — you can override it
-              later per server if needed.
+              You will connect <strong>SMTP</strong> (outgoing) and <strong>IMAP</strong>{" "}
+              (incoming) in the next steps. Most providers use the same login for both — enter
+              it once here; you can override per server if needed.
             </p>
             <div className="space-y-1.5">
               <Label className="text-slate-700">
@@ -402,9 +404,10 @@ export function SmtpAccountConnectWizard({
           <StepHeader
             icon={<IconDownload className="h-5 w-5" />}
             title="IMAP"
-            subtitle="Incoming mail server"
+            subtitle="Incoming mail — required for replies & bounces"
           />
           <FieldError message={stepError} />
+          <SmtpImapRequiredCallout />
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label className="text-slate-700">

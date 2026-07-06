@@ -7,6 +7,7 @@ import { IconCheck, IconCircleDot } from "@tabler/icons-react";
 
 import { SesAwsIdentitiesImportSection } from "@/components/email/SesAwsIdentitiesImportSection";
 import { SesSnsTrackingSection } from "@/components/email/SesSnsTrackingSection";
+import { SesCapabilitiesCallout } from "@/components/email/SendingProviderCapabilitiesTable";
 import { Button } from "@/components/ui/button";
 import { AWS_SES_REGIONS, getAwsSesRegionLabel } from "@/lib/awsSesRegions";
 import {
@@ -159,6 +160,7 @@ export function SesConnectionStep({
   if (isManagedSes) {
     return (
       <div className="space-y-4">
+        <SesCapabilitiesCallout hasConnectedInbox={isConnectedInboxUser} />
         {isConnectedInboxUser ? (
           <p className="text-sm text-slate-600">
             AWS SES works alongside your connected inboxes. Verify domains and add SES senders
@@ -200,6 +202,7 @@ export function SesConnectionStep({
 
   return (
     <div className="space-y-6">
+      <SesCapabilitiesCallout hasConnectedInbox={isConnectedInboxUser} />
       {isConnectedInboxUser ? (
         <p className="text-sm text-slate-600">
           AWS SES works alongside your connected inboxes. Finish the steps below to import SES
@@ -322,7 +325,8 @@ export function SesConnectionStep({
             <div>
               <h3 className="text-sm font-semibold text-slate-900">2. SNS event tracking</h3>
               <p className="mt-1 text-sm text-slate-600">
-                Required for bounce, complaint, and delivery analytics.
+                Required for bounce, complaint, delivery, and send analytics in LeadSnipper.
+                SES does not use inbox polling — SNS is how we know what happened after send.
               </p>
             </div>
             <SesSnsTrackingSection creds={creds} onStatusChange={loadCreds} />

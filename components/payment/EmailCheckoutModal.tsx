@@ -293,9 +293,9 @@ export default function EmailCheckoutModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center top-0 p-3 sm:p-4 !mt-0 left-0">
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm top-0 left-0 "
         onClick={onClose}
         aria-hidden="true"
       />

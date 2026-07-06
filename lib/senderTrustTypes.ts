@@ -61,7 +61,7 @@ export const CONNECT_FLOW_CATEGORIES = [
     provider: "ses" as const,
     badge: "Scale",
     limit: "30/day default",
-    subtitle: "AWS SES · cold outreach at volume",
+    subtitle: "Cold outreach at volume · SNS analytics",
   },
   {
     provider: "gmail" as const,
@@ -79,6 +79,6 @@ export const CONNECT_FLOW_CATEGORIES = [
     provider: "smtp" as const,
     badge: "Custom SMTP",
     limit: "30/day default",
-    subtitle: "Any provider · verify SPF/DKIM/DMARC",
+    subtitle: "SMTP send + IMAP for replies & bounces",
   },
 ];

@@ -6,6 +6,10 @@ import { toast } from "react-hot-toast";
 
 import { SENDER_PACING_DEFAULTS } from "@/lib/senderPacing";
 
+import {
+  InboxOAuthCapabilitiesCallout,
+  SendingProviderCapabilitiesTable,
+} from "@/components/email/SendingProviderCapabilitiesTable";
 import { SesConnectionStep } from "@/components/email/SesConnectionStep";
 import { SenderTrustIndicators } from "@/components/email/SenderTrustIndicators";
 import { SmtpAccountConnectWizard } from "@/components/email/SmtpAccountConnectWizard";
@@ -236,7 +240,7 @@ export function AddSendingAccountModal({
         ? "max-w-xl"
         : step === "oauth"
           ? "max-w-lg"
-          : "max-w-md";
+          : "max-w-2xl";
 
   const visibleConnectOptions = CONNECT_FLOW_CATEGORIES.filter((item) => {
     if (item.provider === "ses") return usesSesDomains;
@@ -291,6 +295,10 @@ export function AddSendingAccountModal({
                 </li>
               </ul>
             </DialogHeader>
+
+            <div className="px-6 pb-3">
+              <SendingProviderCapabilitiesTable showSes={usesSesDomains} />
+            </div>
 
             <div className="space-y-3 px-6 pb-6">
               {visibleConnectOptions.map((item) => {
@@ -354,6 +362,8 @@ export function AddSendingAccountModal({
               onChange={setSenderDisplayName}
             />
 
+            <InboxOAuthCapabilitiesCallout provider={oauthProvider} />
+
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
               <div className="flex gap-2">
                 <IconAlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
@@ -416,8 +426,9 @@ export function AddSendingAccountModal({
                 AWS SES
               </DialogTitle>
               <DialogDescription className="text-slate-500">
-                Connect AWS credentials, set up SNS tracking, and import
-                verified senders — all without leaving this dialog.
+                {isByoSes
+                  ? "Connect AWS credentials, set up SNS tracking for delivery analytics, and import verified senders. Reply detection is not automatic for SES — connect an inbox separately if you need it."
+                  : "Verify domains and add SES senders. Delivery analytics come from SNS; connect an inbox separately for automatic reply detection."}
               </DialogDescription>
             </DialogHeader>
             <SesConnectionStep
