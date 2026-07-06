@@ -5,12 +5,11 @@ import { toast } from "react-hot-toast";
 
 import { tierAllowedForSendingUser } from "@/lib/pricingTierSes";
 import {
-  detectDisplayCurrency,
-  detectIsIndiaUser,
   formatTierPrice,
   type DisplayCurrency,
   type PaymentMethod,
 } from "@/lib/currency";
+import { useUserRegion } from "@/hooks/useUserRegion";
 
 import emailClient, {
   getSubscriptionInfo,
@@ -68,11 +67,13 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
   const [showCustomPlanModal, setShowCustomPlanModal] = useState(false);
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [selectedTierForCheckout, setSelectedTierForCheckout] = useState<PricingTier | null>(null);
-  const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("INR");
-  const [isIndiaUser, setIsIndiaUser] = useState(true);
-  const [confirmingCryptoPayment, setConfirmingCryptoPayment] = useState(false);
   const [checkoutPaymentMethod, setCheckoutPaymentMethod] =
     useState<PaymentMethod>("razorpay");
+  const { isIndia: isIndiaUser, isResolving: isResolvingRegion } = useUserRegion();
+
+  const displayCurrency: DisplayCurrency = isIndiaUser ? "INR" : "USD";
+
+  const [confirmingCryptoPayment, setConfirmingCryptoPayment] = useState(false);
 
   // When checkout is open, match card prices to the selected payment method
   const cardCurrency: DisplayCurrency = selectedTierForCheckout
@@ -83,12 +84,7 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
         : "USD"
     : displayCurrency;
 
-  useEffect(() => {
-    setIsIndiaUser(detectIsIndiaUser());
-    setDisplayCurrency(detectDisplayCurrency());
-  }, []);
-
-  // Poll Cryptomus payment after user returns from checkout
+  // Load Razorpay SDK
   useEffect(() => {
     if (typeof window === "undefined") return;
 

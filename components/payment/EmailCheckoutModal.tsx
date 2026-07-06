@@ -8,14 +8,12 @@ import { openRazorpayCheckout } from "@/utils/social/razorpayCheckout";
 import {
   availablePaymentMethods,
   defaultPaymentMethod,
-  detectDisplayCurrency,
-  detectIsIndiaUser,
   formatInrFromPaise,
   formatUsdFromCents,
   inrPaiseToUsdCents,
-  PaymentMethod,
   type DisplayCurrency,
 } from "@/lib/currency";
+import { useUserRegion } from "@/hooks/useUserRegion";
 
 interface PricingTier {
   id: string;
@@ -69,14 +67,12 @@ export default function EmailCheckoutModal({
   } | null>(null);
   const [validatingPromo, setValidatingPromo] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [isIndiaUser, setIsIndiaUser] = useState(true);
-  const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("INR");
+  const { isIndia: isIndiaUser } = useUserRegion();
+  const displayCurrency: DisplayCurrency = isIndiaUser ? "INR" : "USD";
 
   useEffect(() => {
-    const india = detectIsIndiaUser();
-    setIsIndiaUser(india);
-    setDisplayCurrency(detectDisplayCurrency());
-  }, []);
+    onPaymentMethodChange(defaultPaymentMethod(isIndiaUser));
+  }, [isIndiaUser, onPaymentMethodChange]);
 
   useEffect(() => {
     if (open) {
@@ -85,10 +81,9 @@ export default function EmailCheckoutModal({
       setPromoCode("");
       setPromoValid(null);
       setProcessing(false);
-      const india = detectIsIndiaUser();
-      onPaymentMethodChange(defaultPaymentMethod(india));
+      onPaymentMethodChange(defaultPaymentMethod(isIndiaUser));
     }
-  }, [open, initialBillingCycle, onPaymentMethodChange]);
+  }, [open, initialBillingCycle, onPaymentMethodChange, isIndiaUser]);
 
   if (!open || !tier) return null;
 

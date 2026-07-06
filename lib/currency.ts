@@ -3,26 +3,17 @@
  * Mirrors landing-page pricing: INR for India, USD for international visitors.
  */
 
+import { detectIsIndiaUserSync, resolveUserRegion } from "./userRegion";
+
 export type DisplayCurrency = "INR" | "USD";
 export type PaymentMethod = "razorpay" | "cryptomus";
 
 export const INR_PER_USD = 50;
 
-export function detectIsIndiaUser(): boolean {
-  if (typeof window === "undefined") return true;
-
-  const languages = navigator.languages ?? [navigator.language];
-  const isIndiaLanguage = languages.some((lang) =>
-    lang.toUpperCase().endsWith("-IN")
-  );
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
-  const isIndiaTimeZone = timeZone.includes("Asia/Kolkata");
-
-  return isIndiaLanguage || isIndiaTimeZone;
-}
+export { detectIsIndiaUserSync as detectIsIndiaUser, resolveUserRegion };
 
 export function detectDisplayCurrency(): DisplayCurrency {
-  return detectIsIndiaUser() ? "INR" : "USD";
+  return detectIsIndiaUserSync() ? "INR" : "USD";
 }
 
 export function formatInrFromPaise(paise: number): string {
