@@ -26,7 +26,7 @@ const statusStyles: Record<TicketStatus, string> = {
 
 const priorityStyles: Record<TicketPriority, string> = {
   low: "bg-slate-500/10 text-slate-400 border-slate-500/20",
-  medium: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+  normal: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
   high: "bg-orange-500/10 text-orange-500 border-orange-500/20",
   urgent: "bg-red-500/10 text-red-500 border-red-500/20",
 };

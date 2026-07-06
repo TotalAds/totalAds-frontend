@@ -26,6 +26,7 @@ import {
 
 import type {
   SupportTicket,
+  TicketCategory,
   TicketPriority,
 } from "../types";
 import { TICKET_CATEGORIES, TICKET_PRIORITIES } from "../types";
@@ -44,8 +45,8 @@ export default function NewTicketPage() {
   const { isAuthenticated, isLoading: authLoading } = state;
 
   const [subject, setSubject] = useState("");
-  const [category, setCategory] = useState<string>(TICKET_CATEGORIES[0]);
-  const [priority, setPriority] = useState<TicketPriority>("medium");
+  const [category, setCategory] = useState<TicketCategory>("general");
+  const [priority, setPriority] = useState<TicketPriority>("normal");
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -142,7 +143,7 @@ export default function NewTicketPage() {
                 <Label htmlFor="category">Category</Label>
                 <Select
                   value={category}
-                  onValueChange={setCategory}
+                  onValueChange={(value) => setCategory(value as TicketCategory)}
                   disabled={submitting}
                 >
                   <SelectTrigger id="category">
@@ -150,8 +151,8 @@ export default function NewTicketPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {TICKET_CATEGORIES.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -172,8 +173,8 @@ export default function NewTicketPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {TICKET_PRIORITIES.map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {p.charAt(0).toUpperCase() + p.slice(1)}
+                      <SelectItem key={p.value} value={p.value}>
+                        {p.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
