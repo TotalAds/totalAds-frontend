@@ -730,64 +730,6 @@ const RazorpayPayment: React.FC<RazorpayPaymentProps> = ({
                 <li className="flex items-center gap-3">
                   <span
                     className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${
-                      tier.warmupEnabled ? "bg-green-500/20" : "bg-gray-500/20"
-                    }`}
-                  >
-                    {tier.warmupEnabled ? (
-                      <svg
-                        className="w-3 h-3 text-green-400"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={3}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    ) : (
-                      <svg
-                        className="w-3 h-3 text-gray-500"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    )}
-                  </span>
-                  <span
-                    className={
-                      tier.warmupEnabled ? "text-text-100" : "text-text-200"
-                    }
-                  >
-                    Email Warmup
-                    {tier.warmupEnabled &&
-                      tier.warmupDailyLimit !== undefined &&
-                      tier.warmupDailyLimit > 0 && (
-                        <span className="text-primary-100 ml-1">
-                          ({tier.warmupDailyLimit}/day)
-                        </span>
-                      )}
-                    {tier.warmupEnabled &&
-                      (tier.warmupDailyLimit === 0 ||
-                        tier.warmupDailyLimit === undefined) && (
-                        <span className="text-primary-100 ml-1">
-                          (Unlimited)
-                        </span>
-                      )}
-                  </span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <span
-                    className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${
                       tier.analyticsEnabled
                         ? "bg-green-500/20"
                         : "bg-gray-500/20"

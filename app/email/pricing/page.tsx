@@ -101,13 +101,6 @@ const features = [
     custom: "Custom",
   },
   {
-    name: "Email Warmup",
-    trial: false,
-    starter: "50/day",
-    business: "Unlimited",
-    custom: "Unlimited",
-  },
-  {
     name: "Custom Domains",
     trial: false,
     starter: "3",
@@ -116,13 +109,6 @@ const features = [
   },
   {
     name: "Analytics & Reports",
-    trial: true,
-    starter: true,
-    business: true,
-    custom: true,
-  },
-  {
-    name: "API Access",
     trial: true,
     starter: true,
     business: true,
