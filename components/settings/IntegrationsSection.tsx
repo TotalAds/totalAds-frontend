@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
 import ReoonSetupGuideModal from "@/components/settings/ReoonSetupGuideModal";
+import LeadhubIntegrationsCard from "@/components/settings/LeadhubIntegrationsCard";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -369,6 +370,8 @@ const IntegrationsSection = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <LeadhubIntegrationsCard />
     </div>
   );
 };

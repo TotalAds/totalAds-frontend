@@ -69,6 +69,7 @@ export default function EmailCheckoutModal({
   } | null>(null);
   const [validatingPromo, setValidatingPromo] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [cryptoRecurring, setCryptoRecurring] = useState(false);
   const { isIndia: isIndiaUser } = useUserRegion();
   const displayCurrency: DisplayCurrency = isIndiaUser ? "INR" : "USD";
 
@@ -83,9 +84,20 @@ export default function EmailCheckoutModal({
       setPromoCode("");
       setPromoValid(null);
       setProcessing(false);
+      setCryptoRecurring(false);
       onPaymentMethodChange(defaultPaymentMethod(isIndiaUser));
     }
   }, [open, initialBillingCycle, onPaymentMethodChange, isIndiaUser]);
+
+  useEffect(() => {
+    if (paymentMethod === "cryptomus" && billingCycle === "monthly") {
+      setCryptoRecurring(true);
+      return;
+    }
+    if (paymentMethod !== "cryptomus" || billingCycle !== "monthly") {
+      setCryptoRecurring(false);
+    }
+  }, [paymentMethod, billingCycle]);
 
   if (!open || !tier) return null;
 
@@ -202,6 +214,10 @@ export default function EmailCheckoutModal({
           promoCode: codeToSend,
           billingCycle,
           paymentMethod,
+          recurring:
+            paymentMethod === "cryptomus" &&
+            billingCycle === "monthly" &&
+            cryptoRecurring,
         },
       );
 
@@ -372,6 +388,23 @@ export default function EmailCheckoutModal({
                 </button>
               )}
             </div>
+            {paymentMethod === "cryptomus" && (
+              <label className="mt-2 flex items-start gap-2 rounded-lg border border-white/10 bg-bg-100/40 px-2.5 py-2 text-xs text-text-200">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={billingCycle === "monthly" ? cryptoRecurring : false}
+                  onChange={(e) => setCryptoRecurring(e.target.checked)}
+                  disabled={billingCycle !== "monthly"}
+                />
+                <span>
+                  Enable recurring crypto billing (monthly only).
+                  {billingCycle !== "monthly"
+                    ? " Switch to Monthly to use recurring crypto billing."
+                    : ""}
+                </span>
+              </label>
+            )}
           </div>
 
           {/* Billing period */}
@@ -494,7 +527,9 @@ export default function EmailCheckoutModal({
             </div>
             <p className="text-[10px] text-text-200">
               {paysWithCryptocurrency
-                ? "Charged in USD. You can pay with Bitcoin, Ethereum, or USDT."
+                ? cryptoRecurring && billingCycle === "monthly"
+                  ? "Charged in USD. This creates a monthly recurring crypto subscription."
+                  : "Charged in USD. You can pay with Bitcoin, Ethereum, or USDT."
                 : "Charged in Indian rupees via Razorpay."}
             </p>
           </div>

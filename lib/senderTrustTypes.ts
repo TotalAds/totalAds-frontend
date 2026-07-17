@@ -76,6 +76,12 @@ export const CONNECT_FLOW_CATEGORIES = [
     subtitle: "Outlook or Microsoft 365",
   },
   {
+    provider: "zoho" as const,
+    badge: "Personal · Business",
+    limit: "30/day default",
+    subtitle: "Zoho Mail or Zoho Workplace",
+  },
+  {
     provider: "smtp" as const,
     badge: "Custom SMTP",
     limit: "30/day default",

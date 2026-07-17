@@ -109,6 +109,8 @@ export interface CreateEmailModalProps {
   excludeCampaignId?: string | null;
   /** Merge tags from CSV columns + built-ins are merged automatically */
   availableVariables: string[];
+  /** Optional sample values for Personalize / token hover tooltips. */
+  tokenSampleValues?: Record<string, string>;
   seedSubject: string;
   seedPreviewText?: string;
   seedUseSpintax: boolean;
@@ -136,6 +138,7 @@ export default function CreateEmailModal({
   domainId,
   excludeCampaignId,
   availableVariables,
+  tokenSampleValues,
   seedSubject,
   seedPreviewText,
   seedUseSpintax,
@@ -233,6 +236,64 @@ export default function CreateEmailModal({
     [availableVariables]
   );
 
+  const groupedMergeTags = useMemo(() => {
+    const contactKeys = new Set([
+      "first_name",
+      "firstName",
+      "last_name",
+      "lastName",
+      "title",
+      "email",
+      "name",
+      "phone",
+      "website",
+      "role",
+      "linkedin_url",
+      "location",
+    ]);
+    const companyKeys = new Set([
+      "company",
+      "company_domain",
+      "company_website",
+      "industry",
+      "company_size",
+      "company_summary",
+      "growth_stage",
+    ]);
+    const strip = (v: string) =>
+      v.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "").trim();
+    const contact: string[] = [];
+    const company: string[] = [];
+    const outreach: string[] = [];
+    for (const tag of mergeTags) {
+      const key = strip(tag);
+      if (contactKeys.has(key)) contact.push(tag);
+      else if (companyKeys.has(key)) company.push(tag);
+      else if (mergeTags.length > 8) outreach.push(tag);
+      else contact.push(tag);
+    }
+    // If no LeadHub-style extras, keep a single flat list under Contact
+    if (outreach.length === 0 && company.length === 0) {
+      return [{ label: "Fields", tags: mergeTags }];
+    }
+    return [
+      { label: "Contact", tags: contact },
+      { label: "Company", tags: company },
+      { label: "Outreach", tags: outreach },
+    ].filter((g) => g.tags.length > 0);
+  }, [mergeTags]);
+
+  const filteredVariableGroups = useMemo(() => {
+    const q = variableSearch.toLowerCase().trim();
+    if (!q) return groupedMergeTags;
+    return groupedMergeTags
+      .map((g) => ({
+        ...g,
+        tags: g.tags.filter((variable) => variable.toLowerCase().includes(q)),
+      }))
+      .filter((g) => g.tags.length > 0);
+  }, [groupedMergeTags, variableSearch]);
+
   const shiftInboxPreviewLead = useCallback((delta: number) => {
     const n = PREVIEW_SAMPLE_LEADS.length;
     setInboxPreviewLeadIndex((i) => (i + delta + n * 10) % n);
@@ -260,9 +321,6 @@ export default function CreateEmailModal({
     [draftSubject, draftPreviewText, draftHtml, inboxPreviewLead, inboxPreviewLeadIndex]
   );
 
-  const filteredVariables = mergeTags.filter((variable) =>
-    variable.toLowerCase().includes(variableSearch.toLowerCase())
-  );
   useEffect(() => {
     if (!open) return;
     clearPendingInsertSelection();
@@ -837,23 +895,58 @@ export default function CreateEmailModal({
                 </div>
               </div>
               <div className="max-h-64 flex-1 overflow-y-auto p-1">
-                {filteredVariables.length > 0 ? (
-                  <div className="space-y-0.5">
-                    {filteredVariables.map((variable) => (
-                      <button
-                        key={variable}
-                        type="button"
-                        onClick={() => {
-                          insertVariable(variable);
-                          setShowVariablePanel(false);
-                          setVariableSearch("");
-                        }}
-                        className="w-full rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-brand-main/10"
-                      >
-                        <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 font-semibold text-blue-700">
-                          {variable.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "").replace(/[_-]+/g, " ")}
-                        </span>
-                      </button>
+                {filteredVariableGroups.length > 0 ? (
+                  <div className="space-y-2">
+                    {filteredVariableGroups.map((group) => (
+                      <div key={group.label}>
+                        <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          {group.label}
+                        </p>
+                        <div className="space-y-0.5">
+                          {group.tags.map((variable) => {
+                            const field = variable
+                              .replace(/^\{\{\s*/, "")
+                              .replace(/\s*\}\}$/, "")
+                              .split("|")[0]
+                              .trim();
+                            const sample =
+                              tokenSampleValues?.[field] ||
+                              tokenSampleValues?.[field.toLowerCase()] ||
+                              (tokenSampleValues
+                                ? Object.entries(tokenSampleValues).find(
+                                    ([k]) =>
+                                      k.toLowerCase().replace(/[\s_-]+/g, "") ===
+                                      field.toLowerCase().replace(/[\s_-]+/g, "")
+                                  )?.[1]
+                                : undefined);
+                            const tip = sample
+                              ? `${field} → ${sample}`
+                              : `${field} → No value for this lead`;
+                            return (
+                            <button
+                              key={variable}
+                              type="button"
+                              title={tip}
+                              onClick={() => {
+                                insertVariable(variable);
+                                setShowVariablePanel(false);
+                                setVariableSearch("");
+                              }}
+                              className="w-full rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-brand-main/10"
+                            >
+                              <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 font-semibold text-blue-700">
+                                {field.replace(/[_-]+/g, " ")}
+                              </span>
+                              {sample ? (
+                                <span className="mt-0.5 block truncate pl-0.5 text-[10px] text-slate-400">
+                                  {sample}
+                                </span>
+                              ) : null}
+                            </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 ) : (
@@ -935,11 +1028,12 @@ export default function CreateEmailModal({
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   {composerSetupBar}
-                  <div className="min-h-0 flex-1 overflow-hidden">
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                     <HtmlEditorWithPreview
                       htmlContent={draftHtml}
                       onHtmlContentChange={setDraftHtml}
                       onTokenClick={handleEditorTokenClick}
+                      tokenSampleValues={tokenSampleValues}
                     />
                   </div>
                 </div>
@@ -1124,18 +1218,37 @@ export default function CreateEmailModal({
           <div className="space-y-4 px-6 py-5">
             <div className="space-y-2">
               <Label htmlFor="fallback-variable">Personalization field</Label>
-              <select
-                id="fallback-variable"
-                value={fallbackVariable}
-                onChange={(e) => setFallbackVariable(e.target.value)}
-                className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              >
-                {mergeTags.map((variable) => (
-                  <option key={variable} value={variable}>
-                    {variable.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "").replace(/[_-]+/g, " ")}
-                  </option>
-                ))}
-              </select>
+              <p className="text-[11px] text-slate-500">
+                Pick a merge field — same chips as Personalize.
+              </p>
+              <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {mergeTags.map((variable) => {
+                    const selected = fallbackVariable === variable;
+                    const label = variable
+                      .replace(/^\{\{\s*/, "")
+                      .replace(/\s*\}\}$/, "")
+                      .replace(/[_-]+/g, " ");
+                    return (
+                      <button
+                        key={variable}
+                        type="button"
+                        id={
+                          selected ? "fallback-variable" : undefined
+                        }
+                        onClick={() => setFallbackVariable(variable)}
+                        className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
+                          selected
+                            ? "border-blue-400 bg-blue-600 text-white shadow-sm"
+                            : "border-blue-200 bg-white text-blue-700 hover:bg-blue-50"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="fallback-text">Fallback text</Label>

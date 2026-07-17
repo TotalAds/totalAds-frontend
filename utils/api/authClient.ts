@@ -59,6 +59,7 @@ export interface UserProfile {
     | "byo_ses"
     | "gmail"
     | "outlook"
+    | "zoho"
     | "smtp"
     | null;
   socialServiceEnabled?: boolean;

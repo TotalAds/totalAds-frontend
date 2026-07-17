@@ -1,23 +1,29 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+/**
+ * @deprecated Prefer /email/campaigns/[id] (CampaignDetailPage).
+ * Legacy sequence-builder route redirects there.
+ */
 
-import SinglePageCampaignBuilder from "./SinglePageCampaignBuilder";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
 
 export default function SequenceCampaignBuilder() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialDomainId = searchParams.get("domainId") || "";
-  const existingCampaignId = searchParams.get("id") || undefined;
+  const existingCampaignId = searchParams.get("id") || "";
+
+  useEffect(() => {
+    if (existingCampaignId) {
+      router.replace(`/email/campaigns/${existingCampaignId}`);
+    } else {
+      router.replace("/email/campaigns");
+    }
+  }, [existingCampaignId, router]);
 
   return (
-    <SinglePageCampaignBuilder
-      campaignMode="sequence"
-      initialDomainId={initialDomainId}
-      campaignId={existingCampaignId}
-      onCancel={() => router.push("/email/campaigns")}
-      onSuccess={() => router.push("/email/campaigns")}
-    />
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+    </div>
   );
 }
-

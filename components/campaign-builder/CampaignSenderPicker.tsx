@@ -100,7 +100,7 @@ export function CampaignSenderPicker({
       <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 space-y-2">
         <p className="text-sm font-medium text-text-100">No verified senders</p>
         <p className="text-xs text-text-200">
-          Connect Gmail, Microsoft, SMTP, or AWS SES senders before launching a campaign.
+          Connect Gmail, Microsoft, Zoho, SMTP, or AWS SES senders before launching a campaign.
         </p>
         <Link
           href="/email/sending-accounts"

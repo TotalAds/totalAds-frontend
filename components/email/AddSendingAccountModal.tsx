@@ -32,6 +32,7 @@ import { CONNECT_FLOW_CATEGORIES } from "@/lib/senderTrustTypes";
 import {
   getCampaignGmailOAuthUrl,
   getCampaignOutlookOAuthUrl,
+  getCampaignZohoOAuthUrl,
 } from "@/utils/api/emailClient";
 import {
   IconBrandGoogle,
@@ -44,12 +45,14 @@ import {
 
 export type AddSendingAccountModalStep = "pick" | "oauth" | "smtp" | "ses";
 
+type OAuthProvider = "gmail" | "outlook" | "zoho";
+
 interface AddSendingAccountModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAccountAdded?: () => void;
   initialStep?: AddSendingAccountModalStep;
-  initialOAuthProvider?: "gmail" | "outlook" | null;
+  initialOAuthProvider?: OAuthProvider | null;
 }
 
 function ProviderCard({
@@ -167,9 +170,9 @@ export function AddSendingAccountModal({
   const { isManagedSes, isByoSes, usesSesDomains, isConnectedInboxUser, loading: providerLoading } =
     useEmailProvider();
   const [step, setStep] = useState<AddSendingAccountModalStep>(initialStep);
-  const [oauthProvider, setOauthProvider] = useState<
-    "gmail" | "outlook" | null
-  >(initialOAuthProvider);
+  const [oauthProvider, setOauthProvider] = useState<OAuthProvider | null>(
+    initialOAuthProvider
+  );
   const [senderDisplayName, setSenderDisplayName] = useState("");
   const [connecting, setConnecting] = useState<string | null>(null);
 
@@ -201,7 +204,7 @@ export function AddSendingAccountModal({
     onOpenChange(next);
   };
 
-  const startOAuthStep = (provider: "gmail" | "outlook") => {
+  const startOAuthStep = (provider: OAuthProvider) => {
     setOauthProvider(provider);
     setSenderDisplayName("");
     setStep("oauth");
@@ -221,7 +224,9 @@ export function AddSendingAccountModal({
       const { authUrl } =
         oauthProvider === "gmail"
           ? await getCampaignGmailOAuthUrl()
-          : await getCampaignOutlookOAuthUrl();
+          : oauthProvider === "outlook"
+            ? await getCampaignOutlookOAuthUrl()
+            : await getCampaignZohoOAuthUrl();
       window.location.href = authUrl;
     } catch (error: unknown) {
       const msg =
@@ -249,22 +254,26 @@ export function AddSendingAccountModal({
   });
 
   const pickStepDescription = usesSesDomains
-    ? "Connect Gmail, Outlook, SMTP, or AWS SES. Inbox and SES can both be active on the same account."
-    : "Connect Gmail, Outlook, or SMTP — campaigns send from the inbox you connect.";
+    ? "Connect Gmail, Outlook, Zoho, SMTP, or AWS SES. Inbox and SES can both be active on the same account."
+    : "Connect Gmail, Outlook, Zoho, or SMTP — campaigns send from the inbox you connect.";
 
   const oauthTitle =
     oauthProvider === "gmail"
       ? "Connect Gmail"
       : oauthProvider === "outlook"
         ? "Connect Outlook"
-        : "Connect account";
+        : oauthProvider === "zoho"
+          ? "Connect Zoho"
+          : "Connect account";
 
   const oauthBrand =
     oauthProvider === "gmail"
       ? "Google"
       : oauthProvider === "outlook"
         ? "Microsoft"
-        : "";
+        : oauthProvider === "zoho"
+          ? "Zoho"
+          : "";
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -287,7 +296,7 @@ export function AddSendingAccountModal({
                   <IconCheck className="h-4 w-4 shrink-0 text-emerald-500" />
                   {usesSesDomains
                     ? "Use connected inboxes and/or AWS SES — add whichever you need"
-                    : "Connect Google, Microsoft, or custom SMTP"}
+                    : "Connect Google, Microsoft, Zoho, or custom SMTP"}
                 </li>
                 <li className="flex items-center gap-2 text-sm text-slate-600">
                   <IconCheck className="h-4 w-4 shrink-0 text-emerald-500" />
@@ -321,6 +330,12 @@ export function AddSendingAccountModal({
                     title: "Office 365 / Outlook",
                     onClick: () => startOAuthStep("outlook"),
                   },
+                  zoho: {
+                    icon: <IconMail className="h-7 w-7 text-orange-600" />,
+                    brand: "Zoho",
+                    title: "Zoho Mail / Workplace",
+                    onClick: () => startOAuthStep("zoho"),
+                  },
                   smtp: {
                     icon: <IconMail className="h-7 w-7 text-slate-500" />,
                     brand: "Any provider",
@@ -328,6 +343,8 @@ export function AddSendingAccountModal({
                     onClick: () => setStep("smtp"),
                   },
                 }[item.provider];
+
+                if (!meta) return null;
 
                 return (
                   <ProviderCard
@@ -372,7 +389,9 @@ export function AddSendingAccountModal({
                   <p>
                     {oauthProvider === "gmail"
                       ? "Free @gmail.com accounts are not meant for large cold campaigns — only warm mail to people who know you. Set your daily email cap in inbox settings after connecting. For cold outreach, use Google Workspace or Microsoft 365 mailbox."
-                      : "Personal Outlook/Hotmail has strict limits and is not ideal for cold campaigns. Set your daily email cap in inbox settings after connecting. For cold outreach, use AWS SES or a work domain inbox."}
+                      : oauthProvider === "outlook"
+                        ? "Personal Outlook/Hotmail has strict limits and is not ideal for cold campaigns. Set your daily email cap in inbox settings after connecting. For cold outreach, use AWS SES or a work domain inbox."
+                        : "Personal Zoho mailboxes have low daily limits and are not ideal for cold campaigns. Set your daily email cap in inbox settings after connecting. For cold outreach, use Zoho Workplace on your domain or AWS SES."}
                   </p>
                 </div>
               </div>

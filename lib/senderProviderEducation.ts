@@ -1,6 +1,6 @@
 export type InboxUsageTier = "personal" | "business" | "infrastructure";
 
-export type SenderProvider = "ses" | "gmail" | "outlook" | "smtp";
+export type SenderProvider = "ses" | "gmail" | "outlook" | "zoho" | "smtp";
 
 export function providerDisplayName(provider?: string): string {
   switch (provider) {
@@ -8,6 +8,8 @@ export function providerDisplayName(provider?: string): string {
       return "Gmail";
     case "outlook":
       return "Microsoft";
+    case "zoho":
+      return "Zoho";
     case "smtp":
       return "Custom SMTP";
     case "ses":
@@ -29,6 +31,10 @@ export function accountTypeLabel(accountType?: string | null): string | null {
       return "Personal Outlook / Hotmail";
     case "m365_business":
       return "Microsoft 365 business";
+    case "zoho_personal":
+      return "Personal Zoho Mail";
+    case "zoho_workplace":
+      return "Zoho Mail / Workplace";
     case "smtp_custom":
       return "Custom SMTP inbox";
     default:
@@ -67,6 +73,19 @@ export function providerConnectionLabel(
     }
     return "Connected via Microsoft · Outlook / Microsoft 365";
   }
+  if (provider === "zoho") {
+    const personalZoho = [
+      "zoho.com",
+      "zohomail.com",
+      "zoho.eu",
+      "zohomail.eu",
+      "zoho.in",
+      "zohomail.in",
+    ];
+    return personalZoho.includes(domain)
+      ? "Connected via Zoho · personal mailbox"
+      : "Connected via Zoho · Zoho Mail / Workplace";
+  }
   if (provider === "smtp") return "Connected via SMTP";
   if (provider === "ses") return "AWS SES verified sender";
   return "Connected sender";
@@ -81,6 +100,9 @@ export function personalInboxUsageCopy(accountType?: string | null): string {
   }
   if (accountType === "m365_personal") {
     return "Personal Outlook/Hotmail accounts have low daily limits and are not built for cold outreach. Best for small, warm conversations — not prospecting strangers at scale.";
+  }
+  if (accountType === "zoho_personal") {
+    return "Personal Zoho mailboxes have low daily limits and are not built for cold outreach. Best for small, warm conversations — use Zoho Workplace on your domain or AWS SES for prospecting at scale.";
   }
   return "Personal inboxes are best for small, warm mail. Cold outreach at scale belongs on AWS SES or a work domain inbox instead, not a personal mailbox.";
 }
@@ -102,6 +124,10 @@ export function dailyLimitExplanation(
       return `Personal Microsoft cap: ${dailySendLimit ?? 270}/day (~300 provider max)`;
     case "m365_business":
       return `Microsoft 365 cap: ${dailySendLimit ?? 9000}/day (~10,000 provider max)`;
+    case "zoho_personal":
+      return `Personal Zoho cap: ${dailySendLimit ?? 45}/day (~50 provider max)`;
+    case "zoho_workplace":
+      return `Zoho Workplace cap: ${dailySendLimit ?? 450}/day (~500 provider max)`;
     case "smtp_custom":
       return `SMTP cap: ${dailySendLimit ?? 500}/day (adjust in account settings)`;
     default:
@@ -119,7 +145,8 @@ export function isPersonalInbox(
   return (
     accountType === "gmail_free" ||
     accountType === "gmail_address_via_microsoft" ||
-    accountType === "m365_personal"
+    accountType === "m365_personal" ||
+    accountType === "zoho_personal"
   );
 }
 
@@ -131,6 +158,8 @@ export function providerGroupLabel(provider: SenderProvider): string {
       return "Google — connect multiple Workspace or Gmail accounts";
     case "outlook":
       return "Microsoft — connect multiple Outlook / M365 accounts";
+    case "zoho":
+      return "Zoho — connect multiple Zoho Mail / Workplace accounts";
     case "smtp":
       return "Custom SMTP — one email address per connection";
   }
@@ -144,6 +173,8 @@ export function providerEducationTip(provider: SenderProvider): string {
       return "Personal @gmail.com accounts are not intended for cold campaigns. Set your daily email cap in inbox settings. Google Workspace on your own domain supports higher volume.";
     case "outlook":
       return "Personal Outlook/Hotmail is not ideal for cold campaigns. Set your daily email cap in inbox settings. Microsoft 365 work mailboxes on your company domain support higher volume.";
+    case "zoho":
+      return "Personal Zoho mailboxes are not ideal for cold campaigns. Set your daily email cap in inbox settings. Zoho Workplace on your company domain supports higher volume.";
     case "smtp":
       return "Each SMTP connection is one email address. Set your daily email cap in inbox settings after connecting.";
   }

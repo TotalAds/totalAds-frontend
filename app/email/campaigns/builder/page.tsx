@@ -1,52 +1,43 @@
 "use client";
 
+/**
+ * @deprecated Legacy builder route. Campaign editing lives at /email/campaigns/[id].
+ */
+
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
 
-import SinglePageCampaignBuilder from "@/components/campaign-builder/SinglePageCampaignBuilder";
-
-function CampaignBuilderContent() {
+function CampaignBuilderRedirect() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialDomainId = searchParams.get("domainId") || "";
-  const existingCampaignId = searchParams.get("id") || undefined;
-  const mode = searchParams.get("mode");
+  const existingCampaignId = searchParams.get("id") || "";
 
   useEffect(() => {
-    if (mode === "sequence") return;
-
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("mode", "sequence");
-    router.replace(`/email/campaigns/builder?${params.toString()}`);
-  }, [mode, router, searchParams]);
-
-  const handleCancel = () => {
-    router.push("/email/campaigns");
-  };
-
-  const handleSuccess = () => {
-    router.push("/email/campaigns");
-  };
+    if (existingCampaignId) {
+      router.replace(`/email/campaigns/${existingCampaignId}`);
+    } else {
+      router.replace("/email/campaigns");
+    }
+  }, [existingCampaignId, router]);
 
   return (
-    <SinglePageCampaignBuilder
-      campaignMode="sequence"
-      onCancel={handleCancel}
-      onSuccess={handleSuccess}
-      initialDomainId={initialDomainId}
-      campaignId={existingCampaignId}
-    />
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-2 p-6 text-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+      <p className="text-sm text-slate-600">Redirecting to campaign…</p>
+    </div>
   );
 }
 
 export default function CampaignBuilderPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-bg-100 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-main"></div>
-      </div>
-    }>
-      <CampaignBuilderContent />
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        </div>
+      }
+    >
+      <CampaignBuilderRedirect />
     </Suspense>
   );
 }

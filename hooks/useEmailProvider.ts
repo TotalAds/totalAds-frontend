@@ -96,6 +96,7 @@ export function useEmailProvider(): {
       if (
         method === "gmail" ||
         method === "outlook" ||
+        method === "zoho" ||
         method === "smtp"
       ) {
         try {
@@ -105,6 +106,7 @@ export function useEmailProvider(): {
               a.provider === method ||
               (method === "gmail" && a.provider === "gmail") ||
               (method === "outlook" && a.provider === "outlook") ||
+              (method === "zoho" && a.provider === "zoho") ||
               (method === "smtp" && a.provider === "smtp")
           );
           setHasConnectedSendingAccount(hasAccount);

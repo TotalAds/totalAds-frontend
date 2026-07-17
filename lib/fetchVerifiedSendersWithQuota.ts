@@ -54,7 +54,10 @@ export async function fetchCampaignSendersWithQuota(): Promise<CampaignSendersLo
   const unverified = active.filter(
     (s) =>
       s.verificationStatus !== "verified" &&
-      (s.provider === "smtp" || s.provider === "gmail" || s.provider === "outlook")
+      (s.provider === "smtp" ||
+        s.provider === "gmail" ||
+        s.provider === "outlook" ||
+        s.provider === "zoho")
   );
 
   const [senders, unverifiedSenders] = await Promise.all([

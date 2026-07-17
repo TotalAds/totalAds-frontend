@@ -14,10 +14,11 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 import RecipientSelectionModal from "@/components/campaign-builder/RecipientSelectionModal";
+import LeadhubAutopilotPanel from "@/components/campaign-builder/LeadhubAutopilotPanel";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -31,12 +32,20 @@ import {
 import {
   addLeadsToCampaign,
   createCampaignLeadsFromCsv,
+  getCampaignById,
   getCampaignMemberLeads,
   getEmailServiceErrorMessage,
+  patchCampaign,
   removeLeadsFromCampaign,
   LeadCategory,
   LeadTag,
 } from "@/utils/api/emailClient";
+import {
+  LeadhubSyncConfig,
+  LeadhubSyncLinkRow,
+  getCampaignLeadhubSyncLinks,
+  syncLeadhubCampaign,
+} from "@/utils/api/leadhubClient";
 import { INBOX_CAMPAIGN_DOMAIN_ID } from "@/lib/campaignDomain";
 
 interface LeadsTabProps {
@@ -55,6 +64,7 @@ interface CampaignLeadRow {
   name?: string;
   company?: string;
   status: string;
+  sendError?: string | null;
   createdAt?: string;
   verificationStatus?: string | null;
   isSafeToSend?: boolean | null;
@@ -79,7 +89,22 @@ function formatDate(value?: string) {
   });
 }
 
-function StatusBadge({ status }: { status: string }) {
+function formatSendError(error?: string | null): string | null {
+  if (!error) return null;
+  const trimmed = error.trim();
+  if (trimmed.startsWith("leadSniper_agent_failed:")) {
+    return trimmed.replace(/^leadSniper_agent_failed:\s*/i, "").trim() || trimmed;
+  }
+  return trimmed;
+}
+
+function StatusBadge({
+  status,
+  sendError,
+}: {
+  status: string;
+  sendError?: string | null;
+}) {
   const normalized = (status || "new").toLowerCase();
   const styles: Record<string, string> = {
     new: "bg-slate-100 text-slate-700",
@@ -91,16 +116,31 @@ function StatusBadge({ status }: { status: string }) {
     bounced: "bg-rose-100 text-rose-700",
     complained: "bg-red-100 text-red-700",
     unsubscribed: "bg-amber-100 text-amber-800",
+    failed: "bg-rose-100 text-rose-800",
   };
-  const label = normalized === "new" ? "New" : normalized;
+  const label =
+    normalized === "new"
+      ? "New"
+      : normalized === "failed"
+        ? "Not sent"
+        : normalized;
+  const readableError = formatSendError(sendError);
   return (
-    <span
-      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-1.5 py-px text-[10px] font-medium leading-none ${
-        styles[normalized] ?? "bg-slate-100 text-slate-600"
-      }`}
-    >
-      {label}
-    </span>
+    <div className="max-w-[220px] space-y-1">
+      <span
+        className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-1.5 py-px text-[10px] font-medium leading-none ${
+          styles[normalized] ?? "bg-slate-100 text-slate-600"
+        }`}
+        title={readableError || undefined}
+      >
+        {label}
+      </span>
+      {readableError ? (
+        <p className="text-[10px] leading-snug text-rose-700" title={readableError}>
+          {readableError}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -162,10 +202,81 @@ export function LeadsTab({
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
+  const [leadhubSyncConfig, setLeadhubSyncConfig] =
+    useState<LeadhubSyncConfig | null>(null);
+  const [leadhubSyncing, setLeadhubSyncing] = useState(false);
+  const [leadhubEnriching, setLeadhubEnriching] = useState(false);
+  const [leadhubSyncPhase, setLeadhubSyncPhase] = useState<
+    "idle" | "fetching" | "enriching" | "complete" | "error"
+  >("idle");
+  const [leadhubSyncStats, setLeadhubSyncStats] = useState<{
+    processed: number;
+    ready: number;
+    pendingEnrichment: number;
+    queued: number;
+    skipped: number;
+    skippedNoEmail?: number;
+    skippedVerification?: number;
+    skippedEnrichedOnly?: number;
+    failed?: number;
+  } | null>(null);
+  const [leadhubSyncLinks, setLeadhubSyncLinks] = useState<LeadhubSyncLinkRow[]>([]);
+  const enrichmentPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const enrichmentTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const stopEnrichmentPolling = useCallback(() => {
+    if (enrichmentPollRef.current) {
+      clearInterval(enrichmentPollRef.current);
+      enrichmentPollRef.current = null;
+    }
+    if (enrichmentTimeoutRef.current) {
+      clearTimeout(enrichmentTimeoutRef.current);
+      enrichmentTimeoutRef.current = null;
+    }
+    setLeadhubEnriching(false);
+  }, []);
+
+  const fetchLeadhubSyncLinks = useCallback(async () => {
+    if (!leadhubSyncConfig?.enabled) {
+      setLeadhubSyncLinks([]);
+      return [];
+    }
+    try {
+      const links = await getCampaignLeadhubSyncLinks(campaignId);
+      setLeadhubSyncLinks(links);
+      return links;
+    } catch {
+      setLeadhubSyncLinks([]);
+      return [];
+    }
+  }, [campaignId, leadhubSyncConfig?.enabled]);
+
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 350);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const campaign = await getCampaignById(effectiveDomainId, campaignId);
+        if (cancelled) return;
+        setLeadhubSyncConfig(
+          (campaign.leadhubSyncConfig as LeadhubSyncConfig | null) ?? null
+        );
+      } catch {
+        // Campaign may still be loading / domain placeholder — ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [campaignId, effectiveDomainId]);
+
+  useEffect(() => {
+    void fetchLeadhubSyncLinks();
+  }, [fetchLeadhubSyncLinks]);
 
   useEffect(() => {
     setPage(1);
@@ -202,6 +313,63 @@ export function LeadsTab({
   useEffect(() => {
     void fetchCampaignLeads();
   }, [fetchCampaignLeads]);
+
+  const onLeadsAddedRef = useRef(onLeadsAdded);
+  onLeadsAddedRef.current = onLeadsAdded;
+
+  const startEnrichmentPolling = useCallback(() => {
+    stopEnrichmentPolling();
+    setLeadhubEnriching(true);
+    setLeadhubSyncPhase("enriching");
+
+    const tick = async () => {
+      const links = await fetchLeadhubSyncLinks();
+      const pending = links.filter((l) => l.syncStatus === "pending_enrichment").length;
+      const ready = links.filter((l) =>
+        ["ready", "queued", "synced"].includes(l.syncStatus)
+      ).length;
+      const queued = links.filter((l) => l.syncStatus === "queued").length;
+      setLeadhubSyncStats((prev) =>
+        prev
+          ? {
+              ...prev,
+              pendingEnrichment: pending,
+              ready: Math.max(prev.ready, ready),
+              queued: Math.max(prev.queued, queued),
+            }
+          : {
+              processed: links.length,
+              ready,
+              pendingEnrichment: pending,
+              queued,
+              skipped: 0,
+            }
+      );
+      if (pending === 0) {
+        stopEnrichmentPolling();
+        setLeadhubSyncPhase("complete");
+        void fetchCampaignLeads();
+        onLeadsAddedRef.current?.();
+        toast.success("LeadHub enrichment finished");
+      }
+    };
+
+    void tick();
+    enrichmentPollRef.current = setInterval(() => {
+      void tick();
+    }, 4000);
+    enrichmentTimeoutRef.current = setTimeout(() => {
+      stopEnrichmentPolling();
+      setLeadhubSyncPhase("complete");
+      toast("Enrichment still running in LeadHub — refresh leads shortly");
+    }, 180_000);
+  }, [stopEnrichmentPolling, fetchLeadhubSyncLinks, fetchCampaignLeads]);
+
+  useEffect(() => {
+    return () => {
+      stopEnrichmentPolling();
+    };
+  }, [stopEnrichmentPolling]);
 
   const resolveLeadIds = async (data: {
     type: RecipientType;
@@ -403,8 +571,127 @@ export function LeadsTab({
 
   const resolvedTotalPages = Math.max(1, totalPages || Math.ceil(displayTotal / pageSize) || 1);
 
+  const persistLeadhubConfig = async (config: LeadhubSyncConfig | null) => {
+    // Always preserve cached Step 1 examples when saving Autopilot filters
+    const toSave =
+      config == null
+        ? null
+        : {
+            ...config,
+            agentPreviewExamples:
+              config.agentPreviewExamples ??
+              leadhubSyncConfig?.agentPreviewExamples,
+            agentPreviewExamplesAt:
+              config.agentPreviewExamplesAt ??
+              leadhubSyncConfig?.agentPreviewExamplesAt,
+            aiBrief: config.aiBrief ?? leadhubSyncConfig?.aiBrief,
+          };
+    await patchCampaign(effectiveDomainId, campaignId, {
+      leadhubSyncConfig: toSave,
+      ...(toSave?.enabled
+        ? { reoonVerificationSummary: { requireLeadVerification: true } }
+        : {}),
+    });
+    setLeadhubSyncConfig(toSave);
+  };
+
+  const saveAndSyncLeadhub = async (config: LeadhubSyncConfig | null) => {
+    if (!config?.enabled) {
+      try {
+        stopEnrichmentPolling();
+        await persistLeadhubConfig(null);
+        setLeadhubSyncStats(null);
+        setLeadhubSyncPhase("idle");
+        toast.success("LeadHub Autopilot disabled");
+      } catch (err: unknown) {
+        toast.error(getEmailServiceErrorMessage(err, "Failed to update Autopilot"));
+      }
+      return;
+    }
+
+    try {
+      setLeadhubSyncing(true);
+      setLeadhubSyncPhase("fetching");
+      stopEnrichmentPolling();
+      const savedConfig: LeadhubSyncConfig = {
+        ...config,
+        enabled: true,
+        source: "leadhub_autopilot",
+        enrichmentGate: config.enrichmentGate ?? "auto_enrich",
+        trustLeadhubVerification: config.trustLeadhubVerification !== false,
+      };
+      await persistLeadhubConfig(savedConfig);
+      const stats = await syncLeadhubCampaign(campaignId);
+      setLeadhubSyncStats(stats);
+      await fetchLeadhubSyncLinks();
+      await fetchCampaignLeads();
+      onLeadsAdded?.();
+
+      if (stats.pendingEnrichment > 0) {
+        toast.success(
+          `LeadHub sync: ${stats.ready + stats.queued} ready · ${stats.pendingEnrichment} enriching`
+        );
+        startEnrichmentPolling();
+      } else {
+        setLeadhubSyncPhase("complete");
+        toast.success(
+          `LeadHub sync: ${stats.ready + stats.queued} ready · ${stats.pendingEnrichment} enriching`
+        );
+      }
+    } catch (err: unknown) {
+      setLeadhubSyncPhase("error");
+      toast.error(getEmailServiceErrorMessage(err, "LeadHub sync failed"));
+    } finally {
+      setLeadhubSyncing(false);
+    }
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      {/* LeadHub Autopilot — primary way to import LeadHub CRM leads */}
+      <div className="mb-6">
+        <LeadhubAutopilotPanel
+          value={leadhubSyncConfig}
+          onChange={(config) => {
+            setLeadhubSyncConfig(config);
+            if (!config?.enabled) {
+              void saveAndSyncLeadhub(null);
+              return;
+            }
+            // Persist filters when enabled; Sync now pulls leads
+            void persistLeadhubConfig({
+              ...config,
+              enabled: true,
+              source: "leadhub_autopilot",
+              enrichmentGate: config.enrichmentGate ?? "auto_enrich",
+              trustLeadhubVerification: config.trustLeadhubVerification !== false,
+            }).catch((err: unknown) => {
+              toast.error(
+                getEmailServiceErrorMessage(err, "Failed to save Autopilot settings")
+              );
+            });
+          }}
+          syncing={leadhubSyncing}
+          enriching={leadhubEnriching}
+          syncPhase={leadhubSyncPhase}
+          syncStats={leadhubSyncStats}
+          syncLinks={leadhubSyncLinks}
+          onSyncNow={() => {
+            if (!leadhubSyncConfig?.enabled) {
+              toast.error("Enable LeadHub Autopilot first");
+              return;
+            }
+            void saveAndSyncLeadhub(leadhubSyncConfig);
+          }}
+        />
+        {leadhubSyncConfig?.enabled && canModifyLeads && (
+          <p className="mt-2 text-xs text-slate-500">
+            After enabling filters, click <strong>Sync now</strong> to pull matching LeadHub
+            leads (lists, categories, scores, AI fields) into this campaign.
+          </p>
+        )}
+      </div>
+
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
@@ -464,8 +751,8 @@ export function LeadsTab({
             Add some leads to get started
           </h3>
           <p className="text-slate-500 max-w-sm text-sm leading-relaxed mb-8">
-            Upload a CSV, pick from your lead lists, or filter by tags and categories to choose
-            who receives this campaign.
+            Use LeadHub Autopilot above to sync CRM leads, or upload a CSV / pick from
+            lead lists and filters.
           </p>
 
           {canModifyLeads && (
@@ -686,7 +973,7 @@ export function LeadsTab({
                       <TableCell className="text-slate-600">{lead.name || "—"}</TableCell>
                       <TableCell className="text-slate-600">{lead.company || "—"}</TableCell>
                       <TableCell>
-                        <StatusBadge status={lead.status} />
+                        <StatusBadge status={lead.status} sendError={lead.sendError} />
                       </TableCell>
                       <TableCell>
                         <VerificationBadge

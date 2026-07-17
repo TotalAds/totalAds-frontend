@@ -169,6 +169,16 @@ export function OptionsTab({
     load();
   }, []);
 
+  // Drop sender IDs that no longer exist (e.g. account was deleted while campaign still referenced it)
+  useEffect(() => {
+    if (loadingOptions || loadingSenders) return;
+    const availableIds = new Set(senders.map((s) => s.id));
+    setSelectedSenderIds((prev) => {
+      const next = prev.filter((id) => availableIds.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [senders, loadingOptions, loadingSenders]);
+
   const rotation = useMemo(
     () =>
       calculateSenderRotationDistribution(senders, selectedSenderIds, totalLeads, {
@@ -542,7 +552,7 @@ export function OptionsTab({
             keep their original tracking HTML until re-queued.
           </p>
           <p className="mt-2 text-[11px] text-slate-500">
-            Open and reply detection work from your connected inbox (Gmail, Microsoft, or SMTP
+            Open and reply detection work from your connected inbox (Gmail, Microsoft, Zoho, or SMTP
             with IMAP). We filter automated prefetch from Google and Microsoft so only real
             engagement is counted. AWS SES uses SNS for opens, bounces, and complaints — not
             inbox reply polling.

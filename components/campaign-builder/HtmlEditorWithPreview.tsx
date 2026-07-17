@@ -14,6 +14,8 @@ interface HtmlEditorWithPreviewProps {
     token: string,
     occurrenceIndex: number
   ) => void;
+  /** Optional {{token}} → sample value map for hover tooltips on highlighted tokens. */
+  tokenSampleValues?: Record<string, string>;
 }
 
 function getMergeTokenLabel(token: string): string {
@@ -70,6 +72,7 @@ export default function HtmlEditorWithPreview({
   htmlContent,
   onHtmlContentChange,
   onTokenClick,
+  tokenSampleValues,
 }: HtmlEditorWithPreviewProps) {
   const [copied, setCopied] = useState(false);
   const tokens = useMemo(() => extractEmailTokens(htmlContent), [htmlContent]);
@@ -120,12 +123,16 @@ export default function HtmlEditorWithPreview({
     }
   };
 
-  const previewSrc = wrapEmailPreviewDocument(htmlContent || "<p></p>", true);
+  const previewSrc = wrapEmailPreviewDocument(
+    htmlContent || "<p></p>",
+    true,
+    tokenSampleValues
+  );
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 lg:flex-row">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3 lg:flex-row">
       <div className="flex min-h-0 min-w-0 flex-[1_1_50%] flex-col border-b border-border lg:border-b-0 lg:border-r">
-        <div className="flex flex-wrap gap-1 border-b border-border bg-bg-300/40 px-2 py-1.5">
+        <div className="flex flex-shrink-0 flex-wrap gap-1 border-b border-border bg-bg-300/40 px-2 py-1.5">
           <button
             type="button"
             onClick={handleFormat}
@@ -150,14 +157,40 @@ export default function HtmlEditorWithPreview({
           </button>
         </div>
         {tokens.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-white px-3 py-2">
+          <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-border bg-white px-3 py-2">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               Editable tokens
             </span>
-            {tokens.map((token, index) => (
+            {tokens.map((token, index) => {
+              const mergeField =
+                token.type === "merge"
+                  ? token.token
+                      .replace(/^\{\{\s*/, "")
+                      .replace(/\s*\}\}$/, "")
+                      .split("|")[0]
+                      .trim()
+                  : "";
+              const sample =
+                token.type === "merge" && tokenSampleValues
+                  ? tokenSampleValues[mergeField] ||
+                    tokenSampleValues[mergeField.toLowerCase()] ||
+                    Object.entries(tokenSampleValues).find(
+                      ([k]) =>
+                        k.toLowerCase().replace(/[\s_-]+/g, "") ===
+                        mergeField.toLowerCase().replace(/[\s_-]+/g, "")
+                    )?.[1]
+                  : undefined;
+              const tip =
+                token.type === "merge"
+                  ? sample
+                    ? `${mergeField} → ${sample}`
+                    : `${mergeField} → No value for this lead`
+                  : undefined;
+              return (
               <button
                 key={`${token.type}-${token.token}-${token.occurrenceIndex}-${index}`}
                 type="button"
+                title={tip}
                 onClick={() =>
                   onTokenClick?.(token.type, token.token, token.occurrenceIndex)
                 }
@@ -175,7 +208,8 @@ export default function HtmlEditorWithPreview({
                 {token.type === "spintax" ? "spin " : ""}
                 {token.label}
               </button>
-            ))}
+              );
+            })}
           </div>
         ) : null}
         <textarea
@@ -183,18 +217,18 @@ export default function HtmlEditorWithPreview({
           value={htmlContent}
           onChange={(e) => onHtmlContentChange(e.target.value)}
           placeholder="Enter HTML content here..."
-          className="min-h-[240px] w-full min-w-0 flex-1 resize-none bg-bg-100 px-3 py-2 font-mono text-sm text-text-100 placeholder:text-text-300 focus:outline-none focus:ring-1 focus:ring-brand-main/30 lg:min-h-[min(100%,480px)]"
+          className="min-h-[240px] w-full min-w-0 flex-1 resize-none overflow-auto bg-bg-100 px-3 py-2 font-mono text-sm text-text-100 placeholder:text-text-300 focus:outline-none focus:ring-1 focus:ring-brand-main/30 lg:min-h-0"
           spellCheck={false}
         />
       </div>
       <div className="flex min-h-0 min-w-0 flex-[1_1_50%] flex-col">
-        <div className="border-b border-border bg-bg-300/40 px-3 py-2 text-xs font-medium text-text-200">
+        <div className="flex-shrink-0 border-b border-border bg-bg-300/40 px-3 py-2 text-xs font-medium text-text-200">
           Live preview
         </div>
-        <div className="min-h-[240px] flex-1 overflow-hidden rounded-b-lg bg-[#f8fafc] lg:min-h-[min(100%,480px)]">
+        <div className="min-h-[240px] flex-1 overflow-hidden rounded-b-lg bg-[#f8fafc] lg:min-h-0">
           <iframe
             title="HTML preview"
-            className="h-full min-h-[220px] w-full border-0 bg-[#f8fafc] [scrollbar-width:thin]"
+            className="h-full w-full border-0 bg-[#f8fafc] [scrollbar-width:thin]"
             srcDoc={previewSrc}
             sandbox="allow-same-origin"
           />

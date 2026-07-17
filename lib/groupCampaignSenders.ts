@@ -20,11 +20,11 @@ export interface SenderGroup {
 	senders: CampaignSenderRow[];
 }
 
-const PROVIDER_ORDER: SenderProvider[] = ["ses", "gmail", "outlook", "smtp"];
+const PROVIDER_ORDER: SenderProvider[] = ["ses", "gmail", "outlook", "zoho", "smtp"];
 
 function resolveProvider(sender: CampaignSenderRow): SenderProvider {
 	const p = sender.provider;
-	if (p === "gmail" || p === "outlook" || p === "smtp" || p === "ses") return p;
+	if (p === "gmail" || p === "outlook" || p === "zoho" || p === "smtp" || p === "ses") return p;
 	// Inbox senders have no SES domain; avoid mis-grouping as SES when provider is missing.
 	return sender.domainId ? "ses" : "smtp";
 }
@@ -35,6 +35,7 @@ function groupLabel(provider: SenderProvider, groupKey: string, senders: Campaig
 	}
 	if (provider === "gmail") return "Google accounts";
 	if (provider === "outlook") return "Microsoft accounts";
+	if (provider === "zoho") return "Zoho accounts";
 	return "Custom SMTP";
 }
 

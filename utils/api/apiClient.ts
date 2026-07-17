@@ -275,9 +275,10 @@ export type PrimarySendingMethod =
   | "byo_ses"
   | "gmail"
   | "outlook"
+  | "zoho"
   | "smtp";
 
-export type OnboardingSendingMethod = "gmail" | "outlook" | "smtp";
+export type OnboardingSendingMethod = "gmail" | "outlook" | "zoho" | "smtp";
 export type OnboardingGoal =
   | "find_new_leads"
   | "send_cold_emails"

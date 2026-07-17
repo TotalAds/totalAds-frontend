@@ -416,6 +416,30 @@ export interface Campaign {
     errorMessage?: string;
     requireLeadVerification?: boolean;
   };
+  leadhubSyncConfig?: {
+    enabled: boolean;
+    source: "leadhub_autopilot";
+    listIds?: string[];
+    categoryIds?: string[];
+    priorities?: Array<"hot" | "warm" | "cold" | "unknown">;
+    minIntentScore?: number;
+    minIcpScore?: number;
+    enrichmentGate?: "auto_enrich" | "enriched_only";
+    dailyIntakeCap?: number;
+    trustLeadhubVerification?: boolean;
+    personalizationMode?: "template" | "ai_agent";
+    aiBrief?: Record<string, unknown>;
+    agentPreviewExamples?: Array<{
+      leadId: string;
+      email: string | null;
+      firstName: string | null;
+      company: string | null;
+      subject: string;
+      previewText: string;
+      bodyHtml: string;
+    }>;
+    agentPreviewExamplesAt?: string;
+  } | null;
   queuedForTodayCount?: number;
   scheduledForTomorrowCount?: number;
   deliverabilityPauseReason?: string | null;
@@ -1024,6 +1048,8 @@ export interface Lead {
   category?: string;
   campaignId?: string;
   status: string;
+  customFields?: Record<string, unknown> | null;
+  enrichedData?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1701,7 +1727,7 @@ export const getEmailSendersTotalCount = async (): Promise<number> => {
   return Number(resp.data?.data?.pagination?.total ?? 0);
 };
 
-// --- Sending Accounts (Gmail, Outlook, SMTP) ---
+// --- Sending Accounts (Gmail, Outlook, Zoho, SMTP) ---
 
 export interface SenderCategoryInfo {
   category: "personal" | "business" | "custom_smtp" | "scale";
@@ -1728,7 +1754,7 @@ export interface SendingAccount {
   id: string;
   email: string;
   displayName?: string | null;
-  provider: "ses" | "gmail" | "outlook" | "smtp";
+  provider: "ses" | "gmail" | "outlook" | "zoho" | "smtp";
   verificationStatus: string;
   accountType?: string | null;
   usageTier?: "personal" | "business" | "infrastructure" | null;
@@ -1791,6 +1817,14 @@ export const getCampaignOutlookOAuthUrl = async (): Promise<{ authUrl: string; s
   const resp = await emailClient.get("/api/sending-accounts/oauth/outlook/url");
   if (!resp.data?.success) {
     throw new Error(resp.data?.message || "Failed to get Outlook OAuth URL");
+  }
+  return resp.data.data;
+};
+
+export const getCampaignZohoOAuthUrl = async (): Promise<{ authUrl: string; state: string }> => {
+  const resp = await emailClient.get("/api/sending-accounts/oauth/zoho/url");
+  if (!resp.data?.success) {
+    throw new Error(resp.data?.message || "Failed to get Zoho OAuth URL");
   }
   return resp.data.data;
 };

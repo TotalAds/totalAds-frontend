@@ -1,7 +1,6 @@
 "use client";
 
 import { format } from "date-fns";
-import { PauseIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
@@ -14,15 +13,12 @@ import {
   cancelSubscription,
   getPaymentHistory,
   getSubscriptionStatus,
-  pauseSubscription,
   PaymentHistoryRecord,
-  resumeSubscription,
   SubscriptionStatus,
 } from "@/utils/api/subscriptionClient";
 import {
   IconDownload,
   IconLoader,
-  IconPlayerPlay,
   IconX,
 } from "@tabler/icons-react";
 
@@ -110,32 +106,6 @@ const BillingSection = () => {
       await fetchBillingData();
     } catch (error: any) {
       toast.error(error?.message || "Failed to cancel subscription");
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
-  const handlePauseSubscription = async () => {
-    setIsActionLoading(true);
-    try {
-      const result = await pauseSubscription();
-      toast.success(result.message);
-      await fetchBillingData();
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to pause subscription");
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
-  const handleResumeSubscription = async () => {
-    setIsActionLoading(true);
-    try {
-      const result = await resumeSubscription();
-      toast.success(result.message);
-      await fetchBillingData();
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to resume subscription");
     } finally {
       setIsActionLoading(false);
     }
@@ -266,18 +236,9 @@ const BillingSection = () => {
               </div>
 
               {/* Action Buttons */}
-              {/* <div className="flex gap-2">
+              <div className="flex gap-2">
                 {subscriptionData.status === "active" && (
                   <>
-                    <Button
-                      variant="outline"
-                      onClick={handlePauseSubscription}
-                      disabled={isActionLoading}
-                      className="flex items-center gap-2"
-                    >
-                      <PauseIcon className="w-4 h-4" />
-                      Pause
-                    </Button>
                     <Button
                       variant="destructive"
                       onClick={() => setShowCancelModal(true)}
@@ -289,18 +250,7 @@ const BillingSection = () => {
                     </Button>
                   </>
                 )}
-                {subscriptionData.status === "paused" && (
-                  <Button
-                    variant="default"
-                    onClick={handleResumeSubscription}
-                    disabled={isActionLoading}
-                    className="flex items-center gap-2"
-                  >
-                    <IconPlayerPlay className="w-4 h-4" />
-                    Resume
-                  </Button>
-                )}
-              </div> */}
+              </div>
             </div>
 
             {/* Subscription Details Grid */}
@@ -489,8 +439,10 @@ const BillingSection = () => {
               Cancel Subscription
             </h3>
             <p className="text-text-200 text-sm mb-4">
-              Are you sure you want to cancel your subscription? You can choose
-              to cancel immediately or at the end of your current billing cycle.
+              {subscriptionData?.paymentProvider === "cryptomus" &&
+              subscriptionData?.recurringCrypto
+                ? "Are you sure you want to cancel recurring crypto billing? Your current plan will remain active until the end of the paid cycle."
+                : "Are you sure you want to cancel your subscription? You can choose to cancel immediately or at the end of your current billing cycle."}
             </p>
 
             <div className="mb-4">
@@ -527,21 +479,27 @@ const BillingSection = () => {
                 {isActionLoading ? (
                   <IconLoader className="w-4 h-4 animate-spin" />
                 ) : (
-                  "Cancel at Cycle End"
+                  subscriptionData?.paymentProvider === "cryptomus" &&
+                  subscriptionData?.recurringCrypto
+                    ? "Cancel Recurring"
+                    : "Cancel at Cycle End"
                 )}
               </Button>
-              <Button
-                variant="destructive"
-                onClick={() => handleCancelSubscription(false)}
-                disabled={isActionLoading}
-                className="flex-1"
-              >
-                {isActionLoading ? (
-                  <IconLoader className="w-4 h-4 animate-spin" />
-                ) : (
-                  "Cancel Now"
-                )}
-              </Button>
+              {!(subscriptionData?.paymentProvider === "cryptomus" &&
+                subscriptionData?.recurringCrypto) && (
+                <Button
+                  variant="destructive"
+                  onClick={() => handleCancelSubscription(false)}
+                  disabled={isActionLoading}
+                  className="flex-1"
+                >
+                  {isActionLoading ? (
+                    <IconLoader className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "Cancel Now"
+                  )}
+                </Button>
+              )}
             </div>
           </div>
         </div>

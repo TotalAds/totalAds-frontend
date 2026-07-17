@@ -1059,14 +1059,15 @@ export default function LeadsPage() {
                   To start a campaign with these leads, go to the{" "}
                   <button
                     onClick={() => {
-                      router.push("/email/campaigns/builder");
+                      router.push("/email/campaigns");
                       setShowStartCampaignModal(false);
                     }}
                     className="text-brand-main hover:text-brand-secondary font-semibold"
                   >
-                    Campaign Builder
+                    Campaigns
                   </button>{" "}
-                  and select these leads in the lead selection step.
+                  page, create or open a campaign, then add leads on the Leads
+                  tab (or enable LeadHub Autopilot).
                 </p>
                 <div className="bg-brand-main/5 border border-brand-main/10 rounded-lg p-3 max-h-48 overflow-y-auto">
                   <p className="text-xs text-text-200 mb-2">Selected Leads:</p>
@@ -1091,12 +1092,12 @@ export default function LeadsPage() {
 
                   <button
                     onClick={() => {
-                      router.push("/email/campaigns/builder");
+                      router.push("/email/campaigns");
                       setShowStartCampaignModal(false);
                     }}
                     className="flex-1 px-4 py-2 bg-brand-main hover:bg-brand-main/80 text-text-100 font-semibold rounded-lg transition-all duration-200"
                   >
-                    Go to Builder
+                    Go to Campaigns
                   </button>
                 </div>
               </div>

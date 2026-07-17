@@ -17,17 +17,6 @@ export function buildCampaignBuilderHref(options: {
   sequence?: CampaignSequenceStep[] | null;
   liveSequenceEdit?: boolean;
 }): string {
-  const params = new URLSearchParams({
-    mode: "sequence",
-    id: options.campaignId,
-  });
-  if (options.domainId && options.domainId !== "0") {
-    params.set("domainId", options.domainId);
-  }
-  const hasMultipleSteps =
-    (Array.isArray(options.sequence) ? options.sequence.length : 0) > 1;
-  if (options.liveSequenceEdit && hasMultipleSteps) {
-    params.set("liveSequenceEdit", "1");
-  }
-  return `/email/campaigns/builder?${params.toString()}`;
+  // Legacy "builder" URL deprecated — send users to campaign detail tabs.
+  return `/email/campaigns/${options.campaignId}`;
 }

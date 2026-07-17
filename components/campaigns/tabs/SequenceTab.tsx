@@ -9,14 +9,35 @@ import {
   Check,
   Loader2,
   CalendarDays,
+  Zap,
+  Sparkles,
 } from "lucide-react";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import toast from "react-hot-toast";
 
 import CreateEmailModal from "@/components/campaign-builder/CreateEmailModal";
+import IsolatedEmailHtmlPreview from "@/components/campaign-builder/IsolatedEmailHtmlPreview";
+import { repairLeadhubPreviewBodyHtml } from "@/components/campaign-builder/repairLeadhubPreviewHtml";
+import LeadhubAiBriefPanel from "@/components/campaign-builder/LeadhubAiBriefPanel";
+import {
+  buildTokenSampleValuesFromLead,
+  mergeVariableLists,
+} from "@/components/campaign-builder/htmlPreviewUtils";
+import {
+  isLeadhubAiBriefComplete,
+  isLeadhubAiStep1Placeholder,
+  LEADHUB_AI_STEP1_BODY,
+  LEADHUB_AI_STEP1_SUBJECT,
+} from "@/lib/leadhubAiParentTemplate";
 import { INBOX_CAMPAIGN_DOMAIN_ID } from "@/lib/campaignDomain";
 import {
+  getLeadhubPersonalizationTokens,
+  type LeadhubSyncConfig,
+  type LeadSniperPreviewEmail,
+} from "@/utils/api/leadhubClient";
+import {
   getCampaignById,
+  getCampaignMemberLeads,
   getEmailServiceErrorMessage,
   patchCampaign,
 } from "@/utils/api/emailClient";
@@ -199,6 +220,150 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
     stepId: string;
     variantId: string;
   } | null>(null);
+  const [leadhubSyncConfig, setLeadhubSyncConfig] =
+    useState<LeadhubSyncConfig | null>(null);
+  const [leadhubTokens, setLeadhubTokens] = useState<string[]>([]);
+  const [tokenSampleValues, setTokenSampleValues] = useState<
+    Record<string, string>
+  >(() => buildTokenSampleValuesFromLead(null));
+  const [aiPreviews, setAiPreviews] = useState<LeadSniperPreviewEmail[]>([]);
+  const [aiPreviewing, setAiPreviewing] = useState(false);
+  const [activeAiPreview, setActiveAiPreview] = useState(0);
+  /** ISO timestamp of the examples currently shown — blocks stale overwrites. */
+  const [aiPreviewsAt, setAiPreviewsAt] = useState<string | null>(null);
+  const aiPreviewsAtRef = useRef<string | null>(null);
+
+  const leadhubAutopilotEnabled =
+    leadhubSyncConfig?.enabled === true &&
+    leadhubSyncConfig?.source === "leadhub_autopilot";
+  const leadhubAiMode =
+    leadhubAutopilotEnabled &&
+    leadhubSyncConfig?.personalizationMode === "ai_agent";
+  const aiBriefComplete = isLeadhubAiBriefComplete(leadhubSyncConfig?.aiBrief);
+
+  const activeRepairedPreviewHtml = useMemo(() => {
+    const preview = aiPreviews[activeAiPreview];
+    if (!preview?.bodyHtml) return "";
+    return repairLeadhubPreviewBodyHtml(preview.bodyHtml, {
+      recipientCompany: preview.company,
+      firstName: preview.firstName,
+      senderCompany: leadhubSyncConfig?.aiBrief?.senderCompany,
+      product: leadhubSyncConfig?.aiBrief?.product,
+    });
+  }, [aiPreviews, activeAiPreview, leadhubSyncConfig?.aiBrief]);
+
+  const baseSequenceVariables = [
+    "first_name",
+    "last_name",
+    "email",
+    "company",
+    "title",
+    "phone",
+    "website",
+  ];
+
+  const availableVariables = useMemo(
+    () =>
+      leadhubAutopilotEnabled
+        ? mergeVariableLists(leadhubTokens, baseSequenceVariables)
+        : baseSequenceVariables,
+    [leadhubAutopilotEnabled, leadhubTokens]
+  );
+
+  // Reset preview cache when switching campaigns
+  useEffect(() => {
+    aiPreviewsAtRef.current = null;
+    setAiPreviewsAt(null);
+    setAiPreviews([]);
+    setActiveAiPreview(0);
+  }, [campaignId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const campaign = await getCampaignById(effectiveDomainId, campaignId);
+        if (cancelled) return;
+        const lh = campaign.leadhubSyncConfig as LeadhubSyncConfig | null;
+        const enabled =
+          lh?.enabled === true && lh?.source === "leadhub_autopilot";
+        setLeadhubSyncConfig(enabled ? lh : null);
+        if (enabled && Array.isArray(lh?.agentPreviewExamples) && lh.agentPreviewExamples.length > 0) {
+          const incomingAt = lh.agentPreviewExamplesAt ?? "";
+          const localAt = aiPreviewsAtRef.current ?? "";
+          // Only adopt server examples when local is empty or server is newer
+          if (!localAt || incomingAt >= localAt) {
+            aiPreviewsAtRef.current = incomingAt || new Date().toISOString();
+            setAiPreviewsAt(aiPreviewsAtRef.current);
+            setAiPreviews(lh.agentPreviewExamples);
+            setActiveAiPreview(0);
+          }
+        } else if (!enabled) {
+          aiPreviewsAtRef.current = null;
+          setAiPreviewsAt(null);
+          setAiPreviews([]);
+        }
+        if (!enabled) {
+          setLeadhubTokens([]);
+          setTokenSampleValues(buildTokenSampleValuesFromLead(null));
+          return;
+        }
+        const [tokens, members] = await Promise.all([
+          getLeadhubPersonalizationTokens(),
+          getCampaignMemberLeads(campaignId, 1, 1).catch(() => ({
+            leads: [],
+            pagination: { page: 1, limit: 1, total: 0, pages: 0 },
+          })),
+        ]);
+        if (cancelled) return;
+        setLeadhubTokens(tokens);
+        setTokenSampleValues(
+          buildTokenSampleValuesFromLead(members.leads?.[0] ?? null)
+        );
+      } catch {
+        if (!cancelled) {
+          setLeadhubSyncConfig(null);
+          setLeadhubTokens([]);
+          setTokenSampleValues(buildTokenSampleValuesFromLead(null));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [campaignId, effectiveDomainId]);
+
+  /** Lock Step 1 to a single AI placeholder variant when agent mode is on. */
+  useEffect(() => {
+    if (!leadhubAiMode || loading) return;
+    setSteps((prev) => {
+      let changed = false;
+      const next = prev.map((step) => {
+        if (step.stepNumber !== 1) return step;
+        const primary = step.variants[0];
+        const alreadyOk =
+          step.variants.length === 1 &&
+          primary &&
+          isLeadhubAiStep1Placeholder(primary.subject, primary.body);
+        if (alreadyOk) return step;
+        changed = true;
+        const locked = {
+          ...(primary || createDefaultVariant("A")),
+          label: "A",
+          subject: LEADHUB_AI_STEP1_SUBJECT,
+          previewText: "",
+          body: LEADHUB_AI_STEP1_BODY,
+          bodyEditor: "html" as const,
+        };
+        return {
+          ...step,
+          variants: [locked],
+          activeVariantId: locked.id,
+        };
+      });
+      return changed ? next : prev;
+    });
+  }, [leadhubAiMode, loading]);
 
   useEffect(() => {
     let cancelled = false;
@@ -234,6 +399,8 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
   const activeVariant = selectedStep?.variants.find(
     (v) => v.id === selectedStep.activeVariantId
   );
+  const isAiStep1Selected =
+    Boolean(leadhubAiMode && selectedStep?.stepNumber === 1);
 
   const updateStep = (stepId: string, patch: Partial<SequenceStep>) => {
     setSteps((prev) =>
@@ -272,6 +439,10 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
     setSteps((prev) =>
       prev.map((s) => {
         if (s.id !== stepId) return s;
+        if (leadhubAiMode && s.stepNumber === 1) {
+          toast.error("Step 1 uses LeadSniper agent — variants are not available");
+          return s;
+        }
         if (s.variants.length >= 26) {
           toast.error("Maximum 26 variants per step");
           return s;
@@ -311,6 +482,13 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
   };
 
   const openEmailEditor = (stepId: string, variantId: string) => {
+    if (leadhubAiMode) {
+      const step = steps.find((s) => s.id === stepId);
+      if (step?.stepNumber === 1) {
+        toast.error("Step 1 is personalized by the LeadSniper agent — use the brief above");
+        return;
+      }
+    }
     setEditingVariantInfo({ stepId, variantId });
     setEmailModalOpen(true);
   };
@@ -409,7 +587,101 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
   }
 
   return (
-    <div className="flex h-full min-h-[640px]">
+    <div className="flex h-full min-h-[640px] flex-col">
+      {leadhubAutopilotEnabled && (
+        <div className="shrink-0 space-y-3 border-b border-slate-200 bg-white px-5 py-4">
+          <div
+            className={`flex flex-wrap items-start justify-between gap-3 rounded-xl border px-4 py-3 ${
+              leadhubAiMode
+                ? "border-violet-200 bg-violet-50/70"
+                : "border-blue-200 bg-blue-50/70"
+            }`}
+          >
+            <div className="flex items-start gap-2.5">
+              <div
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white ${
+                  leadhubAiMode ? "bg-violet-600" : "bg-blue-600"
+                }`}
+              >
+                {leadhubAiMode ? (
+                  <Sparkles className="h-4 w-4" />
+                ) : (
+                  <Zap className="h-4 w-4" />
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">
+                  LeadHub Autopilot{" "}
+                  {leadhubAiMode ? "· LeadSniper agent" : "· Template tokens"}
+                </p>
+                <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
+                  {leadhubAiMode
+                    ? "Step 1 is written per lead by the LeadSniper agent — examples appear in the Step 1 panel. Follow-ups use templates with LeadHub tokens."
+                    : "Use LeadHub personalization tokens in every step via Personalize."}
+                </p>
+              </div>
+            </div>
+            {leadhubAiMode && (
+              <span
+                className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                  aiBriefComplete
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-amber-100 text-amber-900"
+                }`}
+              >
+                {aiBriefComplete ? "Brief ready" : "Brief incomplete"}
+              </span>
+            )}
+          </div>
+
+          {leadhubAiMode && leadhubSyncConfig && (
+            <LeadhubAiBriefPanel
+              campaignId={campaignId}
+              domainId={effectiveDomainId}
+              config={leadhubSyncConfig}
+              onConfigChange={(next) => {
+                setLeadhubSyncConfig(next);
+                if (
+                  Array.isArray(next.agentPreviewExamples) &&
+                  next.agentPreviewExamples.length > 0
+                ) {
+                  const incomingAt =
+                    next.agentPreviewExamplesAt ?? new Date().toISOString();
+                  const localAt = aiPreviewsAtRef.current ?? "";
+                  if (!localAt || incomingAt >= localAt) {
+                    aiPreviewsAtRef.current = incomingAt;
+                    setAiPreviewsAt(incomingAt);
+                    setAiPreviews(next.agentPreviewExamples);
+                    setActiveAiPreview(0);
+                  }
+                }
+              }}
+              disabled={isLocked}
+              onPreviewsChange={(previews, meta) => {
+                setAiPreviewing(meta.previewing);
+                // null = loading/error flag only — keep current examples until replacement arrives
+                if (previews == null) return;
+                const at = new Date().toISOString();
+                aiPreviewsAtRef.current = at;
+                setAiPreviewsAt(at);
+                setLeadhubSyncConfig((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        agentPreviewExamples: previews,
+                        agentPreviewExamplesAt: at,
+                      }
+                    : prev
+                );
+                setAiPreviews(previews);
+                setActiveAiPreview(0);
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      <div className="flex min-h-0 flex-1">
       {/* Left: step list */}
       <div className="flex w-72 shrink-0 flex-col border-r border-slate-200 bg-slate-50">
         <div className="border-b border-slate-200 p-4">
@@ -446,6 +718,11 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
                     <span className="text-xs font-semibold text-slate-700">
                       Step {step.stepNumber}
                     </span>
+                    {leadhubAiMode && step.stepNumber === 1 && (
+                      <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-700">
+                        AI
+                      </span>
+                    )}
                   </div>
                   {steps.length > 1 && !isLocked && (
                     <button
@@ -482,33 +759,42 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
                 </div>
 
                 <div className="space-y-1">
-                  {step.variants.map((variant) => (
-                    <div
-                      key={variant.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedStepId(step.id);
-                        setActiveVariant(step.id, variant.id);
-                      }}
-                      className={`flex cursor-pointer items-center justify-between rounded-lg px-2 py-1.5 text-[11px] transition-colors ${
-                        step.activeVariantId === variant.id && isSelected
-                          ? "bg-blue-50 font-medium text-blue-700"
-                          : "text-slate-500 hover:bg-slate-100"
-                      }`}
-                    >
-                      <span className="flex min-w-0 items-center gap-1.5">
-                        <span className="font-bold">Variant {variant.label}</span>
-                        {variant.subject ? (
-                          <span className="truncate text-slate-400">{variant.subject}</span>
-                        ) : (
-                          <span className="italic text-slate-300">Empty</span>
-                        )}
-                      </span>
+                  {leadhubAiMode && step.stepNumber === 1 ? (
+                    <div className="rounded-lg bg-violet-50 px-2 py-1.5 text-[11px] font-medium text-violet-700">
+                      Personalized by LeadSniper agent
                     </div>
-                  ))}
+                  ) : (
+                    step.variants.map((variant) => (
+                      <div
+                        key={variant.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedStepId(step.id);
+                          setActiveVariant(step.id, variant.id);
+                        }}
+                        className={`flex cursor-pointer items-center justify-between rounded-lg px-2 py-1.5 text-[11px] transition-colors ${
+                          step.activeVariantId === variant.id && isSelected
+                            ? "bg-blue-50 font-medium text-blue-700"
+                            : "text-slate-500 hover:bg-slate-100"
+                        }`}
+                      >
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="font-bold">Variant {variant.label}</span>
+                          {variant.subject ? (
+                            <span className="truncate text-slate-400">
+                              {variant.subject}
+                            </span>
+                          ) : (
+                            <span className="italic text-slate-300">Empty</span>
+                          )}
+                        </span>
+                      </div>
+                    ))
+                  )}
                 </div>
 
-                {!isLocked && (
+                {!isLocked &&
+                  !(leadhubAiMode && step.stepNumber === 1) && (
                   <button
                     type="button"
                     onClick={(e) => {
@@ -544,6 +830,7 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
       <div className="flex flex-1 flex-col bg-white">
         {selectedStep && activeVariant ? (
           <>
+            {!isAiStep1Selected && (
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-3">
               <div className="flex items-center gap-1">
                 {selectedStep.variants.map((variant) => (
@@ -580,6 +867,7 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
                 </div>
               )}
             </div>
+            )}
 
             <div className="flex-1 overflow-y-auto p-6">
               {/* Step timing */}
@@ -637,8 +925,99 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
                 </div>
               </div>
 
-              {/* Email content */}
-              {activeVariant.subject || activeVariant.body ? (
+              {isAiStep1Selected ? (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-2 rounded-xl border border-violet-200 bg-violet-50/60 p-4">
+                    <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        LeadSniper agent examples
+                      </p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-slate-600">
+                        Step 1 has no Write Email or variants — the agent personalizes
+                        each send from your brief. Save or preview the brief above to
+                        refresh these examples.
+                      </p>
+                    </div>
+                  </div>
+
+                  {aiPreviewing && aiPreviews.length === 0 ? (
+                    <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-violet-200 bg-violet-50/30 text-center">
+                      <Loader2 className="mb-3 h-6 w-6 animate-spin text-violet-600" />
+                      <p className="text-sm font-medium text-slate-700">
+                        Generating example emails…
+                      </p>
+                    </div>
+                  ) : aiPreviews.length > 0 ? (
+                    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold text-slate-800">
+                          Example emails for your leads
+                        </p>
+                        {aiPreviewing && (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-600" />
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {aiPreviews.map((p, i) => (
+                          <button
+                            key={p.leadId}
+                            type="button"
+                            onClick={() => setActiveAiPreview(i)}
+                            className={`rounded-lg px-2.5 py-1 text-[10px] font-medium transition ${
+                              activeAiPreview === i
+                                ? "bg-violet-600 text-white"
+                                : "border border-slate-200 bg-white text-slate-600"
+                            }`}
+                          >
+                            {p.firstName || p.email || `Lead ${i + 1}`}
+                          </button>
+                        ))}
+                      </div>
+                      {aiPreviews[activeAiPreview] && (
+                        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                          <div className="space-y-1 border-b border-slate-100 px-3 py-2">
+                            <p className="text-xs font-semibold text-slate-900">
+                              {aiPreviews[activeAiPreview].subject}
+                            </p>
+                            <p className="text-[10px] text-slate-500">
+                              To: {aiPreviews[activeAiPreview].email}
+                              {aiPreviews[activeAiPreview].company
+                                ? ` · ${aiPreviews[activeAiPreview].company}`
+                                : ""}
+                            </p>
+                            {aiPreviews[activeAiPreview].previewText && (
+                              <p className="text-[10px] italic text-slate-400">
+                                {aiPreviews[activeAiPreview].previewText}
+                              </p>
+                            )}
+                          </div>
+                          <IsolatedEmailHtmlPreview
+                            key={`${aiPreviews[activeAiPreview].leadId}-${aiPreviewsAt ?? ""}-${activeAiPreview}`}
+                            html={activeRepairedPreviewHtml}
+                            title="LeadSniper example email"
+                            iframeClassName="h-[28rem]"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-center">
+                      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50 ring-1 ring-violet-100">
+                        <Sparkles className="h-6 w-6 text-violet-500" />
+                      </div>
+                      <h3 className="mb-1 text-base font-semibold text-slate-900">
+                        No examples yet
+                      </h3>
+                      <p className="mb-1 max-w-sm text-sm leading-relaxed text-slate-500">
+                        {aiBriefComplete
+                          ? "Open the LeadSniper brief above and click Preview 5 emails, or save the brief to generate examples here."
+                          : "Complete and save the LeadSniper agent brief above to generate personalized Step 1 examples."}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : activeVariant.subject || activeVariant.body ? (
                 <div className="space-y-4">
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -735,8 +1114,11 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
 
             <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-6 py-3">
               <div className="text-xs text-slate-500">
-                Step {selectedStep.stepNumber} · {selectedStep.variants.length} variant
-                {selectedStep.variants.length !== 1 ? "s" : ""}
+                {isAiStep1Selected
+                  ? "Step 1 · LeadSniper agent"
+                  : `Step ${selectedStep.stepNumber} · ${selectedStep.variants.length} variant${
+                      selectedStep.variants.length !== 1 ? "s" : ""
+                    }`}
                 {selectedStep.stepNumber > 1 && ` · +${selectedStep.delayDays}d delay`}
               </div>
               {!isLocked ? (
@@ -786,15 +1168,8 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
           }}
           domainId={effectiveDomainId}
           excludeCampaignId={campaignId}
-          availableVariables={[
-            "first_name",
-            "last_name",
-            "email",
-            "company",
-            "title",
-            "phone",
-            "website",
-          ]}
+          availableVariables={availableVariables}
+          tokenSampleValues={tokenSampleValues}
           seedSubject={editingVariant.subject}
           seedPreviewText={editingVariant.previewText}
           seedUseSpintax={editingVariant.useSpintax}
@@ -806,6 +1181,7 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
           onApply={handleEmailApply}
         />
       )}
+      </div>
     </div>
   );
 }

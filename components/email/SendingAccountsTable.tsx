@@ -43,6 +43,7 @@ import {
 const PROVIDER_AVATAR: Record<string, string> = {
   gmail: "bg-red-50 text-red-600 border-red-100",
   outlook: "bg-blue-50 text-blue-600 border-blue-100",
+  zoho: "bg-orange-50 text-orange-700 border-orange-100",
   smtp: "bg-violet-50 text-violet-700 border-violet-100",
   ses: "bg-amber-50 text-amber-700 border-amber-100",
 };

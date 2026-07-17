@@ -22,7 +22,7 @@ export const CAMPAIGN_OAUTH_SETTINGS_KEY = "campaign:oauth:settings";
 export const ONBOARDING_OAUTH_RETURN_KEY = "leadsnipper:onboarding:return";
 
 export function saveCampaignOAuthSettings(
-  provider: "gmail" | "outlook",
+  provider: "gmail" | "outlook" | "zoho",
   settings: { displayName: string }
 ) {
   if (typeof window === "undefined") return;

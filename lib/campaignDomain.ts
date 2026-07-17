@@ -1,10 +1,10 @@
-/** Stored on inbox-only campaigns (Gmail / Microsoft / SMTP) — no SES domain row. */
+/** Stored on inbox-only campaigns (Gmail / Microsoft / Zoho / SMTP) — no SES domain row. */
 export const INBOX_CAMPAIGN_DOMAIN_ID = "0";
 
 export type CampaignSenderRef = {
   id: string;
   domainId?: string | null;
-  provider?: "ses" | "gmail" | "outlook" | "smtp" | string | null;
+  provider?: "ses" | "gmail" | "outlook" | "zoho" | "smtp" | string | null;
 };
 
 export function senderUsesSesDomain(

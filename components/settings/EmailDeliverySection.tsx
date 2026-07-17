@@ -173,6 +173,7 @@ export default function EmailDeliverySection() {
     !sesServiceEnabled &&
     (primarySendingMethod === "gmail" ||
       primarySendingMethod === "outlook" ||
+      primarySendingMethod === "zoho" ||
       primarySendingMethod === "smtp");
 
   const [sesRequestOpen, setSesRequestOpen] = useState(false);

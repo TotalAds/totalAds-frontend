@@ -10,6 +10,9 @@ import emailClient from "./emailClient";
  */
 export interface SubscriptionStatus {
   subscriptionId: string | null;
+  paymentProvider?: "razorpay" | "cryptomus" | string;
+  recurringCrypto?: boolean;
+  cryptomusRecurringUuid?: string | null;
   status: string;
   tier: {
     id: string;

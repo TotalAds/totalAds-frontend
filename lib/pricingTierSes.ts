@@ -5,7 +5,7 @@
  * totalads-shared from client components (its bundle pulls native bcrypt).
  *
  * Replaces the prior MANAGED_TIER_NAMES / BYO_TIER_NAMES split with a single
- * ACTIVE_TIER_NAMES list. Onboarding is gmail / outlook / smtp only — managed_ses and byo_ses
+ * ACTIVE_TIER_NAMES list. Onboarding is gmail / outlook / zoho / smtp only — managed_ses and byo_ses
  * are no longer exposed as onboarding choices. BYO SES tiers (byo_trial / byo_pro) are retired
  * from public pricing but legacy rows are kept in the DB with isActive=0 for existing customers.
  */
@@ -25,6 +25,7 @@ export type PrimarySendingMethod =
 	| "byo_ses"
 	| "gmail"
 	| "outlook"
+	| "zoho"
 	| "smtp";
 
 export type SesProvider = "leadsnipper_managed" | "custom";
@@ -70,6 +71,7 @@ export function isByoSideSendingUser(ctx: UserSendingContext): boolean {
 		ctx.primarySendingMethod === "byo_ses" ||
 		ctx.primarySendingMethod === "gmail" ||
 		ctx.primarySendingMethod === "outlook" ||
+		ctx.primarySendingMethod === "zoho" ||
 		ctx.primarySendingMethod === "smtp"
 	) {
 		return true;
@@ -104,6 +106,7 @@ export function isConnectedInboxSendingUser(ctx: UserSendingContext): boolean {
 	return (
 		ctx.primarySendingMethod === "gmail" ||
 		ctx.primarySendingMethod === "outlook" ||
+		ctx.primarySendingMethod === "zoho" ||
 		ctx.primarySendingMethod === "smtp"
 	);
 }
@@ -111,7 +114,7 @@ export function isConnectedInboxSendingUser(ctx: UserSendingContext): boolean {
 /**
  * Whether a subscription tier is valid for the user's account.
  *
- * 2026 upgrade: onboarding is gmail / outlook / smtp only (no managed_ses / byo_ses onboarding
+ * 2026 upgrade: onboarding is gmail / outlook / zoho / smtp only (no managed_ses / byo_ses onboarding
  * choice) and there is a single active ladder (ACTIVE_TIER_NAMES). The prior SES-provider
  * gating has been removed — any active tier is allowed for any user. The `ctx` parameter is
  * retained for backward compatibility with existing call sites; it is intentionally unused.

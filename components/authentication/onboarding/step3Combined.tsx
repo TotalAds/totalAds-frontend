@@ -8,6 +8,7 @@ import { setOnboardingOAuthReturnPath } from "@/lib/senderDisplayName";
 import {
   getCampaignGmailOAuthUrl,
   getCampaignOutlookOAuthUrl,
+  getCampaignZohoOAuthUrl,
   listSendingAccounts,
   type SendingAccount,
 } from "@/utils/api/emailClient";
@@ -44,6 +45,12 @@ const SENDING_OPTIONS: {
     title: "Continue with Microsoft",
     description: "Connect Outlook or Microsoft 365 for campaign delivery.",
     icon: <IconBrandWindows className="h-5 w-5 text-brand-main" />,
+  },
+  {
+    id: "zoho",
+    title: "Continue with Zoho",
+    description: "Connect Zoho Mail or Zoho Workplace for campaign delivery.",
+    icon: <IconMail className="h-5 w-5 text-orange-600" />,
   },
   {
     id: "smtp",
@@ -107,6 +114,11 @@ export function OnboardingStep3Combined({
       setOnboardingOAuthReturnPath("/onboarding?step=connect");
       if (method === "gmail") {
         const { authUrl } = await getCampaignGmailOAuthUrl();
+        window.location.href = authUrl;
+        return;
+      }
+      if (method === "zoho") {
+        const { authUrl } = await getCampaignZohoOAuthUrl();
         window.location.href = authUrl;
         return;
       }

@@ -27,7 +27,7 @@ export default function SendingAccountsPage() {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addModalStep, setAddModalStep] = useState<AddSendingAccountModalStep>("pick");
   const [addModalOAuthProvider, setAddModalOAuthProvider] = useState<
-    "gmail" | "outlook" | null
+    "gmail" | "outlook" | "zoho" | null
   >(null);
   const [dnsSetupAccount, setDnsSetupAccount] = useState<SendingAccount | null>(null);
 
@@ -67,7 +67,7 @@ export default function SendingAccountsPage() {
       didAutoConnect.current = true;
       return;
     }
-    if (connect === "gmail" || connect === "outlook") {
+    if (connect === "gmail" || connect === "outlook" || connect === "zoho") {
       setAddModalStep("oauth");
       setAddModalOAuthProvider(connect);
       setAddModalOpen(true);

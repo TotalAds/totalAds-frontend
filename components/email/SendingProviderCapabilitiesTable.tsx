@@ -101,7 +101,7 @@ export function SendingProviderCapabilitiesTable({
             <tr className="border-b border-slate-200 text-slate-500">
               <th className="px-3 py-2 font-medium">Capability</th>
               <th className="px-2 py-2 text-center font-medium whitespace-nowrap">
-                Google / Microsoft
+                Google / Microsoft / Zoho
               </th>
               <th className="px-2 py-2 text-center font-medium whitespace-nowrap">
                 Custom SMTP
@@ -178,12 +178,12 @@ export function SesCapabilitiesCallout({
       {hasConnectedInbox ? (
         <p>
           You already have connected inboxes — reply detection still works for campaigns sent
-          from Gmail, Microsoft, or SMTP accounts. SES senders rely on SNS analytics and
+          from Gmail, Microsoft, Zoho, or SMTP accounts. SES senders rely on SNS analytics and
           manual reply marking.
         </p>
       ) : (
         <p>
-          Connect Gmail, Microsoft, or SMTP (with IMAP) if you need automatic reply detection,
+          Connect Gmail, Microsoft, Zoho, or SMTP (with IMAP) if you need automatic reply detection,
           or mark replies manually in campaign analytics.
         </p>
       )}
@@ -211,10 +211,11 @@ export function InboxOAuthCapabilitiesCallout({
   provider,
   className = "",
 }: {
-  provider: "gmail" | "outlook";
+  provider: "gmail" | "outlook" | "zoho";
   className?: string;
 }) {
-  const brand = provider === "gmail" ? "Google" : "Microsoft";
+  const brand =
+    provider === "gmail" ? "Google" : provider === "outlook" ? "Microsoft" : "Zoho";
   return (
     <div
       className={`rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 leading-relaxed ${className}`}

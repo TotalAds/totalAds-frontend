@@ -16,24 +16,53 @@ function getSpintaxLabel(token: string): string {
   return `${variants.slice(0, 3).join(" · ")} +${variants.length - 3}`;
 }
 
-/** Highlight {{var}} and {a|b} tokens in HTML for preview (iframe or div). */
-export function highlightEmailSyntaxInHtml(html: string): string {
-  return html.replace(/\{\{\s*([^{}]+?)\s*\}\}|\{([^{}]*\|[^{}]*)\}/g, (match, mergeToken, spintaxToken) => {
-    if (mergeToken !== undefined) {
-      const raw = String(mergeToken || "").trim();
-      if (!raw) return match;
-      if (raw.startsWith("#if") || raw === "else" || raw === "/if") return match;
-      return `<span style="background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%); color: #1d4ed8; border: 1px solid rgba(37,99,235,.22); padding: 2px 8px; border-radius: 999px; font-weight: 700; font-size: 0.88em; display: inline-block; margin: 0 2px;">${getMergeLabel(raw)}</span>`;
-    }
-
-    const rawSpin = String(spintaxToken || "").trim();
-    if (!rawSpin) return match;
-    return `<span style="background: linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%); color: #6d28d9; border: 1px solid rgba(124,58,237,.22); padding: 2px 8px; border-radius: 999px; font-weight: 700; font-size: 0.88em; display: inline-block; margin: 0 2px;"><span style="font-size:.78em;text-transform:uppercase;opacity:.75;margin-right:4px;">spin</span>${getSpintaxLabel(rawSpin)}</span>`;
-  });
+function escapeHtmlAttr(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
-export function wrapEmailPreviewDocument(html: string, highlighted: boolean) {
-  const body = highlighted ? highlightEmailSyntaxInHtml(html) : html;
+/** Highlight {{var}} and {a|b} tokens in HTML for preview (iframe or div). */
+export function highlightEmailSyntaxInHtml(
+  html: string,
+  tokenSampleValues?: Record<string, string>
+): string {
+  return html.replace(
+    /\{\{\s*([^{}]+?)\s*\}\}|\{([^{}]*\|[^{}]*)\}/g,
+    (match, mergeToken, spintaxToken) => {
+      if (mergeToken !== undefined) {
+        const raw = String(mergeToken || "").trim();
+        if (!raw) return match;
+        if (raw.startsWith("#if") || raw === "else" || raw === "/if") return match;
+        const fieldOnly = raw.split("|")[0].trim();
+        const sample =
+          tokenSampleValues != null
+            ? lookupMergeValue(tokenSampleValues, fieldOnly)
+            : undefined;
+        const tip =
+          sample != null && sample !== ""
+            ? `${fieldOnly} → ${sample}`
+            : `${fieldOnly} → No value for this lead`;
+        return `<span title="${escapeHtmlAttr(tip)}" style="background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%); color: #1d4ed8; border: 1px solid rgba(37,99,235,.22); padding: 2px 8px; border-radius: 999px; font-weight: 700; font-size: 0.88em; display: inline-block; margin: 0 2px; cursor: help;">${getMergeLabel(raw)}</span>`;
+      }
+
+      const rawSpin = String(spintaxToken || "").trim();
+      if (!rawSpin) return match;
+      return `<span style="background: linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%); color: #6d28d9; border: 1px solid rgba(124,58,237,.22); padding: 2px 8px; border-radius: 999px; font-weight: 700; font-size: 0.88em; display: inline-block; margin: 0 2px;"><span style="font-size:.78em;text-transform:uppercase;opacity:.75;margin-right:4px;">spin</span>${getSpintaxLabel(rawSpin)}</span>`;
+    }
+  );
+}
+
+export function wrapEmailPreviewDocument(
+  html: string,
+  highlighted: boolean,
+  tokenSampleValues?: Record<string, string>
+) {
+  const body = highlighted
+    ? highlightEmailSyntaxInHtml(html, tokenSampleValues)
+    : html;
   return `<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><style>
     html,body{margin:0;background:#f8fafc;}
     body{overflow-x:hidden;overflow-y:auto;padding:12px;}
@@ -79,6 +108,15 @@ export const PREVIEW_SAMPLE_LEADS: Record<string, string>[] = [
     company: "LeadSnipper",
     name: "Malav Joshi",
     phone: "+1 (555) 010-4321",
+    hook: "Saw your team scaling outbound last quarter",
+    problem: "Most teams burn domain reputation before they hit volume",
+    benefit: "We help you send from infrastructure you control with built-in verification",
+    cta: "Worth a 12-minute call this week?",
+    company_summary: "B2B SaaS for deliverability-first cold email",
+    role: "Head of Growth",
+    title: "Head of Growth",
+    intent_score: "72",
+    priority: "hot",
   },
   {
     first_name: "Alex",
@@ -177,4 +215,115 @@ export function resolveMergeTagsAndSpintax(
     return opts[Math.abs(spintaxPickIndex) % opts.length];
   });
   return result;
+}
+
+function stringifySampleValue(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || null;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((item) => (item == null ? "" : String(item).trim()))
+      .filter(Boolean);
+    return parts.length ? parts.join("; ") : null;
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Build {{token}} → sample value map from a campaign lead (enrichedData / customFields)
+ * with PREVIEW_SAMPLE_LEADS[0] as fallback for missing LeadHub keys.
+ */
+export function buildTokenSampleValuesFromLead(lead?: {
+  email?: string | null;
+  name?: string | null;
+  company?: string | null;
+  role?: string | null;
+  customFields?: Record<string, unknown> | null;
+  enrichedData?: Record<string, unknown> | null;
+} | null): Record<string, string> {
+  const out: Record<string, string> = { ...PREVIEW_SAMPLE_LEADS[0] };
+
+  const put = (key: string, value: unknown) => {
+    const str = stringifySampleValue(value);
+    if (!key || str == null) return;
+    out[key] = str;
+    out[normalizeMergeFieldKey(key)] = str;
+  };
+
+  if (!lead) return out;
+
+  put("email", lead.email);
+  put("name", lead.name);
+  put("company", lead.company);
+  put("role", lead.role);
+  put("title", lead.role);
+
+  if (lead.name) {
+    const parts = String(lead.name).trim().split(/\s+/);
+    if (parts[0]) {
+      put("first_name", parts[0]);
+      put("firstName", parts[0]);
+    }
+    if (parts.length > 1) {
+      const last = parts.slice(1).join(" ");
+      put("last_name", last);
+      put("lastName", last);
+    }
+  }
+
+  const custom = lead.customFields;
+  if (custom && typeof custom === "object") {
+    for (const [k, v] of Object.entries(custom)) put(k, v);
+  }
+
+  const enriched = lead.enrichedData;
+  if (enriched && typeof enriched === "object") {
+    for (const [k, v] of Object.entries(enriched)) {
+      if (k === "leadhub" && v && typeof v === "object") {
+        const lh = v as Record<string, unknown>;
+        const contact = lh.contact as Record<string, unknown> | undefined;
+        const company = lh.company as Record<string, unknown> | undefined;
+        if (contact) {
+          put("first_name", contact.firstName);
+          put("firstName", contact.firstName);
+          put("last_name", contact.lastName);
+          put("lastName", contact.lastName);
+          put("role", contact.role);
+          put("title", contact.role);
+          put("phone", contact.phone);
+          put("linkedin_url", contact.linkedinUrl);
+          put("location", contact.location);
+        }
+        if (company) {
+          put("company", company.name);
+          put("company_domain", company.domain);
+          put("company_website", company.website);
+          put("website", company.website);
+          put("industry", company.industry);
+          put("company_size", company.size);
+        }
+        put("priority", lh.priority);
+        put("intent_score", lh.intentScore);
+        put("icp_score", lh.icpScore);
+        put("confidence", lh.confidence);
+        put("enrichment_status", lh.enrichmentStatus);
+        put("pipeline_stage", lh.pipelineStage);
+        continue;
+      }
+      if (v != null && typeof v === "object" && !Array.isArray(v)) continue;
+      put(k, v);
+    }
+  }
+
+  return out;
 }

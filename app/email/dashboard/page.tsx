@@ -368,7 +368,9 @@ export default function DashboardPage() {
                   ? "Google"
                   : primarySendingMethod === "outlook"
                     ? "Microsoft"
-                    : "SMTP"}{" "}
+                    : primarySendingMethod === "zoho"
+                      ? "Zoho"
+                      : "SMTP"}{" "}
                 account before launching campaigns.
               </p>
               <Link
@@ -377,7 +379,9 @@ export default function DashboardPage() {
                     ? "/email/sending-accounts?connect=gmail"
                     : primarySendingMethod === "outlook"
                       ? "/email/sending-accounts?connect=outlook"
-                      : "/email/sending-accounts?showSmtp=true"
+                      : primarySendingMethod === "zoho"
+                        ? "/email/sending-accounts?connect=zoho"
+                        : "/email/sending-accounts?showSmtp=true"
                 }
                 className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
               >
