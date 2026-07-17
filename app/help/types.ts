@@ -22,6 +22,7 @@ export type SupportAttachment = {
   contentType: string;
   sizeBytes: number;
   createdAt: string;
+  url?: string;
 };
 
 export type SupportMessage = {
@@ -48,3 +49,15 @@ export const TICKET_PRIORITIES: { value: TicketPriority; label: string }[] = [
   { value: "high", label: "High" },
   { value: "urgent", label: "Urgent" },
 ];
+
+export function getCategoryLabel(category: TicketCategory): string {
+  return TICKET_CATEGORIES.find((c) => c.value === category)?.label ?? category;
+}
+
+export function getPriorityLabel(priority: TicketPriority): string {
+  return TICKET_PRIORITIES.find((p) => p.value === priority)?.label ?? priority;
+}
+
+export function formatTicketStatus(status: TicketStatus): string {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}

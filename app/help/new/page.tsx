@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import React, { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
+import { PendingAttachmentList } from "@/components/help/TicketAttachments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,10 +19,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuthContext } from "@/context/AuthContext";
 import { supportAPI } from "@/utils/api/supportClient";
 import {
+  MAX_SUPPORT_FILE_BYTES,
+  SUPPORT_FILE_ACCEPT,
+} from "@/utils/support/uploadAttachment";
+import {
   IconArrowLeft,
   IconLoader2,
   IconPaperclip,
-  IconX,
 } from "@tabler/icons-react";
 
 import type {
@@ -29,14 +33,6 @@ import type {
   TicketPriority,
 } from "../types";
 import { TICKET_CATEGORIES, TICKET_PRIORITIES } from "../types";
-
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-}
 
 export default function NewTicketPage() {
   const router = useRouter();
@@ -60,6 +56,12 @@ export default function NewTicketPage() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const selected = Array.from(e.target.files);
+    const tooLarge = selected.find((f) => f.size > MAX_SUPPORT_FILE_BYTES);
+    if (tooLarge) {
+      toast.error(`${tooLarge.name} exceeds the 10 MB limit.`);
+      e.target.value = "";
+      return;
+    }
     setFiles((prev) => [...prev, ...selected]);
     e.target.value = "";
   };
@@ -77,12 +79,22 @@ export default function NewTicketPage() {
 
     setSubmitting(true);
     try {
-      const { ticket } = await supportAPI.createTicket({
+      const { ticket, initialMessage } = await supportAPI.createTicket({
         subject: subject.trim(),
         category,
         priority,
         description: description.trim(),
       });
+
+      if (files.length > 0) {
+        const uploaded = await supportAPI.uploadFiles(ticket.id, files);
+        await supportAPI.attachToMessage(
+          ticket.id,
+          initialMessage.id,
+          uploaded
+        );
+      }
+
       toast.success("Ticket created successfully.");
       router.push(`/help/${ticket.id}`);
     } catch (err) {
@@ -196,6 +208,7 @@ export default function NewTicketPage() {
                   ref={fileInputRef}
                   type="file"
                   multiple
+                  accept={SUPPORT_FILE_ACCEPT}
                   className="hidden"
                   onChange={handleFileSelect}
                 />
@@ -207,36 +220,18 @@ export default function NewTicketPage() {
                   className="border-bg-300 text-text-200 hover:bg-bg-200 hover:text-text-100"
                 >
                   <IconPaperclip className="h-4 w-4 mr-2" />
-                  Attach files
+                  Attach images or files
                 </Button>
+                <p className="mt-1.5 text-xs text-text-300">
+                  PNG, JPG, GIF, WebP, PDF, TXT, CSV, Word, Excel · max 10 MB each
+                </p>
               </div>
 
-              {files.length > 0 && (
-                <ul className="mt-3 space-y-2">
-                  {files.map((file, index) => (
-                    <li
-                      key={`${file.name}-${index}`}
-                      className="flex items-center justify-between bg-bg-200 rounded-lg px-3 py-2 text-sm"
-                    >
-                      <span className="text-text-100 truncate pr-3">
-                        {file.name}{" "}
-                        <span className="text-text-300">
-                          ({formatFileSize(file.size)})
-                        </span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => removeFile(index)}
-                        disabled={submitting}
-                        className="text-text-300 hover:text-red-500 transition-colors"
-                        aria-label={`Remove ${file.name}`}
-                      >
-                        <IconX className="h-4 w-4" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <PendingAttachmentList
+                files={files}
+                onRemove={removeFile}
+                disabled={submitting}
+              />
             </div>
 
             <div className="pt-2 flex items-center justify-end gap-3">

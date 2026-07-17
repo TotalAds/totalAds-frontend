@@ -2,9 +2,13 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
+import {
+  PendingAttachmentList,
+  TicketAttachments,
+} from "@/components/help/TicketAttachments";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -12,19 +16,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuthContext } from "@/context/AuthContext";
 import { useSupportTicket } from "@/hooks/useSupportTicket";
 import { supportAPI } from "@/utils/api/supportClient";
-import apiClient from "@/utils/api/apiClient";
+import {
+  SUPPORT_FILE_ACCEPT,
+  MAX_SUPPORT_FILE_BYTES,
+} from "@/utils/support/uploadAttachment";
 import {
   IconArrowLeft,
-  IconFile,
+  IconClock,
+  IconHash,
   IconLoader2,
+  IconMessage,
   IconPaperclip,
   IconSend,
-  IconX,
+  IconTicket,
 } from "@tabler/icons-react";
 
 import type {
+  SupportMessage,
   TicketPriority,
   TicketStatus,
+} from "../types";
+import {
+  formatTicketStatus,
+  getCategoryLabel,
+  getPriorityLabel,
 } from "../types";
 
 const statusStyles: Record<TicketStatus, string> = {
@@ -40,14 +55,8 @@ const priorityStyles: Record<TicketPriority, string> = {
   urgent: "bg-red-500/10 text-red-500 border-red-500/20",
 };
 
-const authorStyles = {
-  user: "bg-bg-200 text-text-100 rounded-br-none",
-  admin: "bg-brand-main text-white rounded-bl-none",
-} as const;
-
 function formatDate(iso: string): string {
-  const date = new Date(iso);
-  return date.toLocaleDateString(undefined, {
+  return new Date(iso).toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -55,8 +64,7 @@ function formatDate(iso: string): string {
 }
 
 function formatDateTime(iso: string): string {
-  const date = new Date(iso);
-  return date.toLocaleString(undefined, {
+  return new Date(iso).toLocaleString(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -65,17 +73,55 @@ function formatDateTime(iso: string): string {
   });
 }
 
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+function shortTicketId(id: string): string {
+  return id.slice(0, 8).toUpperCase();
 }
 
-function attachmentUrl(s3Key: string): string {
-  const base = apiClient.defaults.baseURL ?? "";
-  return `${base}/support/attachments/${encodeURIComponent(s3Key)}`;
+function MessageBubble({
+  message,
+  isUserMessage,
+}: {
+  message: SupportMessage;
+  isUserMessage: boolean;
+}) {
+  const hasBody = message.body.trim().length > 0;
+
+  return (
+    <div className={`flex ${isUserMessage ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`max-w-[92%] sm:max-w-[80%] rounded-2xl px-4 py-3 shadow-sm ${
+          isUserMessage
+            ? "bg-brand-main text-white rounded-br-md"
+            : "bg-bg-100 border border-bg-200 text-text-100 rounded-bl-md"
+        }`}
+      >
+        <div
+          className={`flex items-center gap-2 text-xs mb-2 ${
+            isUserMessage ? "text-white/80" : "text-text-300"
+          }`}
+        >
+          <span className="font-medium">
+            {isUserMessage ? "You" : message.authorName || "Support"}
+          </span>
+          <span>·</span>
+          <span>{formatDateTime(message.createdAt)}</span>
+        </div>
+
+        {hasBody && (
+          <p className="text-sm whitespace-pre-wrap leading-relaxed">
+            {message.body}
+          </p>
+        )}
+
+        {message.attachments && message.attachments.length > 0 && (
+          <TicketAttachments
+            attachments={message.attachments}
+            tone={isUserMessage ? "dark" : "light"}
+          />
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function TicketDetailPage() {
@@ -100,6 +146,14 @@ export default function TicketDetailPage() {
     refresh: fetchDetail,
   } = useSupportTicket(id, isAuthenticated && !authLoading);
 
+  const { initialMessage, threadMessages } = useMemo(() => {
+    if (messages.length === 0) {
+      return { initialMessage: null, threadMessages: [] as SupportMessage[] };
+    }
+    const [first, ...rest] = messages;
+    return { initialMessage: first, threadMessages: rest };
+  }, [messages]);
+
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push("/login");
@@ -108,7 +162,6 @@ export default function TicketDetailPage() {
 
   useEffect(() => {
     if (ticketError) {
-      console.error("Failed to load ticket detail:", ticketError);
       toast.error("Could not load this ticket.");
     }
   }, [ticketError]);
@@ -119,7 +172,15 @@ export default function TicketDetailPage() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
+
     const selected = Array.from(e.target.files);
+    const tooLarge = selected.find((f) => f.size > MAX_SUPPORT_FILE_BYTES);
+    if (tooLarge) {
+      toast.error(`${tooLarge.name} exceeds the 10 MB limit.`);
+      e.target.value = "";
+      return;
+    }
+
     setFiles((prev) => [...prev, ...selected]);
     e.target.value = "";
   };
@@ -131,14 +192,21 @@ export default function TicketDetailPage() {
   const handleReplySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
-    if (!reply.trim()) {
-      toast.error("Please enter a reply.");
+
+    const trimmed = reply.trim();
+    if (!trimmed && files.length === 0) {
+      toast.error("Enter a reply or attach at least one file.");
       return;
     }
 
     setSubmitting(true);
     try {
-      await supportAPI.addMessage(id, reply.trim());
+      let attachments;
+      if (files.length > 0) {
+        attachments = await supportAPI.uploadFiles(id, files);
+      }
+
+      await supportAPI.addMessage(id, trimmed, attachments);
 
       setReply("");
       setFiles([]);
@@ -146,7 +214,9 @@ export default function TicketDetailPage() {
       toast.success("Reply sent.");
     } catch (err) {
       console.error("Failed to send reply:", err);
-      toast.error("Could not send your reply. Please try again.");
+      toast.error(
+        err instanceof Error ? err.message : "Could not send your reply."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -183,198 +253,248 @@ export default function TicketDetailPage() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-bg-100 py-10 px-4">
-      <div className="max-w-3xl mx-auto">
-        <Link
-          href="/help"
-          className="inline-flex items-center text-sm text-text-200 hover:text-text-100 mb-6 transition-colors"
-        >
-          <IconArrowLeft className="h-4 w-4 mr-1.5" />
-          Back to tickets
-        </Link>
+  const isClosed = ticket.status === "closed";
 
-        {/* Status banner */}
-        <div className="bg-bg-100 rounded-2xl border border-bg-200 p-6 mb-5">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-            <div>
-              <h1 className="text-xl font-bold text-text-100 mb-1">
+  return (
+    <div className="min-h-screen bg-bg-100 pb-12">
+      <div className="border-b border-bg-200 bg-bg-100/80 backdrop-blur-sm sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
+          <Link
+            href="/help"
+            className="inline-flex items-center text-sm text-text-200 hover:text-text-100 transition-colors"
+          >
+            <IconArrowLeft className="h-4 w-4 mr-1.5" />
+            All tickets
+          </Link>
+          <div className="flex items-center gap-2 text-xs text-text-300">
+            <IconHash className="h-3.5 w-3.5" />
+            {shortTicketId(ticket.id)}
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+        {/* Header */}
+        <section className="rounded-2xl border border-bg-200 bg-bg-100 p-6 sm:p-8 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-3 min-w-0">
+              <div className="inline-flex items-center gap-2 text-brand-main">
+                <IconTicket className="h-5 w-5" />
+                <span className="text-sm font-medium">Support ticket</span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-text-100 leading-tight">
                 {ticket.subject}
               </h1>
-              <p className="text-sm text-text-200">
-                {ticket.category} · Created {formatDate(ticket.createdAt)}
+              <p className="text-sm text-text-200 flex items-center gap-2">
+                <IconClock className="h-4 w-4" />
+                Opened {formatDate(ticket.createdAt)}
+                {ticket.updatedAt !== ticket.createdAt && (
+                  <> · Updated {formatDate(ticket.updatedAt)}</>
+                )}
               </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Badge
-                variant="outline"
-                className={priorityStyles[ticket.priority]}
-              >
-                {ticket.priority.charAt(0).toUpperCase() +
-                  ticket.priority.slice(1)}
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <Badge variant="outline" className={priorityStyles[ticket.priority]}>
+                {getPriorityLabel(ticket.priority)}
               </Badge>
-              <Badge
-                variant="outline"
-                className={statusStyles[ticket.status]}
-              >
-                {ticket.status.charAt(0).toUpperCase() +
-                  ticket.status.slice(1)}
+              <Badge variant="outline" className={statusStyles[ticket.status]}>
+                {formatTicketStatus(ticket.status)}
               </Badge>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Messages */}
-        <div className="space-y-4 mb-6">
-          {messages.length === 0 ? (
-            <div className="text-center py-10 text-text-300 text-sm">
-              No messages yet. Start the conversation below.
-            </div>
-          ) : (
-            messages.map((message) => {
-              const isUserMessage = !message.authorIsAdmin;
-              return (
-              <div
-                key={message.id}
-                className={`flex ${
-                  isUserMessage ? "justify-end" : "justify-start"
-                }`}
-              >
-                <div
-                  className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-3 ${
-                    isUserMessage ? authorStyles.user : authorStyles.admin
-                  }`}
-                >
-                  <div className="text-xs opacity-80 mb-1.5">
-                    {isUserMessage ? "You" : "Support"}{" "}
-                    · {formatDateTime(message.createdAt)}
-                  </div>
-                  <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                    {message.body}
-                  </p>
-                  {message.attachments && message.attachments.length > 0 && (
-                    <ul className="mt-3 space-y-1.5">
-                      {message.attachments.map((attachment) => (
-                        <li key={attachment.id}>
-                          <a
-                            href={attachmentUrl(attachment.s3Key)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 text-xs underline-offset-2 hover:underline opacity-90"
-                          >
-                            <IconFile className="h-3.5 w-3.5" />
-                            <span className="truncate max-w-[180px]">
-                              {attachment.filename}
-                            </span>
-                            <span>
-                              ({formatFileSize(attachment.sizeBytes)})
-                            </span>
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 items-start">
+          {/* Sidebar meta */}
+          <aside className="rounded-2xl border border-bg-200 bg-bg-100 p-5 space-y-4 lg:sticky lg:top-24">
+            <h2 className="text-sm font-semibold text-text-100 uppercase tracking-wide">
+              Details
+            </h2>
+            <dl className="space-y-3 text-sm">
+              <div>
+                <dt className="text-text-300 mb-0.5">Category</dt>
+                <dd className="font-medium text-text-100">
+                  {getCategoryLabel(ticket.category)}
+                </dd>
               </div>
-            );
-            })
-          )}
-          <div ref={messagesEndRef} />
-        </div>
+              <div>
+                <dt className="text-text-300 mb-0.5">Priority</dt>
+                <dd className="font-medium text-text-100">
+                  {getPriorityLabel(ticket.priority)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-text-300 mb-0.5">Status</dt>
+                <dd className="font-medium text-text-100">
+                  {formatTicketStatus(ticket.status)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-text-300 mb-0.5">Created</dt>
+                <dd className="text-text-100">{formatDateTime(ticket.createdAt)}</dd>
+              </div>
+              <div>
+                <dt className="text-text-300 mb-0.5">Last updated</dt>
+                <dd className="text-text-100">{formatDateTime(ticket.updatedAt)}</dd>
+              </div>
+            </dl>
+          </aside>
 
-        {/* Reply form */}
-        <form
-          onSubmit={handleReplySubmit}
-          className="bg-bg-100 rounded-2xl border border-bg-200 p-5"
-        >
-          <div className="space-y-3">
-            <Label htmlFor="reply">Reply</Label>
-            <Textarea
-              id="reply"
-              placeholder="Write your reply..."
-              rows={4}
-              value={reply}
-              onChange={(e) => setReply(e.target.value)}
-              disabled={submitting || ticket.status === "closed"}
-            />
-          </div>
-
-          <div className="mt-4">
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={handleFileSelect}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={submitting || ticket.status === "closed"}
-              className="border-bg-300 text-text-200 hover:bg-bg-200 hover:text-text-100"
-            >
-              <IconPaperclip className="h-4 w-4 mr-2" />
-              Attach files
-            </Button>
-
-            {files.length > 0 && (
-              <ul className="mt-3 space-y-2">
-                {files.map((file, index) => (
-                  <li
-                    key={`${file.name}-${index}`}
-                    className="flex items-center justify-between bg-bg-200 rounded-lg px-3 py-2 text-sm"
-                  >
-                    <span className="text-text-100 truncate pr-3">
-                      {file.name}{" "}
-                      <span className="text-text-300">
-                        ({formatFileSize(file.size)})
-                      </span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeFile(index)}
-                      disabled={submitting}
-                      className="text-text-300 hover:text-red-500 transition-colors"
-                      aria-label={`Remove ${file.name}`}
-                    >
-                      <IconX className="h-4 w-4" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div className="mt-5 flex justify-end">
-            <Button
-              type="submit"
-              disabled={
-                submitting || ticket.status === "closed" || (!reply.trim() && files.length === 0)
-              }
-              className="bg-brand-main hover:bg-brand-main/90 text-white"
-            >
-              {submitting ? (
-                <>
-                  <IconLoader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Sending...
-                </>
+          <div className="space-y-6 min-w-0">
+            {/* Description (initial message) */}
+            <section className="rounded-2xl border border-bg-200 bg-bg-100 p-6 shadow-sm">
+              <h2 className="text-lg font-semibold text-text-100 mb-4">
+                Description
+              </h2>
+              {initialMessage ? (
+                <div className="space-y-3">
+                  {initialMessage.body.trim() ? (
+                    <p className="text-sm text-text-100 whitespace-pre-wrap leading-relaxed">
+                      {initialMessage.body}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-text-300 italic">
+                      No description text provided.
+                    </p>
+                  )}
+                  {initialMessage.attachments &&
+                    initialMessage.attachments.length > 0 && (
+                      <TicketAttachments attachments={initialMessage.attachments} />
+                    )}
+                  <p className="text-xs text-text-300 pt-2 border-t border-bg-200">
+                    Submitted {formatDateTime(initialMessage.createdAt)}
+                  </p>
+                </div>
               ) : (
-                <>
-                  <IconSend className="h-4 w-4 mr-2" />
-                  Send reply
-                </>
+                <p className="text-sm text-text-300">No description available.</p>
               )}
-            </Button>
-          </div>
+            </section>
 
-          {ticket.status === "closed" && (
-            <p className="mt-3 text-xs text-text-300 text-center">
-              This ticket is closed. You can still view the history, but new
-              replies are disabled.
-            </p>
-          )}
-        </form>
+            {/* Thread */}
+            <section className="rounded-2xl border border-bg-200 bg-bg-100 p-6 shadow-sm">
+              <div className="flex items-center gap-2 mb-5">
+                <IconMessage className="h-5 w-5 text-text-200" />
+                <h2 className="text-lg font-semibold text-text-100">
+                  Conversation
+                </h2>
+                {threadMessages.length > 0 && (
+                  <span className="text-xs text-text-300 bg-bg-200 px-2 py-0.5 rounded-full">
+                    {threadMessages.length}{" "}
+                    {threadMessages.length === 1 ? "reply" : "replies"}
+                  </span>
+                )}
+              </div>
+
+              {threadMessages.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-bg-300 bg-bg-200/40 px-4 py-8 text-center">
+                  <p className="text-sm text-text-200">
+                    No replies yet. Our team typically responds within one business
+                    day.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {threadMessages.map((message) => (
+                    <MessageBubble
+                      key={message.id}
+                      message={message}
+                      isUserMessage={!message.authorIsAdmin}
+                    />
+                  ))}
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </section>
+
+            {/* Reply */}
+            <section className="rounded-2xl border border-bg-200 bg-bg-100 p-6 shadow-sm">
+              <form onSubmit={handleReplySubmit} className="space-y-4">
+                <div>
+                  <Label htmlFor="reply" className="text-text-100">
+                    Your reply
+                  </Label>
+                  <Textarea
+                    id="reply"
+                    placeholder={
+                      isClosed
+                        ? "This ticket is closed."
+                        : "Add more details or answer a question from support..."
+                    }
+                    rows={4}
+                    value={reply}
+                    onChange={(e) => setReply(e.target.value)}
+                    disabled={submitting || isClosed}
+                    className="mt-2 resize-none"
+                  />
+                </div>
+
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept={SUPPORT_FILE_ACCEPT}
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={submitting || isClosed}
+                    className="border-bg-300 text-text-200 hover:bg-bg-200 hover:text-text-100"
+                  >
+                    <IconPaperclip className="h-4 w-4 mr-2" />
+                    Attach images or files
+                  </Button>
+                  <p className="mt-1.5 text-xs text-text-300">
+                    PNG, JPG, GIF, WebP, PDF, TXT, CSV, Word, Excel · max 10 MB each
+                  </p>
+                  <PendingAttachmentList
+                    files={files}
+                    onRemove={removeFile}
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+                  {isClosed ? (
+                    <p className="text-xs text-text-300">
+                      This ticket is closed. Replies are disabled, but you can
+                      still review the full history above.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-text-300">
+                      Replies are saved to this ticket and emailed to our support
+                      team.
+                    </p>
+                  )}
+                  <Button
+                    type="submit"
+                    disabled={
+                      submitting ||
+                      isClosed ||
+                      (!reply.trim() && files.length === 0)
+                    }
+                    className="bg-brand-main hover:bg-brand-main/90 text-white sm:ml-auto"
+                  >
+                    {submitting ? (
+                      <>
+                        <IconLoader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <IconSend className="h-4 w-4 mr-2" />
+                        Send reply
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </section>
+          </div>
+        </div>
       </div>
     </div>
   );
