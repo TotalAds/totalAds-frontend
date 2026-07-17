@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import React, { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import axios from "axios";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuthContext } from "@/context/AuthContext";
 import { useSupportTicket } from "@/hooks/useSupportTicket";
+import { supportAPI } from "@/utils/api/supportClient";
 import apiClient from "@/utils/api/apiClient";
 import {
   IconArrowLeft,
@@ -23,8 +23,6 @@ import {
 } from "@tabler/icons-react";
 
 import type {
-  SupportAttachment,
-  SupportMessage,
   TicketPriority,
   TicketStatus,
 } from "../types";
@@ -42,11 +40,10 @@ const priorityStyles: Record<TicketPriority, string> = {
   urgent: "bg-red-500/10 text-red-500 border-red-500/20",
 };
 
-const senderStyles: Record<SupportMessage["sender"], string> = {
+const authorStyles = {
   user: "bg-bg-200 text-text-100 rounded-br-none",
   admin: "bg-brand-main text-white rounded-bl-none",
-  system: "bg-bg-200/50 text-text-200 italic",
-};
+} as const;
 
 function formatDate(iso: string): string {
   const date = new Date(iso);
@@ -76,9 +73,9 @@ function formatFileSize(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
-function attachmentUrl(key: string): string {
+function attachmentUrl(s3Key: string): string {
   const base = apiClient.defaults.baseURL ?? "";
-  return `${base}/support/attachments/${encodeURIComponent(key)}`;
+  return `${base}/support/attachments/${encodeURIComponent(s3Key)}`;
 }
 
 export default function TicketDetailPage() {
@@ -131,59 +128,17 @@ export default function TicketDetailPage() {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const uploadAttachments = async (): Promise<SupportAttachment[]> => {
-    if (!id || files.length === 0) return [];
-
-    const uploaded: SupportAttachment[] = [];
-    for (const file of files) {
-      try {
-        const presignRes = await apiClient.post<{
-          presignedUrl: string;
-          key: string;
-        }>(`/support/tickets/${id}/attachments`, {
-          filename: file.name,
-          contentType: file.type || "application/octet-stream",
-        });
-
-        await axios.put(presignRes.data.presignedUrl, file, {
-          headers: {
-            "Content-Type": file.type || "application/octet-stream",
-          },
-        });
-
-        uploaded.push({
-          key: presignRes.data.key,
-          filename: file.name,
-          contentType: file.type || "application/octet-stream",
-          size: file.size,
-        });
-      } catch (err) {
-        console.error(`Failed to upload attachment ${file.name}:`, err);
-        toast.error(`Could not attach ${file.name}; sending without it.`);
-      }
-    }
-    return uploaded;
-  };
-
   const handleReplySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
-    if (!reply.trim() && files.length === 0) {
-      toast.error("Please enter a reply or attach a file.");
+    if (!reply.trim()) {
+      toast.error("Please enter a reply.");
       return;
     }
 
     setSubmitting(true);
     try {
-      const attachments = await uploadAttachments();
-
-      await apiClient.post<{ message: SupportMessage }>(
-        `/support/tickets/${id}/messages`,
-        {
-          content: reply.trim(),
-          attachments,
-        }
-      );
+      await supportAPI.addMessage(id, reply.trim());
 
       setReply("");
       setFiles([]);
@@ -276,35 +231,33 @@ export default function TicketDetailPage() {
               No messages yet. Start the conversation below.
             </div>
           ) : (
-            messages.map((message) => (
+            messages.map((message) => {
+              const isUserMessage = !message.authorIsAdmin;
+              return (
               <div
                 key={message.id}
                 className={`flex ${
-                  message.sender === "user" ? "justify-end" : "justify-start"
+                  isUserMessage ? "justify-end" : "justify-start"
                 }`}
               >
                 <div
                   className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-3 ${
-                    senderStyles[message.sender]
+                    isUserMessage ? authorStyles.user : authorStyles.admin
                   }`}
                 >
                   <div className="text-xs opacity-80 mb-1.5">
-                    {message.sender === "user"
-                      ? "You"
-                      : message.sender === "admin"
-                      ? "Support"
-                      : "System"}{" "}
+                    {isUserMessage ? "You" : "Support"}{" "}
                     · {formatDateTime(message.createdAt)}
                   </div>
                   <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                    {message.content}
+                    {message.body}
                   </p>
                   {message.attachments && message.attachments.length > 0 && (
                     <ul className="mt-3 space-y-1.5">
                       {message.attachments.map((attachment) => (
-                        <li key={attachment.key}>
+                        <li key={attachment.id}>
                           <a
-                            href={attachmentUrl(attachment.key)}
+                            href={attachmentUrl(attachment.s3Key)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-2 text-xs underline-offset-2 hover:underline opacity-90"
@@ -314,7 +267,7 @@ export default function TicketDetailPage() {
                               {attachment.filename}
                             </span>
                             <span>
-                              ({formatFileSize(attachment.size)})
+                              ({formatFileSize(attachment.sizeBytes)})
                             </span>
                           </a>
                         </li>
@@ -323,7 +276,8 @@ export default function TicketDetailPage() {
                   )}
                 </div>
               </div>
-            ))
+            );
+            })
           )}
           <div ref={messagesEndRef} />
         </div>

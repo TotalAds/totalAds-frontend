@@ -15,18 +15,23 @@ export type SupportTicket = {
 };
 
 export type SupportAttachment = {
-  key: string;
+  id: string;
+  messageId: string;
+  s3Key: string;
   filename: string;
   contentType: string;
-  size: number;
+  sizeBytes: number;
+  createdAt: string;
 };
 
 export type SupportMessage = {
   id: string;
   ticketId: string;
-  content: string;
-  sender: "user" | "admin" | "system";
+  authorUserId: number;
+  authorIsAdmin: boolean;
+  body: string;
   createdAt: string;
+  authorName?: string | null;
   attachments?: SupportAttachment[];
 };
 

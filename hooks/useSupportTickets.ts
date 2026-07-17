@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import apiClient from "@/utils/api/apiClient";
-
 import type { SupportTicket } from "@/app/help/types";
+import { supportAPI } from "@/utils/api/supportClient";
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -27,10 +26,8 @@ export function useSupportTickets(enabled = true): UseSupportTicketsReturn {
     setError(null);
 
     try {
-      const res = await apiClient.get<{ tickets: SupportTicket[] }>(
-        "/support/tickets"
-      );
-      setTickets(res.data.tickets ?? []);
+      const list = await supportAPI.listTickets();
+      setTickets(list);
     } catch (err) {
       const normalized =
         err instanceof Error ? err : new Error("Failed to load tickets");

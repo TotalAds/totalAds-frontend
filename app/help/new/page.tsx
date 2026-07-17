@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuthContext } from "@/context/AuthContext";
-import apiClient from "@/utils/api/apiClient";
+import { supportAPI } from "@/utils/api/supportClient";
 import {
   IconArrowLeft,
   IconLoader2,
@@ -25,7 +25,6 @@ import {
 } from "@tabler/icons-react";
 
 import type {
-  SupportTicket,
   TicketCategory,
   TicketPriority,
 } from "../types";
@@ -78,16 +77,12 @@ export default function NewTicketPage() {
 
     setSubmitting(true);
     try {
-      const res = await apiClient.post<{ ticket: SupportTicket }>(
-        "/support/tickets",
-        {
-          subject: subject.trim(),
-          category,
-          priority,
-          description: description.trim(),
-        }
-      );
-      const ticket = res.data.ticket;
+      const { ticket } = await supportAPI.createTicket({
+        subject: subject.trim(),
+        category,
+        priority,
+        description: description.trim(),
+      });
       toast.success("Ticket created successfully.");
       router.push(`/help/${ticket.id}`);
     } catch (err) {

@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import apiClient from "@/utils/api/apiClient";
-
 import type { SupportMessage, SupportTicket } from "@/app/help/types";
+import { supportAPI } from "@/utils/api/supportClient";
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -32,14 +31,11 @@ export function useSupportTicket(
     setError(null);
 
     try {
-      const res = await apiClient.get<{
-        ticket: SupportTicket;
-        messages: SupportMessage[];
-      }>(`/support/tickets/${ticketId}`);
+      const res = await supportAPI.getTicket(ticketId);
 
-      setTicket(res.data.ticket);
+      setTicket(res.ticket);
       setMessages(
-        [...(res.data.messages ?? [])].sort(
+        [...(res.messages ?? [])].sort(
           (a, b) =>
             new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         )
