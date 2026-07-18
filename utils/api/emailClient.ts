@@ -5,9 +5,16 @@
 
 import axios, { AxiosError } from "axios";
 
+import { isCurrentPathAuthFree } from "../auth/publicPaths";
 import { refreshAccessToken } from "../auth/refreshAccessToken";
 import { tokenStorage } from "../auth/tokenStorage";
 import { getActiveWorkspaceId } from "../workspace/storage";
+
+function redirectToLoginIfNeeded() {
+  if (typeof window === "undefined") return;
+  if (isCurrentPathAuthFree()) return;
+  window.location.href = "/login";
+}
 
 /** Readable message from email-service axios errors (checks `message` and `error` on response body). */
 export function getEmailServiceErrorMessage(
@@ -186,6 +193,10 @@ emailClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    if (error.response?.status === 401 && isCurrentPathAuthFree()) {
+      return Promise.reject(error);
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       // Check if we've exceeded max refresh attempts
       if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
@@ -193,9 +204,7 @@ emailClient.interceptors.response.use(
           "Email service authentication failed. Redirecting to login..."
         );
         tokenStorage.removeTokens();
-        if (typeof window !== "undefined") {
-          window.location.href = "/login";
-        }
+        redirectToLoginIfNeeded();
         return Promise.reject(
           new Error("Authentication failed. Please sign in again.")
         );
@@ -239,21 +248,10 @@ emailClient.interceptors.response.use(
         processQueue(refreshError, null);
         tokenStorage.removeTokens();
 
-        if (typeof window !== "undefined") {
-          if (
-            !window.location.pathname.includes("/login") &&
-            !window.location.pathname.includes("/signup") &&
-            !window.location.pathname.includes("/forgot-password") &&
-            !window.location.pathname.includes("/reset-password") &&
-            !window.location.pathname.includes("/email/unsubscribe") &&
-            !window.location.pathname.includes("/unsubscribe")
-          ) {
-            console.log(
-              "Email service token refresh failed, redirecting to login..."
-            );
-            window.location.href = "/login";
-          }
-        }
+        console.log(
+          "Email service token refresh failed, redirecting to login..."
+        );
+        redirectToLoginIfNeeded();
 
         return Promise.reject(refreshError);
       } finally {

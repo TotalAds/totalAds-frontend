@@ -4,10 +4,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { useAuthContext } from "@/context/AuthContext";
-import {
-  OnboardingStatus,
-  protectRoute,
-} from "@/utils/onboarding/onboardingCheck";
+import { isAuthFreePath } from "@/utils/auth/publicPaths";
+import { protectRoute } from "@/utils/onboarding/onboardingCheck";
 
 /**
  * Global wrapper component that ensures onboarding is mandatory for all protected routes
@@ -23,6 +21,12 @@ export const OnboardingProtectionWrapper: React.FC<{
 
   useEffect(() => {
     const checkAndProtect = async () => {
+      // Public pages (unsubscribe, invite, auth screens) never require a session
+      if (isAuthFreePath(pathname)) {
+        setIsChecking(false);
+        return;
+      }
+
       // Wait for auth context to finish loading
       if (state.isLoading) {
         return;
@@ -38,8 +42,10 @@ export const OnboardingProtectionWrapper: React.FC<{
         }
       } catch (error) {
         console.error("Error in onboarding protection:", error);
-        // On error, redirect to login for safety
-        router.push("/login");
+        // On error, redirect to login for safety (never on auth-free pages)
+        if (!isAuthFreePath(pathname)) {
+          router.push("/login");
+        }
       } finally {
         setIsChecking(false);
       }
@@ -49,7 +55,7 @@ export const OnboardingProtectionWrapper: React.FC<{
   }, [pathname, state.isLoading, router]);
 
   // Show loading state while checking
-  if (isChecking && state.isLoading) {
+  if (isChecking && state.isLoading && !isAuthFreePath(pathname)) {
     return (
       <div className="min-h-screen bg-bg-100 flex items-center justify-center">
         <div className="text-center">

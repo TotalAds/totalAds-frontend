@@ -4,6 +4,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { useAuthContext } from "@/context/AuthContext";
+import { isAuthFreePath } from "@/utils/auth/publicPaths";
 import { protectRoute, OnboardingStatus } from "@/utils/onboarding/onboardingCheck";
 
 interface UseOnboardingProtectionReturn {
@@ -26,6 +27,12 @@ export const useOnboardingProtection = (): UseOnboardingProtectionReturn => {
 
   useEffect(() => {
     const checkAndProtect = async () => {
+      if (isAuthFreePath(pathname)) {
+        setOnboardingStatus(null);
+        setIsLoading(false);
+        return;
+      }
+
       // Wait for auth context to finish loading
       if (state.isLoading) {
         return;
@@ -43,8 +50,9 @@ export const useOnboardingProtection = (): UseOnboardingProtectionReturn => {
         }
       } catch (error) {
         console.error("Error in onboarding protection:", error);
-        // On error, redirect to login for safety
-        router.push("/login");
+        if (!isAuthFreePath(pathname)) {
+          router.push("/login");
+        }
       } finally {
         setIsLoading(false);
       }

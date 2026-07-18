@@ -2,9 +2,16 @@
 
 import axios from "axios";
 
+import { isCurrentPathAuthFree } from "../auth/publicPaths";
 import { refreshAccessToken } from "../auth/refreshAccessToken";
 import { tokenStorage } from "../auth/tokenStorage";
 import { getActiveWorkspaceId } from "../workspace/storage";
+
+function redirectToLoginIfNeeded() {
+  if (typeof window === "undefined") return;
+  if (isCurrentPathAuthFree()) return;
+  window.location.href = "/login";
+}
 
 // API base URLs
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -125,9 +132,7 @@ apiClient.interceptors.response.use(
       ) {
         console.log("Session expired. Redirecting to login...");
         tokenStorage.removeTokens();
-        if (typeof window !== "undefined") {
-          window.location.href = "/login";
-        }
+        redirectToLoginIfNeeded();
         return Promise.reject(
           new Error("Your session has expired. Please sign in again.")
         );
@@ -148,6 +153,12 @@ apiClient.interceptors.response.use(
         return Promise.reject(error);
       }
 
+      // On public pages (e.g. unsubscribe), never kick off login redirects from
+      // background auth checks like AuthProvider → GET /users/me.
+      if (isCurrentPathAuthFree()) {
+        return Promise.reject(error);
+      }
+
       // Even if there was no Authorization header (e.g., token expired and was cleared on client),
       // attempt a refresh once using the refreshToken httpOnly cookie. This prevents unwanted logouts
       // when the access token expires and the client no longer attaches it.
@@ -156,9 +167,7 @@ apiClient.interceptors.response.use(
       if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
         console.log("Authentication failed. Redirecting to login...");
         tokenStorage.removeTokens();
-        if (typeof window !== "undefined") {
-          window.location.href = "/login";
-        }
+        redirectToLoginIfNeeded();
         return Promise.reject(
           new Error("Authentication failed. Please sign in again.")
         );
@@ -202,17 +211,8 @@ apiClient.interceptors.response.use(
         processQueue(refreshError, null);
         tokenStorage.removeTokens();
 
-        if (typeof window !== "undefined") {
-          if (
-            !window.location.pathname.includes("/login") &&
-            !window.location.pathname.includes("/signup") &&
-            !window.location.pathname.includes("/forgot-password") &&
-            !window.location.pathname.includes("/reset-password")
-          ) {
-            console.log("Token refresh failed, redirecting to login...");
-            window.location.href = "/login";
-          }
-        }
+        console.log("Token refresh failed, redirecting to login...");
+        redirectToLoginIfNeeded();
 
         return Promise.reject(refreshError);
       } finally {
