@@ -218,25 +218,123 @@ export function resolveMergeTagsAndSpintax(
 }
 
 function stringifySampleValue(value: unknown): string | null {
-  if (value == null) return null;
-  if (typeof value === "string") {
-    const trimmed = value.trim();
+  const unwrapped = unwrapSampleField(value);
+  if (unwrapped == null) return null;
+  if (typeof unwrapped === "string") {
+    const trimmed = unwrapped.trim();
     return trimmed || null;
   }
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
+  if (typeof unwrapped === "number" || typeof unwrapped === "boolean") {
+    return String(unwrapped);
   }
-  if (Array.isArray(value)) {
-    const parts = value
-      .map((item) => (item == null ? "" : String(item).trim()))
+  if (Array.isArray(unwrapped)) {
+    const parts = unwrapped
+      .map((item) => {
+        const inner = unwrapSampleField(item);
+        if (inner == null) return "";
+        if (typeof inner === "string") return inner.trim();
+        if (
+          inner &&
+          typeof inner === "object" &&
+          "label" in (inner as object) &&
+          typeof (inner as { label: unknown }).label === "string"
+        ) {
+          return (inner as { label: string }).label.trim();
+        }
+        try {
+          return JSON.stringify(inner);
+        } catch {
+          return String(inner);
+        }
+      })
       .filter(Boolean);
     return parts.length ? parts.join("; ") : null;
   }
   try {
-    return JSON.stringify(value);
+    return JSON.stringify(unwrapped);
   } catch {
     return null;
   }
+}
+
+/** LeadHub AI fields often arrive as `{ value, confidence }`. */
+function unwrapSampleField(value: unknown): unknown {
+  if (value == null) return null;
+  if (typeof value !== "object" || Array.isArray(value)) return value;
+  if (!Object.prototype.hasOwnProperty.call(value, "value")) return value;
+  return (value as { value: unknown }).value;
+}
+
+/**
+ * Collect merge-tag keys present on a campaign lead (enrichedData / customFields).
+ * Used so Personalize lists every LeadHub field available for at least one lead.
+ */
+export function extractVariableKeysFromLead(lead?: {
+  email?: string | null;
+  name?: string | null;
+  company?: string | null;
+  role?: string | null;
+  customFields?: Record<string, unknown> | null;
+  enrichedData?: Record<string, unknown> | null;
+} | null): string[] {
+  const keys = new Set<string>();
+  const add = (key: string) => {
+    const k = String(key || "")
+      .trim()
+      .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+      .replace(/[\s-]+/g, "_")
+      .toLowerCase();
+    if (!k || k === "leadhub" || k === "source") return;
+    keys.add(k);
+  };
+
+  if (!lead) return [];
+
+  if (lead.email) add("email");
+  if (lead.name) add("name");
+  if (lead.company) add("company");
+  if (lead.role) {
+    add("role");
+    add("title");
+  }
+
+  const ingestObject = (obj: Record<string, unknown> | null | undefined) => {
+    if (!obj || typeof obj !== "object") return;
+    for (const [k, v] of Object.entries(obj)) {
+      if (k === "leadhub") continue;
+      const str = stringifySampleValue(v);
+      if (str != null) add(k);
+    }
+  };
+
+  ingestObject(lead.customFields ?? undefined);
+  ingestObject(lead.enrichedData ?? undefined);
+
+  const enriched = lead.enrichedData;
+  if (enriched?.leadhub && typeof enriched.leadhub === "object") {
+    const lh = enriched.leadhub as Record<string, unknown>;
+    const ai = lh.aiIntelligence as Record<string, unknown> | undefined;
+    if (ai?.emailVariables && typeof ai.emailVariables === "object") {
+      for (const k of Object.keys(ai.emailVariables as object)) add(k);
+    }
+    if (ai) {
+      for (const [k, v] of Object.entries(ai)) {
+        if (
+          k === "emailVariables" ||
+          k === "generatedAt" ||
+          k === "updatedAt" ||
+          k === "id" ||
+          k === "leadId" ||
+          k === "companyId"
+        ) {
+          continue;
+        }
+        if (stringifySampleValue(v) != null) add(k);
+      }
+    }
+  }
+
+  return Array.from(keys).sort((a, b) => a.localeCompare(b));
 }
 
 /**
@@ -256,8 +354,13 @@ export function buildTokenSampleValuesFromLead(lead?: {
   const put = (key: string, value: unknown) => {
     const str = stringifySampleValue(value);
     if (!key || str == null) return;
+    const normalized = normalizeMergeFieldKey(
+      key
+        .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+        .replace(/[\s-]+/g, "_")
+    );
     out[key] = str;
-    out[normalizeMergeFieldKey(key)] = str;
+    out[normalized] = str;
   };
 
   if (!lead) return out;
@@ -293,22 +396,32 @@ export function buildTokenSampleValuesFromLead(lead?: {
         const lh = v as Record<string, unknown>;
         const contact = lh.contact as Record<string, unknown> | undefined;
         const company = lh.company as Record<string, unknown> | undefined;
+        const ai = lh.aiIntelligence as Record<string, unknown> | undefined;
         if (contact) {
           put("first_name", contact.firstName);
           put("firstName", contact.firstName);
           put("last_name", contact.lastName);
           put("lastName", contact.lastName);
+          put("email", contact.email);
           put("role", contact.role);
           put("title", contact.role);
           put("phone", contact.phone);
           put("linkedin_url", contact.linkedinUrl);
           put("location", contact.location);
+          const full = [contact.firstName, contact.lastName]
+            .filter(Boolean)
+            .join(" ");
+          if (full) put("name", full);
         }
         if (company) {
           put("company", company.name);
           put("company_domain", company.domain);
           put("company_website", company.website);
           put("website", company.website);
+          put("company_description", company.description);
+          put("company_city", company.city);
+          put("company_country", company.country);
+          put("company_services", company.services);
           put("industry", company.industry);
           put("company_size", company.size);
         }
@@ -318,9 +431,45 @@ export function buildTokenSampleValuesFromLead(lead?: {
         put("confidence", lh.confidence);
         put("enrichment_status", lh.enrichmentStatus);
         put("pipeline_stage", lh.pipelineStage);
+
+        if (ai?.emailVariables && typeof ai.emailVariables === "object") {
+          for (const [ek, ev] of Object.entries(
+            ai.emailVariables as Record<string, unknown>
+          )) {
+            put(ek, ev);
+          }
+        }
+        if (ai) {
+          const aiMap: Array<[string, unknown]> = [
+            ["suggested_email_opening", ai.suggestedEmailOpening],
+            ["suggested_cta", ai.suggestedCta],
+            ["recommended_outreach_angle", ai.recommendedOutreachAngle],
+            ["best_outreach_angle", ai.bestOutreachAngle],
+            ["personalization_snippets", ai.personalizationSnippets],
+            ["personalization_notes", ai.personalizationNotes],
+            ["company_summary", ai.companySummary],
+            ["person_summary", ai.personSummary],
+            ["pain_points", ai.painPoints],
+            ["buying_signals", ai.buyingSignals],
+            ["growth_stage", ai.growthStage],
+            ["outreach_insights", ai.outreachInsights],
+            ["buying_intent", ai.buyingIntent],
+            ["product_fit", ai.productFit],
+            ["competitors", ai.competitors],
+            ["existing_tools", ai.existingTools],
+            ["recent_activity", ai.recentActivity],
+            ["ideal_buyer_persona", ai.idealBuyerPersona],
+            ["outreach_objections", ai.outreachObjections],
+            ["intent_score", ai.intentScore],
+            ["icp_score", ai.icpScore],
+            ["priority", ai.priority],
+            ["confidence", ai.overallConfidence],
+          ];
+          for (const [token, val] of aiMap) put(token, val);
+        }
         continue;
       }
-      if (v != null && typeof v === "object" && !Array.isArray(v)) continue;
+      // Flat enriched keys (including arrays); skip nested objects except via stringify
       put(k, v);
     }
   }

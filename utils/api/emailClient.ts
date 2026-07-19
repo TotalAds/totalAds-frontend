@@ -425,18 +425,6 @@ export interface Campaign {
     enrichmentGate?: "auto_enrich" | "enriched_only";
     dailyIntakeCap?: number;
     trustLeadhubVerification?: boolean;
-    personalizationMode?: "template" | "ai_agent";
-    aiBrief?: Record<string, unknown>;
-    agentPreviewExamples?: Array<{
-      leadId: string;
-      email: string | null;
-      firstName: string | null;
-      company: string | null;
-      subject: string;
-      previewText: string;
-      bodyHtml: string;
-    }>;
-    agentPreviewExamplesAt?: string;
   } | null;
   queuedForTodayCount?: number;
   scheduledForTomorrowCount?: number;

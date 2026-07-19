@@ -13,6 +13,7 @@ import {
   ChevronsRight,
   RefreshCw,
   Trash2,
+  Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
@@ -44,6 +45,7 @@ import {
   LeadhubSyncConfig,
   LeadhubSyncLinkRow,
   getCampaignLeadhubSyncLinks,
+  getLeadhubStatus,
   syncLeadhubCampaign,
 } from "@/utils/api/leadhubClient";
 import { INBOX_CAMPAIGN_DOMAIN_ID } from "@/lib/campaignDomain";
@@ -91,11 +93,7 @@ function formatDate(value?: string) {
 
 function formatSendError(error?: string | null): string | null {
   if (!error) return null;
-  const trimmed = error.trim();
-  if (trimmed.startsWith("leadSniper_agent_failed:")) {
-    return trimmed.replace(/^leadSniper_agent_failed:\s*/i, "").trim() || trimmed;
-  }
-  return trimmed;
+  return error.trim();
 }
 
 function StatusBadge({
@@ -221,6 +219,9 @@ export function LeadsTab({
     failed?: number;
   } | null>(null);
   const [leadhubSyncLinks, setLeadhubSyncLinks] = useState<LeadhubSyncLinkRow[]>([]);
+  const [leadhubConnected, setLeadhubConnected] = useState(false);
+  const [leadhubStatusLoaded, setLeadhubStatusLoaded] = useState(false);
+  const [leadhubModalOpen, setLeadhubModalOpen] = useState(false);
   const enrichmentPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const enrichmentTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -237,7 +238,7 @@ export function LeadsTab({
   }, []);
 
   const fetchLeadhubSyncLinks = useCallback(async () => {
-    if (!leadhubSyncConfig?.enabled) {
+    if (!leadhubConnected) {
       setLeadhubSyncLinks([]);
       return [];
     }
@@ -249,12 +250,30 @@ export function LeadsTab({
       setLeadhubSyncLinks([]);
       return [];
     }
-  }, [campaignId, leadhubSyncConfig?.enabled]);
+  }, [campaignId, leadhubConnected]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 350);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const status = await getLeadhubStatus();
+        if (cancelled) return;
+        setLeadhubConnected(Boolean(status.isConfigured));
+      } catch {
+        if (!cancelled) setLeadhubConnected(false);
+      } finally {
+        if (!cancelled) setLeadhubStatusLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -275,8 +294,12 @@ export function LeadsTab({
   }, [campaignId, effectiveDomainId]);
 
   useEffect(() => {
+    if (!leadhubStatusLoaded || !leadhubConnected) {
+      setLeadhubSyncLinks([]);
+      return;
+    }
     void fetchLeadhubSyncLinks();
-  }, [fetchLeadhubSyncLinks]);
+  }, [fetchLeadhubSyncLinks, leadhubConnected, leadhubStatusLoaded]);
 
   useEffect(() => {
     setPage(1);
@@ -572,27 +595,13 @@ export function LeadsTab({
   const resolvedTotalPages = Math.max(1, totalPages || Math.ceil(displayTotal / pageSize) || 1);
 
   const persistLeadhubConfig = async (config: LeadhubSyncConfig | null) => {
-    // Always preserve cached Step 1 examples when saving Autopilot filters
-    const toSave =
-      config == null
-        ? null
-        : {
-            ...config,
-            agentPreviewExamples:
-              config.agentPreviewExamples ??
-              leadhubSyncConfig?.agentPreviewExamples,
-            agentPreviewExamplesAt:
-              config.agentPreviewExamplesAt ??
-              leadhubSyncConfig?.agentPreviewExamplesAt,
-            aiBrief: config.aiBrief ?? leadhubSyncConfig?.aiBrief,
-          };
     await patchCampaign(effectiveDomainId, campaignId, {
-      leadhubSyncConfig: toSave,
-      ...(toSave?.enabled
+      leadhubSyncConfig: config,
+      ...(config?.enabled
         ? { reoonVerificationSummary: { requireLeadVerification: true } }
         : {}),
     });
-    setLeadhubSyncConfig(toSave);
+    setLeadhubSyncConfig(config);
   };
 
   const saveAndSyncLeadhub = async (config: LeadhubSyncConfig | null) => {
@@ -646,51 +655,100 @@ export function LeadsTab({
     }
   };
 
+  const hasLeadhubImports = leadhubSyncLinks.length > 0;
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      {/* LeadHub Autopilot — primary way to import LeadHub CRM leads */}
-      <div className="mb-6">
-        <LeadhubAutopilotPanel
-          value={leadhubSyncConfig}
-          onChange={(config) => {
-            setLeadhubSyncConfig(config);
-            if (!config?.enabled) {
-              void saveAndSyncLeadhub(null);
-              return;
-            }
-            // Persist filters when enabled; Sync now pulls leads
-            void persistLeadhubConfig({
-              ...config,
-              enabled: true,
-              source: "leadhub_autopilot",
-              enrichmentGate: config.enrichmentGate ?? "auto_enrich",
-              trustLeadhubVerification: config.trustLeadhubVerification !== false,
-            }).catch((err: unknown) => {
-              toast.error(
-                getEmailServiceErrorMessage(err, "Failed to save Autopilot settings")
-              );
-            });
-          }}
-          syncing={leadhubSyncing}
-          enriching={leadhubEnriching}
-          syncPhase={leadhubSyncPhase}
-          syncStats={leadhubSyncStats}
-          syncLinks={leadhubSyncLinks}
-          onSyncNow={() => {
-            if (!leadhubSyncConfig?.enabled) {
-              toast.error("Enable LeadHub Autopilot first");
-              return;
-            }
-            void saveAndSyncLeadhub(leadhubSyncConfig);
-          }}
-        />
-        {leadhubSyncConfig?.enabled && canModifyLeads && (
-          <p className="mt-2 text-xs text-slate-500">
-            After enabling filters, click <strong>Sync now</strong> to pull matching LeadHub
-            leads (lists, categories, scores, AI fields) into this campaign.
-          </p>
-        )}
-      </div>
+      {/* LeadHub — only when integration is connected */}
+      {leadhubStatusLoaded && leadhubConnected && (
+        <div className="mb-6">
+          {hasLeadhubImports ? (
+            <button
+              type="button"
+              onClick={() => setLeadhubModalOpen(true)}
+              className="flex w-full items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-left transition hover:border-emerald-300 hover:bg-emerald-50"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white">
+                <Zap className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-emerald-900">
+                  Imported contact from LeadHub
+                </p>
+                <p className="mt-0.5 text-xs text-emerald-800/80">
+                  {leadhubSyncLinks.length.toLocaleString()} LeadHub lead
+                  {leadhubSyncLinks.length !== 1 ? "s" : ""} linked · Click to
+                  sync more
+                </p>
+              </div>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setLeadhubModalOpen(true)}
+              className="flex w-full items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-left transition hover:border-amber-300 hover:bg-amber-50"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500 text-white">
+                <Zap className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-amber-950">
+                  LeadHub needs import
+                </p>
+                <p className="mt-0.5 text-xs text-amber-900/80">
+                  Open import filters and sync LeadHub contacts into this campaign
+                </p>
+              </div>
+            </button>
+          )}
+
+          <LeadhubAutopilotPanel
+            open={leadhubModalOpen}
+            onClose={() => setLeadhubModalOpen(false)}
+            value={leadhubSyncConfig}
+            onChange={(config) => {
+              setLeadhubSyncConfig(config);
+              if (!config?.enabled) {
+                void saveAndSyncLeadhub(null);
+                return;
+              }
+              void persistLeadhubConfig({
+                ...config,
+                enabled: true,
+                source: "leadhub_autopilot",
+                enrichmentGate: config.enrichmentGate ?? "auto_enrich",
+                trustLeadhubVerification:
+                  config.trustLeadhubVerification !== false,
+              }).catch((err: unknown) => {
+                toast.error(
+                  getEmailServiceErrorMessage(
+                    err,
+                    "Failed to save Autopilot settings"
+                  )
+                );
+              });
+            }}
+            syncing={leadhubSyncing}
+            enriching={leadhubEnriching}
+            syncPhase={leadhubSyncPhase}
+            syncStats={leadhubSyncStats}
+            syncLinks={leadhubSyncLinks}
+            onSyncNow={() => {
+              const config = leadhubSyncConfig ?? {
+                enabled: true,
+                source: "leadhub_autopilot" as const,
+                enrichmentGate: "auto_enrich" as const,
+                trustLeadhubVerification: true,
+                priorities: ["hot", "warm"] as Array<
+                  "hot" | "warm" | "cold" | "unknown"
+                >,
+                dailyIntakeCap: 50,
+              };
+              void saveAndSyncLeadhub({ ...config, enabled: true });
+            }}
+          />
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">

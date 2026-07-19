@@ -231,17 +231,27 @@ export default function CreateEmailModal({
     pendingReplaceSelectionRef.current = false;
   }, []);
 
-  const mergeTags = useMemo(
-    () => mergeVariableLists(availableVariables),
-    [availableVariables]
-  );
+  const mergeTags = useMemo(() => {
+    const raw = mergeVariableLists(availableVariables);
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const item of raw) {
+      const inner = item.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "").trim();
+      if (!inner) continue;
+      const tag = `{{${inner}}}`;
+      if (seen.has(tag)) continue;
+      seen.add(tag);
+      out.push(tag);
+    }
+    return out;
+  }, [availableVariables]);
 
   const groupedMergeTags = useMemo(() => {
     const contactKeys = new Set([
       "first_name",
-      "firstName",
+      "firstname",
       "last_name",
-      "lastName",
+      "lastname",
       "title",
       "email",
       "name",
@@ -250,35 +260,56 @@ export default function CreateEmailModal({
       "role",
       "linkedin_url",
       "location",
+      "person_summary",
     ]);
     const companyKeys = new Set([
       "company",
       "company_domain",
       "company_website",
+      "company_description",
+      "company_city",
+      "company_country",
+      "company_services",
       "industry",
       "company_size",
       "company_summary",
       "growth_stage",
+      "ideal_buyer_persona",
+    ]);
+    const scoreKeys = new Set([
+      "intent_score",
+      "icp_score",
+      "confidence",
+      "priority",
+      "enrichment_status",
+      "pipeline_stage",
     ]);
     const strip = (v: string) =>
       v.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "").trim();
     const contact: string[] = [];
     const company: string[] = [];
+    const scores: string[] = [];
     const outreach: string[] = [];
     for (const tag of mergeTags) {
       const key = strip(tag);
-      if (contactKeys.has(key)) contact.push(tag);
-      else if (companyKeys.has(key)) company.push(tag);
+      const nk = key.toLowerCase().replace(/[\s-]+/g, "_");
+      if (contactKeys.has(nk) || contactKeys.has(key)) contact.push(tag);
+      else if (companyKeys.has(nk) || companyKeys.has(key)) company.push(tag);
+      else if (scoreKeys.has(nk) || scoreKeys.has(key)) scores.push(tag);
       else if (mergeTags.length > 8) outreach.push(tag);
       else contact.push(tag);
     }
-    // If no LeadHub-style extras, keep a single flat list under Contact
-    if (outreach.length === 0 && company.length === 0) {
+    if (
+      outreach.length === 0 &&
+      company.length === 0 &&
+      scores.length === 0
+    ) {
       return [{ label: "Fields", tags: mergeTags }];
     }
     return [
       { label: "Contact", tags: contact },
       { label: "Company", tags: company },
+      { label: "Scores", tags: scores },
       { label: "Outreach", tags: outreach },
     ].filter((g) => g.tags.length > 0);
   }, [mergeTags]);
@@ -379,20 +410,32 @@ export default function CreateEmailModal({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showVariablePanel, clearPendingInsertSelection]);
 
+  const normalizeVariableToken = (variable: string) =>
+    variable.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "").trim();
+
+  const toMergeTag = (variable: string) => {
+    const inner = normalizeVariableToken(variable);
+    if (!inner) return "";
+    return `{{${inner}}}`;
+  };
+
   const insertVariable = (variable: string) => {
+    const token = toMergeTag(variable);
+    if (!token) return;
+
     if (draftBodyEditor === "simple" || rightPanel === "simple") {
       const replaceSel = pendingReplaceSelectionRef.current;
       pendingReplaceSelectionRef.current = false;
       pendingHtmlSelectionRangeRef.current = null;
       pendingComposerSelectionRef.current = "";
       const detail =
-        replaceSel && variable.trim().length > 0
-          ? { variable, replaceSelection: true as const }
-          : variable;
+        replaceSel && token.trim().length > 0
+          ? { variable: token, replaceSelection: true as const }
+          : token;
       window.dispatchEvent(
         new CustomEvent("totalads:insert-variable", { detail })
       );
-      toast.success(`Added ${variable}`, { duration: 1500 });
+      toast.success(`Added ${token}`, { duration: 1500 });
       return;
     }
     const textarea = document.getElementById("codeEditor") as HTMLTextAreaElement | null;
@@ -408,20 +451,20 @@ export default function CreateEmailModal({
       pendingReplaceSelectionRef.current = false;
       pendingComposerSelectionRef.current = "";
       const newContent =
-        draftHtml.substring(0, start) + variable + draftHtml.substring(end);
+        draftHtml.substring(0, start) + token + draftHtml.substring(end);
       setDraftHtml(newContent);
       setTimeout(() => {
-        const pos = start + variable.length;
+        const pos = start + token.length;
         textarea.selectionStart = pos;
         textarea.selectionEnd = pos;
         textarea.focus();
       }, 0);
-      toast.success(`Added ${variable}`, { duration: 1500 });
+      toast.success(`Added ${token}`, { duration: 1500 });
       return;
     }
     pendingReplaceSelectionRef.current = false;
     pendingComposerSelectionRef.current = "";
-    setDraftHtml((draftHtml || "") + variable);
+    setDraftHtml((draftHtml || "") + token);
   };
 
   const insertSpintax = (token: string) => {
@@ -485,9 +528,6 @@ export default function CreateEmailModal({
       return match;
     });
   };
-
-  const normalizeVariableToken = (variable: string) =>
-    variable.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "").trim();
 
   const openFallbackModal = (token?: string, occurrenceIndex: number = 0) => {
     if (token) {
@@ -871,38 +911,38 @@ export default function CreateEmailModal({
             Spintax
           </Button>
           {showVariablePanel && (
-            <div className="absolute right-0 top-full z-50 mt-1 flex max-h-80 w-80 flex-col rounded-xl border border-slate-200 bg-white shadow-2xl">
-              <div className="border-b border-border p-2">
-                <p className="mb-1 text-[11px] font-semibold text-text-100">
-                  Add personalization chips
+            <div className="absolute right-0 top-full z-50 mt-1 flex max-h-[22rem] w-[min(28rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
+              <div className="shrink-0 border-b border-border px-2.5 py-2">
+                <p className="mb-0.5 text-[11px] font-semibold text-text-100">
+                  Personalization fields
                 </p>
-                <p className="mb-2 text-[10px] leading-relaxed text-text-300">
-                  These render as chips in the editor and save as merge tags.
+                <p className="mb-1.5 text-[9px] leading-snug text-text-300">
+                  Hover a field to preview its value from a campaign lead. Click to insert.
                 </p>
                 <div className="relative">
                   <Search
-                    size={14}
+                    size={12}
                     className="absolute left-2 top-1/2 -translate-y-1/2 text-text-300"
                   />
                   <input
                     type="text"
                     value={variableSearch}
                     onChange={(e) => setVariableSearch(e.target.value)}
-                    placeholder="Search variables..."
-                    className="w-full rounded-md border border-border bg-bg-100 py-1.5 pl-8 pr-2 text-xs focus:outline-none focus:ring-1 focus:ring-brand-main"
+                    placeholder="Search…"
+                    className="w-full rounded-md border border-border bg-bg-100 py-1 pl-7 pr-2 text-[11px] focus:outline-none focus:ring-1 focus:ring-brand-main"
                     autoFocus
                   />
                 </div>
               </div>
-              <div className="max-h-64 flex-1 overflow-y-auto p-1">
+              <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
                 {filteredVariableGroups.length > 0 ? (
                   <div className="space-y-2">
                     {filteredVariableGroups.map((group) => (
                       <div key={group.label}>
-                        <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        <p className="px-1 pb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
                           {group.label}
                         </p>
-                        <div className="space-y-0.5">
+                        <div className="grid grid-cols-2 gap-0.5 sm:grid-cols-3">
                           {group.tags.map((variable) => {
                             const field = variable
                               .replace(/^\{\{\s*/, "")
@@ -922,27 +962,28 @@ export default function CreateEmailModal({
                             const tip = sample
                               ? `${field} → ${sample}`
                               : `${field} → No value for this lead`;
+                            const label = field.replace(/[_-]+/g, " ");
                             return (
-                            <button
-                              key={variable}
-                              type="button"
-                              title={tip}
-                              onClick={() => {
-                                insertVariable(variable);
-                                setShowVariablePanel(false);
-                                setVariableSearch("");
-                              }}
-                              className="w-full rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-brand-main/10"
-                            >
-                              <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 font-semibold text-blue-700">
-                                {field.replace(/[_-]+/g, " ")}
-                              </span>
-                              {sample ? (
-                                <span className="mt-0.5 block truncate pl-0.5 text-[10px] text-slate-400">
-                                  {sample}
+                              <button
+                                key={variable}
+                                type="button"
+                                title={tip}
+                                onClick={() => {
+                                  insertVariable(variable);
+                                  setShowVariablePanel(false);
+                                  setVariableSearch("");
+                                }}
+                                className="group rounded-md border border-transparent px-1.5 py-1 text-left transition-colors hover:border-blue-200 hover:bg-blue-50"
+                              >
+                                <span className="block truncate text-[10px] font-semibold leading-tight text-blue-700">
+                                  {label}
                                 </span>
-                              ) : null}
-                            </button>
+                                {sample ? (
+                                  <span className="mt-0.5 block max-h-0 overflow-hidden truncate text-[8px] leading-tight text-slate-500 opacity-0 transition-all group-hover:max-h-8 group-hover:opacity-100">
+                                    {sample}
+                                  </span>
+                                ) : null}
+                              </button>
                             );
                           })}
                         </div>
@@ -950,10 +991,12 @@ export default function CreateEmailModal({
                     ))}
                   </div>
                 ) : (
-                  <div className="py-4 text-center text-xs text-text-300">No variables</div>
+                  <div className="py-4 text-center text-[11px] text-text-300">
+                    No variables
+                  </div>
                 )}
               </div>
-              <div className="border-t border-border bg-bg-100/80 px-2 py-1.5 text-[10px] text-text-300">
+              <div className="shrink-0 border-t border-border bg-bg-100/80 px-2.5 py-1 text-[9px] text-text-300">
                 Use Fallback for safe greetings like “First name · there”.
               </div>
             </div>

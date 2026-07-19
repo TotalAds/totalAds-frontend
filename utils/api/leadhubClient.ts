@@ -12,31 +12,6 @@ export interface LeadhubConnectionStatus {
   syncCursor?: string | null;
 }
 
-export type LeadhubAiBriefTone = "founder" | "consultative" | "direct";
-
-export interface LeadhubAiBrief {
-  userPrompt?: string;
-  templateDescription?: string;
-  emailTemplateHtml?: string;
-  product?: string;
-  proof?: string;
-  cta?: string;
-  senderName?: string;
-  senderCompany?: string;
-  tone?: LeadhubAiBriefTone;
-  extra?: string;
-}
-
-export interface LeadhubAgentPreviewExample {
-  leadId: string;
-  email: string | null;
-  firstName: string | null;
-  company: string | null;
-  subject: string;
-  previewText: string;
-  bodyHtml: string;
-}
-
 export interface LeadhubSyncConfig {
   enabled: boolean;
   source: "leadhub_autopilot";
@@ -49,11 +24,6 @@ export interface LeadhubSyncConfig {
   enrichmentGate?: "auto_enrich" | "enriched_only";
   dailyIntakeCap?: number;
   trustLeadhubVerification?: boolean;
-  personalizationMode?: "template" | "ai_agent";
-  aiBrief?: LeadhubAiBrief;
-  /** Cached Step 1 agent example emails (persisted across refresh). */
-  agentPreviewExamples?: LeadhubAgentPreviewExample[];
-  agentPreviewExamplesAt?: string;
 }
 
 export interface LeadhubList {
@@ -148,31 +118,4 @@ export const getCampaignLeadhubSyncLinks = async (
 export const getLeadhubPersonalizationTokens = async (): Promise<string[]> => {
   const response = await emailClient.get("/api/leadhub/personalization-tokens");
   return response.data?.data?.tokens ?? [];
-};
-
-export const expandLeadSniperBrief = async (params: {
-  userPrompt: string;
-  templateDescription?: string;
-  campaignName?: string;
-}): Promise<LeadhubAiBrief> => {
-  const response = await emailClient.post("/api/leadhub/agent/expand-brief", params);
-  return response.data?.data ?? response.data;
-};
-
-export interface LeadSniperPreviewEmail {
-  leadId: string;
-  email: string | null;
-  firstName: string | null;
-  company: string | null;
-  subject: string;
-  previewText: string;
-  bodyHtml: string;
-}
-
-export const previewLeadSniperEmails = async (params: {
-  campaignId: string | number;
-  limit?: number;
-}): Promise<{ previews: LeadSniperPreviewEmail[] }> => {
-  const response = await emailClient.post("/api/leadhub/agent/preview-emails", params);
-  return response.data?.data ?? response.data;
 };

@@ -9,24 +9,23 @@ import {
   Copy,
   Check,
   Loader2,
-  Link2,
-  Sparkles,
-  FileText,
+  X,
 } from "lucide-react";
-import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { BodyPortal } from "@/components/ui/BodyPortal";
 import {
   getLeadhubCategories,
   getLeadhubLists,
   getLeadhubPersonalizationTokens,
-  getLeadhubStatus,
   LeadhubCategory,
   LeadhubList,
   LeadhubSyncConfig,
 } from "@/utils/api/leadhubClient";
 
 interface LeadhubAutopilotPanelProps {
+  open: boolean;
+  onClose: () => void;
   value: LeadhubSyncConfig | null;
   onChange: (config: LeadhubSyncConfig | null) => void;
   onSyncNow?: () => void;
@@ -122,109 +121,38 @@ function SyncProgressBar({
     (syncStats?.ready ?? 0) +
     (syncStats?.pendingEnrichment ?? 0) +
     (syncStats?.queued ?? 0) +
-    (syncStats?.skipped ?? 0) +
-    (syncStats?.failed ?? 0);
-  const done = (syncStats?.ready ?? 0) + (syncStats?.queued ?? 0);
-  const pct =
-    syncing && !syncStats
-      ? 35
-      : enriching && total > 0
-        ? Math.min(95, Math.round((done / Math.max(total, 1)) * 100))
-        : syncPhase === "complete"
-          ? 100
-          : syncing
-            ? 50
-            : 0;
+    (syncStats?.skipped ?? 0);
 
-  if (!syncing && !enriching && !syncStats) return null;
+  if (!syncing && !enriching && syncPhase === "idle" && !syncStats) {
+    return null;
+  }
 
   return (
-    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3.5">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold text-slate-800">
-          {syncing
-            ? "Syncing leads…"
-            : enriching
-              ? "Enriching in LeadHub…"
-              : syncPhase === "complete"
-                ? "Sync complete"
-                : "Sync status"}
-        </p>
-        {(syncing || enriching) && (
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />
-        )}
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-        <div
-          className={`h-full rounded-full transition-all duration-500 ${
-            syncing || enriching
-              ? "bg-blue-500"
-              : syncPhase === "error"
-                ? "bg-amber-500"
-                : "bg-emerald-500"
-          } ${syncing && !syncStats ? "animate-pulse" : ""}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {phases.map((p) => {
-          const isActive = activePhase === p.id;
+    <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+      <div className="flex flex-wrap gap-2">
+        {phases.map((phase) => {
+          const isActive = activePhase === phase.id;
           return (
             <span
-              key={p.id}
-              className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${
+              key={phase.id}
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
                 isActive
-                  ? "bg-blue-100 text-blue-800 ring-1 ring-blue-200"
+                  ? "bg-blue-600 text-white"
                   : "bg-white text-slate-500 ring-1 ring-slate-200"
               }`}
             >
-              {p.label}
+              {isActive && <Loader2 className="h-3 w-3 animate-spin" />}
+              {phase.label}
             </span>
           );
         })}
       </div>
-      {syncStats && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {[
-            { label: "Ready", value: syncStats.ready },
-            { label: "Enriching", value: syncStats.pendingEnrichment },
-            { label: "Queued", value: syncStats.queued },
-            {
-              label: "Skipped",
-              value: syncStats.skipped,
-              hint:
-                [
-                  syncStats.skippedNoEmail
-                    ? `${syncStats.skippedNoEmail} no email`
-                    : null,
-                  syncStats.skippedVerification
-                    ? `${syncStats.skippedVerification} unverified`
-                    : null,
-                  syncStats.skippedEnrichedOnly
-                    ? `${syncStats.skippedEnrichedOnly} not enriched`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(", ") || undefined,
-            },
-            ...(syncStats.failed
-              ? [{ label: "Failed", value: syncStats.failed }]
-              : []),
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-2"
-            >
-              <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
-                {stat.label}
-              </p>
-              <p className="text-sm font-semibold text-slate-900">{stat.value}</p>
-              {"hint" in stat && stat.hint ? (
-                <p className="mt-0.5 text-[10px] text-slate-500">{stat.hint}</p>
-              ) : null}
-            </div>
-          ))}
-        </div>
+      {syncStats && total > 0 && (
+        <p className="text-[11px] text-slate-600">
+          {syncStats.ready} ready · {syncStats.pendingEnrichment} enriching ·{" "}
+          {syncStats.queued} queued · {syncStats.skipped} skipped
+          {(syncStats.failed ?? 0) > 0 ? ` · ${syncStats.failed} failed` : ""}
+        </p>
       )}
     </div>
   );
@@ -238,7 +166,6 @@ function TokenChip({ token }: { token: string }) {
     try {
       await navigator.clipboard.writeText(label);
       setCopied(true);
-      toast.success(`Copied ${label}`);
       setTimeout(() => setCopied(false), 1200);
     } catch {
       toast.error("Could not copy");
@@ -263,6 +190,8 @@ function TokenChip({ token }: { token: string }) {
 }
 
 export default function LeadhubAutopilotPanel({
+  open,
+  onClose,
   value,
   onChange,
   onSyncNow,
@@ -272,40 +201,64 @@ export default function LeadhubAutopilotPanel({
   syncStats,
   syncLinks,
 }: LeadhubAutopilotPanelProps) {
-  const [connected, setConnected] = useState(false);
   const [lists, setLists] = useState<LeadhubList[]>([]);
   const [categories, setCategories] = useState<LeadhubCategory[]>([]);
   const [tokens, setTokens] = useState<string[]>([]);
   const [loadingMeta, setLoadingMeta] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(true);
   const [tokensOpen, setTokensOpen] = useState(false);
 
   const enabled = Boolean(value?.enabled);
-  const personalizationMode = value?.personalizationMode ?? "template";
   const grouped = useMemo(() => groupTokens(tokens), [tokens]);
 
   useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
     (async () => {
       try {
-        const status = await getLeadhubStatus();
-        setConnected(status.isConfigured);
-        if (!status.isConfigured) return;
         setLoadingMeta(true);
         const [l, c, t] = await Promise.all([
           getLeadhubLists(),
           getLeadhubCategories(),
           getLeadhubPersonalizationTokens(),
         ]);
+        if (cancelled) return;
         setLists(l);
         setCategories(c);
         setTokens(t);
       } catch (err) {
         console.error(err);
+        if (!cancelled) {
+          toast.error("Failed to load LeadHub lists");
+        }
       } finally {
-        setLoadingMeta(false);
+        if (!cancelled) setLoadingMeta(false);
       }
     })();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  // Opening the import modal should surface filters — enable Autopilot if needed.
+  useEffect(() => {
+    if (!open || enabled) return;
+    onChange({
+      enabled: true,
+      source: "leadhub_autopilot",
+      enrichmentGate: "auto_enrich",
+      trustLeadhubVerification: true,
+      priorities: value?.priorities ?? ["hot", "warm"],
+      dailyIntakeCap: value?.dailyIntakeCap ?? 50,
+      listIds: value?.listIds,
+      categoryIds: value?.categoryIds,
+      minIntentScore: value?.minIntentScore,
+      minIcpScore: value?.minIcpScore,
+      icpProfileId: value?.icpProfileId,
+    });
+    // Only when opening without an enabled config
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const ensureConfig = (): LeadhubSyncConfig =>
     value ?? {
@@ -315,20 +268,7 @@ export default function LeadhubAutopilotPanel({
       trustLeadhubVerification: true,
       priorities: ["hot", "warm"],
       dailyIntakeCap: 50,
-      personalizationMode: "template",
     };
-
-  const toggleEnabled = (next: boolean) => {
-    if (!connected) {
-      toast.error("Connect LeadHub in Settings → Integrations first");
-      return;
-    }
-    if (!next) {
-      onChange(null);
-      return;
-    }
-    onChange({ ...ensureConfig(), enabled: true });
-  };
 
   const patch = (partial: Partial<LeadhubSyncConfig>) => {
     onChange({
@@ -347,69 +287,49 @@ export default function LeadhubAutopilotPanel({
     patch({ priorities: next });
   };
 
+  if (!open) return null;
+
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-blue-50/40 px-5 py-4">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
-            <Zap className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h4 className="text-sm font-semibold text-slate-900">
-                LeadHub Autopilot
-              </h4>
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                  connected
-                    ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                    : "bg-amber-50 text-amber-800 ring-1 ring-amber-200"
-                }`}
-              >
-                <Link2 className="h-2.5 w-2.5" />
-                {connected ? "Connected" : "Not connected"}
-              </span>
-            </div>
-            <p className="mt-1 text-xs leading-relaxed text-slate-500">
-              Continuously pull matching LeadHub leads. Enrichment runs in LeadHub
-              (~2–3 min). Verified LeadHub emails skip Reoon.
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          onClick={() => toggleEnabled(!enabled)}
-          className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
-            enabled ? "bg-blue-600" : "bg-slate-300"
-          }`}
+    <BodyPortal>
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]"
+        onClick={onClose}
+      >
+        <div
+          className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-[0_24px_64px_-16px_rgba(15,23,42,0.35)]"
+          role="dialog"
+          aria-labelledby="leadhub-import-title"
+          onClick={(e) => e.stopPropagation()}
         >
-          <span
-            className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
-              enabled ? "translate-x-5" : "translate-x-0"
-            }`}
-          />
-        </button>
-      </div>
-
-      <div className="space-y-4 p-5">
-        {!connected && (
-          <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900">
-            LeadHub is not connected.{" "}
-            <Link
-              href="/email/settings?tab=integrations"
-              className="font-semibold underline underline-offset-2"
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-blue-50/40 px-6 py-5">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm">
+                <Zap className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h2
+                  id="leadhub-import-title"
+                  className="text-lg font-semibold tracking-tight text-slate-900"
+                >
+                  Import from LeadHub
+                </h2>
+                <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                  Choose filters and sync matching LeadHub leads into this campaign.
+                  Enrichment runs in LeadHub (~2–3 min).
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Close"
             >
-              Settings → Integrations
-            </Link>{" "}
-            to add your service API key.
-          </p>
-        )}
+              <X className="h-5 w-5" />
+            </button>
+          </div>
 
-        {enabled && connected && (
-          <>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6">
             {loadingMeta && (
               <p className="flex items-center gap-2 text-xs text-slate-500">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -417,7 +337,6 @@ export default function LeadhubAutopilotPanel({
               </p>
             )}
 
-            {/* Lead intake */}
             <section className="space-y-3">
               <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Lead intake
@@ -536,56 +455,6 @@ export default function LeadhubAutopilotPanel({
               </div>
             </section>
 
-            {/* Email mode cards */}
-            <section className="space-y-2">
-              <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Email personalization
-              </h5>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => patch({ personalizationMode: "template" })}
-                  className={`rounded-xl border p-3.5 text-left transition ${
-                    personalizationMode === "template"
-                      ? "border-blue-400 bg-blue-50/80 ring-2 ring-blue-200"
-                      : "border-slate-200 bg-white hover:border-slate-300"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm font-semibold text-slate-900">
-                      Template
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
-                    Write sequence emails with {"{{tokens}}"} from LeadHub (hook,
-                    problem, CTA…).
-                  </p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => patch({ personalizationMode: "ai_agent" })}
-                  className={`rounded-xl border p-3.5 text-left transition ${
-                    personalizationMode === "ai_agent"
-                      ? "border-blue-400 bg-blue-50/80 ring-2 ring-blue-200"
-                      : "border-slate-200 bg-white hover:border-slate-300"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-violet-600" />
-                    <span className="text-sm font-semibold text-slate-900">
-                      LeadSniper agent
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
-                    LeadSniper agent writes a unique step-1 email per lead at
-                    send. Complete the agent brief in Sequence.
-                  </p>
-                </button>
-              </div>
-            </section>
-
-            {/* Advanced accordion */}
             <section className="rounded-xl border border-slate-200">
               <button
                 type="button"
@@ -671,7 +540,6 @@ export default function LeadhubAutopilotPanel({
               )}
             </section>
 
-            {/* Tokens */}
             {tokens.length > 0 && (
               <section className="rounded-xl border border-slate-200">
                 <button
@@ -721,42 +589,12 @@ export default function LeadhubAutopilotPanel({
               </section>
             )}
 
-            {/* Sync */}
             <SyncProgressBar
               syncing={syncing}
               enriching={enriching}
               syncPhase={syncPhase}
               syncStats={syncStats}
             />
-
-            {onSyncNow && (
-              <div className="flex items-center gap-3">
-                <Button
-                  type="button"
-                  size="sm"
-                  className="bg-blue-600 text-white hover:bg-blue-700"
-                  disabled={syncing || enriching}
-                  onClick={onSyncNow}
-                >
-                  {syncing ? (
-                    <>
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                      Syncing…
-                    </>
-                  ) : enriching ? (
-                    <>
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                      Enriching…
-                    </>
-                  ) : (
-                    "Sync now"
-                  )}
-                </Button>
-                <p className="text-[11px] text-slate-500">
-                  Imports matching leads into this campaign.
-                </p>
-              </div>
-            )}
 
             {syncLinks && syncLinks.length > 0 && (
               <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/60 p-3">
@@ -782,9 +620,37 @@ export default function LeadhubAutopilotPanel({
                 ))}
               </div>
             )}
-          </>
-        )}
+          </div>
+
+          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-6 py-4">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Close
+            </Button>
+            {onSyncNow && (
+              <Button
+                type="button"
+                className="bg-blue-600 text-white hover:bg-blue-700"
+                disabled={syncing || enriching}
+                onClick={onSyncNow}
+              >
+                {syncing ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    Syncing…
+                  </>
+                ) : enriching ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    Enriching…
+                  </>
+                ) : (
+                  "Sync now"
+                )}
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
-    </div>
+    </BodyPortal>
   );
 }
