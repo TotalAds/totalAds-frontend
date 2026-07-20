@@ -57,8 +57,8 @@ export default function MultiSelect({
     ? "hover:bg-brand-main/10"
     : "hover:bg-slate-50";
   const checkboxClass = isDark
-    ? "w-4 h-4 rounded border-white/20 text-brand-main focus:ring-blue-500"
-    : "w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500";
+    ? "h-4 w-4 rounded border-white/20 accent-brand-main focus:ring-blue-500"
+    : "h-4 w-4 rounded border-slate-300 accent-brand-main focus:ring-blue-500";
 
   const selectedOptions = options.filter((opt) => selectedIds.includes(opt.id));
   const filteredOptions = options.filter((opt) =>

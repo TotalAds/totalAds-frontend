@@ -74,6 +74,18 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Native checkboxes: blue fill, white check */
+  input[type="checkbox"] {
+    accent-color: hsl(var(--primary));
+  }
+
+  /* Radix/shadcn checkboxes: white checkmark on checked/indeterminate */
+  [role="checkbox"][data-state="checked"] svg,
+  [role="checkbox"][data-state="indeterminate"] svg {
+    color: #ffffff !important;
+    stroke: #ffffff !important;
+  }
 }
 
 /* Custom Scrollbar Styles - Professional Light Theme */
