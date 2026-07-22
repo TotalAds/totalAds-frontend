@@ -17,6 +17,7 @@ import LeadsTable, {
 } from "@/components/leads/LeadsTable";
 import { LeadVerificationModal } from "@/components/leads/LeadVerificationModal";
 import { BodyPortal } from "@/components/ui/BodyPortal";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useCanEdit, useIsViewer } from "@/context/WorkspaceContext";
 import WorkspaceRoleBanner from "@/components/workspace/WorkspaceRoleBanner";
 import emailClient, {
@@ -24,7 +25,7 @@ import emailClient, {
   ContactMetrics,
   getContactMetrics,
 } from "@/utils/api/emailClient";
-import { IconMail, IconPlus, IconX } from "@tabler/icons-react";
+import { IconMail, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 
 interface ListResponse {
   leads: LeadRow[];
@@ -76,6 +77,11 @@ export default function LeadsPage() {
   const [contactMetrics, setContactMetrics] = useState<ContactMetrics | null>(
     null
   );
+  const [pendingDeleteLeadId, setPendingDeleteLeadId] = useState<string | null>(
+    null
+  );
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const hasActiveFilters = hasActiveLeadFilters(filters);
 
@@ -206,16 +212,63 @@ export default function LeadsPage() {
     }
   };
 
-  const handleDelete = async (leadId: string) => {
-    if (!confirm("Are you sure you want to delete this lead?")) return;
+  const handleDelete = (leadId: string) => {
+    setPendingDeleteLeadId(leadId);
+  };
 
+  const confirmSingleDelete = async () => {
+    if (!pendingDeleteLeadId) return;
+
+    setIsDeleting(true);
     try {
-      await emailClient.delete(`/api/leads/${leadId}`);
+      await emailClient.delete(`/api/leads/${pendingDeleteLeadId}`);
       toast.success("Lead deleted successfully");
-      loadLeads();
+      setPendingDeleteLeadId(null);
+      setSelectedLeadsForCampaign((prev) => {
+        const next = new Set(prev);
+        next.delete(pendingDeleteLeadId);
+        return next;
+      });
+      await loadLeads();
     } catch (error) {
       console.error("Failed to delete lead:", error);
       toast.error("Failed to delete lead");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const confirmBulkDelete = async () => {
+    const leadIds = Array.from(selectedLeadsForCampaign);
+    if (leadIds.length === 0) return;
+
+    setIsDeleting(true);
+    try {
+      const results = await Promise.allSettled(
+        leadIds.map((leadId) => emailClient.delete(`/api/leads/${leadId}`))
+      );
+      const failed = results.filter((r) => r.status === "rejected").length;
+      const deleted = leadIds.length - failed;
+
+      if (deleted > 0) {
+        toast.success(
+          `Deleted ${deleted} lead${deleted !== 1 ? "s" : ""} successfully`
+        );
+      }
+      if (failed > 0) {
+        toast.error(
+          `Failed to delete ${failed} lead${failed !== 1 ? "s" : ""}`
+        );
+      }
+
+      setShowBulkDeleteConfirm(false);
+      setSelectedLeadsForCampaign(new Set());
+      await loadLeads();
+    } catch (error) {
+      console.error("Failed to delete leads:", error);
+      toast.error("Failed to delete selected leads");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -394,7 +447,17 @@ export default function LeadsPage() {
               filtered lead{selectedLeadsForCampaign.size !== 1 ? "s" : ""}{" "}
               selected on this page
             </div>
-            <div className="flex gap-3">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteConfirm(true)}
+                disabled={isDeleting}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 hover:text-rose-700 disabled:opacity-50"
+                title={`Delete ${selectedLeadsForCampaign.size} selected lead${selectedLeadsForCampaign.size !== 1 ? "s" : ""}`}
+                aria-label={`Delete ${selectedLeadsForCampaign.size} selected lead${selectedLeadsForCampaign.size !== 1 ? "s" : ""}`}
+              >
+                <IconTrash size={18} />
+              </button>
               <button
                 onClick={() => setShowStartCampaignModal(true)}
                 className="flex items-center gap-2 rounded-lg bg-brand-main px-4 py-2 font-semibold text-white transition-all duration-200 hover:bg-brand-main/80"
@@ -611,6 +674,34 @@ export default function LeadsPage() {
               }
             }
           }}
+        />
+
+        <ConfirmDialog
+          isOpen={!!pendingDeleteLeadId}
+          onClose={() => {
+            if (!isDeleting) setPendingDeleteLeadId(null);
+          }}
+          onConfirm={() => void confirmSingleDelete()}
+          title="Delete lead?"
+          message="Are you sure you want to delete this lead? This action cannot be undone."
+          confirmText="Delete"
+          cancelText="Cancel"
+          type="danger"
+          isLoading={isDeleting}
+        />
+
+        <ConfirmDialog
+          isOpen={showBulkDeleteConfirm}
+          onClose={() => {
+            if (!isDeleting) setShowBulkDeleteConfirm(false);
+          }}
+          onConfirm={() => void confirmBulkDelete()}
+          title="Delete selected leads?"
+          message={`Are you sure you want to delete ${selectedLeadsForCampaign.size} selected lead${selectedLeadsForCampaign.size !== 1 ? "s" : ""}? This action cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          type="danger"
+          isLoading={isDeleting}
         />
       </div>
     </div>
