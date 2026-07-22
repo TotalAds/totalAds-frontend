@@ -11,7 +11,7 @@ import {
 import {
   IconChevronLeft,
   IconChevronRight,
-  IconCode,
+  IconEye,
   IconGripVertical,
   IconMail,
   IconTrash,
@@ -803,9 +803,9 @@ export default function LeadsTable({
                           type="button"
                           onClick={() => onViewDetails?.(lead)}
                           className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-brand-main"
-                          title="View lead JSON"
+                          title="View lead details"
                         >
-                          <IconCode size={16} />
+                          <IconEye size={16} />
                         </button>
                         {canEdit && (
                           <>

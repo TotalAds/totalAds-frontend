@@ -44,8 +44,10 @@ import {
 import {
   LeadhubSyncConfig,
   LeadhubSyncLinkRow,
+  formatLeadhubSkipReasons,
   getCampaignLeadhubSyncLinks,
   getLeadhubStatus,
+  summarizeLeadhubSyncLinks,
   syncLeadhubCampaign,
 } from "@/utils/api/leadhubClient";
 import { INBOX_CAMPAIGN_DOMAIN_ID } from "@/lib/campaignDomain";
@@ -657,6 +659,22 @@ export function LeadsTab({
 
   const hasLeadhubImports = leadhubSyncLinks.length > 0;
 
+  const leadhubSummary = useMemo(
+    () => summarizeLeadhubSyncLinks(leadhubSyncLinks),
+    [leadhubSyncLinks]
+  );
+
+  const leadhubSkipReasons = useMemo(
+    () => formatLeadhubSkipReasons(leadhubSummary),
+    [leadhubSummary]
+  );
+
+  const leadhubExcludedCount =
+    leadhubSummary.skipped + leadhubSummary.failed + leadhubSummary.pendingEnrichment;
+
+  const leadhubInCampaignCount =
+    displayTotal > 0 ? displayTotal : leadhubSummary.addedToCampaign;
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* LeadHub — only when integration is connected */}
@@ -671,15 +689,33 @@ export function LeadsTab({
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white">
                 <Zap className="h-4 w-4" />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-emerald-900">
-                  Imported contact from LeadHub
+                  Imported from LeadHub
                 </p>
                 <p className="mt-0.5 text-xs text-emerald-800/80">
-                  {leadhubSyncLinks.length.toLocaleString()} LeadHub lead
-                  {leadhubSyncLinks.length !== 1 ? "s" : ""} linked · Click to
-                  sync more
+                  {leadhubSummary.imported.toLocaleString()} contact
+                  {leadhubSummary.imported !== 1 ? "s" : ""} synced from LeadHub
+                  {" · "}
+                  {leadhubInCampaignCount.toLocaleString()} added to this
+                  campaign
+                  {leadhubExcludedCount > 0 && (
+                    <>
+                      {" · "}
+                      {leadhubExcludedCount.toLocaleString()} not added
+                    </>
+                  )}
+                  {" · "}
+                  Click to sync more
                 </p>
+                {leadhubExcludedCount > 0 && leadhubSkipReasons && (
+                  <p className="mt-1 text-xs text-emerald-900/70">
+                    Not added: {leadhubSkipReasons}
+                    {leadhubSummary.pendingEnrichment > 0
+                      ? " — these may appear after enrichment finishes"
+                      : ""}
+                  </p>
+                )}
               </div>
             </button>
           ) : (
@@ -758,6 +794,20 @@ export function LeadsTab({
             {displayTotal > 0
               ? `${displayTotal.toLocaleString()} lead${displayTotal !== 1 ? "s" : ""} in this campaign`
               : "No leads added yet"}
+            {hasLeadhubImports && leadhubSummary.imported > displayTotal && (
+              <span className="text-slate-400">
+                {" "}
+                · from {leadhubSummary.imported.toLocaleString()} LeadHub contact
+                {leadhubSummary.imported !== 1 ? "s" : ""}
+                {leadhubExcludedCount > 0 && (
+                  <>
+                    {" "}
+                    ({leadhubExcludedCount.toLocaleString()} not added
+                    {leadhubSkipReasons ? `: ${leadhubSkipReasons}` : ""})
+                  </>
+                )}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">

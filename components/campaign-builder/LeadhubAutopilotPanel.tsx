@@ -151,6 +151,15 @@ function SyncProgressBar({
         <p className="text-[11px] text-slate-600">
           {syncStats.ready} ready · {syncStats.pendingEnrichment} enriching ·{" "}
           {syncStats.queued} queued · {syncStats.skipped} skipped
+          {(syncStats.skippedNoEmail ?? 0) > 0
+            ? ` (${syncStats.skippedNoEmail} no valid email)`
+            : ""}
+          {(syncStats.skippedVerification ?? 0) > 0
+            ? ` (${syncStats.skippedVerification} verification)`
+            : ""}
+          {(syncStats.skippedEnrichedOnly ?? 0) > 0
+            ? ` (${syncStats.skippedEnrichedOnly} not enriched)`
+            : ""}
           {(syncStats.failed ?? 0) > 0 ? ` · ${syncStats.failed} failed` : ""}
         </p>
       )}

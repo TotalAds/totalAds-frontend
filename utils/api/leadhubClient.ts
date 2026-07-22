@@ -108,6 +108,124 @@ export interface LeadhubSyncLinkRow {
   updatedAt: string;
 }
 
+export interface LeadhubSyncSummary {
+  imported: number;
+  addedToCampaign: number;
+  skipped: number;
+  skippedNoEmail: number;
+  skippedVerification: number;
+  skippedEnrichedOnly: number;
+  skippedOther: number;
+  pendingEnrichment: number;
+  failed: number;
+  notInCampaign: number;
+}
+
+const ADDED_SYNC_STATUSES = new Set(["ready", "queued", "synced"]);
+
+export function summarizeLeadhubSyncLinks(
+  links: LeadhubSyncLinkRow[]
+): LeadhubSyncSummary {
+  let addedToCampaign = 0;
+  let skippedNoEmail = 0;
+  let skippedVerification = 0;
+  let skippedEnrichedOnly = 0;
+  let skippedOther = 0;
+  let pendingEnrichment = 0;
+  let failed = 0;
+
+  for (const link of links) {
+    const status = link.syncStatus;
+    const err = (link.lastError || "").toLowerCase();
+
+    if (ADDED_SYNC_STATUSES.has(status)) {
+      addedToCampaign += 1;
+      continue;
+    }
+
+    if (status === "pending_enrichment") {
+      pendingEnrichment += 1;
+      continue;
+    }
+
+    if (status === "failed") {
+      failed += 1;
+      continue;
+    }
+
+    if (status === "skipped") {
+      if (err.includes("no email") || err.includes("no valid email")) {
+        skippedNoEmail += 1;
+      } else if (
+        err.includes("not safe") ||
+        err.includes("verification") ||
+        err.includes("invalid")
+      ) {
+        skippedVerification += 1;
+      } else if (err.includes("not enriched") || err.includes("enriched_only")) {
+        skippedEnrichedOnly += 1;
+      } else {
+        skippedOther += 1;
+      }
+    }
+  }
+
+  const skipped =
+    skippedNoEmail + skippedVerification + skippedEnrichedOnly + skippedOther;
+  const imported = links.length;
+  const notInCampaign = Math.max(
+    0,
+    imported - addedToCampaign - pendingEnrichment
+  );
+
+  return {
+    imported,
+    addedToCampaign,
+    skipped,
+    skippedNoEmail,
+    skippedVerification,
+    skippedEnrichedOnly,
+    skippedOther,
+    pendingEnrichment,
+    failed,
+    notInCampaign,
+  };
+}
+
+export function formatLeadhubSkipReasons(summary: LeadhubSyncSummary): string {
+  const parts: string[] = [];
+
+  if (summary.skippedNoEmail > 0) {
+    parts.push(
+      `${summary.skippedNoEmail} missing or invalid email${
+        summary.skippedNoEmail !== 1 ? "s" : ""
+      }`
+    );
+  }
+  if (summary.skippedVerification > 0) {
+    parts.push(
+      `${summary.skippedVerification} failed verification${
+        summary.skippedVerification !== 1 ? " checks" : " check"
+      }`
+    );
+  }
+  if (summary.skippedEnrichedOnly > 0) {
+    parts.push(
+      `${summary.skippedEnrichedOnly} not enriched yet${
+        summary.skippedEnrichedOnly !== 1 ? "" : ""
+      }`
+    );
+  }
+  if (summary.skippedOther > 0) {
+    parts.push(`${summary.skippedOther} other`);
+  }
+  if (summary.failed > 0) {
+    parts.push(`${summary.failed} failed to import`);
+  }
+
+  return parts.join(" · ");
+}
+
 export const getCampaignLeadhubSyncLinks = async (
   campaignId: string | number
 ): Promise<LeadhubSyncLinkRow[]> => {
