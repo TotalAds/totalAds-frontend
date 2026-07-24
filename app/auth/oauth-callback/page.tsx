@@ -53,7 +53,7 @@ export default function OAuthCallbackPage() {
           throw new Error("Missing OAuth parameters");
         }
 
-        if (!["gmail", "outlook", "zoho"].includes(provider)) {
+        if (!["gmail", "outlook", "zoho", "google_sheets"].includes(provider)) {
           throw new Error("Invalid provider");
         }
 
@@ -71,6 +71,21 @@ export default function OAuthCallbackPage() {
             return;
           }
           sessionStorage.setItem(dedupeKey, "1");
+        }
+
+        if (oauthContext === "google_sheets" || provider === "google_sheets") {
+          const { completeGoogleSheetsOAuth } = await import(
+            "@/utils/api/sheetsClient"
+          );
+          await completeGoogleSheetsOAuth({ code, state });
+
+          toast.success("Google Sheets connected successfully!");
+          const returnPath =
+            typeof decodedState?.returnPath === "string" && decodedState.returnPath
+              ? decodedState.returnPath
+              : "/email/campaigns";
+          router.push(returnPath);
+          return;
         }
 
         const payload: Record<string, unknown> = { code, state };

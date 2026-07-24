@@ -12,6 +12,7 @@ import {
   Plus,
   Save,
   Search,
+  Send,
   Sparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -42,7 +43,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import emailClient from "@/utils/api/emailClient";
+import emailClient, {
+  getCampaignById,
+  getEmailServiceErrorMessage,
+  sendTestEmail,
+} from "@/utils/api/emailClient";
 
 import DesignEditor from "./DesignEditor";
 import EmailTemplatePickerModal from "./EmailTemplatePickerModal";
@@ -55,7 +60,9 @@ import HtmlEditorWithPreview from "./HtmlEditorWithPreview";
 import {
   PREVIEW_SAMPLE_LEADS,
   buildCompositeLeadForPreview,
+  extractUsedMergeVariables,
   mergeVariableLists,
+  normalizeMergeFieldKey,
   resolveMergeTagsAndSpintax,
   wrapEmailPreviewDocument,
 } from "./htmlPreviewUtils";
@@ -68,6 +75,26 @@ export type { BodyEditorMode } from "./emailTemplateTypes";
 const SHOW_EMAIL_TEMPLATE_CONTROLS = false;
 
 type RightPanel = "simple" | "html";
+
+type TestSenderOption = {
+  id: string;
+  email: string;
+  displayName?: string | null;
+  provider?: string;
+};
+
+function sampleValueForVariable(
+  field: string,
+  samples: Record<string, string> | undefined
+): string {
+  if (!samples) return "";
+  if (samples[field] != null && samples[field] !== "") return samples[field];
+  const nk = normalizeMergeFieldKey(field);
+  for (const [key, value] of Object.entries(samples)) {
+    if (normalizeMergeFieldKey(key) === nk && value) return value;
+  }
+  return "";
+}
 
 function formatPreviewRecipientLine(lead: Record<string, string>): string {
   const email = lead.email || "preview@example.com";
@@ -106,6 +133,8 @@ export interface CreateEmailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   domainId: string;
+  /** Campaign id used for sending test emails from the composer. */
+  campaignId?: string | null;
   excludeCampaignId?: string | null;
   /** Merge tags from CSV columns + built-ins are merged automatically */
   availableVariables: string[];
@@ -136,6 +165,7 @@ export default function CreateEmailModal({
   open,
   onOpenChange,
   domainId,
+  campaignId,
   excludeCampaignId,
   availableVariables,
   tokenSampleValues,
@@ -161,6 +191,16 @@ export default function CreateEmailModal({
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [inboxPreviewOpen, setInboxPreviewOpen] = useState(false);
   const [inboxPreviewLeadIndex, setInboxPreviewLeadIndex] = useState(0);
+
+  const [sendTestOpen, setSendTestOpen] = useState(false);
+  const [testEmailTo, setTestEmailTo] = useState("");
+  const [testSenderId, setTestSenderId] = useState("");
+  const [testSenders, setTestSenders] = useState<TestSenderOption[]>([]);
+  const [loadingTestSenders, setLoadingTestSenders] = useState(false);
+  const [testVariableValues, setTestVariableValues] = useState<
+    Record<string, string>
+  >({});
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
 
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [saveTemplateName, setSaveTemplateName] = useState("");
@@ -351,6 +391,144 @@ export default function CreateEmailModal({
     }),
     [draftSubject, draftPreviewText, draftHtml, inboxPreviewLead, inboxPreviewLeadIndex]
   );
+
+  const effectiveCampaignId = campaignId || excludeCampaignId || null;
+
+  const usedTestVariables = useMemo(
+    () =>
+      extractUsedMergeVariables(draftSubject, draftPreviewText, draftHtml || ""),
+    [draftSubject, draftPreviewText, draftHtml]
+  );
+
+  const openSendTestModal = useCallback(async () => {
+    if (!effectiveCampaignId) {
+      toast.error("Save the campaign before sending a test email");
+      return;
+    }
+    if (!draftSubject.trim() || !(draftHtml || "").trim()) {
+      toast.error("Add a subject and email body before sending a test");
+      return;
+    }
+
+    const defaults = {
+      ...(tokenSampleValues || {}),
+      ...buildCompositeLeadForPreview(0, mergeTags),
+    };
+    const nextValues: Record<string, string> = {};
+    for (const field of extractUsedMergeVariables(
+      draftSubject,
+      draftPreviewText,
+      draftHtml || ""
+    )) {
+      nextValues[field] = sampleValueForVariable(field, defaults);
+    }
+    setTestVariableValues(nextValues);
+    setSendTestOpen(true);
+    setLoadingTestSenders(true);
+
+    try {
+      const [sendersRes, campaign] = await Promise.all([
+        emailClient.get("/api/email-senders", { params: { page: 1, limit: 100 } }),
+        getCampaignById(domainId, effectiveCampaignId).catch(() => null),
+      ]);
+      const all: Array<
+        TestSenderOption & { verificationStatus?: string; status?: string }
+      > = sendersRes.data?.data?.senders || [];
+      const list = all
+        .filter(
+          (s) => s.status !== "error" && s.verificationStatus === "verified"
+        )
+        .map((s) => ({
+          id: String(s.id),
+          email: s.email,
+          displayName: s.displayName,
+          provider: s.provider,
+        }));
+      setTestSenders(list);
+
+      const campaignSenderId =
+        campaign?.senderId && String(campaign.senderId) !== "0"
+          ? String(campaign.senderId)
+          : "";
+      const senderConfigIds = campaign?.senderConfig?.senderIds?.map(String);
+      const preferred =
+        (campaignSenderId && list.some((s) => s.id === campaignSenderId)
+          ? campaignSenderId
+          : null) ||
+        senderConfigIds?.find((id) => list.some((s) => s.id === id)) ||
+        list[0]?.id ||
+        "";
+      setTestSenderId(preferred);
+    } catch (error: unknown) {
+      toast.error(
+        getEmailServiceErrorMessage(error, "Failed to load senders for test email")
+      );
+      setTestSenders([]);
+      setTestSenderId("");
+    } finally {
+      setLoadingTestSenders(false);
+    }
+  }, [
+    effectiveCampaignId,
+    draftSubject,
+    draftPreviewText,
+    draftHtml,
+    tokenSampleValues,
+    mergeTags,
+    domainId,
+  ]);
+
+  const handleSendTestEmail = useCallback(async () => {
+    if (!effectiveCampaignId) {
+      toast.error("Save the campaign before sending a test email");
+      return;
+    }
+    const to = testEmailTo.trim();
+    if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      toast.error("Enter a valid test email address");
+      return;
+    }
+    if (!testSenderId) {
+      toast.error("Select a sender to send the test from");
+      return;
+    }
+    if (!draftSubject.trim() || !(draftHtml || "").trim()) {
+      toast.error("Add a subject and email body before sending a test");
+      return;
+    }
+
+    setSendingTestEmail(true);
+    try {
+      const variables: Record<string, string> = {};
+      for (const field of usedTestVariables) {
+        variables[field] = (testVariableValues[field] || "").trim();
+      }
+      const result = await sendTestEmail(domainId, effectiveCampaignId, {
+        testEmail: to,
+        senderId: testSenderId,
+        variables,
+        templateSubject: draftSubject,
+        templateBody: draftHtml,
+        templatePreviewText: draftPreviewText || undefined,
+      });
+      toast.success(result?.message || `Test email sent to ${to}`);
+      setSendTestOpen(false);
+    } catch (error: unknown) {
+      toast.error(getEmailServiceErrorMessage(error, "Failed to send test email"));
+    } finally {
+      setSendingTestEmail(false);
+    }
+  }, [
+    effectiveCampaignId,
+    testEmailTo,
+    testSenderId,
+    draftSubject,
+    draftHtml,
+    draftPreviewText,
+    usedTestVariables,
+    testVariableValues,
+    domainId,
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -1034,6 +1212,18 @@ export default function CreateEmailModal({
           <Eye className="h-3.5 w-3.5" />
           Preview
         </Button>
+        {effectiveCampaignId ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            onClick={() => void openSendTestModal()}
+          >
+            <Send className="h-3.5 w-3.5" />
+            Send test
+          </Button>
+        ) : null}
         <Button type="button" size="sm" className="bg-brand-main px-4" onClick={handleApplyToCampaign}>
           Apply to campaign
         </Button>
@@ -1206,6 +1396,133 @@ export default function CreateEmailModal({
               onClick={() => setInboxPreviewOpen(false)}
             >
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={sendTestOpen}
+        onOpenChange={(next) => {
+          if (sendingTestEmail) return;
+          setSendTestOpen(next);
+        }}
+      >
+        <DialogContent className="max-h-[min(90vh,720px)] w-[min(100vw-1.25rem,32rem)] max-w-lg overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5 text-brand-main" />
+              Send test email
+            </DialogTitle>
+            <DialogDescription>
+              Send this draft to your inbox with sample personalization values so
+              you can check how it looks.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            <div className="space-y-2">
+              <Label htmlFor="test-email-to">Send sample to</Label>
+              <Input
+                id="test-email-to"
+                type="email"
+                autoComplete="email"
+                placeholder="you@company.com"
+                value={testEmailTo}
+                onChange={(e) => setTestEmailTo(e.target.value)}
+                className="bg-bg-100"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>From sender</Label>
+              {loadingTestSenders ? (
+                <p className="text-xs text-slate-500">Loading senders…</p>
+              ) : testSenders.length === 0 ? (
+                <p className="text-xs text-amber-700">
+                  No verified senders found. Connect a sender in Sending Accounts
+                  first.
+                </p>
+              ) : (
+                <Select value={testSenderId} onValueChange={setTestSenderId}>
+                  <SelectTrigger className="bg-bg-100">
+                    <SelectValue placeholder="Select sender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {testSenders.map((sender) => (
+                      <SelectItem key={sender.id} value={sender.id}>
+                        {sender.displayName
+                          ? `${sender.displayName} <${sender.email}>`
+                          : sender.email}
+                        {sender.provider ? ` · ${sender.provider}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {usedTestVariables.length > 0 ? (
+              <div className="space-y-2">
+                <Label>Sample values for variables</Label>
+                <p className="text-[11px] text-slate-500">
+                  These replace {"{{variables}}"} in the subject and body for this
+                  test only.
+                </p>
+                <div className="max-h-56 space-y-2.5 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  {usedTestVariables.map((field) => (
+                    <div key={field} className="space-y-1">
+                      <Label
+                        htmlFor={`test-var-${field}`}
+                        className="font-mono text-[11px] text-slate-600"
+                      >
+                        {`{{${field}}}`}
+                      </Label>
+                      <Input
+                        id={`test-var-${field}`}
+                        value={testVariableValues[field] || ""}
+                        onChange={(e) =>
+                          setTestVariableValues((prev) => ({
+                            ...prev,
+                            [field]: e.target.value,
+                          }))
+                        }
+                        placeholder={`Sample for ${field}`}
+                        className="h-9 bg-white text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                No personalization variables in this email — the test will send
+                the draft as written.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={sendingTestEmail}
+              onClick={() => setSendTestOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-brand-main"
+              disabled={
+                sendingTestEmail ||
+                loadingTestSenders ||
+                !testSenderId ||
+                testSenders.length === 0
+              }
+              onClick={() => void handleSendTestEmail()}
+            >
+              {sendingTestEmail ? "Sending…" : "Send test"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -31,6 +31,8 @@ interface LeadhubAutopilotPanelProps {
   onSyncNow?: () => void;
   syncing?: boolean;
   enriching?: boolean;
+  /** When true, auto-sync runs every 12h; Sync now is still available. */
+  isContinuous?: boolean;
   syncPhase?: "idle" | "fetching" | "enriching" | "complete" | "error";
   syncStats?: {
     processed: number;
@@ -101,7 +103,6 @@ function SyncProgressBar({
 }) {
   const phases = [
     { id: "fetching", label: "Fetching" },
-    { id: "enriching", label: "Enriching" },
     { id: "ready", label: "Ready" },
     { id: "queued", label: "Queued" },
   ] as const;
@@ -109,17 +110,14 @@ function SyncProgressBar({
   const activePhase =
     syncPhase === "fetching"
       ? "fetching"
-      : syncPhase === "enriching" || enriching
-        ? "enriching"
-        : syncPhase === "complete" && syncStats
-          ? syncStats.queued > 0
-            ? "queued"
-            : "ready"
-          : null;
+      : syncPhase === "complete" && syncStats
+        ? syncStats.queued > 0
+          ? "queued"
+          : "ready"
+        : null;
 
   const total =
     (syncStats?.ready ?? 0) +
-    (syncStats?.pendingEnrichment ?? 0) +
     (syncStats?.queued ?? 0) +
     (syncStats?.skipped ?? 0);
 
@@ -149,8 +147,8 @@ function SyncProgressBar({
       </div>
       {syncStats && total > 0 && (
         <p className="text-[11px] text-slate-600">
-          {syncStats.ready} ready · {syncStats.pendingEnrichment} enriching ·{" "}
-          {syncStats.queued} queued · {syncStats.skipped} skipped
+          {syncStats.ready} ready · {syncStats.queued} queued ·{" "}
+          {syncStats.skipped} skipped
           {(syncStats.skippedNoEmail ?? 0) > 0
             ? ` (${syncStats.skippedNoEmail} no valid email)`
             : ""}
@@ -158,7 +156,7 @@ function SyncProgressBar({
             ? ` (${syncStats.skippedVerification} verification)`
             : ""}
           {(syncStats.skippedEnrichedOnly ?? 0) > 0
-            ? ` (${syncStats.skippedEnrichedOnly} not enriched)`
+            ? ` (${syncStats.skippedEnrichedOnly} filter skipped)`
             : ""}
           {(syncStats.failed ?? 0) > 0 ? ` · ${syncStats.failed} failed` : ""}
         </p>
@@ -206,6 +204,7 @@ export default function LeadhubAutopilotPanel({
   onSyncNow,
   syncing,
   enriching,
+  isContinuous = false,
   syncPhase = "idle",
   syncStats,
   syncLinks,
@@ -214,7 +213,6 @@ export default function LeadhubAutopilotPanel({
   const [categories, setCategories] = useState<LeadhubCategory[]>([]);
   const [tokens, setTokens] = useState<string[]>([]);
   const [loadingMeta, setLoadingMeta] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(true);
   const [tokensOpen, setTokensOpen] = useState(false);
 
   const enabled = Boolean(value?.enabled);
@@ -255,10 +253,8 @@ export default function LeadhubAutopilotPanel({
     onChange({
       enabled: true,
       source: "leadhub_autopilot",
-      enrichmentGate: "auto_enrich",
-      trustLeadhubVerification: true,
+      enrichmentGate: "import_both",
       priorities: value?.priorities ?? ["hot", "warm"],
-      dailyIntakeCap: value?.dailyIntakeCap ?? 50,
       listIds: value?.listIds,
       categoryIds: value?.categoryIds,
       minIntentScore: value?.minIntentScore,
@@ -273,10 +269,8 @@ export default function LeadhubAutopilotPanel({
     value ?? {
       enabled: true,
       source: "leadhub_autopilot",
-      enrichmentGate: "auto_enrich",
-      trustLeadhubVerification: true,
+      enrichmentGate: "import_both",
       priorities: ["hot", "warm"],
-      dailyIntakeCap: 50,
     };
 
   const patch = (partial: Partial<LeadhubSyncConfig>) => {
@@ -324,7 +318,9 @@ export default function LeadhubAutopilotPanel({
                 </h2>
                 <p className="mt-1 text-sm leading-relaxed text-slate-600">
                   Choose filters and sync matching LeadHub leads into this campaign.
-                  Enrichment runs in LeadHub (~2–3 min).
+                  {isContinuous
+                    ? " Continuous campaigns also auto-sync every 12 hours."
+                    : " Sync runs only when you click Sync now."}
                 </p>
               </div>
             </div>
@@ -339,6 +335,18 @@ export default function LeadhubAutopilotPanel({
           </div>
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6">
+            <div
+              className={`rounded-lg border px-3 py-2 text-xs ${
+                isContinuous
+                  ? "border-blue-200 bg-blue-50 text-blue-800"
+                  : "border-slate-200 bg-slate-50 text-slate-600"
+              }`}
+            >
+              {isContinuous
+                ? "Continuous mode: LeadHub auto-syncs every 12 hours. You can still sync manually anytime."
+                : "Standard mode: LeadHub does not auto-sync. Use Sync now to pull matching leads."}
+            </div>
+
             {loadingMeta && (
               <p className="flex items-center gap-2 text-xs text-slate-500">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -464,91 +472,6 @@ export default function LeadhubAutopilotPanel({
               </div>
             </section>
 
-            <section className="rounded-xl border border-slate-200">
-              <button
-                type="button"
-                onClick={() => setAdvancedOpen((o) => !o)}
-                className="flex w-full items-center justify-between px-3.5 py-2.5 text-left"
-              >
-                <span className="text-xs font-semibold text-slate-800">
-                  Advanced options
-                </span>
-                {advancedOpen ? (
-                  <ChevronUp className="h-4 w-4 text-slate-400" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
-                )}
-              </button>
-              {advancedOpen && (
-                <div className="space-y-3 border-t border-slate-100 px-3.5 py-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-700">
-                      If not enriched
-                    </label>
-                    <select
-                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                      value={value?.enrichmentGate ?? "auto_enrich"}
-                      onChange={(e) =>
-                        patch({
-                          enrichmentGate: e.target.value as
-                            | "auto_enrich"
-                            | "enriched_only",
-                        })
-                      }
-                    >
-                      <option value="auto_enrich">
-                        Auto-enrich in LeadHub, then send
-                      </option>
-                      <option value="enriched_only">
-                        Only already-enriched leads
-                      </option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-700">
-                      Daily intake cap
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={500}
-                      value={value?.dailyIntakeCap ?? 50}
-                      onChange={(e) =>
-                        patch({
-                          dailyIntakeCap: e.target.value
-                            ? Number(e.target.value)
-                            : 50,
-                        })
-                      }
-                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                    />
-                    <p className="mt-1 text-[10px] text-slate-500">
-                      Max new leads ingested per sync tick (default 50).
-                    </p>
-                  </div>
-                  <label className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 rounded border-slate-300"
-                      checked={value?.trustLeadhubVerification !== false}
-                      onChange={(e) =>
-                        patch({ trustLeadhubVerification: e.target.checked })
-                      }
-                    />
-                    <span>
-                      <span className="block text-xs font-medium text-slate-800">
-                        Trust LeadHub verification
-                      </span>
-                      <span className="mt-0.5 block text-[11px] text-slate-500">
-                        Skip Reoon for emails already verified in LeadHub
-                        (recommended).
-                      </span>
-                    </span>
-                  </label>
-                </div>
-              )}
-            </section>
-
             {tokens.length > 0 && (
               <section className="rounded-xl border border-slate-200">
                 <button
@@ -646,11 +569,6 @@ export default function LeadhubAutopilotPanel({
                   <>
                     <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                     Syncing…
-                  </>
-                ) : enriching ? (
-                  <>
-                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    Enriching…
                   </>
                 ) : (
                   "Sync now"

@@ -21,8 +21,14 @@ export interface LeadhubSyncConfig {
   minIntentScore?: number;
   minIcpScore?: number;
   icpProfileId?: string;
-  enrichmentGate?: "auto_enrich" | "enriched_only";
+  enrichmentGate?:
+    | "import_both"
+    | "enriched_only"
+    | "unenriched_only"
+    | "auto_enrich";
+  /** @deprecated Unused */
   dailyIntakeCap?: number;
+  /** @deprecated Unused */
   trustLeadhubVerification?: boolean;
 }
 
@@ -97,6 +103,25 @@ export const syncLeadhubCampaign = async (
   return response.data?.data ?? response.data;
 };
 
+export interface LeadhubPreviewCounts {
+  total: number;
+  enrichedCount: number;
+  unenrichedCount: number;
+}
+
+export const previewLeadhubSync = async (
+  campaignId: string | number
+): Promise<LeadhubPreviewCounts> => {
+  const response = await emailClient.post("/api/leadhub/preview", { campaignId });
+  return (
+    response.data?.data ?? {
+      total: 0,
+      enrichedCount: 0,
+      unenrichedCount: 0,
+    }
+  );
+};
+
 export interface LeadhubSyncLinkRow {
   leadhubLeadId: string;
   email: string | null;
@@ -162,6 +187,8 @@ export function summarizeLeadhubSyncLinks(
         err.includes("invalid")
       ) {
         skippedVerification += 1;
+      } else if (err.includes("unenriched_only") || err.includes("already enriched")) {
+        skippedOther += 1;
       } else if (err.includes("not enriched") || err.includes("enriched_only")) {
         skippedEnrichedOnly += 1;
       } else {

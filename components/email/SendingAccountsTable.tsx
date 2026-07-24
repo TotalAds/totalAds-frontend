@@ -5,13 +5,7 @@ import Link from "next/link";
 import { SenderTrustIndicators } from "@/components/email/SenderTrustIndicators";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -80,7 +74,7 @@ function SenderAvatar({
   return (
     <div
       className={cn(
-        "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-sm font-semibold",
+        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
         PROVIDER_AVATAR[provider] ?? PROVIDER_AVATAR.smtp
       )}
     >
@@ -91,7 +85,10 @@ function SenderAvatar({
 
 function StatusBadge({ status }: { status: SendingAccount["status"] }) {
   return (
-    <Badge variant="outline" className={cn("shrink-0", STATUS_STYLES[status])}>
+    <Badge
+      variant="outline"
+      className={cn("h-5 shrink-0 px-1.5 text-[10px] font-medium", STATUS_STYLES[status])}
+    >
       {STATUS_LABEL[status]}
     </Badge>
   );
@@ -109,24 +106,18 @@ function DailySendMeter({
   const nearCap = pct >= 80;
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            Sent today
-          </p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-slate-900">
-            {sendsToday}
-            <span className="ml-1 text-sm font-normal text-slate-500">
-              / {dailyLimit}
-            </span>
-          </p>
-        </div>
-        <p className="text-xs text-slate-500">
-          {remaining} left today
+    <div className="min-w-[7.5rem]">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+          Sent today
         </p>
+        <p className="text-[10px] text-slate-500">{remaining} left</p>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+      <p className="mt-0.5 text-sm font-semibold tabular-nums leading-none text-slate-900">
+        {sendsToday}
+        <span className="ml-0.5 text-xs font-normal text-slate-500">/ {dailyLimit}</span>
+      </p>
+      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-100">
         <div
           className={cn(
             "h-full rounded-full transition-all",
@@ -150,27 +141,27 @@ function AccountActions({
 }) {
   if (account.provider === "ses") {
     return (
-      <Button variant="outline" size="sm" className="h-9 gap-1.5" asChild>
+      <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" asChild>
         <Link href="/email/domains">
-          <IconExternalLink className="h-4 w-4" />
-          Manage in Domains
+          <IconExternalLink className="h-3.5 w-3.5" />
+          Domains
         </Link>
       </Button>
     );
   }
 
   return (
-    <div className="flex items-center gap-1.5">
-      <Button variant="outline" size="sm" className="h-9 gap-1.5" asChild>
+    <div className="flex items-center gap-1">
+      <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" asChild>
         <Link href={`/email/sending-accounts/${account.id}/settings`}>
-          <IconSettings className="h-4 w-4" />
+          <IconSettings className="h-3.5 w-3.5" />
           Settings
         </Link>
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="icon" className="h-9 w-9 shrink-0">
-            <IconDots className="h-4 w-4" />
+          <Button variant="outline" size="icon" className="h-7 w-7 shrink-0">
+            <IconDots className="h-3.5 w-3.5" />
             <span className="sr-only">More actions</span>
           </Button>
         </DropdownMenuTrigger>
@@ -225,35 +216,44 @@ function SendingAccountCard({
     (!account.domainAuth.spf ||
       !account.domainAuth.dkim ||
       !account.domainAuth.dmarc);
+  const senderName = account.displayName?.trim() || "No sender name set";
+
+  const fromPreview = formatSenderFromPreview(account.email, account.displayName);
 
   return (
-    <Card className="border-slate-200 bg-white shadow-sm">
-      <CardContent className="p-0">
-        <div className="flex flex-col gap-4 p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex min-w-0 gap-3">
-              <SenderAvatar provider={account.provider} email={account.email} />
-              <div className="min-w-0 space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="truncate text-base font-semibold text-slate-900">
-                    {account.displayName?.trim() || "No sender name set"}
-                  </h3>
-                  <StatusBadge status={account.status} />
-                </div>
-                <p className="truncate text-sm text-slate-600">{account.email}</p>
-                <p className="truncate font-mono text-xs text-slate-400">
-                  Recipients see:{" "}
-                  {formatSenderFromPreview(account.email, account.displayName)}
-                </p>
+    <div className="rounded-md border border-slate-200 bg-white px-3 py-2 shadow-sm">
+      <div className="flex items-start gap-2.5">
+        <SenderAvatar provider={account.provider} email={account.email} />
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <h3
+                  className="truncate text-sm font-semibold text-slate-900"
+                  title={fromPreview}
+                >
+                  {account.email}
+                </h3>
+                <StatusBadge status={account.status} />
                 {typeLabel && (
                   <Badge
                     variant="outline"
-                    className="mt-1 border-slate-200 bg-slate-50 text-xs font-medium text-slate-600"
+                    className="h-5 border-slate-200 bg-slate-50 px-1.5 text-[10px] font-medium text-slate-600"
                   >
                     {typeLabel}
                   </Badge>
                 )}
               </div>
+              <p className="mt-0.5 truncate text-xs text-slate-500">
+                <span className="font-medium text-slate-700">{senderName}</span>
+                <span className="mx-1 text-slate-300">·</span>
+                <span>{providerDisplayName(account.provider)}</span>
+                <span className="mx-1 text-slate-300">·</span>
+                <span className="text-slate-400">
+                  {providerConnectionLabel(account.provider, account.email)}
+                </span>
+              </p>
             </div>
             <AccountActions
               account={account}
@@ -262,60 +262,31 @@ function SendingAccountCard({
             />
           </div>
 
-          {usageWarning && (
-            <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-              <IconAlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-              <p className="text-sm leading-relaxed text-amber-900">
-                {usageWarning}
-              </p>
-            </div>
-          )}
-
-          {account.pauseReason && (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
-              {account.pauseReason}
-            </p>
-          )}
-
-          <div className="grid gap-4 border-t border-slate-100 pt-4 md:grid-cols-3">
-            <div className="space-y-1">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Connection
-              </p>
-              <p className="font-medium text-slate-900">
-                {providerDisplayName(account.provider)}
-              </p>
-              <p className="text-sm leading-snug text-slate-500">
-                {providerConnectionLabel(account.provider, account.email)}
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Trust & authentication
-              </p>
+          <div className="mt-1.5 flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0 flex-1">
               <SenderTrustIndicators
                 senderCategory={account.senderCategory}
                 reputation={account.reputation}
                 domainAuth={account.domainAuth}
+                compact
                 onDomainAuthSetupClick={
                   needsDnsSetup ? () => onDnsSetup(account) : undefined
                 }
               />
             </div>
 
-            <div className="space-y-3">
+            <div className="flex shrink-0 flex-wrap items-end gap-4 sm:gap-5">
               <DailySendMeter
                 sendsToday={account.sendsToday}
                 dailyLimit={dailyLimit}
               />
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Bounce rate
+              <div className="min-w-[4.25rem]">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                  Bounce
                 </p>
                 <p
                   className={cn(
-                    "mt-0.5 text-lg font-semibold tabular-nums",
+                    "mt-0.5 text-sm font-semibold tabular-nums leading-none",
                     bounceStyles(account.bounceRate, account.status)
                   )}
                 >
@@ -324,9 +295,22 @@ function SendingAccountCard({
               </div>
             </div>
           </div>
+
+          {usageWarning && (
+            <div className="mt-1.5 flex gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1">
+              <IconAlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+              <p className="text-[11px] leading-snug text-amber-900">{usageWarning}</p>
+            </div>
+          )}
+
+          {account.pauseReason && (
+            <p className="mt-1.5 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[11px] text-red-700">
+              {account.pauseReason}
+            </p>
+          )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -381,9 +365,9 @@ export function SendingAccountsTable({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm">
-        <p className="text-sm text-slate-600">
+    <div className="space-y-3">
+      <div className="rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm">
+        <p className="text-xs text-slate-600 sm:text-sm">
           <span className="font-semibold text-slate-900">{accounts.length}</span>{" "}
           sending account{accounts.length === 1 ? "" : "s"} connected. Use{" "}
           <span className="font-medium text-slate-900">Settings</span> on each
@@ -391,7 +375,7 @@ export function SendingAccountsTable({
         </p>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-2">
         {accounts.map((account) => (
           <SendingAccountCard
             key={account.id}
@@ -403,36 +387,36 @@ export function SendingAccountsTable({
         ))}
       </div>
 
-      <Card className="border-slate-200 bg-slate-50 shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold text-slate-900">
-            Quick guide
-          </CardTitle>
-          <CardDescription>
-            What the numbers on each account mean
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 text-sm text-slate-600 sm:grid-cols-3">
-          <div className="rounded-lg border border-slate-200 bg-white p-3">
-            <p className="font-medium text-slate-900">Daily cap</p>
-            <p className="mt-1 text-xs leading-relaxed">
-              Max emails this inbox can send per day across all campaigns (30–300).
-            </p>
+      <details className="rounded-lg border border-slate-200 bg-slate-50 open:bg-white">
+        <summary className="cursor-pointer list-none px-3.5 py-2.5 text-xs font-medium text-slate-700 marker:content-none [&::-webkit-details-marker]:hidden">
+          <span className="flex items-center justify-between gap-2">
+            Quick guide — what the numbers mean
+            <span className="text-slate-400">Show</span>
+          </span>
+        </summary>
+        <div className="border-t border-slate-200 px-3.5 pb-3 pt-2">
+          <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
+            <div className="rounded-md border border-slate-200 bg-white p-2.5">
+              <p className="text-xs font-medium text-slate-900">Daily cap</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed">
+                Max emails this inbox can send per day across all campaigns (30–300).
+              </p>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-white p-2.5">
+              <p className="text-xs font-medium text-slate-900">Trust & auth</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed">
+                Inbox type, reputation, and SPF/DKIM/DMARC when you use your own domain.
+              </p>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-white p-2.5">
+              <p className="text-xs font-medium text-slate-900">Personal inboxes</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed">
+                Best for warm follow-ups — not large cold outreach to strangers.
+              </p>
+            </div>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-3">
-            <p className="font-medium text-slate-900">Trust & auth</p>
-            <p className="mt-1 text-xs leading-relaxed">
-              Inbox type, reputation, and SPF/DKIM/DMARC when you use your own domain.
-            </p>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-3">
-            <p className="font-medium text-slate-900">Personal inboxes</p>
-            <p className="mt-1 text-xs leading-relaxed">
-              Best for warm follow-ups — not large cold outreach to strangers.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </details>
     </div>
   );
 }

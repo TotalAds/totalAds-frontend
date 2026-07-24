@@ -498,6 +498,7 @@ export function CampaignDetailPage({
                 analytics?.reoon?.used === true ||
                 campaign.reoonVerificationSummary?.requireLeadVerification === true
               }
+              initialIsContinuous={campaign.isContinuous === true}
               onOptionsSaved={onRefresh}
             />
           )}

@@ -48,6 +48,7 @@ interface OptionsTabProps {
   initialOpenTracking?: boolean;
   initialLinkTracking?: boolean;
   initialRequireVerification?: boolean;
+  initialIsContinuous?: boolean;
   onOptionsSaved?: () => void;
 }
 
@@ -90,6 +91,7 @@ export function OptionsTab({
   initialOpenTracking = true,
   initialLinkTracking = false,
   initialRequireVerification = false,
+  initialIsContinuous = false,
   onOptionsSaved,
 }: OptionsTabProps) {
   const effectiveDomainId = domainId || INBOX_CAMPAIGN_DOMAIN_ID;
@@ -102,10 +104,13 @@ export function OptionsTab({
   const [loadingSenders, setLoadingSenders] = useState(true);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [selectedSenderIds, setSelectedSenderIds] = useState<string[]>([]);
+  const [replyToSenderId, setReplyToSenderId] = useState<string>("");
   const [openTracking, setOpenTracking] = useState(initialOpenTracking);
   const [linkTracking, setLinkTracking] = useState(initialLinkTracking);
   const [dailyLimit, setDailyLimit] = useState(initialDailyLimit);
   const [requireVerification, setRequireVerification] = useState(initialRequireVerification);
+  const [isContinuous, setIsContinuous] = useState(initialIsContinuous);
+  const [continuousLocked, setContinuousLocked] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reoonModalOpen, setReoonModalOpen] = useState(false);
@@ -129,6 +134,13 @@ export function OptionsTab({
           campaign.reoonVerificationSummary?.requireLeadVerification === true ||
             initialRequireVerification
         );
+        setIsContinuous(Boolean(campaign.isContinuous ?? initialIsContinuous));
+        setContinuousLocked(
+          Boolean(campaign.startedAt) ||
+            ["sending", "completed", "cancelled", "verifying_leads", "paused"].includes(
+              campaign.status
+            )
+        );
 
         const savedSenderConfig = campaign.senderConfig as CampaignSenderConfig | null | undefined;
         if (savedSenderConfig?.senderIds?.length) {
@@ -138,6 +150,10 @@ export function OptionsTab({
         } else {
           setSelectedSenderIds([]);
         }
+        const savedReplyTo = savedSenderConfig?.replyToSenderId
+          ? String(savedSenderConfig.replyToSenderId)
+          : "";
+        setReplyToSenderId(savedReplyTo);
       } catch (error: unknown) {
         if (!cancelled) {
           toast.error(getEmailServiceErrorMessage(error, "Failed to load campaign options"));
@@ -179,6 +195,17 @@ export function OptionsTab({
     });
   }, [senders, loadingOptions, loadingSenders]);
 
+  // Keep reply-to in sync with selected accounts (hide/clear when ≤1 sender)
+  useEffect(() => {
+    if (selectedSenderIds.length <= 1) {
+      if (replyToSenderId) setReplyToSenderId("");
+      return;
+    }
+    if (!replyToSenderId || !selectedSenderIds.includes(replyToSenderId)) {
+      setReplyToSenderId(selectedSenderIds[0] || "");
+    }
+  }, [selectedSenderIds, replyToSenderId]);
+
   const rotation = useMemo(
     () =>
       calculateSenderRotationDistribution(senders, selectedSenderIds, totalLeads, {
@@ -207,6 +234,14 @@ export function OptionsTab({
       return;
     }
 
+    if (
+      selectedSenderIds.length > 1 &&
+      (!replyToSenderId || !selectedSenderIds.includes(replyToSenderId))
+    ) {
+      toast.error("Select a reply-to mailbox for this campaign");
+      return;
+    }
+
     const primarySender = senders.find((s) => s.id === selectedSenderIds[0]);
     const senderDefaults = {
       campaignDailyLimit: getSenderConfiguredDailyCap(primarySender),
@@ -229,6 +264,9 @@ export function OptionsTab({
       ...(rotationDistribution && rotationDistribution.length > 0
         ? { rotationDistribution }
         : {}),
+      ...(selectedSenderIds.length > 1 && replyToSenderId
+        ? { replyToSenderId }
+        : {}),
     };
 
     setSaving(true);
@@ -239,6 +277,7 @@ export function OptionsTab({
         ...pacingPayload,
         openTrackingEnabled: openTracking,
         linkTrackingEnabled: openTracking ? linkTracking : false,
+        isContinuous,
         reoonVerificationSummary: {
           requireLeadVerification: requireVerification,
         },
@@ -305,6 +344,74 @@ export function OptionsTab({
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-5">
+      {/* ── Continuous campaign ── */}
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+        <div className="px-5 py-4 border-b border-slate-100">
+          <h3 className="text-sm font-semibold text-slate-800">Campaign mode</h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Choose a standard finite send, or a continuous campaign that keeps
+            accepting leads from connected sources.
+          </p>
+        </div>
+        <div className="p-4 space-y-3">
+          <label
+            className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition ${
+              !isContinuous ? "border-blue-300 bg-blue-50/50" : "border-slate-200"
+            } ${continuousLocked || isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
+          >
+            <input
+              type="radio"
+              name="campaign-mode"
+              className="mt-1"
+              checked={!isContinuous}
+              disabled={continuousLocked || isLocked}
+              onChange={() => {
+                setIsContinuous(false);
+                setSaved(false);
+              }}
+            />
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Standard campaign</p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Add leads (CSV, lists, LeadHub sync, one-time Google Sheet import),
+                launch once, and the campaign completes when the queue is empty.
+              </p>
+            </div>
+          </label>
+          <label
+            className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition ${
+              isContinuous ? "border-blue-300 bg-blue-50/50" : "border-slate-200"
+            } ${continuousLocked || isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
+          >
+            <input
+              type="radio"
+              name="campaign-mode"
+              className="mt-1"
+              checked={isContinuous}
+              disabled={continuousLocked || isLocked}
+              onChange={() => {
+                setIsContinuous(true);
+                setSaved(false);
+              }}
+            />
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Continuous campaign</p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Always-on intake: LeadHub and Google Sheets sync new leads every 12
+                hours, plus an optional webhook API. The campaign stays running when
+                the queue is idle until you pause or stop it. Configure sources on the
+                Leads tab.
+              </p>
+            </div>
+          </label>
+          {(continuousLocked || isLocked) && (
+            <p className="text-[11px] text-slate-400">
+              Campaign mode is locked after launch.
+            </p>
+          )}
+        </div>
+      </div>
+
       {/* ── Accounts to use ── */}
       <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -484,6 +591,43 @@ export function OptionsTab({
               campaignDailyLimit={dailyLimit}
               variant="slate"
             />
+          )}
+
+          {selectedSenderIds.length > 1 && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+              <label
+                htmlFor="campaign-reply-to"
+                className="text-sm font-semibold text-slate-800 block"
+              >
+                Reply-to mailbox
+              </label>
+              <p className="text-xs text-slate-500">
+                With multiple sending accounts, replies for this campaign go to one
+                mailbox you choose — not each From address.
+              </p>
+              <select
+                id="campaign-reply-to"
+                value={replyToSenderId}
+                disabled={isLocked}
+                onChange={(e) => {
+                  setReplyToSenderId(e.target.value);
+                  setSaved(false);
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
+              >
+                {selectedSenderIds.map((id) => {
+                  const sender = senders.find((s) => s.id === id);
+                  if (!sender) return null;
+                  return (
+                    <option key={id} value={id}>
+                      {sender.displayName
+                        ? `${sender.displayName} (${sender.email})`
+                        : sender.email}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
           )}
         </div>
       </div>

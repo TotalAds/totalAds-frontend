@@ -20,7 +20,14 @@ import toast from "react-hot-toast";
 
 import RecipientSelectionModal from "@/components/campaign-builder/RecipientSelectionModal";
 import LeadhubAutopilotPanel from "@/components/campaign-builder/LeadhubAutopilotPanel";
+import {
+  GoogleSheetsSourcePanel,
+  type SheetSyncConfigState,
+} from "@/components/campaign-builder/GoogleSheetsSourcePanel";
+import { CampaignWebhookPanel } from "@/components/campaign-builder/CampaignWebhookPanel";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { BodyPortal } from "@/components/ui/BodyPortal";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
@@ -44,9 +51,11 @@ import {
 import {
   LeadhubSyncConfig,
   LeadhubSyncLinkRow,
+  LeadhubPreviewCounts,
   formatLeadhubSkipReasons,
   getCampaignLeadhubSyncLinks,
   getLeadhubStatus,
+  previewLeadhubSync,
   summarizeLeadhubSyncLinks,
   syncLeadhubCampaign,
 } from "@/utils/api/leadhubClient";
@@ -204,8 +213,10 @@ export function LeadsTab({
 
   const [leadhubSyncConfig, setLeadhubSyncConfig] =
     useState<LeadhubSyncConfig | null>(null);
+  const [isContinuous, setIsContinuous] = useState(false);
+  const [sheetSyncConfig, setSheetSyncConfig] =
+    useState<SheetSyncConfigState | null>(null);
   const [leadhubSyncing, setLeadhubSyncing] = useState(false);
-  const [leadhubEnriching, setLeadhubEnriching] = useState(false);
   const [leadhubSyncPhase, setLeadhubSyncPhase] = useState<
     "idle" | "fetching" | "enriching" | "complete" | "error"
   >("idle");
@@ -224,20 +235,11 @@ export function LeadsTab({
   const [leadhubConnected, setLeadhubConnected] = useState(false);
   const [leadhubStatusLoaded, setLeadhubStatusLoaded] = useState(false);
   const [leadhubModalOpen, setLeadhubModalOpen] = useState(false);
-  const enrichmentPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const enrichmentTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const stopEnrichmentPolling = useCallback(() => {
-    if (enrichmentPollRef.current) {
-      clearInterval(enrichmentPollRef.current);
-      enrichmentPollRef.current = null;
-    }
-    if (enrichmentTimeoutRef.current) {
-      clearTimeout(enrichmentTimeoutRef.current);
-      enrichmentTimeoutRef.current = null;
-    }
-    setLeadhubEnriching(false);
-  }, []);
+  const [enrichmentChoiceOpen, setEnrichmentChoiceOpen] = useState(false);
+  const [enrichmentPreview, setEnrichmentPreview] =
+    useState<LeadhubPreviewCounts | null>(null);
+  const [enrichmentPreviewLoading, setEnrichmentPreviewLoading] = useState(false);
+  const pendingSyncConfigRef = useRef<LeadhubSyncConfig | null>(null);
 
   const fetchLeadhubSyncLinks = useCallback(async () => {
     if (!leadhubConnected) {
@@ -285,6 +287,10 @@ export function LeadsTab({
         if (cancelled) return;
         setLeadhubSyncConfig(
           (campaign.leadhubSyncConfig as LeadhubSyncConfig | null) ?? null
+        );
+        setIsContinuous(Boolean(campaign.isContinuous));
+        setSheetSyncConfig(
+          (campaign.sheetSyncConfig as SheetSyncConfigState | null) ?? null
         );
       } catch {
         // Campaign may still be loading / domain placeholder — ignore
@@ -338,63 +344,6 @@ export function LeadsTab({
   useEffect(() => {
     void fetchCampaignLeads();
   }, [fetchCampaignLeads]);
-
-  const onLeadsAddedRef = useRef(onLeadsAdded);
-  onLeadsAddedRef.current = onLeadsAdded;
-
-  const startEnrichmentPolling = useCallback(() => {
-    stopEnrichmentPolling();
-    setLeadhubEnriching(true);
-    setLeadhubSyncPhase("enriching");
-
-    const tick = async () => {
-      const links = await fetchLeadhubSyncLinks();
-      const pending = links.filter((l) => l.syncStatus === "pending_enrichment").length;
-      const ready = links.filter((l) =>
-        ["ready", "queued", "synced"].includes(l.syncStatus)
-      ).length;
-      const queued = links.filter((l) => l.syncStatus === "queued").length;
-      setLeadhubSyncStats((prev) =>
-        prev
-          ? {
-              ...prev,
-              pendingEnrichment: pending,
-              ready: Math.max(prev.ready, ready),
-              queued: Math.max(prev.queued, queued),
-            }
-          : {
-              processed: links.length,
-              ready,
-              pendingEnrichment: pending,
-              queued,
-              skipped: 0,
-            }
-      );
-      if (pending === 0) {
-        stopEnrichmentPolling();
-        setLeadhubSyncPhase("complete");
-        void fetchCampaignLeads();
-        onLeadsAddedRef.current?.();
-        toast.success("LeadHub enrichment finished");
-      }
-    };
-
-    void tick();
-    enrichmentPollRef.current = setInterval(() => {
-      void tick();
-    }, 4000);
-    enrichmentTimeoutRef.current = setTimeout(() => {
-      stopEnrichmentPolling();
-      setLeadhubSyncPhase("complete");
-      toast("Enrichment still running in LeadHub — refresh leads shortly");
-    }, 180_000);
-  }, [stopEnrichmentPolling, fetchLeadhubSyncLinks, fetchCampaignLeads]);
-
-  useEffect(() => {
-    return () => {
-      stopEnrichmentPolling();
-    };
-  }, [stopEnrichmentPolling]);
 
   const resolveLeadIds = async (data: {
     type: RecipientType;
@@ -599,17 +548,43 @@ export function LeadsTab({
   const persistLeadhubConfig = async (config: LeadhubSyncConfig | null) => {
     await patchCampaign(effectiveDomainId, campaignId, {
       leadhubSyncConfig: config,
-      ...(config?.enabled
-        ? { reoonVerificationSummary: { requireLeadVerification: true } }
-        : {}),
     });
     setLeadhubSyncConfig(config);
   };
 
-  const saveAndSyncLeadhub = async (config: LeadhubSyncConfig | null) => {
+  const runLeadhubSync = async (config: LeadhubSyncConfig) => {
+    try {
+      setLeadhubSyncing(true);
+      setLeadhubSyncPhase("fetching");
+      setEnrichmentChoiceOpen(false);
+      const savedConfig: LeadhubSyncConfig = {
+        ...config,
+        enabled: true,
+        source: "leadhub_autopilot",
+        enrichmentGate: config.enrichmentGate ?? "import_both",
+      };
+      await persistLeadhubConfig(savedConfig);
+      const stats = await syncLeadhubCampaign(campaignId);
+      setLeadhubSyncStats(stats);
+      await fetchLeadhubSyncLinks();
+      await fetchCampaignLeads();
+      onLeadsAdded?.();
+      setLeadhubSyncPhase("complete");
+      toast.success(
+        `LeadHub sync: ${stats.ready + stats.queued} ready · ${stats.skipped} skipped`
+      );
+    } catch (err: unknown) {
+      setLeadhubSyncPhase("error");
+      toast.error(getEmailServiceErrorMessage(err, "LeadHub sync failed"));
+    } finally {
+      setLeadhubSyncing(false);
+      pendingSyncConfigRef.current = null;
+    }
+  };
+
+  const beginLeadhubSyncFlow = async (config: LeadhubSyncConfig | null) => {
     if (!config?.enabled) {
       try {
-        stopEnrichmentPolling();
         await persistLeadhubConfig(null);
         setLeadhubSyncStats(null);
         setLeadhubSyncPhase("idle");
@@ -621,40 +596,32 @@ export function LeadsTab({
     }
 
     try {
-      setLeadhubSyncing(true);
-      setLeadhubSyncPhase("fetching");
-      stopEnrichmentPolling();
-      const savedConfig: LeadhubSyncConfig = {
+      setEnrichmentPreviewLoading(true);
+      const baseConfig: LeadhubSyncConfig = {
         ...config,
         enabled: true,
         source: "leadhub_autopilot",
-        enrichmentGate: config.enrichmentGate ?? "auto_enrich",
-        trustLeadhubVerification: config.trustLeadhubVerification !== false,
+        enrichmentGate: config.enrichmentGate ?? "import_both",
       };
-      await persistLeadhubConfig(savedConfig);
-      const stats = await syncLeadhubCampaign(campaignId);
-      setLeadhubSyncStats(stats);
-      await fetchLeadhubSyncLinks();
-      await fetchCampaignLeads();
-      onLeadsAdded?.();
-
-      if (stats.pendingEnrichment > 0) {
-        toast.success(
-          `LeadHub sync: ${stats.ready + stats.queued} ready · ${stats.pendingEnrichment} enriching`
-        );
-        startEnrichmentPolling();
-      } else {
-        setLeadhubSyncPhase("complete");
-        toast.success(
-          `LeadHub sync: ${stats.ready + stats.queued} ready · ${stats.pendingEnrichment} enriching`
-        );
-      }
+      pendingSyncConfigRef.current = baseConfig;
+      await persistLeadhubConfig(baseConfig);
+      const preview = await previewLeadhubSync(campaignId);
+      setEnrichmentPreview(preview);
+      setEnrichmentChoiceOpen(true);
     } catch (err: unknown) {
-      setLeadhubSyncPhase("error");
-      toast.error(getEmailServiceErrorMessage(err, "LeadHub sync failed"));
+      toast.error(getEmailServiceErrorMessage(err, "Failed to preview LeadHub leads"));
+      pendingSyncConfigRef.current = null;
     } finally {
-      setLeadhubSyncing(false);
+      setEnrichmentPreviewLoading(false);
     }
+  };
+
+  const confirmEnrichmentChoice = (
+    gate: "import_both" | "enriched_only" | "unenriched_only"
+  ) => {
+    const base = pendingSyncConfigRef.current ?? leadhubSyncConfig;
+    if (!base) return;
+    void runLeadhubSync({ ...base, enrichmentGate: gate });
   };
 
   const hasLeadhubImports = leadhubSyncLinks.length > 0;
@@ -677,6 +644,17 @@ export function LeadsTab({
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      {isContinuous && (
+        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-sm text-blue-900">
+          <p className="font-semibold">Continuous campaign</p>
+          <p className="mt-0.5 text-xs text-blue-800/90">
+            LeadHub and Google Sheets sync new leads every 12 hours. Webhook leads
+            wait 30 minutes before entering the send queue. This campaign will not
+            auto-complete while idle — pause or stop it when you are done.
+          </p>
+        </div>
+      )}
+
       {/* LeadHub — only when integration is connected */}
       {leadhubStatusLoaded && leadhubConnected && (
         <div className="mb-6">
@@ -706,7 +684,9 @@ export function LeadsTab({
                     </>
                   )}
                   {" · "}
-                  Click to sync more
+                  {isContinuous
+                    ? "Auto-sync every 12h · click to sync more"
+                    : "Click to sync more (manual only)"}
                 </p>
                 {leadhubExcludedCount > 0 && leadhubSkipReasons && (
                   <p className="mt-1 text-xs text-emerald-900/70">
@@ -732,7 +712,9 @@ export function LeadsTab({
                   LeadHub needs import
                 </p>
                 <p className="mt-0.5 text-xs text-amber-900/80">
-                  Open import filters and sync LeadHub contacts into this campaign
+                  {isContinuous
+                    ? "Open filters — continuous campaigns sync LeadHub every 12 hours after setup"
+                    : "Open import filters and sync LeadHub contacts (manual Sync only)"}
                 </p>
               </div>
             </button>
@@ -742,19 +724,18 @@ export function LeadsTab({
             open={leadhubModalOpen}
             onClose={() => setLeadhubModalOpen(false)}
             value={leadhubSyncConfig}
+            isContinuous={isContinuous}
             onChange={(config) => {
               setLeadhubSyncConfig(config);
               if (!config?.enabled) {
-                void saveAndSyncLeadhub(null);
+                void beginLeadhubSyncFlow(null);
                 return;
               }
               void persistLeadhubConfig({
                 ...config,
                 enabled: true,
                 source: "leadhub_autopilot",
-                enrichmentGate: config.enrichmentGate ?? "auto_enrich",
-                trustLeadhubVerification:
-                  config.trustLeadhubVerification !== false,
+                enrichmentGate: config.enrichmentGate ?? "import_both",
               }).catch((err: unknown) => {
                 toast.error(
                   getEmailServiceErrorMessage(
@@ -764,8 +745,8 @@ export function LeadsTab({
                 );
               });
             }}
-            syncing={leadhubSyncing}
-            enriching={leadhubEnriching}
+            syncing={leadhubSyncing || enrichmentPreviewLoading}
+            enriching={false}
             syncPhase={leadhubSyncPhase}
             syncStats={leadhubSyncStats}
             syncLinks={leadhubSyncLinks}
@@ -773,18 +754,124 @@ export function LeadsTab({
               const config = leadhubSyncConfig ?? {
                 enabled: true,
                 source: "leadhub_autopilot" as const,
-                enrichmentGate: "auto_enrich" as const,
-                trustLeadhubVerification: true,
+                enrichmentGate: "import_both" as const,
                 priorities: ["hot", "warm"] as Array<
                   "hot" | "warm" | "cold" | "unknown"
                 >,
-                dailyIntakeCap: 50,
               };
-              void saveAndSyncLeadhub({ ...config, enabled: true });
+              void beginLeadhubSyncFlow({ ...config, enabled: true });
             }}
           />
         </div>
       )}
+
+      <div className="mb-6 space-y-4">
+        <GoogleSheetsSourcePanel
+          campaignId={campaignId}
+          domainId={effectiveDomainId}
+          isContinuous={isContinuous}
+          value={sheetSyncConfig}
+          onChange={setSheetSyncConfig}
+          onImported={() => {
+            void fetchCampaignLeads();
+            onLeadsAdded?.();
+          }}
+        />
+        <CampaignWebhookPanel
+          campaignId={campaignId}
+          domainId={effectiveDomainId}
+          isContinuous={isContinuous}
+        />
+      </div>
+
+          {enrichmentChoiceOpen && enrichmentPreview && (
+            <BodyPortal>
+              <div
+                className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]"
+                onClick={() => {
+                  if (!leadhubSyncing) {
+                    setEnrichmentChoiceOpen(false);
+                    pendingSyncConfigRef.current = null;
+                  }
+                }}
+              >
+                <div
+                  className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
+                  role="dialog"
+                  aria-labelledby="leadhub-enrichment-choice-title"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h3
+                    id="leadhub-enrichment-choice-title"
+                    className="text-base font-semibold text-slate-900"
+                  >
+                    Choose which leads to import
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-600">
+                    We found{" "}
+                    <span className="font-medium text-slate-900">
+                      {enrichmentPreview.total.toLocaleString()}
+                    </span>{" "}
+                    matching lead
+                    {enrichmentPreview.total !== 1 ? "s" : ""}:{" "}
+                    <span className="font-medium text-slate-900">
+                      {enrichmentPreview.enrichedCount.toLocaleString()}
+                    </span>{" "}
+                    enriched and{" "}
+                    <span className="font-medium text-slate-900">
+                      {enrichmentPreview.unenrichedCount.toLocaleString()}
+                    </span>{" "}
+                    not enriched. Import both, or only one group?
+                  </p>
+                  <div className="mt-5 flex flex-col gap-2">
+                    <Button
+                      type="button"
+                      className="w-full bg-blue-600 text-white hover:bg-blue-700"
+                      disabled={leadhubSyncing}
+                      onClick={() => confirmEnrichmentChoice("import_both")}
+                    >
+                      Import both
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      disabled={
+                        leadhubSyncing || enrichmentPreview.enrichedCount === 0
+                      }
+                      onClick={() => confirmEnrichmentChoice("enriched_only")}
+                    >
+                      Enriched only ({enrichmentPreview.enrichedCount.toLocaleString()})
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      disabled={
+                        leadhubSyncing || enrichmentPreview.unenrichedCount === 0
+                      }
+                      onClick={() => confirmEnrichmentChoice("unenriched_only")}
+                    >
+                      Not enriched only (
+                      {enrichmentPreview.unenrichedCount.toLocaleString()})
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-full"
+                      disabled={leadhubSyncing}
+                      onClick={() => {
+                        setEnrichmentChoiceOpen(false);
+                        pendingSyncConfigRef.current = null;
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </BodyPortal>
+          )}
 
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">

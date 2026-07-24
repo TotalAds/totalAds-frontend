@@ -112,10 +112,10 @@ export default function SendingAccountsPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Sending Accounts</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <h1 className="text-xl font-bold text-slate-900">Sending Accounts</h1>
+            <p className="mt-0.5 text-sm text-slate-500">
               Connect inboxes and set the sender name recipients see in their From
               field.
             </p>
@@ -127,7 +127,7 @@ export default function SendingAccountsPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-6xl px-4 py-4 sm:px-6 lg:px-8">
         <SendingAccountsTable
           accounts={accounts}
           loading={loading}

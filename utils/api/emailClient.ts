@@ -353,6 +353,8 @@ export interface CampaignSenderRotationEntry {
 export interface CampaignSenderConfig {
   senderIds: string[];
   rotationDistribution?: CampaignSenderRotationEntry[];
+  /** Required when multiple senders; must be one of senderIds. Cleared for single-sender. */
+  replyToSenderId?: string;
 }
 
 export interface CampaignSequenceVariant {
@@ -422,9 +424,34 @@ export interface Campaign {
     priorities?: Array<"hot" | "warm" | "cold" | "unknown">;
     minIntentScore?: number;
     minIcpScore?: number;
-    enrichmentGate?: "auto_enrich" | "enriched_only";
+    enrichmentGate?:
+      | "import_both"
+      | "enriched_only"
+      | "unenriched_only"
+      | "auto_enrich";
     dailyIntakeCap?: number;
     trustLeadhubVerification?: boolean;
+  } | null;
+  isContinuous?: boolean;
+  startedAt?: string | null;
+  sheetSyncConfig?: {
+    enabled: boolean;
+    connectionId: number;
+    spreadsheetId: string;
+    spreadsheetName?: string;
+    sheetName: string;
+    sheetGid?: number;
+    columnMap: { email: string; name?: string; [key: string]: string | undefined };
+    lastSyncedRow: number;
+    lastSyncedAt?: string;
+    oneShotImportedAt?: string;
+  } | null;
+  webhookIngestConfig?: {
+    enabled: boolean;
+    publicToken: string;
+    secretHash?: string;
+    createdAt: string;
+    lastRotatedAt?: string;
   } | null;
   queuedForTodayCount?: number;
   scheduledForTomorrowCount?: number;
@@ -746,6 +773,38 @@ export const sendCampaign = async (
     return response.data?.data ?? response.data;
   } catch (error: unknown) {
     console.error("Failed to send/launch campaign:", error);
+    throw error;
+  }
+};
+
+export interface SendTestEmailPayload {
+  testEmail: string;
+  variables?: Record<string, string>;
+  senderId?: string;
+  templateSubject?: string;
+  templateBody?: string;
+  templatePreviewText?: string;
+  templateAttachment?: {
+    s3Key: string;
+    fileName: string;
+    mimeType: string;
+  };
+}
+
+/** Send a one-off test email using the draft template + sample merge values. */
+export const sendTestEmail = async (
+  domainId: string,
+  campaignId: string,
+  payload: SendTestEmailPayload
+): Promise<{ success?: boolean; message?: string; messageId?: string }> => {
+  try {
+    const response = await emailClient.post(
+      `/api/domains/${domainId}/campaigns/${campaignId}/test-email`,
+      payload
+    );
+    return response.data?.data ?? response.data;
+  } catch (error: unknown) {
+    console.error("Failed to send test email:", error);
     throw error;
   }
 };
@@ -2436,6 +2495,51 @@ export const checkActiveBulkUploadJobs = async (): Promise<{
     console.error("Failed to check active bulk upload jobs:", error);
     throw error;
   }
+};
+
+export const getCampaignWebhookStatus = async (
+  domainId: string,
+  campaignId: string
+): Promise<{
+  enabled: boolean;
+  isContinuous?: boolean;
+  publicToken?: string;
+  webhookUrl?: string;
+  createdAt?: string;
+  lastRotatedAt?: string;
+  holdMinutes?: number;
+}> => {
+  const response = await emailClient.get(
+    `/api/domains/${domainId}/campaigns/${campaignId}/webhook`
+  );
+  return response.data?.data;
+};
+
+export const enableOrRotateCampaignWebhook = async (
+  domainId: string,
+  campaignId: string,
+  rotate = false
+): Promise<{
+  enabled: true;
+  publicToken: string;
+  ingestSecret: string;
+  webhookUrl: string;
+  holdMinutes: number;
+}> => {
+  const response = await emailClient.post(
+    `/api/domains/${domainId}/campaigns/${campaignId}/webhook`,
+    { rotate }
+  );
+  return response.data?.data;
+};
+
+export const disableCampaignWebhook = async (
+  domainId: string,
+  campaignId: string
+): Promise<void> => {
+  await emailClient.delete(
+    `/api/domains/${domainId}/campaigns/${campaignId}/webhook`
+  );
 };
 
 export default emailClient;

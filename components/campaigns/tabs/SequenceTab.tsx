@@ -913,6 +913,7 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
             }
           }}
           domainId={effectiveDomainId}
+          campaignId={campaignId}
           excludeCampaignId={campaignId}
           availableVariables={availableVariables}
           tokenSampleValues={tokenSampleValues}

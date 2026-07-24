@@ -187,6 +187,26 @@ export function buildCompositeLeadForPreview(
   return base;
 }
 
+/** Field names used as `{{field}}` / `{{field|fallback}}` in subject/body (skips conditionals). */
+export function extractUsedMergeVariables(...texts: string[]): string[] {
+  const found = new Set<string>();
+  const re = /\{\{\s*([^{}]+?)\s*\}\}/g;
+  for (const text of texts) {
+    if (!text) continue;
+    let match: RegExpExecArray | null;
+    re.lastIndex = 0;
+    while ((match = re.exec(text)) !== null) {
+      const raw = String(match[1] || "").trim();
+      if (!raw || raw.startsWith("#if") || raw === "else" || raw === "/if") {
+        continue;
+      }
+      const field = raw.split("|")[0].trim();
+      if (field) found.add(field);
+    }
+  }
+  return Array.from(found);
+}
+
 /**
  * Replace `{{field}}` / `{{ field | fallback }}` and `{a|b|c}` spintax in a string
  * (HTML or subject) using sample lead data. Spintax option is chosen by `spintaxPickIndex`.

@@ -215,6 +215,7 @@ export default function EmailTemplateEditor({
         open={createModalOpen}
         onOpenChange={setCreateModalOpen}
         domainId={domainId}
+        campaignId={excludeCampaignId}
         excludeCampaignId={excludeCampaignId}
         availableVariables={availableVariables}
         seedSubject={subject}
