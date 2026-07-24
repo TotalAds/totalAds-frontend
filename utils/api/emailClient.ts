@@ -19,7 +19,7 @@ function redirectToLoginIfNeeded() {
 /** Readable message from email-service axios errors (checks `message` and `error` on response body). */
 export function getEmailServiceErrorMessage(
   error: unknown,
-  fallback: string
+  fallback: string,
 ): string {
   const ax = error as {
     response?: { data?: { message?: string; error?: string } };
@@ -145,7 +145,7 @@ emailClient.interceptors.request.use(
   (error) => {
     console.error("Email service request error:", error);
     return Promise.reject(error);
-  }
+  },
 );
 
 // Response interceptor to handle token refresh and errors
@@ -159,7 +159,7 @@ emailClient.interceptors.response.use(
       console.log(
         `✅ Email Service: ${response.config.method?.toUpperCase()} ${
           response.config.url
-        } - ${response.status} (${duration}ms)`
+        } - ${response.status} (${duration}ms)`,
       );
     }
 
@@ -180,14 +180,15 @@ emailClient.interceptors.response.use(
       console.error(
         `❌ Email Service: ${error.config?.method?.toUpperCase()} ${
           error.config?.url
-        } - ${error.response?.status || "Network Error"} (${duration}ms)`
+        } - ${error.response?.status || "Network Error"} (${duration}ms)`,
       );
     }
 
     // Handle 401 errors with token refresh
     const requestUrl = String(originalRequest?.url || "");
-    const isPublicUnsubscribeRequest =
-      requestUrl.includes("/api/public/unsubscribe");
+    const isPublicUnsubscribeRequest = requestUrl.includes(
+      "/api/public/unsubscribe",
+    );
 
     if (error.response?.status === 401 && isPublicUnsubscribeRequest) {
       return Promise.reject(error);
@@ -201,12 +202,12 @@ emailClient.interceptors.response.use(
       // Check if we've exceeded max refresh attempts
       if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
         console.log(
-          "Email service authentication failed. Redirecting to login..."
+          "Email service authentication failed. Redirecting to login...",
         );
         tokenStorage.removeTokens();
         redirectToLoginIfNeeded();
         return Promise.reject(
-          new Error("Authentication failed. Please sign in again.")
+          new Error("Authentication failed. Please sign in again."),
         );
       }
 
@@ -249,7 +250,7 @@ emailClient.interceptors.response.use(
         tokenStorage.removeTokens();
 
         console.log(
-          "Email service token refresh failed, redirecting to login..."
+          "Email service token refresh failed, redirecting to login...",
         );
         redirectToLoginIfNeeded();
 
@@ -266,7 +267,7 @@ emailClient.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 // ============ DOMAINS API ============
@@ -282,7 +283,7 @@ export interface Domain {
 
 export const getDomains = async (
   page: number = 1,
-  limit: number = 10
+  limit: number = 10,
 ): Promise<{
   data: {
     domains: Domain[];
@@ -324,7 +325,10 @@ export const createDomain = async (domainData: {
 
 export const verifyDomain = async (domainId: string): Promise<Domain> => {
   try {
-    const response = await emailClient.post(`/api/domains/${domainId}/verify`, {});
+    const response = await emailClient.post(
+      `/api/domains/${domainId}/verify`,
+      {},
+    );
     return response.data?.data || response.data;
   } catch (error: any) {
     console.error("Failed to verify domain:", error);
@@ -364,7 +368,16 @@ export interface CampaignSequenceVariant {
   previewText?: string;
   bodyEditor?: "simple" | "html";
   useSpintax?: boolean;
-  spintaxPackId?: "general" | "saas" | "agency" | "ecommerce" | "recruitment" | "ai_ml" | "fintech" | "healthcare" | "real_estate";
+  spintaxPackId?:
+    | "general"
+    | "saas"
+    | "agency"
+    | "ecommerce"
+    | "recruitment"
+    | "ai_ml"
+    | "fintech"
+    | "healthcare"
+    | "real_estate";
   strictGrammarMode?: boolean;
   replyTo?: string;
 }
@@ -379,7 +392,16 @@ export interface CampaignSequenceStep {
   /** Campaign builder UI mode; optional for older campaigns */
   bodyEditor?: "simple" | "html";
   useSpintax?: boolean;
-  spintaxPackId?: "general" | "saas" | "agency" | "ecommerce" | "recruitment" | "ai_ml" | "fintech" | "healthcare" | "real_estate";
+  spintaxPackId?:
+    | "general"
+    | "saas"
+    | "agency"
+    | "ecommerce"
+    | "recruitment"
+    | "ai_ml"
+    | "fintech"
+    | "healthcare"
+    | "real_estate";
   strictGrammarMode?: boolean;
   replyTo?: string;
 }
@@ -441,7 +463,11 @@ export interface Campaign {
     spreadsheetName?: string;
     sheetName: string;
     sheetGid?: number;
-    columnMap: { email: string; name?: string; [key: string]: string | undefined };
+    columnMap: {
+      email: string;
+      name?: string;
+      [key: string]: string | undefined;
+    };
     lastSyncedRow: number;
     lastSyncedAt?: string;
     oneShotImportedAt?: string;
@@ -468,11 +494,11 @@ export interface Campaign {
 
 export const acknowledgeDeliverabilityPause = async (
   domainId: string,
-  campaignId: string
+  campaignId: string,
 ): Promise<{ acknowledgedAt: string }> => {
   const response = await emailClient.post(
     `/api/domains/${domainId}/campaigns/${campaignId}/deliverability-acknowledge`,
-    { confirmed: true }
+    { confirmed: true },
   );
   return response.data?.data || response.data;
 };
@@ -481,14 +507,14 @@ export const getCampaigns = async (
   domainId: string,
   page: number = 1,
   limit: number = 10,
-  status?: string
+  status?: string,
 ): Promise<{ data: Campaign[]; total: number; page: number }> => {
   try {
     const response = await emailClient.get(
       `/api/domains/${domainId}/campaigns`,
       {
         params: { page, limit, ...(status && { status }) },
-      }
+      },
     );
     return response.data || { data: [], total: 0, page };
   } catch (error: any) {
@@ -501,7 +527,7 @@ export const getCampaigns = async (
 export const getAllCampaigns = async (
   page: number = 1,
   limit: number = 10,
-  options?: { status?: string; domainId?: string }
+  options?: { status?: string; domainId?: string },
 ): Promise<{ data: Campaign[]; total: number; page: number }> => {
   try {
     const response = await emailClient.get(`/api/campaigns`, {
@@ -525,11 +551,11 @@ export const getAllCampaigns = async (
 
 export const getCampaignById = async (
   domainId: string,
-  campaignId: string
+  campaignId: string,
 ): Promise<Campaign> => {
   try {
     const response = await emailClient.get(
-      `/api/domains/${domainId}/campaigns/${campaignId}`
+      `/api/domains/${domainId}/campaigns/${campaignId}`,
     );
     return response.data?.data || response.data;
   } catch (error: any) {
@@ -540,12 +566,12 @@ export const getCampaignById = async (
 
 export const createCampaign = async (
   domainId: string,
-  campaignData: any
+  campaignData: any,
 ): Promise<Campaign> => {
   try {
     const response = await emailClient.post(
       `/api/domains/${domainId}/campaigns`,
-      campaignData
+      campaignData,
     );
     return response.data?.data || response.data;
   } catch (error: any) {
@@ -557,12 +583,12 @@ export const createCampaign = async (
 export const updateCampaign = async (
   domainId: string,
   campaignId: string,
-  campaignData: any
+  campaignData: any,
 ): Promise<Campaign> => {
   try {
     const response = await emailClient.put(
       `/api/domains/${domainId}/campaigns/${campaignId}`,
-      campaignData
+      campaignData,
     );
     return response.data?.data || response.data;
   } catch (error: any) {
@@ -575,12 +601,12 @@ export const updateCampaign = async (
 export const patchCampaign = async (
   domainId: string,
   campaignId: string,
-  campaignData: Record<string, unknown>
+  campaignData: Record<string, unknown>,
 ): Promise<Campaign> => {
   try {
     const response = await emailClient.patch(
       `/api/domains/${domainId}/campaigns/${campaignId}`,
-      campaignData
+      campaignData,
     );
     return response.data?.data || response.data;
   } catch (error: any) {
@@ -591,11 +617,11 @@ export const patchCampaign = async (
 
 export const deleteCampaign = async (
   domainId: string,
-  campaignId: string
+  campaignId: string,
 ): Promise<void> => {
   try {
     await emailClient.delete(
-      `/api/domains/${domainId}/campaigns/${campaignId}`
+      `/api/domains/${domainId}/campaigns/${campaignId}`,
     );
   } catch (error: any) {
     console.error("Failed to delete campaign:", error);
@@ -605,12 +631,12 @@ export const deleteCampaign = async (
 
 export const duplicateCampaign = async (
   domainId: string,
-  campaignId: string
+  campaignId: string,
 ): Promise<Campaign> => {
   try {
     const response = await emailClient.post(
       `/api/domains/${domainId}/campaigns/${campaignId}/duplicate`,
-      {}
+      {},
     );
     return response.data?.data || response.data;
   } catch (error: any) {
@@ -622,12 +648,12 @@ export const duplicateCampaign = async (
 export const startCampaign = async (
   domainId: string,
   campaignId: string,
-  leadIds: string[]
+  leadIds: string[],
 ): Promise<any> => {
   try {
     const response = await emailClient.post(
       `/api/domains/${domainId}/campaigns/${campaignId}/start`,
-      { leadIds }
+      { leadIds },
     );
     return response.data?.data || response.data;
   } catch (error: any) {
@@ -639,12 +665,12 @@ export const startCampaign = async (
 /** Permanently stop a campaign: cancel remaining queue and set status to cancelled (no further sends). */
 export const stopCampaign = async (
   domainId: string,
-  campaignId: string
+  campaignId: string,
 ): Promise<{ success?: boolean; message?: string; campaign?: unknown }> => {
   try {
     const response = await emailClient.post(
       `/api/domains/${domainId}/campaigns/${campaignId}/stop`,
-      {}
+      {},
     );
     return response.data?.data ?? response.data;
   } catch (error: unknown) {
@@ -656,12 +682,12 @@ export const stopCampaign = async (
 /** Pause a running campaign (can be resumed later). */
 export const pauseCampaign = async (
   domainId: string,
-  campaignId: string
+  campaignId: string,
 ): Promise<{ success?: boolean; message?: string; campaign?: unknown }> => {
   try {
     const response = await emailClient.post(
       `/api/domains/${domainId}/campaigns/${campaignId}/pause`,
-      {}
+      {},
     );
     return response.data?.data ?? response.data;
   } catch (error: unknown) {
@@ -684,11 +710,11 @@ export interface AddLeadsToCampaignResult {
 export const addLeadsToCampaign = async (
   domainId: string,
   campaignId: string,
-  leadIds: string[]
+  leadIds: string[],
 ): Promise<AddLeadsToCampaignResult> => {
   const response = await emailClient.post(
     `/api/domains/${domainId}/campaigns/${campaignId}/add-leads`,
-    { leadIds }
+    { leadIds },
   );
   return response.data?.data || response.data;
 };
@@ -707,11 +733,11 @@ export interface RemoveLeadsFromCampaignResult {
 export const removeLeadsFromCampaign = async (
   domainId: string,
   campaignId: string,
-  leadIds: string[]
+  leadIds: string[],
 ): Promise<RemoveLeadsFromCampaignResult> => {
   const response = await emailClient.post(
     `/api/domains/${domainId}/campaigns/${campaignId}/remove-leads`,
-    { leadIds }
+    { leadIds },
   );
   return response.data?.data || response.data;
 };
@@ -736,11 +762,11 @@ export const createCampaignLeadsFromCsv = async (
     tagIds?: string[];
     categoryIds?: string[];
     listIds?: string[];
-  }
+  },
 ): Promise<CreateCampaignLeadsFromCsvResult> => {
   const response = await emailClient.post(
     `/api/domains/${domainId}/campaigns/leads/create-from-csv`,
-    payload
+    payload,
   );
   return response.data?.data || response.data;
 };
@@ -752,7 +778,7 @@ export interface LeadBatchItem {
 
 /** Fetch multiple leads by id (email preview for campaign builder). */
 export const getLeadsBatch = async (
-  leadIds: string[]
+  leadIds: string[],
 ): Promise<LeadBatchItem[]> => {
   if (leadIds.length === 0) return [];
   const response = await emailClient.post("/api/leads/batch-get", { leadIds });
@@ -763,12 +789,12 @@ export const getLeadsBatch = async (
 export const sendCampaign = async (
   domainId: string,
   campaignId: string,
-  body?: { requireLeadVerification?: boolean }
+  body?: { requireLeadVerification?: boolean },
 ): Promise<{ success?: boolean; message?: string; campaign?: unknown }> => {
   try {
     const response = await emailClient.post(
       `/api/domains/${domainId}/campaigns/${campaignId}/send`,
-      body || {}
+      body || {},
     );
     return response.data?.data ?? response.data;
   } catch (error: unknown) {
@@ -795,12 +821,12 @@ export interface SendTestEmailPayload {
 export const sendTestEmail = async (
   domainId: string,
   campaignId: string,
-  payload: SendTestEmailPayload
+  payload: SendTestEmailPayload,
 ): Promise<{ success?: boolean; message?: string; messageId?: string }> => {
   try {
     const response = await emailClient.post(
       `/api/domains/${domainId}/campaigns/${campaignId}/test-email`,
-      payload
+      payload,
     );
     return response.data?.data ?? response.data;
   } catch (error: unknown) {
@@ -881,7 +907,9 @@ export function normalizeAnalyticsSummary(raw: unknown): AnalyticsSummary {
   if (data.summary && typeof data.summary === "object") {
     const summary = data.summary as Record<string, unknown>;
     const rates = (data.rates as Record<string, unknown>) || {};
-    const topCampaigns = Array.isArray(data.topCampaigns) ? data.topCampaigns : [];
+    const topCampaigns = Array.isArray(data.topCampaigns)
+      ? data.topCampaigns
+      : [];
 
     return {
       summary: {
@@ -962,11 +990,11 @@ export const getAnalytics = async (): Promise<Analytics> => {
 };
 
 export const getCampaignAnalytics = async (
-  campaignId: string
+  campaignId: string,
 ): Promise<Analytics> => {
   try {
     const response = await emailClient.get(
-      `/api/analytics/campaigns/${campaignId}`
+      `/api/analytics/campaigns/${campaignId}`,
     );
     return response.data?.data || response.data;
   } catch (error: any) {
@@ -1013,30 +1041,36 @@ export const getCampaignLeadSequence = async (
   campaignId: string,
   page: number = 1,
   limit: number = 50,
-  filters?: LeadFilters
+  filters?: LeadFilters,
 ): Promise<CampaignLeadSequenceResponse> => {
   const params = new URLSearchParams();
-  params.set('page', String(page));
-  params.set('limit', String(limit));
-  
-  if (filters?.status) params.set('status', filters.status);
-  if (typeof filters?.step === 'number') params.set('step', String(filters.step));
-  if (filters?.search) params.set('search', filters.search);
+  params.set("page", String(page));
+  params.set("limit", String(limit));
+
+  if (filters?.status) params.set("status", filters.status);
+  if (typeof filters?.step === "number")
+    params.set("step", String(filters.step));
+  if (filters?.search) params.set("search", filters.search);
 
   const response = await emailClient.get(
-    `/api/analytics/campaigns/${campaignId}/leads?${params.toString()}`
+    `/api/analytics/campaigns/${campaignId}/leads?${params.toString()}`,
   );
-  return response.data?.data || { leads: [], pagination: { page, limit, total: 0, pages: 0 } };
+  return (
+    response.data?.data || {
+      leads: [],
+      pagination: { page, limit, total: 0, pages: 0 },
+    }
+  );
 };
 
 export const markLeadRepliedInCampaign = async (
   domainId: string,
   campaignId: string,
-  leadId: string
+  leadId: string,
 ): Promise<{ success: boolean }> => {
   const response = await emailClient.post(
     `/api/domains/${domainId}/campaigns/${campaignId}/leads/${leadId}/mark-replied`,
-    {}
+    {},
   );
   return response.data?.data || { success: true };
 };
@@ -1052,14 +1086,14 @@ export type AnalyticsReportType =
 export const downloadCampaignAnalyticsReport = async (
   campaignId: string,
   reportType: AnalyticsReportType,
-  format: "csv" | "json" = "csv"
+  format: "csv" | "json" = "csv",
 ): Promise<void> => {
   const response = await emailClient.get(
     `/api/analytics/campaigns/${campaignId}/export`,
     {
       params: { format, reportType },
       responseType: "blob",
-    }
+    },
   );
 
   const blob = new Blob([response.data], {
@@ -1072,9 +1106,14 @@ export const downloadCampaignAnalyticsReport = async (
   const link = document.createElement("a");
   link.href = url;
 
-  const header = response.headers?.["content-disposition"] as string | undefined;
+  const header = response.headers?.["content-disposition"] as
+    | string
+    | undefined;
   const headerName = header?.match(/filename="?([^"]+)"?/)?.[1];
-  link.setAttribute("download", headerName || `campaign-${campaignId}-${reportType}.${format}`);
+  link.setAttribute(
+    "download",
+    headerName || `campaign-${campaignId}-${reportType}.${format}`,
+  );
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -1106,7 +1145,7 @@ export const getLeads = async (
   tags?: string,
   category?: string,
   campaignId?: string,
-  search?: string
+  search?: string,
 ): Promise<{ data: { leads: Lead[]; pagination: any } }> => {
   try {
     const params = new URLSearchParams({
@@ -1137,8 +1176,11 @@ export const getCampaignMemberLeads = async (
   campaignId: string,
   page: number = 1,
   limit: number = 25,
-  search?: string
-): Promise<{ leads: Lead[]; pagination: { page: number; limit: number; total: number; pages: number } }> => {
+  search?: string,
+): Promise<{
+  leads: Lead[];
+  pagination: { page: number; limit: number; total: number; pages: number };
+}> => {
   const { data } = await getLeads(
     page,
     limit,
@@ -1146,7 +1188,7 @@ export const getCampaignMemberLeads = async (
     undefined,
     undefined,
     campaignId,
-    search
+    search,
   );
   return {
     leads: data.leads ?? [],
@@ -1176,7 +1218,7 @@ export const createLead = async (leadData: any): Promise<Lead> => {
 
 export const updateLead = async (
   leadId: string,
-  leadData: any
+  leadData: any,
 ): Promise<Lead> => {
   try {
     const response = await emailClient.put(`/api/leads/${leadId}`, leadData);
@@ -1303,17 +1345,23 @@ export const getSubscriptionInfo = async (): Promise<SubscriptionInfo> => {
       tierDisplayName:
         tier.displayName || d.tierDisplayName || tier.name || "Free Trial",
       monthlyEmailLimit: Number(
-        tier.monthlyEmailLimit ?? d.monthlyEmailLimit ?? 0
+        tier.monthlyEmailLimit ?? d.monthlyEmailLimit ?? 0,
       ),
       monthlyCredits: Number(tier.monthlyCredits ?? d.monthlyCredits ?? 0),
       monthlyAllocated: Number(
-        credits.allocated ?? credits.allocatedCredits ?? d.monthlyAllocated ?? 0
+        credits.allocated ??
+          credits.allocatedCredits ??
+          d.monthlyAllocated ??
+          0,
       ),
       monthlyUsed: Number(
-        credits.used ?? credits.usedCredits ?? d.monthlyUsed ?? 0
+        credits.used ?? credits.usedCredits ?? d.monthlyUsed ?? 0,
       ),
       monthlyRemaining: Number(
-        credits.remaining ?? credits.remainingCredits ?? d.monthlyRemaining ?? 0
+        credits.remaining ??
+          credits.remainingCredits ??
+          d.monthlyRemaining ??
+          0,
       ),
       dailyCap: Number(quota.cap ?? d.dailyCap ?? 0),
       dailyRemaining: Number(quota.remaining ?? d.dailyRemaining ?? 0),
@@ -1393,7 +1441,7 @@ export const getLeadCategories = async (): Promise<LeadCategory[]> => {
 };
 
 export const createLeadCategory = async (
-  name: string
+  name: string,
 ): Promise<LeadCategory> => {
   try {
     const resp = await emailClient.post(`/api/lead-categories`, { name });
@@ -1440,7 +1488,7 @@ export interface DailyCounterRow {
 }
 
 export const getDailyCounters = async (
-  days: number = 7
+  days: number = 7,
 ): Promise<DailyCounterRow[]> => {
   try {
     const resp = await emailClient.get(`/api/reputation/daily-counters`, {
@@ -1479,12 +1527,12 @@ export const startCampaignFromLeads = async (
     sequence: any[];
     leadIds: string[];
     senderId: string;
-  }
+  },
 ): Promise<any> => {
   try {
     const resp = await emailClient.post(
       `/api/domains/${domainId}/campaigns/send`,
-      campaignData
+      campaignData,
     );
     return resp.data?.data || resp.data;
   } catch (error: any) {
@@ -1541,7 +1589,10 @@ export const generateAICampaign = async (payload: {
   extra?: string;
 }): Promise<AIGeneratedCampaignResponse> => {
   try {
-    const response = await emailClient.post("/api/ai/generate-campaign", payload);
+    const response = await emailClient.post(
+      "/api/ai/generate-campaign",
+      payload,
+    );
     return response.data?.data || response.data;
   } catch (error: any) {
     console.error("Failed to generate AI campaign:", error);
@@ -1571,7 +1622,9 @@ export const listAIKnowledgeEntries = async (params?: {
   return response.data?.data ?? [];
 };
 
-export const getAIKnowledgeEntry = async (id: string): Promise<AIKnowledgeEntry> => {
+export const getAIKnowledgeEntry = async (
+  id: string,
+): Promise<AIKnowledgeEntry> => {
   const response = await emailClient.get(`/api/admin/knowledge/${id}`);
   return response.data?.data;
 };
@@ -1593,7 +1646,7 @@ export const updateAIKnowledgeEntry = async (
     type: AIKnowledgeType;
     content: string;
     tags: string[];
-  }>
+  }>,
 ): Promise<AIKnowledgeEntry> => {
   const response = await emailClient.put(`/api/admin/knowledge/${id}`, payload);
   return response.data?.data;
@@ -1625,7 +1678,9 @@ export const getSesCredentialsStatus =
       payload?: { payload?: SesCredentialsStatus };
     };
     const status =
-      raw?.data ?? raw?.payload?.payload ?? (raw as unknown as SesCredentialsStatus | undefined);
+      raw?.data ??
+      raw?.payload?.payload ??
+      (raw as unknown as SesCredentialsStatus | undefined);
     if (status && typeof status.connected === "boolean") {
       return status;
     }
@@ -1638,10 +1693,14 @@ export const storeSesCredentials = async (data: {
   secretAccessKey: string;
 }): Promise<void> => {
   const resp = await emailClient.post("/api/ses-credentials", data);
-  if (!resp.data?.success) throw new Error(resp.data?.message || "Failed to save");
+  if (!resp.data?.success)
+    throw new Error(resp.data?.message || "Failed to save");
 };
 
-export const testSesCredentials = async (): Promise<{ success: boolean; message?: string }> => {
+export const testSesCredentials = async (): Promise<{
+  success: boolean;
+  message?: string;
+}> => {
   const resp = await emailClient.post("/api/ses-credentials/test", {});
   return { success: resp.data?.success ?? false, message: resp.data?.message };
 };
@@ -1685,7 +1744,9 @@ export const verifySnsTracking = async (): Promise<{
 };
 
 /** Manually save a Configuration Set name */
-export const saveManualConfigSet = async (configurationSetName: string): Promise<{
+export const saveManualConfigSet = async (
+  configurationSetName: string,
+): Promise<{
   success: boolean;
   message?: string;
 }> => {
@@ -1726,7 +1787,9 @@ export interface DiscoverSesIdentitiesData {
 
 export const discoverSesIdentitiesFromAws =
   async (): Promise<DiscoverSesIdentitiesData | null> => {
-    const resp = await emailClient.get("/api/ses-credentials/discover-identities");
+    const resp = await emailClient.get(
+      "/api/ses-credentials/discover-identities",
+    );
     if (resp.data?.success && resp.data?.data) {
       return resp.data.data as DiscoverSesIdentitiesData;
     }
@@ -1741,7 +1804,10 @@ export const importSesIdentitiesFromAws = async (body: {
   importedSenders: string[];
   skipped: { item: string; reason: string }[];
 }> => {
-  const resp = await emailClient.post("/api/ses-credentials/import-identities", body);
+  const resp = await emailClient.post(
+    "/api/ses-credentials/import-identities",
+    body,
+  );
   if (!resp.data?.success) {
     throw new Error(resp.data?.message || "Import failed");
   }
@@ -1751,7 +1817,7 @@ export const importSesIdentitiesFromAws = async (body: {
 /** BYO SES: update per-sender daily send cap (platform pacing). */
 export const patchEmailSender = async (
   senderId: string,
-  body: { byoDailySendCap: number }
+  body: { byoDailySendCap: number },
 ): Promise<{
   id: string;
   email: string;
@@ -1834,7 +1900,9 @@ export const listSendingAccounts = async (): Promise<SendingAccount[]> => {
   return resp.data.data as SendingAccount[];
 };
 
-export const getSendingAccount = async (id: string): Promise<SendingAccount> => {
+export const getSendingAccount = async (
+  id: string,
+): Promise<SendingAccount> => {
   const resp = await emailClient.get(`/api/sending-accounts/${id}`);
   if (!resp.data?.success) {
     throw new Error(resp.data?.message || "Failed to load sending account");
@@ -1843,14 +1911,19 @@ export const getSendingAccount = async (id: string): Promise<SendingAccount> => 
 };
 
 export const getSendingAccountDomainAuthGuide = async (id: string) => {
-  const resp = await emailClient.get(`/api/sending-accounts/${id}/domain-auth-guide`);
+  const resp = await emailClient.get(
+    `/api/sending-accounts/${id}/domain-auth-guide`,
+  );
   if (!resp.data?.success) {
     throw new Error(resp.data?.message || "Failed to load domain auth guide");
   }
   return resp.data.data;
 };
 
-export const getCampaignGmailOAuthUrl = async (): Promise<{ authUrl: string; state: string }> => {
+export const getCampaignGmailOAuthUrl = async (): Promise<{
+  authUrl: string;
+  state: string;
+}> => {
   const resp = await emailClient.get("/api/sending-accounts/oauth/gmail/url");
   if (!resp.data?.success) {
     throw new Error(resp.data?.message || "Failed to get Gmail OAuth URL");
@@ -1858,7 +1931,10 @@ export const getCampaignGmailOAuthUrl = async (): Promise<{ authUrl: string; sta
   return resp.data.data;
 };
 
-export const getCampaignOutlookOAuthUrl = async (): Promise<{ authUrl: string; state: string }> => {
+export const getCampaignOutlookOAuthUrl = async (): Promise<{
+  authUrl: string;
+  state: string;
+}> => {
   const resp = await emailClient.get("/api/sending-accounts/oauth/outlook/url");
   if (!resp.data?.success) {
     throw new Error(resp.data?.message || "Failed to get Outlook OAuth URL");
@@ -1866,7 +1942,10 @@ export const getCampaignOutlookOAuthUrl = async (): Promise<{ authUrl: string; s
   return resp.data.data;
 };
 
-export const getCampaignZohoOAuthUrl = async (): Promise<{ authUrl: string; state: string }> => {
+export const getCampaignZohoOAuthUrl = async (): Promise<{
+  authUrl: string;
+  state: string;
+}> => {
   const resp = await emailClient.get("/api/sending-accounts/oauth/zoho/url");
   if (!resp.data?.success) {
     throw new Error(resp.data?.message || "Failed to get Zoho OAuth URL");
@@ -1894,7 +1973,7 @@ export const createSmtpSendingAccount = async (
     smtpPort: number;
     smtpSecure?: boolean;
     dailySendLimit?: number;
-  } & MailAuthRequestFields
+  } & MailAuthRequestFields,
 ): Promise<SendingAccount> => {
   const resp = await emailClient.post("/api/sending-accounts/smtp", body);
   if (!resp.data?.success) {
@@ -1909,19 +1988,19 @@ export const testImapCredentials = async (
     imapHost: string;
     imapPort: number;
     imapSecure?: boolean;
-  } & MailAuthRequestFields
+  } & MailAuthRequestFields,
 ): Promise<void> => {
   try {
     const resp = await emailClient.post(
       "/api/sending-accounts/smtp/test-imap",
-      body
+      body,
     );
     if (!resp.data?.success) {
       throw new Error(resp.data?.message || "IMAP connection test failed");
     }
   } catch (error) {
     throw new Error(
-      getEmailServiceErrorMessage(error, "IMAP connection test failed")
+      getEmailServiceErrorMessage(error, "IMAP connection test failed"),
     );
   }
 };
@@ -1932,19 +2011,19 @@ export const testSmtpOnlyCredentials = async (
     smtpHost: string;
     smtpPort: number;
     smtpSecure?: boolean;
-  } & MailAuthRequestFields
+  } & MailAuthRequestFields,
 ): Promise<void> => {
   try {
     const resp = await emailClient.post(
       "/api/sending-accounts/smtp/test-smtp",
-      body
+      body,
     );
     if (!resp.data?.success) {
       throw new Error(resp.data?.message || "SMTP connection test failed");
     }
   } catch (error) {
     throw new Error(
-      getEmailServiceErrorMessage(error, "SMTP connection test failed")
+      getEmailServiceErrorMessage(error, "SMTP connection test failed"),
     );
   }
 };
@@ -1959,16 +2038,19 @@ export const testSmtpCredentials = async (
     smtpHost: string;
     smtpPort: number;
     smtpSecure?: boolean;
-  } & MailAuthRequestFields
+  } & MailAuthRequestFields,
 ): Promise<void> => {
   try {
-    const resp = await emailClient.post("/api/sending-accounts/smtp/test", body);
+    const resp = await emailClient.post(
+      "/api/sending-accounts/smtp/test",
+      body,
+    );
     if (!resp.data?.success) {
       throw new Error(resp.data?.message || "Connection test failed");
     }
   } catch (error) {
     throw new Error(
-      getEmailServiceErrorMessage(error, "Connection test failed")
+      getEmailServiceErrorMessage(error, "Connection test failed"),
     );
   }
 };
@@ -1977,7 +2059,7 @@ export const testSmtpSendingAccount = async (id: string): Promise<void> => {
   try {
     const resp = await emailClient.post(
       `/api/sending-accounts/smtp/${id}/test`,
-      {}
+      {},
     );
     if (!resp.data?.success) {
       throw new Error(resp.data?.message || "SMTP test failed");
@@ -2003,7 +2085,7 @@ export const updateSendingAccount = async (
     campaignDailyLimit?: number;
     minWaitMinutes?: number;
     slowRampEnabled?: boolean;
-  }
+  },
 ): Promise<SendingAccount> => {
   const resp = await emailClient.patch(`/api/sending-accounts/${id}`, body);
   if (!resp.data?.success) {
@@ -2079,7 +2161,7 @@ export interface EnhancedAnalyticsFilters {
 
 export const getEnhancedCampaignAnalytics = async (
   campaignId: string,
-  filters?: EnhancedAnalyticsFilters
+  filters?: EnhancedAnalyticsFilters,
 ): Promise<EnhancedCampaignAnalytics> => {
   try {
     const params = new URLSearchParams();
@@ -2141,11 +2223,11 @@ export interface ReoonVerificationAnalytics {
 }
 
 export const getReoonVerificationAnalytics = async (
-  campaignId: string
+  campaignId: string,
 ): Promise<ReoonVerificationAnalytics> => {
   try {
     const resp = await emailClient.get(
-      `/api/analytics/campaigns/${campaignId}/analytics/reoon`
+      `/api/analytics/campaigns/${campaignId}/analytics/reoon`,
     );
     return resp.data?.data || resp.data;
   } catch (error: any) {
@@ -2168,7 +2250,7 @@ export interface EmailList {
 
 export const getLists = async (
   page: number = 1,
-  limit: number = 50
+  limit: number = 50,
 ): Promise<{
   data: {
     lists: EmailList[];
@@ -2228,7 +2310,7 @@ export const createList = async (listData: {
 
 export const updateList = async (
   listId: string,
-  listData: { name?: string; description?: string }
+  listData: { name?: string; description?: string },
 ): Promise<EmailList> => {
   try {
     const response = await emailClient.put(`/api/lists/${listId}`, listData);
@@ -2250,7 +2332,7 @@ export const deleteList = async (listId: string): Promise<void> => {
 
 export const addContactsToList = async (
   listId: string,
-  leadIds: string[]
+  leadIds: string[],
 ): Promise<{ added: number; skipped: number; total: number }> => {
   try {
     const response = await emailClient.post(`/api/lists/${listId}/contacts`, {
@@ -2265,7 +2347,7 @@ export const addContactsToList = async (
 
 export const removeContactsFromList = async (
   listId: string,
-  leadIds: string[]
+  leadIds: string[],
 ): Promise<{ removed: number }> => {
   try {
     const response = await emailClient.delete(`/api/lists/${listId}/contacts`, {
@@ -2281,7 +2363,7 @@ export const removeContactsFromList = async (
 export const getListContacts = async (
   listId: string,
   page: number = 1,
-  limit: number = 50
+  limit: number = 50,
 ): Promise<{
   data: {
     contacts: Array<{
@@ -2359,14 +2441,16 @@ export const getFilterOptions = async (filters?: {
       params.append("listIds", filters.listIds.join(","));
     }
     const response = await emailClient.get<{ data: FilterOptions }>(
-      `/api/leads/filter-options?${params.toString()}`
+      `/api/leads/filter-options?${params.toString()}`,
     );
-    return response.data?.data || {
-      categories: [],
-      tags: [],
-      campaigns: [],
-      statuses: [],
-    };
+    return (
+      response.data?.data || {
+        categories: [],
+        tags: [],
+        campaigns: [],
+        statuses: [],
+      }
+    );
   } catch (error: any) {
     console.error("Failed to fetch filter options:", error);
     throw error;
@@ -2417,7 +2501,7 @@ export const createBulkUploadJob = async (
     tagIds?: string[];
     categoryIds?: string[];
     listIds?: string[];
-  }
+  },
 ): Promise<{ jobId: string; status: string; totalRows: number }> => {
   try {
     const response = await emailClient.post<{
@@ -2447,7 +2531,7 @@ export const createBulkUploadJob = async (
  * Get bulk upload job status
  */
 export const getBulkUploadJobStatus = async (
-  jobId: string
+  jobId: string,
 ): Promise<BulkUploadJobStatus> => {
   try {
     const response = await emailClient.get<{
@@ -2499,7 +2583,7 @@ export const checkActiveBulkUploadJobs = async (): Promise<{
 
 export const getCampaignWebhookStatus = async (
   domainId: string,
-  campaignId: string
+  campaignId: string,
 ): Promise<{
   enabled: boolean;
   isContinuous?: boolean;
@@ -2510,7 +2594,7 @@ export const getCampaignWebhookStatus = async (
   holdMinutes?: number;
 }> => {
   const response = await emailClient.get(
-    `/api/domains/${domainId}/campaigns/${campaignId}/webhook`
+    `/api/domains/${domainId}/campaigns/${campaignId}/webhook`,
   );
   return response.data?.data;
 };
@@ -2518,7 +2602,7 @@ export const getCampaignWebhookStatus = async (
 export const enableOrRotateCampaignWebhook = async (
   domainId: string,
   campaignId: string,
-  rotate = false
+  rotate = false,
 ): Promise<{
   enabled: true;
   publicToken: string;
@@ -2528,17 +2612,17 @@ export const enableOrRotateCampaignWebhook = async (
 }> => {
   const response = await emailClient.post(
     `/api/domains/${domainId}/campaigns/${campaignId}/webhook`,
-    { rotate }
+    { rotate },
   );
   return response.data?.data;
 };
 
 export const disableCampaignWebhook = async (
   domainId: string,
-  campaignId: string
+  campaignId: string,
 ): Promise<void> => {
   await emailClient.delete(
-    `/api/domains/${domainId}/campaigns/${campaignId}/webhook`
+    `/api/domains/${domainId}/campaigns/${campaignId}/webhook`,
   );
 };
 

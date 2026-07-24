@@ -61,7 +61,7 @@ function SenderDailyCapBar({
 }) {
   const usedPct = Math.min(
     ((configuredCap - remaining) / Math.max(configuredCap, 1)) * 100,
-    100
+    100,
   );
   const barColor =
     remaining === 0
@@ -95,12 +95,17 @@ export function OptionsTab({
   onOptionsSaved,
 }: OptionsTabProps) {
   const effectiveDomainId = domainId || INBOX_CAMPAIGN_DOMAIN_ID;
-  const isLocked = ["completed", "cancelled", "verifying_leads", "sending"].includes(
-    campaignStatus
-  );
+  const isLocked = [
+    "completed",
+    "cancelled",
+    "verifying_leads",
+    "sending",
+  ].includes(campaignStatus);
 
   const [senders, setSenders] = useState<RotationSender[]>([]);
-  const [unverifiedSenders, setUnverifiedSenders] = useState<RotationSender[]>([]);
+  const [unverifiedSenders, setUnverifiedSenders] = useState<RotationSender[]>(
+    [],
+  );
   const [loadingSenders, setLoadingSenders] = useState(true);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [selectedSenderIds, setSelectedSenderIds] = useState<string[]>([]);
@@ -108,7 +113,9 @@ export function OptionsTab({
   const [openTracking, setOpenTracking] = useState(initialOpenTracking);
   const [linkTracking, setLinkTracking] = useState(initialLinkTracking);
   const [dailyLimit, setDailyLimit] = useState(initialDailyLimit);
-  const [requireVerification, setRequireVerification] = useState(initialRequireVerification);
+  const [requireVerification, setRequireVerification] = useState(
+    initialRequireVerification,
+  );
   const [isContinuous, setIsContinuous] = useState(initialIsContinuous);
   const [continuousLocked, setContinuousLocked] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -126,23 +133,30 @@ export function OptionsTab({
         setDailyLimit(
           campaign.campaignDailyLimitOverride ??
             initialDailyLimit ??
-            SENDER_PACING_DEFAULTS.campaignDailyLimit
+            SENDER_PACING_DEFAULTS.campaignDailyLimit,
         );
         setOpenTracking(campaign.openTrackingEnabled !== false);
         setLinkTracking(campaign.linkTrackingEnabled === true);
         setRequireVerification(
           campaign.reoonVerificationSummary?.requireLeadVerification === true ||
-            initialRequireVerification
+            initialRequireVerification,
         );
         setIsContinuous(Boolean(campaign.isContinuous ?? initialIsContinuous));
         setContinuousLocked(
           Boolean(campaign.startedAt) ||
-            ["sending", "completed", "cancelled", "verifying_leads", "paused"].includes(
-              campaign.status
-            )
+            [
+              "sending",
+              "completed",
+              "cancelled",
+              "verifying_leads",
+              "paused",
+            ].includes(campaign.status),
         );
 
-        const savedSenderConfig = campaign.senderConfig as CampaignSenderConfig | null | undefined;
+        const savedSenderConfig = campaign.senderConfig as
+          | CampaignSenderConfig
+          | null
+          | undefined;
         if (savedSenderConfig?.senderIds?.length) {
           setSelectedSenderIds(savedSenderConfig.senderIds.map(String));
         } else if (campaign.senderId && campaign.senderId !== "0") {
@@ -156,7 +170,12 @@ export function OptionsTab({
         setReplyToSenderId(savedReplyTo);
       } catch (error: unknown) {
         if (!cancelled) {
-          toast.error(getEmailServiceErrorMessage(error, "Failed to load campaign options"));
+          toast.error(
+            getEmailServiceErrorMessage(
+              error,
+              "Failed to load campaign options",
+            ),
+          );
         }
       } finally {
         if (!cancelled) setLoadingOptions(false);
@@ -166,7 +185,12 @@ export function OptionsTab({
     return () => {
       cancelled = true;
     };
-  }, [campaignId, effectiveDomainId, initialDailyLimit, initialRequireVerification]);
+  }, [
+    campaignId,
+    effectiveDomainId,
+    initialDailyLimit,
+    initialRequireVerification,
+  ]);
 
   useEffect(() => {
     const load = async () => {
@@ -208,10 +232,15 @@ export function OptionsTab({
 
   const rotation = useMemo(
     () =>
-      calculateSenderRotationDistribution(senders, selectedSenderIds, totalLeads, {
-        campaignDailyLimit: dailyLimit,
-      }),
-    [senders, selectedSenderIds, totalLeads, dailyLimit]
+      calculateSenderRotationDistribution(
+        senders,
+        selectedSenderIds,
+        totalLeads,
+        {
+          campaignDailyLimit: dailyLimit,
+        },
+      ),
+    [senders, selectedSenderIds, totalLeads, dailyLimit],
   );
 
   const leadsBySenderId = useMemo(() => {
@@ -223,7 +252,7 @@ export function OptionsTab({
   const toggleSender = (id: string) => {
     if (isLocked) return;
     setSelectedSenderIds((prev) =>
-      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
     );
     setSaved(false);
   };
@@ -313,7 +342,9 @@ export function OptionsTab({
       toast.error("Please add your Reoon API. It is not configured.");
       setReoonModalOpen(true);
     } catch (error: unknown) {
-      toast.error(getEmailServiceErrorMessage(error, "Failed to check Reoon setup"));
+      toast.error(
+        getEmailServiceErrorMessage(error, "Failed to check Reoon setup"),
+      );
     } finally {
       setCheckingReoon(false);
     }
@@ -326,9 +357,14 @@ export function OptionsTab({
       smtp: { label: "SMTP", color: "bg-slate-100 text-slate-600" },
       ses: { label: "SES", color: "bg-orange-100 text-orange-700" },
     };
-    const info = map[provider] || { label: provider, color: "bg-slate-100 text-slate-600" };
+    const info = map[provider] || {
+      label: provider,
+      color: "bg-slate-100 text-slate-600",
+    };
     return (
-      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${info.color}`}>
+      <span
+        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${info.color}`}
+      >
         {info.label}
       </span>
     );
@@ -347,7 +383,9 @@ export function OptionsTab({
       {/* ── Continuous campaign ── */}
       <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
         <div className="px-5 py-4 border-b border-slate-100">
-          <h3 className="text-sm font-semibold text-slate-800">Campaign mode</h3>
+          <h3 className="text-sm font-semibold text-slate-800">
+            Campaign mode
+          </h3>
           <p className="text-xs text-slate-500 mt-0.5">
             Choose a standard finite send, or a continuous campaign that keeps
             accepting leads from connected sources.
@@ -356,7 +394,9 @@ export function OptionsTab({
         <div className="p-4 space-y-3">
           <label
             className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition ${
-              !isContinuous ? "border-blue-300 bg-blue-50/50" : "border-slate-200"
+              !isContinuous
+                ? "border-blue-300 bg-blue-50/50"
+                : "border-slate-200"
             } ${continuousLocked || isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             <input
@@ -371,16 +411,21 @@ export function OptionsTab({
               }}
             />
             <div>
-              <p className="text-sm font-semibold text-slate-900">Standard campaign</p>
+              <p className="text-sm font-semibold text-slate-900">
+                Standard campaign
+              </p>
               <p className="mt-0.5 text-xs text-slate-500">
-                Add leads (CSV, lists, LeadHub sync, one-time Google Sheet import),
-                launch once, and the campaign completes when the queue is empty.
+                Add leads (CSV, lists, LeadHub sync, one-time Google Sheet
+                import), launch once, and the campaign completes when the queue
+                is empty.
               </p>
             </div>
           </label>
           <label
             className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition ${
-              isContinuous ? "border-blue-300 bg-blue-50/50" : "border-slate-200"
+              isContinuous
+                ? "border-blue-300 bg-blue-50/50"
+                : "border-slate-200"
             } ${continuousLocked || isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             <input
@@ -395,12 +440,14 @@ export function OptionsTab({
               }}
             />
             <div>
-              <p className="text-sm font-semibold text-slate-900">Continuous campaign</p>
+              <p className="text-sm font-semibold text-slate-900">
+                Continuous campaign
+              </p>
               <p className="mt-0.5 text-xs text-slate-500">
-                Always-on intake: LeadHub and Google Sheets sync new leads every 12
-                hours, plus an optional webhook API. The campaign stays running when
-                the queue is idle until you pause or stop it. Configure sources on the
-                Leads tab.
+                Always-on intake: LeadHub and Google Sheets sync new leads every
+                12 hours, plus an optional webhook API. The campaign stays
+                running when the queue is idle until you pause or stop it.
+                Configure sources on the Leads tab.
               </p>
             </div>
           </label>
@@ -421,7 +468,8 @@ export function OptionsTab({
               Email Accounts
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Select sending accounts — daily caps and volume split update as you select
+              Select sending accounts — daily caps and volume split update as
+              you select
             </p>
           </div>
           <Link
@@ -451,7 +499,9 @@ export function OptionsTab({
                     key={sender.id}
                     onClick={() => !isLocked && toggleSender(sender.id)}
                     className={`flex items-start justify-between gap-3 p-3 rounded-xl border transition-all ${
-                      isLocked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
+                      isLocked
+                        ? "opacity-60 cursor-not-allowed"
+                        : "cursor-pointer"
                     } ${
                       isSelected
                         ? "border-blue-300 bg-blue-50 ring-1 ring-blue-200"
@@ -475,14 +525,18 @@ export function OptionsTab({
                             {sender.displayName || sender.email}
                           </span>
                           {sender.provider && providerBadge(sender.provider)}
-                          {isSelected && assignedLeads != null && totalLeads > 0 && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700">
-                              {assignedLeads.toLocaleString()} leads
-                            </span>
-                          )}
+                          {isSelected &&
+                            assignedLeads != null &&
+                            totalLeads > 0 && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700">
+                                {assignedLeads.toLocaleString()} leads
+                              </span>
+                            )}
                         </div>
                         {sender.displayName && (
-                          <p className="text-xs text-slate-400">{sender.email}</p>
+                          <p className="text-xs text-slate-400">
+                            {sender.email}
+                          </p>
                         )}
                         <p className="text-[11px] text-slate-500 mt-1">
                           Daily cap{" "}
@@ -491,7 +545,8 @@ export function OptionsTab({
                           </span>
                           {effectiveCap !== configuredCap && (
                             <span className="text-slate-400 font-normal">
-                              {" "}(target {configuredCap.toLocaleString()}/day)
+                              {" "}
+                              (target {configuredCap.toLocaleString()}/day)
                             </span>
                           )}
                           {" · "}
@@ -509,11 +564,15 @@ export function OptionsTab({
                             {remaining.toLocaleString()} left today
                           </span>
                         </p>
-                        {effectiveCap !== configuredCap && sender.slowRampEnabled && (
-                          <p className="text-[10px] text-amber-600 mt-0.5">
-                            ℹ️ Warming up (starts at 30/day and increases slowly). Disable &quot;Increase volume slowly&quot; in Inbox Settings to send {configuredCap.toLocaleString()}/day immediately.
-                          </p>
-                        )}
+                        {effectiveCap !== configuredCap &&
+                          sender.slowRampEnabled && (
+                            <p className="text-[10px] text-amber-600 mt-0.5">
+                              ℹ️ Warming up (starts at 30/day and increases
+                              slowly). Disable &quot;Increase volume
+                              slowly&quot; in Inbox Settings to send{" "}
+                              {configuredCap.toLocaleString()}/day immediately.
+                            </p>
+                          )}
                         <SenderDailyCapBar
                           configuredCap={effectiveCap}
                           remaining={remaining}
@@ -540,7 +599,9 @@ export function OptionsTab({
               {senders.length === 0 && unverifiedSenders.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <Mail className="h-8 w-8 text-slate-300 mb-2" />
-                  <p className="text-sm text-slate-500 mb-3">No verified sending accounts found</p>
+                  <p className="text-sm text-slate-500 mb-3">
+                    No verified sending accounts found
+                  </p>
                   <Link
                     href="/email/sending-accounts"
                     className="text-xs font-medium text-blue-600 hover:text-blue-700"
@@ -552,7 +613,8 @@ export function OptionsTab({
               {unverifiedSenders.length > 0 && (
                 <div className="mt-4 space-y-2 border-t border-slate-200 pt-4">
                   <p className="text-xs font-medium text-amber-800">
-                    Connected but not verified — run a connection test before using in campaigns
+                    Connected but not verified — run a connection test before
+                    using in campaigns
                   </p>
                   {unverifiedSenders.map((sender) => (
                     <div
@@ -567,7 +629,9 @@ export function OptionsTab({
                           {sender.provider && providerBadge(sender.provider)}
                         </div>
                         {sender.displayName && (
-                          <p className="text-xs text-slate-500">{sender.email}</p>
+                          <p className="text-xs text-slate-500">
+                            {sender.email}
+                          </p>
                         )}
                       </div>
                       <Link
@@ -602,8 +666,8 @@ export function OptionsTab({
                 Reply-to mailbox
               </label>
               <p className="text-xs text-slate-500">
-                With multiple sending accounts, replies for this campaign go to one
-                mailbox you choose — not each From address.
+                With multiple sending accounts, replies for this campaign go to
+                one mailbox you choose — not each From address.
               </p>
               <select
                 id="campaign-reply-to"
@@ -643,7 +707,9 @@ export function OptionsTab({
                 <EyeOff className="h-5 w-5 text-slate-400 mt-0.5 shrink-0" />
               )}
               <div>
-                <h3 className="text-sm font-semibold text-slate-800">Open Tracking</h3>
+                <h3 className="text-sm font-semibold text-slate-800">
+                  Open Tracking
+                </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Track when recipients open your emails
                 </p>
@@ -651,7 +717,10 @@ export function OptionsTab({
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => { setOpenTracking(false); setSaved(false); }}
+                onClick={() => {
+                  setOpenTracking(false);
+                  setSaved(false);
+                }}
                 className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
                   !openTracking
                     ? "bg-slate-800 text-white border-slate-800"
@@ -661,7 +730,10 @@ export function OptionsTab({
                 Disable
               </button>
               <button
-                onClick={() => { setOpenTracking(true); setSaved(false); }}
+                onClick={() => {
+                  setOpenTracking(true);
+                  setSaved(false);
+                }}
                 className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
                   openTracking
                     ? "bg-green-600 text-white border-green-600"
@@ -676,11 +748,16 @@ export function OptionsTab({
           {openTracking && (
             <div
               className="mt-4 flex items-center gap-3 pl-8 cursor-pointer"
-              onClick={() => { setLinkTracking((p) => !p); setSaved(false); }}
+              onClick={() => {
+                setLinkTracking((p) => !p);
+                setSaved(false);
+              }}
             >
               <div
                 className={`flex h-4 w-4 items-center justify-center rounded border-2 transition-all ${
-                  linkTracking ? "border-blue-600 bg-blue-600" : "border-slate-300 bg-white"
+                  linkTracking
+                    ? "border-blue-600 bg-blue-600"
+                    : "border-slate-300 bg-white"
                 }`}
               >
                 {linkTracking && <Check className="h-2.5 w-2.5 text-white" />}
@@ -691,15 +768,17 @@ export function OptionsTab({
             </div>
           )}
           <p className="mt-3 text-[11px] text-slate-500">
-            Note: Tracking flags apply when emails are queued (launch/resume). Changing
-            open/link tracking after launch affects newly queued rows; already-queued emails
-            keep their original tracking HTML until re-queued.
+            Note: Tracking flags apply when emails are queued (launch/resume).
+            Changing open/link tracking after launch affects newly queued rows;
+            already-queued emails keep their original tracking HTML until
+            re-queued.
           </p>
           <p className="mt-2 text-[11px] text-slate-500">
-            Open and reply detection work from your connected inbox (Gmail, Microsoft, Zoho, or SMTP
-            with IMAP). We filter automated prefetch from Google and Microsoft so only real
-            engagement is counted. AWS SES uses SNS for opens, bounces, and complaints — not
-            inbox reply polling.
+            Open and reply detection work from your connected inbox (Gmail,
+            Microsoft, Zoho, or SMTP with IMAP). We filter automated prefetch
+            from Google and Microsoft so only real engagement is counted. AWS
+            SES uses SNS for opens, bounces, and complaints — not inbox reply
+            polling.
           </p>
         </div>
       </div>
@@ -709,9 +788,12 @@ export function OptionsTab({
         <div className="px-5 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-slate-800">Campaign Daily Limit</h3>
+              <h3 className="text-sm font-semibold text-slate-800">
+                Campaign Daily Limit
+              </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Maximum emails sent per day for this campaign across all accounts
+                Maximum emails sent per day for this campaign across all
+                accounts
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -754,8 +836,8 @@ export function OptionsTab({
           </div>
           {dailyLimit <= 30 && (
             <p className="mt-2 text-[11px] text-blue-600 bg-blue-50 rounded-lg px-3 py-1.5">
-              💡 Default limit is 30/day. Increase carefully — higher limits can affect
-              deliverability for newer accounts.
+              💡 Default limit is 30/day. Increase carefully — higher limits can
+              affect deliverability for newer accounts.
             </p>
           )}
         </div>
@@ -775,8 +857,9 @@ export function OptionsTab({
                   </span>
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Verify email addresses before sending to reduce bounce rate. When enabled,
-                  you'll be asked to confirm verification before launching.
+                  Verify email addresses before sending to reduce bounce rate.
+                  When enabled, you'll be asked to confirm verification before
+                  launching.
                 </p>
               </div>
             </div>
@@ -797,9 +880,10 @@ export function OptionsTab({
           {requireVerification && (
             <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
               <p className="text-xs text-blue-700 leading-relaxed">
-                ✅ Lead verification is <strong>enabled</strong>. When you resume or launch this
-                campaign, you'll be prompted to confirm whether to run Reoon email verification
-                on the leads before sending.
+                ✅ Lead verification is <strong>enabled</strong>. When you
+                resume or launch this campaign, you'll be prompted to confirm
+                whether to run Reoon email verification on the leads before
+                sending.
               </p>
             </div>
           )}

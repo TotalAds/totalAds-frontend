@@ -308,10 +308,15 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
     return new Date(dateStr).toLocaleString();
   };
 
-  // Truncate error
-  const truncateError = (error?: string | null) => {
-    if (!error) return null;
-    return error.length > 50 ? error.slice(0, 50) + "..." : error;
+  const formatLeadError = (lead: LeadActivity): string | null => {
+    const primary = lead.error?.trim();
+    if (!primary) return null;
+    const details = lead.errorDetails?.trim();
+    // Avoid duplicating JSON blobs that already appear in the primary message
+    if (details && !primary.includes(details) && details.length < 500) {
+      return `${primary} (${details})`;
+    }
+    return primary;
   };
 
   return (
@@ -443,7 +448,9 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
                 <TableHead className="text-xs font-medium text-gray-600">Status</TableHead>
                 <TableHead className="text-xs font-medium text-gray-600">Timeline</TableHead>
                 <TableHead className="text-xs font-medium text-gray-600">Next Send</TableHead>
-                <TableHead className="text-xs font-medium text-gray-600">Error</TableHead>
+                <TableHead className="text-xs font-medium text-gray-600 min-w-[280px]">
+                  Error
+                </TableHead>
                 <TableHead className="text-xs font-medium text-gray-600 text-center">Activity</TableHead>
                 <TableHead className="text-xs font-medium text-gray-600 text-right">Action</TableHead>
               </TableRow>
@@ -509,16 +516,24 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
                     <TableCell className="text-xs text-gray-500">
                       {lead.nextRetryAt ? formatDate(lead.nextRetryAt) : "—"}
                     </TableCell>
-                    <TableCell className="text-xs">
-                      {lead.error ? (
-                        <span className="text-orange-600" title={lead.error}>
-                          {truncateError(lead.error)}
-                        </span>
-                      ) : lead.hasError ? (
-                        <span className="text-orange-600">Error</span>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
+                    <TableCell className="text-xs max-w-[360px]">
+                      {(() => {
+                        const fullError = formatLeadError(lead);
+                        if (fullError) {
+                          return (
+                            <span
+                              className="block whitespace-normal break-words text-orange-600"
+                              title={fullError}
+                            >
+                              {fullError}
+                            </span>
+                          );
+                        }
+                        if (lead.hasError) {
+                          return <span className="text-orange-600">Error</span>;
+                        }
+                        return <span className="text-gray-400">—</span>;
+                      })()}
                     </TableCell>
                     <TableCell className="text-center">
                       <ActionIcons lead={lead} onMarkReplied={onMarkReplied} />
