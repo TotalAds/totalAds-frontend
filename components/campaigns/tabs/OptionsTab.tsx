@@ -219,16 +219,29 @@ export function OptionsTab({
     });
   }, [senders, loadingOptions, loadingSenders]);
 
-  // Keep reply-to in sync with selected accounts (hide/clear when ≤1 sender)
+  const hasZohoSelected = useMemo(
+    () =>
+      selectedSenderIds.some((id) => {
+        const s = senders.find((x) => x.id === id);
+        return String(s?.provider || "").toLowerCase() === "zoho";
+      }),
+    [selectedSenderIds, senders]
+  );
+
+  /** Reply-to only for multi-sender campaigns that do not include Zoho (Zoho requires Reply-To verification). */
+  const replyToEnabled =
+    selectedSenderIds.length > 1 && !hasZohoSelected;
+
+  // Keep reply-to in sync with selected accounts (hide/clear when ≤1 sender or Zoho present)
   useEffect(() => {
-    if (selectedSenderIds.length <= 1) {
+    if (selectedSenderIds.length <= 1 || hasZohoSelected) {
       if (replyToSenderId) setReplyToSenderId("");
       return;
     }
     if (!replyToSenderId || !selectedSenderIds.includes(replyToSenderId)) {
       setReplyToSenderId(selectedSenderIds[0] || "");
     }
-  }, [selectedSenderIds, replyToSenderId]);
+  }, [selectedSenderIds, replyToSenderId, hasZohoSelected]);
 
   const rotation = useMemo(
     () =>
@@ -264,7 +277,7 @@ export function OptionsTab({
     }
 
     if (
-      selectedSenderIds.length > 1 &&
+      replyToEnabled &&
       (!replyToSenderId || !selectedSenderIds.includes(replyToSenderId))
     ) {
       toast.error("Select a reply-to mailbox for this campaign");
@@ -293,9 +306,7 @@ export function OptionsTab({
       ...(rotationDistribution && rotationDistribution.length > 0
         ? { rotationDistribution }
         : {}),
-      ...(selectedSenderIds.length > 1 && replyToSenderId
-        ? { replyToSenderId }
-        : {}),
+      ...(replyToEnabled && replyToSenderId ? { replyToSenderId } : {}),
     };
 
     setSaving(true);
@@ -657,7 +668,22 @@ export function OptionsTab({
             />
           )}
 
-          {selectedSenderIds.length > 1 && (
+          {selectedSenderIds.length > 1 && hasZohoSelected && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 space-y-1.5">
+              <p className="text-sm font-semibold text-amber-900">
+                Reply-to unavailable for Zoho
+              </p>
+              <p className="text-xs text-amber-800 leading-relaxed">
+                Zoho requires every Reply-To address to be verified on the From
+                mailbox before sending. Campaign-level Reply-To is disabled when
+                any Zoho account is selected, so replies stay on each From
+                mailbox and you won&apos;t hit Zoho verification errors. Use
+                Gmail, Outlook, or SMTP if you need a shared Reply-To inbox.
+              </p>
+            </div>
+          )}
+
+          {replyToEnabled && (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
               <label
                 htmlFor="campaign-reply-to"

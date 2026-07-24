@@ -68,6 +68,10 @@ interface LeadData {
   toEmail: string;
   status: string;
   sequenceStepIndex: number;
+  senderId?: string | null;
+  senderEmail?: string | null;
+  senderDisplayName?: string | null;
+  senderProvider?: string | null;
   sentAt?: string | null;
   deliveredAt?: string | null;
   openedAt?: string | null;
@@ -308,7 +312,7 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
     return new Date(dateStr).toLocaleString();
   };
 
-  const formatLeadError = (lead: LeadActivity): string | null => {
+  const formatLeadError = (lead: LeadData): string | null => {
     const primary = lead.error?.trim();
     if (!primary) return null;
     const details = lead.errorDetails?.trim();
@@ -444,6 +448,7 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
             <TableHeader>
               <TableRow className="bg-gray-50/50">
                 <TableHead className="text-xs font-medium text-gray-600">Lead</TableHead>
+                <TableHead className="text-xs font-medium text-gray-600">Mailbox</TableHead>
                 <TableHead className="text-xs font-medium text-gray-600">Step</TableHead>
                 <TableHead className="text-xs font-medium text-gray-600">Status</TableHead>
                 <TableHead className="text-xs font-medium text-gray-600">Timeline</TableHead>
@@ -458,14 +463,14 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-12 text-center">
+                  <TableCell colSpan={9} className="py-12 text-center">
                     <Loader2 className="mx-auto h-6 w-6 animate-spin text-gray-400" />
                     <p className="mt-2 text-sm text-gray-500">Loading leads...</p>
                   </TableCell>
                 </TableRow>
               ) : leads.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-12 text-center">
+                  <TableCell colSpan={9} className="py-12 text-center">
                     <div className="text-gray-400">
                       <MoreHorizontal className="mx-auto h-8 w-8 mb-2" />
                       <p className="text-sm">No leads found matching your filters</p>
@@ -490,6 +495,27 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
                   >
                     <TableCell className="font-medium text-sm text-gray-900">
                       {lead.toEmail}
+                    </TableCell>
+                    <TableCell className="text-xs text-gray-600 max-w-[200px]">
+                      {lead.senderEmail ? (
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-gray-800" title={lead.senderEmail}>
+                            {lead.senderDisplayName || lead.senderEmail}
+                          </p>
+                          {lead.senderDisplayName ? (
+                            <p className="truncate text-gray-400" title={lead.senderEmail}>
+                              {lead.senderEmail}
+                            </p>
+                          ) : null}
+                          {lead.senderProvider ? (
+                            <p className="mt-0.5 capitalize text-[10px] text-gray-400">
+                              {lead.senderProvider}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm text-gray-500">
                       Email {lead.sequenceStepIndex + 1}

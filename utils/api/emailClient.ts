@@ -1009,6 +1009,10 @@ export interface CampaignLeadSequenceRow {
   status: string;
   sequenceStepIndex: number;
   leadId?: string;
+  senderId?: string | null;
+  senderEmail?: string | null;
+  senderDisplayName?: string | null;
+  senderProvider?: string | null;
   sentAt?: string | null;
   deliveredAt?: string | null;
   openedAt?: string | null;
