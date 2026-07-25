@@ -293,7 +293,9 @@ export function OptionsTab({
     const pacingPayload = {
       campaignDailyLimitOverride: dailyLimit,
       minWaitMinutesOverride: null,
-      slowRampEnabledOverride: null,
+      // Campaign Options does not opt into slow ramp — keep it off unless the user
+      // enables it on the sending-account settings page.
+      slowRampEnabledOverride: false,
     };
 
     const rotationDistribution = rotation?.distribution.map((entry) => ({

@@ -144,8 +144,9 @@ export function SenderPacingSettingsForm({
             )
           ) : (
             <>
-              Off: send up to your full daily cap ({values.campaignDailyLimit}/day) right away. Only
-              turn off if this inbox and list are already well warmed.
+              Off (default): send up to your full daily cap ({values.campaignDailyLimit}/day)
+              from day one. Turn on only if you want LeadSnipper to ramp volume gradually for a
+              new or cold inbox.
             </>
           )}
         </p>

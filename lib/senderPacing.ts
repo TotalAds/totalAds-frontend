@@ -2,7 +2,8 @@
 export const SENDER_PACING_DEFAULTS = {
   campaignDailyLimit: 30,
   minWaitMinutes: 1,
-  slowRampEnabled: true,
+  /** Opt-in only — off by default so configured daily limits apply immediately. */
+  slowRampEnabled: false,
 } as const;
 
 /** Recommended maximum daily email cap per inbox (LeadSnipper side). */
