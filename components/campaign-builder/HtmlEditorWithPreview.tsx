@@ -1,10 +1,20 @@
 "use client";
 
 import { Check, Copy, Dices, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
-import { wrapEmailPreviewDocument } from "./htmlPreviewUtils";
+import {
+  PersonalizationHoverTrigger,
+  lookupSampleValue,
+  useAnchoredCoveragePopover,
+} from "./PersonalizationCoveragePopover";
+import {
+  getCoverageStatus,
+  lookupTokenCoverage,
+  wrapEmailPreviewDocument,
+  type PersonalizationTokenCoverage,
+} from "./htmlPreviewUtils";
 
 interface HtmlEditorWithPreviewProps {
   htmlContent: string;
@@ -16,6 +26,8 @@ interface HtmlEditorWithPreviewProps {
   ) => void;
   /** Optional {{token}} → sample value map for hover tooltips on highlighted tokens. */
   tokenSampleValues?: Record<string, string>;
+  /** Campaign-lead coverage for merge tags (red/amber warning in preview). */
+  tokenCoverage?: Record<string, PersonalizationTokenCoverage>;
 }
 
 function getMergeTokenLabel(token: string): string {
@@ -73,9 +85,20 @@ export default function HtmlEditorWithPreview({
   onHtmlContentChange,
   onTokenClick,
   tokenSampleValues,
+  tokenCoverage,
 }: HtmlEditorWithPreviewProps) {
   const [copied, setCopied] = useState(false);
   const tokens = useMemo(() => extractEmailTokens(htmlContent), [htmlContent]);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const { showAt, hide, portal } = useAnchoredCoveragePopover();
+  const coverageRef = useRef(tokenCoverage);
+  const samplesRef = useRef(tokenSampleValues);
+  coverageRef.current = tokenCoverage;
+  samplesRef.current = tokenSampleValues;
+
+  const hasCoverageData = Boolean(
+    tokenCoverage && Object.keys(tokenCoverage).length > 0
+  );
 
   const handleCopy = () => {
     navigator.clipboard.writeText(htmlContent);
@@ -126,8 +149,90 @@ export default function HtmlEditorWithPreview({
   const previewSrc = wrapEmailPreviewDocument(
     htmlContent || "<p></p>",
     true,
-    tokenSampleValues
+    tokenSampleValues,
+    tokenCoverage
   );
+
+  // Bridge iframe merge-tag hover → parent formatted popover (positioned above chip).
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    let doc: Document | null = null;
+    let detach: (() => void) | null = null;
+
+    const attach = () => {
+      try {
+        doc = iframe.contentDocument;
+      } catch {
+        doc = null;
+      }
+      if (!doc) return;
+
+      const iframeRect = () => iframe.getBoundingClientRect();
+
+      const onOver = (event: MouseEvent) => {
+        const target = event.target as HTMLElement | null;
+        const chip = target?.closest<HTMLElement>("[data-merge-field]");
+        if (!chip || !doc?.body.contains(chip)) return;
+        const field = chip.getAttribute("data-merge-field") || "";
+        if (!field) return;
+        const map = coverageRef.current;
+        const hasData = Boolean(map && Object.keys(map).length > 0);
+        const r = chip.getBoundingClientRect();
+        const frame = iframeRect();
+        showAt(
+          {
+            top: frame.top + r.top,
+            left: frame.left + r.left,
+            width: r.width,
+            height: r.height,
+            bottom: frame.top + r.bottom,
+            right: frame.left + r.right,
+          },
+          {
+            field,
+            sample:
+              chip.getAttribute("data-sample") ||
+              lookupSampleValue(samplesRef.current, field),
+            coverage: hasData ? lookupTokenCoverage(map, field) : null,
+            hasCoverageData: hasData,
+          }
+        );
+      };
+
+      const onOut = (event: MouseEvent) => {
+        const related = event.relatedTarget as Node | null;
+        const chip = (event.target as HTMLElement | null)?.closest(
+          "[data-merge-field]"
+        );
+        if (chip && related && chip.contains(related)) return;
+        hide();
+      };
+
+      doc.addEventListener("mouseover", onOver);
+      doc.addEventListener("mouseout", onOut);
+      detach = () => {
+        doc?.removeEventListener("mouseover", onOver);
+        doc?.removeEventListener("mouseout", onOut);
+      };
+    };
+
+    const onLoad = () => {
+      detach?.();
+      attach();
+    };
+
+    iframe.addEventListener("load", onLoad);
+    // srcDoc may already be ready
+    attach();
+
+    return () => {
+      iframe.removeEventListener("load", onLoad);
+      detach?.();
+      hide();
+    };
+  }, [previewSrc, showAt, hide]);
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3 lg:flex-row">
@@ -171,43 +276,64 @@ export default function HtmlEditorWithPreview({
                       .trim()
                   : "";
               const sample =
-                token.type === "merge" && tokenSampleValues
-                  ? tokenSampleValues[mergeField] ||
-                    tokenSampleValues[mergeField.toLowerCase()] ||
-                    Object.entries(tokenSampleValues).find(
-                      ([k]) =>
-                        k.toLowerCase().replace(/[\s_-]+/g, "") ===
-                        mergeField.toLowerCase().replace(/[\s_-]+/g, "")
-                    )?.[1]
-                  : undefined;
-              const tip =
                 token.type === "merge"
-                  ? sample
-                    ? `${mergeField} → ${sample}`
-                    : `${mergeField} → No value for this lead`
+                  ? lookupSampleValue(tokenSampleValues, mergeField)
                   : undefined;
+              const coverage =
+                token.type === "merge"
+                  ? lookupTokenCoverage(tokenCoverage, mergeField)
+                  : null;
+              const status =
+                token.type === "merge" && hasCoverageData
+                  ? getCoverageStatus(coverage)
+                  : "ok";
+
+              const button = (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onTokenClick?.(token.type, token.token, token.occurrenceIndex)
+                  }
+                  className={
+                    token.type === "merge"
+                      ? status === "missing"
+                        ? "inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                        : status === "warning"
+                          ? "inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
+                          : "inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+                      : "inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-700 transition hover:bg-violet-100"
+                  }
+                >
+                  {token.type === "merge" ? (
+                    <Sparkles className="h-3 w-3" />
+                  ) : (
+                    <Dices className="h-3 w-3" />
+                  )}
+                  {token.type === "spintax" ? "spin " : ""}
+                  {token.label}
+                </button>
+              );
+
+              if (token.type !== "merge") {
+                return (
+                  <span
+                    key={`${token.type}-${token.token}-${token.occurrenceIndex}-${index}`}
+                  >
+                    {button}
+                  </span>
+                );
+              }
+
               return (
-              <button
-                key={`${token.type}-${token.token}-${token.occurrenceIndex}-${index}`}
-                type="button"
-                title={tip}
-                onClick={() =>
-                  onTokenClick?.(token.type, token.token, token.occurrenceIndex)
-                }
-                className={
-                  token.type === "merge"
-                    ? "inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
-                    : "inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-700 transition hover:bg-violet-100"
-                }
-              >
-                {token.type === "merge" ? (
-                  <Sparkles className="h-3 w-3" />
-                ) : (
-                  <Dices className="h-3 w-3" />
-                )}
-                {token.type === "spintax" ? "spin " : ""}
-                {token.label}
-              </button>
+                <PersonalizationHoverTrigger
+                  key={`${token.type}-${token.token}-${token.occurrenceIndex}-${index}`}
+                  field={mergeField}
+                  sample={sample}
+                  coverage={coverage}
+                  hasCoverageData={hasCoverageData}
+                >
+                  {button}
+                </PersonalizationHoverTrigger>
               );
             })}
           </div>
@@ -227,6 +353,7 @@ export default function HtmlEditorWithPreview({
         </div>
         <div className="min-h-[240px] flex-1 overflow-hidden rounded-b-lg bg-[#f8fafc] lg:min-h-0">
           <iframe
+            ref={iframeRef}
             title="HTML preview"
             className="h-full w-full border-0 bg-[#f8fafc] [scrollbar-width:thin]"
             srcDoc={previewSrc}
@@ -234,6 +361,7 @@ export default function HtmlEditorWithPreview({
           />
         </div>
       </div>
+      {portal}
     </div>
   );
 }

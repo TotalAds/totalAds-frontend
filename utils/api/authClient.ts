@@ -400,3 +400,78 @@ export const updateProfile = async (data: {
     throw error;
   }
 };
+
+export type SsoProvider = "google" | "microsoft";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+/**
+ * Build LeadSnipper SSO start URL (full browser redirect to API).
+ */
+export function getSsoStartUrl(
+  provider: SsoProvider,
+  options?: {
+    acceptedLegal?: boolean;
+    acceptedLegalVersion?: string;
+    referralCode?: string;
+    inviteToken?: string;
+    rememberMe?: boolean;
+    returnTo?: string;
+  }
+): string {
+  const params = new URLSearchParams();
+  if (options?.acceptedLegal) {
+    params.set("acceptedLegal", "true");
+  }
+  if (options?.acceptedLegalVersion) {
+    params.set("acceptedLegalVersion", options.acceptedLegalVersion);
+  }
+  if (options?.referralCode) {
+    params.set("referralCode", options.referralCode);
+  }
+  if (options?.inviteToken) {
+    params.set("inviteToken", options.inviteToken);
+  }
+  if (options?.rememberMe) {
+    params.set("rememberMe", "true");
+  }
+  if (options?.returnTo) {
+    params.set("returnTo", options.returnTo);
+  }
+  const qs = params.toString();
+  return `${API_BASE_URL}/auth/sso/${provider}/start${qs ? `?${qs}` : ""}`;
+}
+
+/**
+ * Exchange one-time SSO code for access token + user.
+ */
+export const exchangeSsoCode = async (
+  code: string
+): Promise<{
+  accessToken: string;
+  expiresIn: number;
+  user: UserProfile;
+}> => {
+  try {
+    const response = await apiClient.post("/auth/sso/exchange", { code });
+    const payload = response.data.payload ?? response.data;
+    const { accessToken, expiresIn, user } = payload;
+    const resolvedUser = await resolveAuthUser(user);
+    return {
+      accessToken: accessToken || "",
+      expiresIn: expiresIn || 900,
+      user: resolvedUser,
+    };
+  } catch (error: unknown) {
+    console.error("SSO exchange error:", error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(
+        error.response.data?.payload?.message ||
+          error.response.data?.message ||
+          error.response.data?.error ||
+          "SSO sign-in failed"
+      );
+    }
+    throw error;
+  }
+};

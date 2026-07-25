@@ -21,24 +21,21 @@ export function LegalAcceptanceCheckbox({
   product,
   error,
 }: LegalAcceptanceCheckboxProps) {
-  const productLabel =
-    product === "socialsnipper" ? "SocialSnipper" : "LeadSnipper";
-
   return (
-    <div className="space-y-2">
-      <div className="flex items-start gap-3">
+    <div className="space-y-1">
+      <div className="flex items-start gap-2">
         <Checkbox
           id="acceptLegal"
           checked={checked}
           onCheckedChange={(value) => onCheckedChange(value === true)}
           disabled={disabled}
-          className="mt-0.5"
+          className="mt-0.5 shrink-0"
           aria-describedby="acceptLegal-description"
         />
         <label
           htmlFor="acceptLegal"
           id="acceptLegal-description"
-          className="text-xs leading-relaxed text-gray-600 dark:text-text-200 cursor-pointer"
+          className="text-[11px] leading-snug text-gray-600 dark:text-text-200 cursor-pointer"
         >
           I agree to the{" "}
           <Link
@@ -47,7 +44,7 @@ export function LegalAcceptanceCheckbox({
             rel="noopener noreferrer"
             className="text-brand-main hover:text-brand-secondary underline"
           >
-            Terms of Service
+            Terms
           </Link>
           ,{" "}
           <Link
@@ -56,7 +53,7 @@ export function LegalAcceptanceCheckbox({
             rel="noopener noreferrer"
             className="text-brand-main hover:text-brand-secondary underline"
           >
-            Privacy Policy
+            Privacy
           </Link>
           ,{" "}
           <Link
@@ -65,7 +62,7 @@ export function LegalAcceptanceCheckbox({
             rel="noopener noreferrer"
             className="text-brand-main hover:text-brand-secondary underline"
           >
-            Refund Policy
+            Refund
           </Link>
           , and{" "}
           <Link
@@ -74,19 +71,15 @@ export function LegalAcceptanceCheckbox({
             rel="noopener noreferrer"
             className="text-brand-main hover:text-brand-secondary underline"
           >
-            Data Use Policy
-          </Link>
-          . I understand that {productLabel} may process my data and that paid
-          plans are billed through Razorpay per the Refund Policy.
+            Data Use
+          </Link>{" "}
+          policies.
           {product === "socialsnipper" && (
-            <>
-              {" "}
-              I will comply with LinkedIn&apos;s terms when using SocialSnipper.
-            </>
+            <> I will follow LinkedIn&apos;s terms.</>
           )}
         </label>
       </div>
-      {error && <p className="text-red-400 text-xs">{error}</p>}
+      {error && <p className="text-red-400 text-[11px]">{error}</p>}
       <input type="hidden" name="acceptedLegalVersion" value={LEGAL_VERSION} />
     </div>
   );

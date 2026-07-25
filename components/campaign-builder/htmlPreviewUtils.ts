@@ -24,10 +24,25 @@ function escapeHtmlAttr(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
+/** Coverage of a merge token across campaign leads (not compulsory — warning only). */
+export type PersonalizationTokenCoverage = {
+  withValue: number;
+  withoutValue: number;
+  total: number;
+  /** 0–100 */
+  coveragePct: number;
+};
+
+export type CoverageStatus = "ok" | "warning" | "missing";
+
+/** Warn when fewer than 10% of leads have a value; missing when none do. */
+export const COVERAGE_WARN_BELOW_PCT = 10;
+
 /** Highlight {{var}} and {a|b} tokens in HTML for preview (iframe or div). */
 export function highlightEmailSyntaxInHtml(
   html: string,
-  tokenSampleValues?: Record<string, string>
+  tokenSampleValues?: Record<string, string>,
+  tokenCoverage?: Record<string, PersonalizationTokenCoverage>
 ): string {
   return html.replace(
     /\{\{\s*([^{}]+?)\s*\}\}|\{([^{}]*\|[^{}]*)\}/g,
@@ -37,15 +52,22 @@ export function highlightEmailSyntaxInHtml(
         if (!raw) return match;
         if (raw.startsWith("#if") || raw === "else" || raw === "/if") return match;
         const fieldOnly = raw.split("|")[0].trim();
+        const coverage = lookupTokenCoverage(tokenCoverage, fieldOnly);
         const sample =
           tokenSampleValues != null
             ? lookupMergeValue(tokenSampleValues, fieldOnly)
             : undefined;
-        const tip =
-          sample != null && sample !== ""
-            ? `${fieldOnly} → ${sample}`
-            : `${fieldOnly} → No value for this lead`;
-        return `<span title="${escapeHtmlAttr(tip)}" style="background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%); color: #1d4ed8; border: 1px solid rgba(37,99,235,.22); padding: 2px 8px; border-radius: 999px; font-weight: 700; font-size: 0.88em; display: inline-block; margin: 0 2px; cursor: help;">${getMergeLabel(raw)}</span>`;
+        // Without a coverage map, keep the default blue highlight (sample tooltip only).
+        const status = tokenCoverage
+          ? getCoverageStatus(coverage)
+          : ("ok" as CoverageStatus);
+        const style =
+          status === "missing"
+            ? "background: linear-gradient(180deg, #fef2f2 0%, #fecaca 100%); color: #b91c1c; border: 1px solid rgba(185,28,28,.35); padding: 2px 8px; border-radius: 999px; font-weight: 700; font-size: 0.88em; display: inline-block; margin: 0 2px; cursor: help;"
+            : status === "warning"
+              ? "background: linear-gradient(180deg, #fffbeb 0%, #fde68a 100%); color: #b45309; border: 1px solid rgba(180,83,9,.28); padding: 2px 8px; border-radius: 999px; font-weight: 700; font-size: 0.88em; display: inline-block; margin: 0 2px; cursor: help;"
+              : "background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%); color: #1d4ed8; border: 1px solid rgba(37,99,235,.22); padding: 2px 8px; border-radius: 999px; font-weight: 700; font-size: 0.88em; display: inline-block; margin: 0 2px; cursor: help;";
+        return `<span data-merge-field="${escapeHtmlAttr(fieldOnly)}" data-coverage-status="${status}" data-sample="${escapeHtmlAttr(sample || "")}" style="${style}">${getMergeLabel(raw)}</span>`;
       }
 
       const rawSpin = String(spintaxToken || "").trim();
@@ -58,10 +80,11 @@ export function highlightEmailSyntaxInHtml(
 export function wrapEmailPreviewDocument(
   html: string,
   highlighted: boolean,
-  tokenSampleValues?: Record<string, string>
+  tokenSampleValues?: Record<string, string>,
+  tokenCoverage?: Record<string, PersonalizationTokenCoverage>
 ) {
   const body = highlighted
-    ? highlightEmailSyntaxInHtml(html, tokenSampleValues)
+    ? highlightEmailSyntaxInHtml(html, tokenSampleValues, tokenCoverage)
     : html;
   return `<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><style>
     html,body{margin:0;background:#f8fafc;}
@@ -388,6 +411,7 @@ export function buildTokenSampleValuesFromLead(lead?: {
   put("email", lead.email);
   put("name", lead.name);
   put("company", lead.company);
+  put("company_name", lead.company);
   put("role", lead.role);
   put("title", lead.role);
 
@@ -435,6 +459,7 @@ export function buildTokenSampleValuesFromLead(lead?: {
         }
         if (company) {
           put("company", company.name);
+          put("company_name", company.name);
           put("company_domain", company.domain);
           put("company_website", company.website);
           put("website", company.website);
@@ -462,6 +487,7 @@ export function buildTokenSampleValuesFromLead(lead?: {
         if (ai) {
           const aiMap: Array<[string, unknown]> = [
             ["suggested_email_opening", ai.suggestedEmailOpening],
+            ["email_opener", ai.suggestedEmailOpening],
             ["suggested_cta", ai.suggestedCta],
             ["recommended_outreach_angle", ai.recommendedOutreachAngle],
             ["best_outreach_angle", ai.bestOutreachAngle],
@@ -495,4 +521,307 @@ export function buildTokenSampleValuesFromLead(lead?: {
   }
 
   return out;
+}
+
+function normalizeCoverageKey(field: string): string {
+  return field
+    .trim()
+    .toLowerCase()
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[\s_-]+/g, "");
+}
+
+/** Aliases so {{company_name}} counts as {{company}}, etc. */
+const COVERAGE_ALIASES: Record<string, string[]> = {
+  companyname: ["company", "company_name"],
+  emailopener: [
+    "suggested_email_opening",
+    "email_opener",
+    "hook",
+  ],
+  suggestedemailopening: [
+    "suggested_email_opening",
+    "email_opener",
+    "hook",
+  ],
+  firstname: ["first_name", "firstName", "name"],
+  lastname: ["last_name", "lastName"],
+};
+
+function leadHasTokenValue(
+  values: Record<string, string>,
+  field: string
+): boolean {
+  const direct = lookupMergeValue(values, field);
+  if (direct != null && direct !== "") return true;
+  const nk = normalizeCoverageKey(field);
+  const aliases = COVERAGE_ALIASES[nk];
+  if (!aliases) return false;
+  for (const alias of aliases) {
+    const v = lookupMergeValue(values, alias);
+    if (v != null && v !== "") return true;
+  }
+  return false;
+}
+
+/**
+ * Real lead token map only — no PREVIEW_SAMPLE fictional fill.
+ * Used for coverage checks so sample defaults never count as "has value".
+ */
+export function buildRealLeadTokenValues(lead?: {
+  email?: string | null;
+  name?: string | null;
+  company?: string | null;
+  role?: string | null;
+  customFields?: Record<string, unknown> | null;
+  enrichedData?: Record<string, unknown> | null;
+} | null): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!lead) return out;
+
+  const put = (key: string, value: unknown) => {
+    const str = stringifySampleValue(value);
+    if (!key || str == null) return;
+    const normalized = normalizeMergeFieldKey(
+      key
+        .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+        .replace(/[\s-]+/g, "_")
+    );
+    out[key] = str;
+    out[normalized] = str;
+  };
+
+  put("email", lead.email);
+  put("name", lead.name);
+  put("company", lead.company);
+  put("company_name", lead.company);
+  put("role", lead.role);
+  put("title", lead.role);
+
+  if (lead.name) {
+    const parts = String(lead.name).trim().split(/\s+/);
+    if (parts[0]) {
+      put("first_name", parts[0]);
+      put("firstName", parts[0]);
+    }
+    if (parts.length > 1) {
+      const last = parts.slice(1).join(" ");
+      put("last_name", last);
+      put("lastName", last);
+    }
+  }
+
+  const custom = lead.customFields;
+  if (custom && typeof custom === "object") {
+    for (const [k, v] of Object.entries(custom)) put(k, v);
+  }
+
+  const enriched = lead.enrichedData;
+  if (enriched && typeof enriched === "object") {
+    for (const [k, v] of Object.entries(enriched)) {
+      if (k === "leadhub" && v && typeof v === "object") {
+        const lh = v as Record<string, unknown>;
+        const contact = lh.contact as Record<string, unknown> | undefined;
+        const company = lh.company as Record<string, unknown> | undefined;
+        const ai = lh.aiIntelligence as Record<string, unknown> | undefined;
+        if (contact) {
+          put("first_name", contact.firstName);
+          put("firstName", contact.firstName);
+          put("last_name", contact.lastName);
+          put("lastName", contact.lastName);
+          put("email", contact.email);
+          put("role", contact.role);
+          put("title", contact.role);
+          put("phone", contact.phone);
+          put("linkedin_url", contact.linkedinUrl);
+          put("location", contact.location);
+          const full = [contact.firstName, contact.lastName]
+            .filter(Boolean)
+            .join(" ");
+          if (full) put("name", full);
+        }
+        if (company) {
+          put("company", company.name);
+          put("company_name", company.name);
+          put("company_domain", company.domain);
+          put("company_website", company.website);
+          put("website", company.website);
+          put("company_description", company.description);
+          put("company_city", company.city);
+          put("company_country", company.country);
+          put("company_services", company.services);
+          put("industry", company.industry);
+          put("company_size", company.size);
+        }
+        put("priority", lh.priority);
+        put("intent_score", lh.intentScore);
+        put("icp_score", lh.icpScore);
+        put("confidence", lh.confidence);
+        put("enrichment_status", lh.enrichmentStatus);
+        put("pipeline_stage", lh.pipelineStage);
+
+        if (ai?.emailVariables && typeof ai.emailVariables === "object") {
+          for (const [ek, ev] of Object.entries(
+            ai.emailVariables as Record<string, unknown>
+          )) {
+            put(ek, ev);
+          }
+        }
+        if (ai) {
+          const opener = ai.suggestedEmailOpening;
+          put("suggested_email_opening", opener);
+          put("email_opener", opener);
+          put("suggested_cta", ai.suggestedCta);
+          put("recommended_outreach_angle", ai.recommendedOutreachAngle);
+          put("best_outreach_angle", ai.bestOutreachAngle);
+          put("personalization_snippets", ai.personalizationSnippets);
+          put("personalization_notes", ai.personalizationNotes);
+          put("company_summary", ai.companySummary);
+          put("person_summary", ai.personSummary);
+          put("pain_points", ai.painPoints);
+          put("buying_signals", ai.buyingSignals);
+          put("growth_stage", ai.growthStage);
+          put("outreach_insights", ai.outreachInsights);
+          put("buying_intent", ai.buyingIntent);
+          put("product_fit", ai.productFit);
+          put("competitors", ai.competitors);
+          put("existing_tools", ai.existingTools);
+          put("recent_activity", ai.recentActivity);
+          put("ideal_buyer_persona", ai.idealBuyerPersona);
+          put("outreach_objections", ai.outreachObjections);
+          put("intent_score", ai.intentScore);
+          put("icp_score", ai.icpScore);
+          put("priority", ai.priority);
+          put("confidence", ai.overallConfidence);
+        }
+        continue;
+      }
+      put(k, v);
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Build coverage map for merge fields across campaign leads.
+ * Uses real lead data only (no fictional PREVIEW_SAMPLE fill for the check).
+ */
+export function computePersonalizationCoverage(
+  leads: Array<{
+    email?: string | null;
+    name?: string | null;
+    company?: string | null;
+    role?: string | null;
+    customFields?: Record<string, unknown> | null;
+    enrichedData?: Record<string, unknown> | null;
+  }>,
+  fields: string[]
+): Record<string, PersonalizationTokenCoverage> {
+  const uniqueFields = Array.from(
+    new Set(
+      fields
+        .map((f) =>
+          f
+            .replace(/^\{\{\s*/, "")
+            .replace(/\s*\}\}$/, "")
+            .split("|")[0]
+            .trim()
+        )
+        .filter(Boolean)
+    )
+  );
+  const total = leads.length;
+  const out: Record<string, PersonalizationTokenCoverage> = {};
+
+  if (total === 0) {
+    for (const field of uniqueFields) {
+      const row = { withValue: 0, withoutValue: 0, total: 0, coveragePct: 0 };
+      out[field] = row;
+      out[normalizeMergeFieldKey(field)] = row;
+    }
+    return out;
+  }
+
+  const leadMaps = leads.map((lead) => buildRealLeadTokenValues(lead));
+
+  for (const field of uniqueFields) {
+    let withValue = 0;
+    for (const map of leadMaps) {
+      if (leadHasTokenValue(map, field)) withValue += 1;
+    }
+    const withoutValue = total - withValue;
+    const coveragePct = Math.round((withValue / total) * 100);
+    const row: PersonalizationTokenCoverage = {
+      withValue,
+      withoutValue,
+      total,
+      coveragePct,
+    };
+    out[field] = row;
+    out[normalizeMergeFieldKey(field)] = row;
+  }
+
+  return out;
+}
+
+export function getCoverageStatus(
+  coverage: PersonalizationTokenCoverage | null | undefined
+): CoverageStatus {
+  if (!coverage || coverage.total === 0) return "missing";
+  if (coverage.withValue === 0) return "missing";
+  if (coverage.coveragePct < COVERAGE_WARN_BELOW_PCT) return "warning";
+  if (coverage.withoutValue > 0) return "warning";
+  return "ok";
+}
+
+export function formatCoverageTooltip(
+  field: string,
+  coverage: PersonalizationTokenCoverage | null | undefined,
+  sample?: string | null
+): string {
+  if (!coverage || coverage.total === 0) {
+    return `${field} → Not found on any campaign leads`;
+  }
+  const lines = [
+    `${field}: ${coverage.withValue.toLocaleString()} of ${coverage.total.toLocaleString()} leads have a value (${coverage.coveragePct}%)`,
+    `${coverage.withoutValue.toLocaleString()} leads missing this field`,
+  ];
+  if (coverage.withValue === 0) {
+    lines.push("This variable does not exist in your selected leads.");
+  } else if (coverage.coveragePct < COVERAGE_WARN_BELOW_PCT) {
+    lines.push(
+      "Warning: fewer than 10% of leads have this value — emails will leave it blank."
+    );
+  } else if (coverage.withoutValue > 0) {
+    lines.push("Warning: some leads will get a blank value for this field.");
+  }
+  if (sample) lines.push(`Sample: ${sample}`);
+  return lines.join("\n");
+}
+
+export function lookupTokenCoverage(
+  coverageMap: Record<string, PersonalizationTokenCoverage> | null | undefined,
+  field: string
+): PersonalizationTokenCoverage | null {
+  if (!coverageMap) return null;
+  return (
+    coverageMap[field] ||
+    coverageMap[normalizeMergeFieldKey(field)] ||
+    null
+  );
+}
+
+/** Highlight merge tags in plain text (subject / preview) for the overlay. */
+export function highlightMergeTagsInPlainText(
+  text: string,
+  tokenCoverage?: Record<string, PersonalizationTokenCoverage>,
+  tokenSampleValues?: Record<string, string>
+): string {
+  if (!text) return "";
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return highlightEmailSyntaxInHtml(escaped, tokenSampleValues, tokenCoverage);
 }

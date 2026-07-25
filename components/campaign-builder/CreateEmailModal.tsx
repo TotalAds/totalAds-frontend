@@ -57,14 +57,24 @@ import {
 } from "./emailTemplateTextUtils";
 import type { BodyEditorMode } from "./emailTemplateTypes";
 import HtmlEditorWithPreview from "./HtmlEditorWithPreview";
+import { MergeHighlightInput } from "./MergeHighlightInput";
+import {
+  PersonalizationHoverTrigger,
+  lookupSampleValue,
+  useAnchoredCoveragePopover,
+} from "./PersonalizationCoveragePopover";
 import {
   PREVIEW_SAMPLE_LEADS,
   buildCompositeLeadForPreview,
   extractUsedMergeVariables,
+  getCoverageStatus,
+  highlightMergeTagsInPlainText,
+  lookupTokenCoverage,
   mergeVariableLists,
   normalizeMergeFieldKey,
   resolveMergeTagsAndSpintax,
   wrapEmailPreviewDocument,
+  type PersonalizationTokenCoverage,
 } from "./htmlPreviewUtils";
 import { type SpintaxPackId } from "./spintaxUtils";
 
@@ -140,6 +150,8 @@ export interface CreateEmailModalProps {
   availableVariables: string[];
   /** Optional sample values for Personalize / token hover tooltips. */
   tokenSampleValues?: Record<string, string>;
+  /** Per-token coverage across campaign leads (warning only — not blocking). */
+  tokenCoverage?: Record<string, PersonalizationTokenCoverage>;
   seedSubject: string;
   seedPreviewText?: string;
   seedUseSpintax: boolean;
@@ -169,6 +181,7 @@ export default function CreateEmailModal({
   excludeCampaignId,
   availableVariables,
   tokenSampleValues,
+  tokenCoverage,
   seedSubject,
   seedPreviewText,
   seedUseSpintax,
@@ -191,6 +204,16 @@ export default function CreateEmailModal({
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [inboxPreviewOpen, setInboxPreviewOpen] = useState(false);
   const [inboxPreviewLeadIndex, setInboxPreviewLeadIndex] = useState(0);
+  const inboxPreviewIframeRef = useRef<HTMLIFrameElement>(null);
+  const {
+    showAt: showInboxCoverage,
+    hide: hideInboxCoverage,
+    portal: inboxCoveragePortal,
+  } = useAnchoredCoveragePopover();
+  const tokenCoverageRef = useRef(tokenCoverage);
+  const tokenSampleRef = useRef(tokenSampleValues);
+  tokenCoverageRef.current = tokenCoverage;
+  tokenSampleRef.current = tokenSampleValues;
 
   const [sendTestOpen, setSendTestOpen] = useState(false);
   const [testEmailTo, setTestEmailTo] = useState("");
@@ -391,6 +414,103 @@ export default function CreateEmailModal({
     }),
     [draftSubject, draftPreviewText, draftHtml, inboxPreviewLead, inboxPreviewLeadIndex]
   );
+
+  const inboxPreviewBodySrcDoc = useMemo(
+    () =>
+      wrapEmailPreviewDocument(
+        draftHtml.trim()
+          ? draftHtml
+          : '<p style="margin:0;padding:16px;font-size:13px;line-height:1.5;color:#94a3b8;font-family:system-ui,sans-serif;">No body content yet.</p>',
+        true,
+        tokenSampleValues,
+        tokenCoverage
+      ),
+    [draftHtml, tokenSampleValues, tokenCoverage]
+  );
+
+  useEffect(() => {
+    if (!inboxPreviewOpen) {
+      hideInboxCoverage();
+      return;
+    }
+    const iframe = inboxPreviewIframeRef.current;
+    if (!iframe) return;
+
+    let doc: Document | null = null;
+    let detach: (() => void) | null = null;
+
+    const attach = () => {
+      try {
+        doc = iframe.contentDocument;
+      } catch {
+        doc = null;
+      }
+      if (!doc) return;
+
+      const onOver = (event: MouseEvent) => {
+        const target = event.target as HTMLElement | null;
+        const chip = target?.closest<HTMLElement>("[data-merge-field]");
+        if (!chip || !doc?.body.contains(chip)) return;
+        const field = chip.getAttribute("data-merge-field") || "";
+        if (!field) return;
+        const map = tokenCoverageRef.current;
+        const hasData = Boolean(map && Object.keys(map).length > 0);
+        const r = chip.getBoundingClientRect();
+        const frame = iframe.getBoundingClientRect();
+        showInboxCoverage(
+          {
+            top: frame.top + r.top,
+            left: frame.left + r.left,
+            width: r.width,
+            height: r.height,
+            bottom: frame.top + r.bottom,
+            right: frame.left + r.right,
+          },
+          {
+            field,
+            sample:
+              chip.getAttribute("data-sample") ||
+              lookupSampleValue(tokenSampleRef.current, field),
+            coverage: hasData ? lookupTokenCoverage(map, field) : null,
+            hasCoverageData: hasData,
+          }
+        );
+      };
+
+      const onOut = (event: MouseEvent) => {
+        const related = event.relatedTarget as Node | null;
+        const chip = (event.target as HTMLElement | null)?.closest(
+          "[data-merge-field]"
+        );
+        if (chip && related && chip.contains(related)) return;
+        hideInboxCoverage();
+      };
+
+      doc.addEventListener("mouseover", onOver);
+      doc.addEventListener("mouseout", onOut);
+      detach = () => {
+        doc?.removeEventListener("mouseover", onOver);
+        doc?.removeEventListener("mouseout", onOut);
+      };
+    };
+
+    const onLoad = () => {
+      detach?.();
+      attach();
+    };
+    iframe.addEventListener("load", onLoad);
+    attach();
+    return () => {
+      iframe.removeEventListener("load", onLoad);
+      detach?.();
+      hideInboxCoverage();
+    };
+  }, [
+    inboxPreviewOpen,
+    inboxPreviewBodySrcDoc,
+    showInboxCoverage,
+    hideInboxCoverage,
+  ]);
 
   const effectiveCampaignId = campaignId || excludeCampaignId || null;
 
@@ -1032,25 +1152,27 @@ export default function CreateEmailModal({
           <Label htmlFor="modal-email-subject" className="text-[11px] font-medium text-text-300">
             Subject
           </Label>
-          <Input
+          <MergeHighlightInput
             id="modal-email-subject"
             value={draftSubject}
-            onChange={(e) => setDraftSubject(e.target.value)}
+            onChange={setDraftSubject}
             placeholder="Add subject line"
-            className="h-9 bg-bg-100 text-sm"
+            tokenCoverage={tokenCoverage}
+            tokenSampleValues={tokenSampleValues}
           />
         </div>
         <div className="space-y-1">
           <Label htmlFor="modal-email-preview" className="text-[11px] font-medium text-text-300">
             Preview text
           </Label>
-          <Input
+          <MergeHighlightInput
             id="modal-email-preview"
             value={draftPreviewText}
-            onChange={(e) => setDraftPreviewText(e.target.value)}
+            onChange={setDraftPreviewText}
             placeholder="Inbox preview (optional)"
             maxLength={100}
-            className="h-9 bg-bg-100 text-sm"
+            tokenCoverage={tokenCoverage}
+            tokenSampleValues={tokenSampleValues}
           />
         </div>
         <div className="relative flex flex-wrap items-end justify-end gap-1.5" ref={variablePanelRef}>
@@ -1095,7 +1217,8 @@ export default function CreateEmailModal({
                   Personalization fields
                 </p>
                 <p className="mb-1.5 text-[9px] leading-snug text-text-300">
-                  Hover a field to preview its value from a campaign lead. Click to insert.
+                  Hover for how many campaign leads have this value (warning only — not required).
+                  Click to insert.
                 </p>
                 <div className="relative">
                   <Search
@@ -1127,41 +1250,74 @@ export default function CreateEmailModal({
                               .replace(/\s*\}\}$/, "")
                               .split("|")[0]
                               .trim();
-                            const sample =
-                              tokenSampleValues?.[field] ||
-                              tokenSampleValues?.[field.toLowerCase()] ||
-                              (tokenSampleValues
-                                ? Object.entries(tokenSampleValues).find(
-                                    ([k]) =>
-                                      k.toLowerCase().replace(/[\s_-]+/g, "") ===
-                                      field.toLowerCase().replace(/[\s_-]+/g, "")
-                                  )?.[1]
-                                : undefined);
-                            const tip = sample
-                              ? `${field} → ${sample}`
-                              : `${field} → No value for this lead`;
+                            const sample = lookupSampleValue(
+                              tokenSampleValues,
+                              field
+                            );
+                            const coverage = lookupTokenCoverage(
+                              tokenCoverage,
+                              field
+                            );
+                            const hasCoverageData = Boolean(
+                              tokenCoverage &&
+                                Object.keys(tokenCoverage).length > 0
+                            );
+                            const status = hasCoverageData
+                              ? getCoverageStatus(coverage)
+                              : "ok";
                             const label = field.replace(/[_-]+/g, " ");
                             return (
-                              <button
+                              <PersonalizationHoverTrigger
                                 key={variable}
-                                type="button"
-                                title={tip}
-                                onClick={() => {
-                                  insertVariable(variable);
-                                  setShowVariablePanel(false);
-                                  setVariableSearch("");
-                                }}
-                                className="group rounded-md border border-transparent px-1.5 py-1 text-left transition-colors hover:border-blue-200 hover:bg-blue-50"
+                                field={field}
+                                sample={sample}
+                                coverage={coverage}
+                                hasCoverageData={hasCoverageData}
+                                className="w-full"
                               >
-                                <span className="block truncate text-[10px] font-semibold leading-tight text-blue-700">
-                                  {label}
-                                </span>
-                                {sample ? (
-                                  <span className="mt-0.5 block max-h-0 overflow-hidden truncate text-[8px] leading-tight text-slate-500 opacity-0 transition-all group-hover:max-h-8 group-hover:opacity-100">
-                                    {sample}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    insertVariable(variable);
+                                    setShowVariablePanel(false);
+                                    setVariableSearch("");
+                                  }}
+                                  className={cn(
+                                    "group w-full rounded-md border border-transparent px-1.5 py-1 text-left transition-colors hover:border-blue-200 hover:bg-blue-50",
+                                    status === "missing" &&
+                                      "hover:border-red-200 hover:bg-red-50",
+                                    status === "warning" &&
+                                      "hover:border-amber-200 hover:bg-amber-50"
+                                  )}
+                                >
+                                  <span
+                                    className={cn(
+                                      "block truncate text-[10px] font-semibold leading-tight",
+                                      status === "missing"
+                                        ? "text-red-700"
+                                        : status === "warning"
+                                          ? "text-amber-800"
+                                          : "text-blue-700"
+                                    )}
+                                  >
+                                    {label}
                                   </span>
-                                ) : null}
-                              </button>
+                                  {coverage && coverage.total > 0 ? (
+                                    <span className="mt-0.5 block truncate text-[8px] leading-tight text-slate-500">
+                                      {coverage.withValue}/{coverage.total} leads
+                                      {status === "missing"
+                                        ? " · missing"
+                                        : status === "warning"
+                                          ? " · low coverage"
+                                          : ""}
+                                    </span>
+                                  ) : sample ? (
+                                    <span className="mt-0.5 block truncate text-[8px] leading-tight text-slate-500 opacity-70">
+                                      {sample}
+                                    </span>
+                                  ) : null}
+                                </button>
+                              </PersonalizationHoverTrigger>
                             );
                           })}
                         </div>
@@ -1252,6 +1408,8 @@ export default function CreateEmailModal({
                       htmlContent={draftHtml}
                       onHtmlContentChange={setDraftHtml}
                       onTokenClick={handleEditorTokenClick}
+                      tokenSampleValues={tokenSampleValues}
+                      tokenCoverage={tokenCoverage}
                     />
                   </div>
                 </div>
@@ -1267,6 +1425,7 @@ export default function CreateEmailModal({
                       onHtmlContentChange={setDraftHtml}
                       onTokenClick={handleEditorTokenClick}
                       tokenSampleValues={tokenSampleValues}
+                      tokenCoverage={tokenCoverage}
                     />
                   </div>
                 </div>
@@ -1359,26 +1518,48 @@ export default function CreateEmailModal({
                 </p>
                 <p className="mt-1.5 text-sm font-semibold leading-snug text-slate-900">
                   <span className="mr-1.5 text-xs font-normal text-slate-400">Subject </span>
-                  {inboxPreviewResolved.subject.trim() || "(no subject)"}
+                  {extractUsedMergeVariables(draftSubject).length > 0 ? (
+                    <span
+                      className="inline align-middle [&_span]:align-middle"
+                      dangerouslySetInnerHTML={{
+                        __html: highlightMergeTagsInPlainText(
+                          draftSubject,
+                          tokenCoverage,
+                          tokenSampleValues
+                        ),
+                      }}
+                    />
+                  ) : (
+                    inboxPreviewResolved.subject.trim() || "(no subject)"
+                  )}
                 </p>
-                {inboxPreviewResolved.previewText.trim() ? (
+                {draftPreviewText.trim() ? (
                   <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
                     <span className="text-slate-400">Preheader </span>
-                    {inboxPreviewResolved.previewText}
+                    {extractUsedMergeVariables(draftPreviewText).length > 0 ? (
+                      <span
+                        className="inline align-middle [&_span]:align-middle"
+                        dangerouslySetInnerHTML={{
+                          __html: highlightMergeTagsInPlainText(
+                            draftPreviewText,
+                            tokenCoverage,
+                            tokenSampleValues
+                          ),
+                        }}
+                      />
+                    ) : (
+                      inboxPreviewResolved.previewText
+                    )}
                   </p>
                 ) : null}
               </div>
               <div className="bg-slate-50 p-1.5">
                 <iframe
-                  title="Resolved email body preview"
+                  ref={inboxPreviewIframeRef}
+                  title="Email body preview with personalization coverage"
                   className="h-[min(38vh,320px)] w-full min-h-[160px] rounded-md bg-white [scrollbar-width:thin]"
                   sandbox="allow-same-origin"
-                  srcDoc={wrapEmailPreviewDocument(
-                    inboxPreviewResolved.html.trim()
-                      ? inboxPreviewResolved.html
-                      : '<p style="margin:0;padding:16px;font-size:13px;line-height:1.5;color:#94a3b8;font-family:system-ui,sans-serif;">No body content yet.</p>',
-                    false
-                  )}
+                  srcDoc={inboxPreviewBodySrcDoc}
                 />
               </div>
             </div>
@@ -1400,6 +1581,7 @@ export default function CreateEmailModal({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {inboxCoveragePortal}
 
       <Dialog
         open={sendTestOpen}

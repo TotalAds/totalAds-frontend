@@ -8,6 +8,7 @@ const AUTH_FREE_PATH_PREFIXES = [
   "/forgot-password",
   "/reset-password",
   "/verify-email",
+  "/auth/sso/callback",
   "/email/unsubscribe",
   "/unsubscribe",
   "/email/workspaces/invite",

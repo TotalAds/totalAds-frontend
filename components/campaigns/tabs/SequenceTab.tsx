@@ -17,8 +17,10 @@ import toast from "react-hot-toast";
 import CreateEmailModal from "@/components/campaign-builder/CreateEmailModal";
 import {
   buildTokenSampleValuesFromLead,
+  computePersonalizationCoverage,
   extractVariableKeysFromLead,
   mergeVariableLists,
+  type PersonalizationTokenCoverage,
 } from "@/components/campaign-builder/htmlPreviewUtils";
 import { INBOX_CAMPAIGN_DOMAIN_ID } from "@/lib/campaignDomain";
 import {
@@ -30,6 +32,7 @@ import {
   getCampaignMemberLeads,
   getEmailServiceErrorMessage,
   patchCampaign,
+  type Lead,
 } from "@/utils/api/emailClient";
 
 type StepCondition = "always" | "if_not_opened" | "if_not_replied";
@@ -216,6 +219,12 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
   const [tokenSampleValues, setTokenSampleValues] = useState<
     Record<string, string>
   >(() => buildTokenSampleValuesFromLead(null));
+  const [tokenCoverage, setTokenCoverage] = useState<
+    Record<string, PersonalizationTokenCoverage>
+  >({});
+  const [campaignLeadsForCoverage, setCampaignLeadsForCoverage] = useState<
+    Lead[]
+  >([]);
 
   const leadhubAutopilotEnabled =
     leadhubSyncConfig?.enabled === true &&
@@ -240,6 +249,19 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
   );
 
   useEffect(() => {
+    if (campaignLeadsForCoverage.length === 0) {
+      setTokenCoverage({});
+      return;
+    }
+    setTokenCoverage(
+      computePersonalizationCoverage(
+        campaignLeadsForCoverage,
+        availableVariables
+      )
+    );
+  }, [campaignLeadsForCoverage, availableVariables]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
@@ -250,16 +272,30 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
           lh?.enabled === true && lh?.source === "leadhub_autopilot";
         setLeadhubSyncConfig(enabled ? lh : null);
 
-        const members = await getCampaignMemberLeads(campaignId, 1, 5).catch(
-          () => ({
-            leads: [],
-            pagination: { page: 1, limit: 5, total: 0, pages: 0 },
-          })
-        );
+        const allLeads: Lead[] = [];
+        let page = 1;
+        let pages = 1;
+        const pageSize = 100;
+        while (page <= pages && page <= 50) {
+          const members = await getCampaignMemberLeads(
+            campaignId,
+            page,
+            pageSize
+          ).catch(() => ({
+            leads: [] as Lead[],
+            pagination: { page: 1, limit: pageSize, total: 0, pages: 0 },
+          }));
+          if (cancelled) return;
+          allLeads.push(...(members.leads || []));
+          pages = Math.max(1, members.pagination?.pages || 1);
+          if (!members.leads?.length) break;
+          page += 1;
+        }
         if (cancelled) return;
+        setCampaignLeadsForCoverage(allLeads);
 
         const sampleLead =
-          members.leads.find(
+          allLeads.find(
             (l) =>
               (l.enrichedData as Record<string, unknown> | null)?.source ===
                 "leadhub" ||
@@ -267,7 +303,7 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
                 (l.enrichedData as Record<string, unknown> | null)?.leadhub
               )
           ) ??
-          members.leads?.[0] ??
+          allLeads[0] ??
           null;
 
         const hasLeadhubLead = Boolean(
@@ -294,12 +330,17 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
         if (cancelled) return;
 
         const leadKeys = extractVariableKeysFromLead(sampleLead);
-        setLeadhubTokens(mergeVariableLists(apiTokens, leadKeys));
+        const allKeys = new Set<string>(leadKeys);
+        for (const lead of allLeads.slice(0, 50)) {
+          for (const k of extractVariableKeysFromLead(lead)) allKeys.add(k);
+        }
+        setLeadhubTokens(mergeVariableLists(apiTokens, Array.from(allKeys)));
       } catch {
         if (!cancelled) {
           setLeadhubSyncConfig(null);
           setLeadhubTokens([]);
           setTokenSampleValues(buildTokenSampleValuesFromLead(null));
+          setCampaignLeadsForCoverage([]);
         }
       }
     })();
@@ -917,6 +958,9 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
           excludeCampaignId={campaignId}
           availableVariables={availableVariables}
           tokenSampleValues={tokenSampleValues}
+          tokenCoverage={
+            campaignLeadsForCoverage.length > 0 ? tokenCoverage : undefined
+          }
           seedSubject={editingVariant.subject}
           seedPreviewText={editingVariant.previewText}
           seedUseSpintax={editingVariant.useSpintax}

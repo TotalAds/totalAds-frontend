@@ -19,7 +19,7 @@ import {
   Underline as UnderlineIcon,
   Undo2,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import Color from "@tiptap/extension-color";
 import Highlight from "@tiptap/extension-highlight";
@@ -31,6 +31,17 @@ import { Placeholder } from "@tiptap/extensions";
 import { EditorContent, mergeAttributes, Node, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 
+import {
+  fieldFromMergeToken,
+  lookupSampleValue,
+  useAnchoredCoveragePopover,
+} from "./PersonalizationCoveragePopover";
+import {
+  getCoverageStatus,
+  lookupTokenCoverage,
+  type PersonalizationTokenCoverage,
+} from "./htmlPreviewUtils";
+
 interface DesignEditorProps {
   htmlContent: string;
   onHtmlContentChange: (content: string) => void;
@@ -39,6 +50,8 @@ interface DesignEditorProps {
     token: string,
     occurrenceIndex: number
   ) => void;
+  tokenSampleValues?: Record<string, string>;
+  tokenCoverage?: Record<string, PersonalizationTokenCoverage>;
 }
 
 function escapeHtml(value: string): string {
@@ -222,7 +235,15 @@ export default function DesignEditor({
   htmlContent,
   onHtmlContentChange,
   onTokenClick,
+  tokenSampleValues,
+  tokenCoverage,
 }: DesignEditorProps) {
+  const { showAt, hide, portal } = useAnchoredCoveragePopover();
+  const coverageRef = useRef(tokenCoverage);
+  const samplesRef = useRef(tokenSampleValues);
+  coverageRef.current = tokenCoverage;
+  samplesRef.current = tokenSampleValues;
+
   const editor = useEditor({
     extensions: [
       MergeVariableNode,
@@ -317,6 +338,73 @@ export default function DesignEditor({
     if (next === current) return;
     editor.commands.setContent(emailSyntaxToEditorHtml(next), { emitUpdate: false });
   }, [editor, htmlContent]);
+
+  // Color merge chips by campaign-lead coverage (warning / missing).
+  useEffect(() => {
+    if (!editor) return;
+    const apply = () => {
+      const map = coverageRef.current;
+      editor.view.dom
+        .querySelectorAll<HTMLElement>("[data-email-token='merge'][data-token]")
+        .forEach((el) => {
+          const field = fieldFromMergeToken(el.dataset.token || "");
+          if (!field) return;
+          if (!map || Object.keys(map).length === 0) {
+            el.removeAttribute("data-coverage-status");
+            return;
+          }
+          const status = getCoverageStatus(lookupTokenCoverage(map, field));
+          el.setAttribute("data-coverage-status", status);
+        });
+    };
+    apply();
+    editor.on("update", apply);
+    return () => {
+      editor.off("update", apply);
+    };
+  }, [editor, tokenCoverage, htmlContent]);
+
+  // Hover popover above merge chips with formatted coverage stats.
+  useEffect(() => {
+    if (!editor) return;
+    const root = editor.view.dom;
+
+    const onOver = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      const chip = target?.closest<HTMLElement>(
+        "[data-email-token='merge'][data-token]"
+      );
+      if (!chip || !root.contains(chip)) return;
+      const field = fieldFromMergeToken(chip.dataset.token || "");
+      if (!field) return;
+      const map = coverageRef.current;
+      const hasCoverageData = Boolean(map && Object.keys(map).length > 0);
+      const rect = chip.getBoundingClientRect();
+      showAt(rect, {
+        field,
+        sample: lookupSampleValue(samplesRef.current, field),
+        coverage: hasCoverageData ? lookupTokenCoverage(map, field) : null,
+        hasCoverageData,
+      });
+    };
+
+    const onOut = (event: Event) => {
+      const related = (event as MouseEvent).relatedTarget as globalThis.Node | null;
+      const chip = (event.target as HTMLElement | null)?.closest(
+        "[data-email-token='merge']"
+      );
+      if (chip && related && chip.contains(related)) return;
+      hide();
+    };
+
+    root.addEventListener("mouseover", onOver);
+    root.addEventListener("mouseout", onOut);
+    return () => {
+      root.removeEventListener("mouseover", onOver);
+      root.removeEventListener("mouseout", onOut);
+      hide();
+    };
+  }, [editor, showAt, hide]);
 
   if (!editor) {
     return <div className="text-text-200">Loading editor...</div>;
@@ -551,6 +639,7 @@ export default function DesignEditor({
           className="prose max-w-none text-gray-900"
         />
       </div>
+      {portal}
     </div>
   );
 }
