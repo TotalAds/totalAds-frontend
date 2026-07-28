@@ -60,6 +60,10 @@ import {
   syncLeadhubCampaign,
 } from "@/utils/api/leadhubClient";
 import { INBOX_CAMPAIGN_DOMAIN_ID } from "@/lib/campaignDomain";
+import {
+  DEFAULT_CONTINUOUS_SYNC_INTERVAL_MINUTES,
+  formatContinuousSyncInterval,
+} from "@/lib/continuousSyncInterval";
 
 interface LeadsTabProps {
   campaignId: string;
@@ -214,6 +218,8 @@ export function LeadsTab({
   const [leadhubSyncConfig, setLeadhubSyncConfig] =
     useState<LeadhubSyncConfig | null>(null);
   const [isContinuous, setIsContinuous] = useState(false);
+  const [continuousSyncIntervalMinutes, setContinuousSyncIntervalMinutes] =
+    useState(DEFAULT_CONTINUOUS_SYNC_INTERVAL_MINUTES);
   const [sheetSyncConfig, setSheetSyncConfig] =
     useState<SheetSyncConfigState | null>(null);
   const [leadhubSyncing, setLeadhubSyncing] = useState(false);
@@ -289,6 +295,10 @@ export function LeadsTab({
           (campaign.leadhubSyncConfig as LeadhubSyncConfig | null) ?? null
         );
         setIsContinuous(Boolean(campaign.isContinuous));
+        setContinuousSyncIntervalMinutes(
+          campaign.continuousSyncIntervalMinutes ??
+            DEFAULT_CONTINUOUS_SYNC_INTERVAL_MINUTES
+        );
         setSheetSyncConfig(
           (campaign.sheetSyncConfig as SheetSyncConfigState | null) ?? null
         );
@@ -642,15 +652,20 @@ export function LeadsTab({
   const leadhubInCampaignCount =
     displayTotal > 0 ? displayTotal : leadhubSummary.addedToCampaign;
 
+  const continuousSyncLabel = formatContinuousSyncInterval(
+    continuousSyncIntervalMinutes
+  ).toLowerCase();
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {isContinuous && (
         <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-sm text-blue-900">
           <p className="font-semibold">Continuous campaign</p>
           <p className="mt-0.5 text-xs text-blue-800/90">
-            LeadHub and Google Sheets sync new leads every 12 hours. Webhook leads
-            wait 30 minutes before entering the send queue. This campaign will not
-            auto-complete while idle — pause or stop it when you are done.
+            LeadHub and Google Sheets sync new leads {continuousSyncLabel}.
+            Webhook leads wait 30 minutes before entering the send queue. This
+            campaign will not auto-complete while idle — pause or stop it when
+            you are done. Change the interval in Options → Campaign mode.
           </p>
         </div>
       )}
@@ -685,7 +700,7 @@ export function LeadsTab({
                   )}
                   {" · "}
                   {isContinuous
-                    ? "Auto-sync every 12h · click to sync more"
+                    ? `Auto-sync ${continuousSyncLabel} · click to sync more`
                     : "Click to sync more (manual only)"}
                 </p>
                 {leadhubExcludedCount > 0 && leadhubSkipReasons && (
@@ -713,7 +728,7 @@ export function LeadsTab({
                 </p>
                 <p className="mt-0.5 text-xs text-amber-900/80">
                   {isContinuous
-                    ? "Open filters — continuous campaigns sync LeadHub every 12 hours after setup"
+                    ? `Open filters — continuous campaigns sync LeadHub ${continuousSyncLabel} after setup`
                     : "Open import filters and sync LeadHub contacts (manual Sync only)"}
                 </p>
               </div>
@@ -725,6 +740,7 @@ export function LeadsTab({
             onClose={() => setLeadhubModalOpen(false)}
             value={leadhubSyncConfig}
             isContinuous={isContinuous}
+            continuousSyncIntervalMinutes={continuousSyncIntervalMinutes}
             onChange={(config) => {
               setLeadhubSyncConfig(config);
               if (!config?.enabled) {
@@ -770,6 +786,7 @@ export function LeadsTab({
           campaignId={campaignId}
           domainId={effectiveDomainId}
           isContinuous={isContinuous}
+          continuousSyncIntervalMinutes={continuousSyncIntervalMinutes}
           value={sheetSyncConfig}
           onChange={setSheetSyncConfig}
           onImported={() => {

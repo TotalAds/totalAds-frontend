@@ -167,7 +167,7 @@ export function normalizeMergeFieldKey(field: string): string {
   return field.trim().toLowerCase().replace(/\s+/g, "_");
 }
 
-function mergeFieldDisplayLabel(field: string): string {
+export function mergeFieldDisplayLabel(field: string): string {
   const label = field.replace(/[_-]+/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
   return label || "Value";
 }
@@ -380,19 +380,27 @@ export function extractVariableKeysFromLead(lead?: {
   return Array.from(keys).sort((a, b) => a.localeCompare(b));
 }
 
-/**
- * Build {{token}} → sample value map from a campaign lead (enrichedData / customFields)
- * with PREVIEW_SAMPLE_LEADS[0] as fallback for missing LeadHub keys.
- */
-export function buildTokenSampleValuesFromLead(lead?: {
+export type CampaignLeadPreviewInput = {
   email?: string | null;
   name?: string | null;
   company?: string | null;
   role?: string | null;
   customFields?: Record<string, unknown> | null;
   enrichedData?: Record<string, unknown> | null;
-} | null): Record<string, string> {
-  const out: Record<string, string> = { ...PREVIEW_SAMPLE_LEADS[0] };
+};
+
+/**
+ * Build {{token}} → sample value map from a campaign lead (enrichedData / customFields).
+ * When `includeStaticFallback` is true (default), missing keys fall back to fictional sample data.
+ */
+export function buildTokenSampleValuesFromLead(
+  lead?: CampaignLeadPreviewInput | null,
+  options?: { includeStaticFallback?: boolean }
+): Record<string, string> {
+  const out: Record<string, string> =
+    options?.includeStaticFallback === false
+      ? {}
+      : { ...PREVIEW_SAMPLE_LEADS[0] };
 
   const put = (key: string, value: unknown) => {
     const str = stringifySampleValue(value);
@@ -521,6 +529,43 @@ export function buildTokenSampleValuesFromLead(lead?: {
   }
 
   return out;
+}
+
+/** Merge-tag resolution record for inbox preview using real campaign lead data. */
+export function buildPreviewLeadRecordFromCampaignLead(
+  lead: CampaignLeadPreviewInput,
+  mergeTagTemplates: string[] = []
+): Record<string, string> {
+  const base = buildTokenSampleValuesFromLead(lead, {
+    includeStaticFallback: false,
+  });
+  const seen = new Set<string>();
+  for (const k of Object.keys(base)) {
+    seen.add(normalizeMergeFieldKey(k));
+  }
+  for (const tag of mergeTagTemplates) {
+    const inner = tag.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "");
+    const fieldOnly = inner.split("|")[0].trim();
+    if (!fieldOnly) continue;
+    const nk = normalizeMergeFieldKey(fieldOnly);
+    if (seen.has(nk)) continue;
+    seen.add(nk);
+    base[fieldOnly] = `[${mergeFieldDisplayLabel(fieldOnly)}]`;
+  }
+  return base;
+}
+
+export function getPreviewLeadDisplayLabel(
+  lead: Record<string, string>
+): string {
+  const name =
+    lead.name?.trim() ||
+    [lead.firstName || lead.first_name, lead.lastName || lead.last_name]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+  if (name && lead.email) return `${name} · ${lead.email}`;
+  return name || lead.email || "Lead";
 }
 
 function normalizeCoverageKey(field: string): string {

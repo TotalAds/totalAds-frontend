@@ -455,6 +455,8 @@ export interface Campaign {
     trustLeadhubVerification?: boolean;
   } | null;
   isContinuous?: boolean;
+  continuousSyncIntervalMinutes?: number;
+  lastContinuousSourceSyncAt?: string | null;
   startedAt?: string | null;
   sheetSyncConfig?: {
     enabled: boolean;

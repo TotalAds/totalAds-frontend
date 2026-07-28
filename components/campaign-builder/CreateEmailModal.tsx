@@ -47,6 +47,7 @@ import emailClient, {
   getCampaignById,
   getEmailServiceErrorMessage,
   sendTestEmail,
+  type Lead,
 } from "@/utils/api/emailClient";
 
 import DesignEditor from "./DesignEditor";
@@ -66,8 +67,10 @@ import {
 import {
   PREVIEW_SAMPLE_LEADS,
   buildCompositeLeadForPreview,
+  buildPreviewLeadRecordFromCampaignLead,
   extractUsedMergeVariables,
   getCoverageStatus,
+  getPreviewLeadDisplayLabel,
   highlightMergeTagsInPlainText,
   lookupTokenCoverage,
   mergeVariableLists,
@@ -152,6 +155,8 @@ export interface CreateEmailModalProps {
   tokenSampleValues?: Record<string, string>;
   /** Per-token coverage across campaign leads (warning only — not blocking). */
   tokenCoverage?: Record<string, PersonalizationTokenCoverage>;
+  /** Campaign leads used for inbox preview (real merge values). */
+  previewLeads?: Lead[];
   seedSubject: string;
   seedPreviewText?: string;
   seedUseSpintax: boolean;
@@ -182,6 +187,7 @@ export default function CreateEmailModal({
   availableVariables,
   tokenSampleValues,
   tokenCoverage,
+  previewLeads = [],
   seedSubject,
   seedPreviewText,
   seedUseSpintax,
@@ -388,15 +394,37 @@ export default function CreateEmailModal({
       .filter((g) => g.tags.length > 0);
   }, [groupedMergeTags, variableSearch]);
 
-  const shiftInboxPreviewLead = useCallback((delta: number) => {
-    const n = PREVIEW_SAMPLE_LEADS.length;
-    setInboxPreviewLeadIndex((i) => (i + delta + n * 10) % n);
-  }, []);
-
-  const inboxPreviewLead = useMemo(
-    () => buildCompositeLeadForPreview(inboxPreviewLeadIndex, mergeTags),
-    [inboxPreviewLeadIndex, mergeTags]
+  const shiftInboxPreviewLead = useCallback(
+    (delta: number) => {
+      const n = previewLeads.length;
+      if (n <= 0) return;
+      setInboxPreviewLeadIndex((i) => (i + delta + n * 10) % n);
+    },
+    [previewLeads.length]
   );
+
+  const previewLeadRecords = useMemo(
+    () =>
+      previewLeads.map((lead) =>
+        buildPreviewLeadRecordFromCampaignLead(lead, mergeTags)
+      ),
+    [previewLeads, mergeTags]
+  );
+
+  const hasPreviewLeads = previewLeadRecords.length > 0;
+
+  const inboxPreviewLead = useMemo(() => {
+    if (hasPreviewLeads) {
+      const idx = Math.min(inboxPreviewLeadIndex, previewLeadRecords.length - 1);
+      return previewLeadRecords[idx];
+    }
+    return buildCompositeLeadForPreview(inboxPreviewLeadIndex, mergeTags);
+  }, [
+    hasPreviewLeads,
+    inboxPreviewLeadIndex,
+    mergeTags,
+    previewLeadRecords,
+  ]);
 
   const inboxPreviewResolved = useMemo(
     () => ({
@@ -415,18 +443,32 @@ export default function CreateEmailModal({
     [draftSubject, draftPreviewText, draftHtml, inboxPreviewLead, inboxPreviewLeadIndex]
   );
 
-  const inboxPreviewBodySrcDoc = useMemo(
-    () =>
-      wrapEmailPreviewDocument(
-        draftHtml.trim()
-          ? draftHtml
-          : '<p style="margin:0;padding:16px;font-size:13px;line-height:1.5;color:#94a3b8;font-family:system-ui,sans-serif;">No body content yet.</p>',
-        true,
-        tokenSampleValues,
-        tokenCoverage
-      ),
-    [draftHtml, tokenSampleValues, tokenCoverage]
-  );
+  const inboxPreviewBodySrcDoc = useMemo(() => {
+    const emptyBody =
+      '<p style="margin:0;padding:16px;font-size:13px;line-height:1.5;color:#94a3b8;font-family:system-ui,sans-serif;">No body content yet.</p>';
+    if (hasPreviewLeads) {
+      const html = inboxPreviewResolved.html.trim()
+        ? inboxPreviewResolved.html
+        : emptyBody;
+      return wrapEmailPreviewDocument(html, false);
+    }
+    return wrapEmailPreviewDocument(
+      draftHtml.trim() ? draftHtml : emptyBody,
+      true,
+      tokenSampleValues,
+      tokenCoverage
+    );
+  }, [
+    draftHtml,
+    hasPreviewLeads,
+    inboxPreviewResolved.html,
+    tokenCoverage,
+    tokenSampleValues,
+  ]);
+
+  useEffect(() => {
+    setInboxPreviewLeadIndex(0);
+  }, [previewLeads.length]);
 
   useEffect(() => {
     if (!inboxPreviewOpen) {
@@ -1448,9 +1490,22 @@ export default function CreateEmailModal({
 
       <Dialog open={inboxPreviewOpen} onOpenChange={setInboxPreviewOpen}>
         <DialogContent className="flex max-h-[min(88vh,640px)] w-[min(100vw-1.25rem,28rem)] max-w-md flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
-          <DialogTitle className="sr-only">Email preview with sample recipient</DialogTitle>
+          <DialogTitle className="sr-only">Email preview</DialogTitle>
 
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-3 pt-3">
+            {!hasPreviewLeads ? (
+              <div className="flex min-h-[220px] flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
+                <Eye className="mb-3 h-8 w-8 text-slate-300" />
+                <p className="text-sm font-medium text-slate-700">
+                  Please add a lead before viewing the preview.
+                </p>
+                <p className="mt-1.5 max-w-[16rem] text-xs leading-relaxed text-slate-500">
+                  Add leads to this campaign from the Leads tab, then return here to
+                  preview personalization with real data.
+                </p>
+              </div>
+            ) : (
+              <>
             <div className="space-y-2">
               <Label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                 From
@@ -1464,7 +1519,7 @@ export default function CreateEmailModal({
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                To (sample)
+                To
               </Label>
               <div className="flex gap-1.5">
                 <Select
@@ -1475,10 +1530,9 @@ export default function CreateEmailModal({
                     <SelectValue placeholder="Recipient" />
                   </SelectTrigger>
                   <SelectContent>
-                    {PREVIEW_SAMPLE_LEADS.map((sample, i) => (
-                      <SelectItem key={i} value={String(i)}>
-                        {sample.name ||
-                          `${sample.firstName || sample.first_name} ${sample.lastName || sample.last_name}`.trim()}
+                    {previewLeadRecords.map((record, i) => (
+                      <SelectItem key={previewLeads[i]?.id ?? i} value={String(i)}>
+                        {getPreviewLeadDisplayLabel(record)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1489,8 +1543,9 @@ export default function CreateEmailModal({
                     variant="ghost"
                     size="icon"
                     className="h-9 w-9 rounded-none rounded-l-md"
-                    aria-label="Previous sample recipient"
+                    aria-label="Previous lead"
                     onClick={() => shiftInboxPreviewLead(-1)}
+                    disabled={previewLeadRecords.length <= 1}
                   >
                     <ChevronLeft className="h-3.5 w-3.5" />
                   </Button>
@@ -1499,13 +1554,19 @@ export default function CreateEmailModal({
                     variant="ghost"
                     size="icon"
                     className="h-9 w-9 rounded-none rounded-r-md border-l border-slate-200"
-                    aria-label="Next sample recipient"
+                    aria-label="Next lead"
                     onClick={() => shiftInboxPreviewLead(1)}
+                    disabled={previewLeadRecords.length <= 1}
                   >
                     <ChevronRight className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
+              {previewLeadRecords.length > 1 ? (
+                <p className="text-[10px] text-slate-500">
+                  Lead {inboxPreviewLeadIndex + 1} of {previewLeadRecords.length}
+                </p>
+              ) : null}
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-white">
@@ -1518,45 +1579,19 @@ export default function CreateEmailModal({
                 </p>
                 <p className="mt-1.5 text-sm font-semibold leading-snug text-slate-900">
                   <span className="mr-1.5 text-xs font-normal text-slate-400">Subject </span>
-                  {extractUsedMergeVariables(draftSubject).length > 0 ? (
-                    <span
-                      className="inline align-middle [&_span]:align-middle"
-                      dangerouslySetInnerHTML={{
-                        __html: highlightMergeTagsInPlainText(
-                          draftSubject,
-                          tokenCoverage,
-                          tokenSampleValues
-                        ),
-                      }}
-                    />
-                  ) : (
-                    inboxPreviewResolved.subject.trim() || "(no subject)"
-                  )}
+                  {inboxPreviewResolved.subject.trim() || "(no subject)"}
                 </p>
                 {draftPreviewText.trim() ? (
                   <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
                     <span className="text-slate-400">Preheader </span>
-                    {extractUsedMergeVariables(draftPreviewText).length > 0 ? (
-                      <span
-                        className="inline align-middle [&_span]:align-middle"
-                        dangerouslySetInnerHTML={{
-                          __html: highlightMergeTagsInPlainText(
-                            draftPreviewText,
-                            tokenCoverage,
-                            tokenSampleValues
-                          ),
-                        }}
-                      />
-                    ) : (
-                      inboxPreviewResolved.previewText
-                    )}
+                    {inboxPreviewResolved.previewText}
                   </p>
                 ) : null}
               </div>
               <div className="bg-slate-50 p-1.5">
                 <iframe
                   ref={inboxPreviewIframeRef}
-                  title="Email body preview with personalization coverage"
+                  title="Email body preview"
                   className="h-[min(38vh,320px)] w-full min-h-[160px] rounded-md bg-white [scrollbar-width:thin]"
                   sandbox="allow-same-origin"
                   srcDoc={inboxPreviewBodySrcDoc}
@@ -1567,6 +1602,8 @@ export default function CreateEmailModal({
             <p className="text-center text-[10px] text-slate-500">
               Reply &quot;Stop&quot; to opt out.
             </p>
+              </>
+            )}
           </div>
 
           <DialogFooter className="border-t border-slate-100 px-4 py-2 sm:justify-end">

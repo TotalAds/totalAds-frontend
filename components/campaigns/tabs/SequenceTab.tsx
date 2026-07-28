@@ -961,6 +961,7 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
           tokenCoverage={
             campaignLeadsForCoverage.length > 0 ? tokenCoverage : undefined
           }
+          previewLeads={campaignLeadsForCoverage}
           seedSubject={editingVariant.subject}
           seedPreviewText={editingVariant.previewText}
           seedUseSpintax={editingVariant.useSpintax}

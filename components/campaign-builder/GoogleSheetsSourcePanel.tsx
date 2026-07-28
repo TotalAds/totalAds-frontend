@@ -19,6 +19,7 @@ import {
   type GoogleSpreadsheetItem,
   type GoogleSheetTab,
 } from "@/utils/api/sheetsClient";
+import { formatContinuousSyncInterval } from "@/lib/continuousSyncInterval";
 
 export interface SheetSyncConfigState {
   enabled: boolean;
@@ -37,6 +38,7 @@ interface GoogleSheetsSourcePanelProps {
   campaignId: string;
   domainId: string;
   isContinuous: boolean;
+  continuousSyncIntervalMinutes?: number;
   value: SheetSyncConfigState | null;
   onChange: (config: SheetSyncConfigState | null) => void;
   onImported?: () => void;
@@ -46,6 +48,7 @@ export function GoogleSheetsSourcePanel({
   campaignId,
   domainId,
   isContinuous,
+  continuousSyncIntervalMinutes,
   value,
   onChange,
   onImported,
@@ -174,7 +177,7 @@ export function GoogleSheetsSourcePanel({
       onChange(config);
       toast.success(
         isContinuous
-          ? "Sheet linked. New rows sync every 12 hours."
+          ? `Sheet linked. New rows sync ${formatContinuousSyncInterval(continuousSyncIntervalMinutes).toLowerCase()}.`
           : "Sheet linked. Import once when ready."
       );
     } catch (err) {
@@ -222,7 +225,7 @@ export function GoogleSheetsSourcePanel({
           <h4 className="text-sm font-semibold text-slate-900">Google Sheets</h4>
           <p className="mt-0.5 text-xs text-slate-500">
             {isContinuous
-              ? "Pull new rows every 12 hours into this continuous campaign."
+              ? `Pull new rows ${formatContinuousSyncInterval(continuousSyncIntervalMinutes).toLowerCase()} into this continuous campaign.`
               : "Connect a sheet and import leads once (not recurring)."}
           </p>
         </div>

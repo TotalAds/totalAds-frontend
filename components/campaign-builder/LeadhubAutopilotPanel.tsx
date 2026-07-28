@@ -22,6 +22,7 @@ import {
   LeadhubList,
   LeadhubSyncConfig,
 } from "@/utils/api/leadhubClient";
+import { formatContinuousSyncInterval } from "@/lib/continuousSyncInterval";
 
 interface LeadhubAutopilotPanelProps {
   open: boolean;
@@ -31,8 +32,9 @@ interface LeadhubAutopilotPanelProps {
   onSyncNow?: () => void;
   syncing?: boolean;
   enriching?: boolean;
-  /** When true, auto-sync runs every 12h; Sync now is still available. */
+  /** When true, auto-sync uses the campaign's configured interval. */
   isContinuous?: boolean;
+  continuousSyncIntervalMinutes?: number;
   syncPhase?: "idle" | "fetching" | "enriching" | "complete" | "error";
   syncStats?: {
     processed: number;
@@ -48,6 +50,9 @@ interface LeadhubAutopilotPanelProps {
   syncLinks?: Array<{
     leadhubLeadId: string;
     email: string | null;
+    emailField?: "signup.email" | "contact.email" | null;
+    mergeToken?: "{{email}}";
+    isSignupLead?: boolean;
     syncStatus: string;
     lastError: string | null;
     priority: string | null;
@@ -205,6 +210,7 @@ export default function LeadhubAutopilotPanel({
   syncing,
   enriching,
   isContinuous = false,
+  continuousSyncIntervalMinutes,
   syncPhase = "idle",
   syncStats,
   syncLinks,
@@ -217,6 +223,15 @@ export default function LeadhubAutopilotPanel({
 
   const enabled = Boolean(value?.enabled);
   const grouped = useMemo(() => groupTokens(tokens), [tokens]);
+  const selectedList = useMemo(
+    () => lists.find((l) => l.id === value?.listIds?.[0]),
+    [lists, value?.listIds],
+  );
+  const isSignupList =
+    value?.listType === "signup" || selectedList?.listType === "signup";
+  const continuousSyncLabel = isContinuous
+    ? formatContinuousSyncInterval(continuousSyncIntervalMinutes).toLowerCase()
+    : null;
 
   useEffect(() => {
     if (!open) return;
@@ -317,9 +332,10 @@ export default function LeadhubAutopilotPanel({
                   Import from LeadHub
                 </h2>
                 <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                  Choose filters and sync matching LeadHub leads into this campaign.
+                  Choose filters and sync matching LeadHub leads into this
+                  campaign.
                   {isContinuous
-                    ? " Continuous campaigns also auto-sync every 12 hours."
+                    ? ` Continuous campaigns also auto-sync ${continuousSyncLabel ?? "on schedule"}.`
                     : " Sync runs only when you click Sync now."}
                 </p>
               </div>
@@ -343,7 +359,7 @@ export default function LeadhubAutopilotPanel({
               }`}
             >
               {isContinuous
-                ? "Continuous mode: LeadHub auto-syncs every 12 hours. You can still sync manually anytime."
+                ? `Continuous mode: LeadHub auto-syncs ${continuousSyncLabel ?? "on your schedule"}. You can still sync manually anytime.`
                 : "Standard mode: LeadHub does not auto-sync. Use Sync now to pull matching leads."}
             </div>
 
@@ -366,34 +382,58 @@ export default function LeadhubAutopilotPanel({
                   <select
                     className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                     value={value?.listIds?.[0] ?? ""}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const listId = e.target.value;
+                      const selected = lists.find((l) => l.id === listId);
                       patch({
-                        listIds: e.target.value ? [e.target.value] : [],
-                      })
-                    }
+                        listIds: listId ? [listId] : [],
+                        listType:
+                          selected?.listType === "signup"
+                            ? "signup"
+                            : listId
+                              ? "regular"
+                              : undefined,
+                        categoryIds:
+                          selected?.listType === "signup"
+                            ? []
+                            : value?.categoryIds,
+                      });
+                    }}
                   >
                     <option value="">Any list</option>
                     {lists.map((l) => (
                       <option key={l.id} value={l.id}>
                         {l.name}
+                        {l.listType === "signup" ? " (Signup)" : ""}
                       </option>
                     ))}
                   </select>
+                  {/* {isSignupList && (
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-amber-800">
+                      Signup list selected — import pulls from{" "}
+                      <span className="font-mono">signup_leads</span> via{" "}
+                      <span className="font-mono">/api/signups/sync</span>, using
+                      locked signup email and generated onboarding content.
+                    </p>
+                  )} */}
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-700">
                     Category
                   </label>
                   <select
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-slate-50 disabled:text-slate-400"
                     value={value?.categoryIds?.[0] ?? ""}
+                    disabled={isSignupList}
                     onChange={(e) =>
                       patch({
                         categoryIds: e.target.value ? [e.target.value] : [],
                       })
                     }
                   >
-                    <option value="">Any category</option>
+                    <option value="">
+                      {isSignupList ? "N/A for signup list" : "Any category"}
+                    </option>
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
@@ -405,7 +445,7 @@ export default function LeadhubAutopilotPanel({
 
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-slate-700">
-                  Priority
+                  {isSignupList ? "Signup category" : "Priority"}
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {PRIORITIES.map((p) => {
@@ -426,50 +466,58 @@ export default function LeadhubAutopilotPanel({
                     );
                   })}
                 </div>
+                {isSignupList && (
+                  <p className="mt-1.5 text-[11px] text-slate-500">
+                    Filters signup leads by hot/warm/cold category in{" "}
+                    <span className="font-mono">signup_leads.category</span>.
+                  </p>
+                )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-700">
-                    Min intent score
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={value?.minIntentScore ?? ""}
-                    onChange={(e) =>
-                      patch({
-                        minIntentScore: e.target.value
-                          ? Number(e.target.value)
-                          : undefined,
-                      })
-                    }
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                    placeholder="e.g. 40"
-                  />
+              {!isSignupList && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-700">
+                      Min intent score
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={value?.minIntentScore ?? ""}
+                      onChange={(e) =>
+                        patch({
+                          minIntentScore: e.target.value
+                            ? Number(e.target.value)
+                            : undefined,
+                        })
+                      }
+                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                      placeholder="e.g. 40"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-700">
+                      Min ICP score
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={value?.minIcpScore ?? ""}
+                      onChange={(e) =>
+                        patch({
+                          minIcpScore: e.target.value
+                            ? Number(e.target.value)
+                            : undefined,
+                        })
+                      }
+                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                      placeholder="e.g. 50"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-700">
-                    Min ICP score
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={value?.minIcpScore ?? ""}
-                    onChange={(e) =>
-                      patch({
-                        minIcpScore: e.target.value
-                          ? Number(e.target.value)
-                          : undefined,
-                      })
-                    }
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                    placeholder="e.g. 50"
-                  />
-                </div>
-              </div>
+              )}
             </section>
 
             {tokens.length > 0 && (
@@ -494,7 +542,8 @@ export default function LeadhubAutopilotPanel({
                 {tokensOpen && (
                   <div className="space-y-3 border-t border-slate-100 px-3.5 py-3">
                     <p className="text-[11px] text-slate-500">
-                      Click a token to copy. Insert them in Sequence → Personalize.
+                      Click a token to copy. Insert them in Sequence →
+                      Personalize.
                     </p>
                     {(
                       [
@@ -514,12 +563,39 @@ export default function LeadhubAutopilotPanel({
                             ))}
                           </div>
                         </div>
-                      ) : null
+                      ) : null,
                     )}
                   </div>
                 )}
               </section>
             )}
+
+            <section className="rounded-xl border border-slate-200 bg-white px-3.5 py-3">
+              <p className="text-[11px] font-semibold text-slate-800">
+                Email mapping
+              </p>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-slate-600">
+                The{" "}
+                <span className="font-mono text-slate-800">{"{{email}}"}</span>{" "}
+                token and send address come from LeadHub based on lead type:
+              </p>
+              <ul className="mt-2 space-y-1.5 text-[11px] text-slate-600">
+                <li className="flex flex-wrap items-center gap-1.5">
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">
+                    contact.email
+                  </span>
+                  <span>Normal leads — enriched primary email</span>
+                </li>
+                <li className="flex flex-wrap items-center gap-1.5">
+                  <span className="rounded bg-amber-50 px-1.5 py-0.5 font-mono text-[10px] text-amber-800 ring-1 ring-amber-200">
+                    signup.email
+                  </span>
+                  <span>
+                    Signup leads — locked address from signup (never replaced)
+                  </span>
+                </li>
+              </ul>
+            </section>
 
             <SyncProgressBar
               syncing={syncing}
@@ -536,17 +612,40 @@ export default function LeadhubAutopilotPanel({
                 {syncLinks.slice(0, 12).map((link) => (
                   <div
                     key={link.leadhubLeadId}
-                    className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-slate-500"
+                    className="space-y-0.5 rounded-lg border border-slate-200/80 bg-white px-2.5 py-2"
                   >
-                    <span className="font-medium text-slate-800">
-                      {link.email || link.leadhubLeadId}
-                    </span>
-                    <span className="capitalize">
-                      {link.syncStatus.replace(/_/g, " ")}
-                    </span>
-                    {link.priority && <span>({link.priority})</span>}
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px]">
+                      <span className="font-medium text-slate-800">
+                        {link.email || link.leadhubLeadId}
+                      </span>
+                      <span className="capitalize text-slate-500">
+                        {link.syncStatus.replace(/_/g, " ")}
+                      </span>
+                      {link.priority && (
+                        <span className="text-slate-500">
+                          ({link.priority})
+                        </span>
+                      )}
+                    </div>
+                    {link.emailField && (
+                      <p className="font-mono text-[10px] text-slate-500">
+                        {link.mergeToken ?? "{{email}}"}{" "}
+                        <span className="text-slate-400">←</span>{" "}
+                        <span
+                          className={
+                            link.isSignupLead
+                              ? "text-amber-700"
+                              : "text-slate-600"
+                          }
+                        >
+                          {link.emailField}
+                        </span>
+                      </p>
+                    )}
                     {link.lastError && (
-                      <span className="text-amber-700">— {link.lastError}</span>
+                      <p className="text-[10px] text-amber-700">
+                        {link.lastError}
+                      </p>
                     )}
                   </div>
                 ))}

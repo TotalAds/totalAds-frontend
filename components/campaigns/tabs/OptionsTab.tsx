@@ -38,6 +38,8 @@ import {
 } from "@/lib/senderPacing";
 import { getReoonStatus } from "@/utils/api/reoonClient";
 import ReoonApiKeyRequiredModal from "@/components/campaign-builder/ReoonApiKeyRequiredModal";
+import { ContinuousSyncIntervalSelect } from "@/components/campaign-builder/ContinuousSyncIntervalSelect";
+import { DEFAULT_CONTINUOUS_SYNC_INTERVAL_MINUTES } from "@/lib/continuousSyncInterval";
 
 interface OptionsTabProps {
   campaignId: string;
@@ -117,6 +119,8 @@ export function OptionsTab({
     initialRequireVerification,
   );
   const [isContinuous, setIsContinuous] = useState(initialIsContinuous);
+  const [continuousSyncIntervalMinutes, setContinuousSyncIntervalMinutes] =
+    useState(DEFAULT_CONTINUOUS_SYNC_INTERVAL_MINUTES);
   const [continuousLocked, setContinuousLocked] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -142,6 +146,10 @@ export function OptionsTab({
             initialRequireVerification,
         );
         setIsContinuous(Boolean(campaign.isContinuous ?? initialIsContinuous));
+        setContinuousSyncIntervalMinutes(
+          campaign.continuousSyncIntervalMinutes ??
+            DEFAULT_CONTINUOUS_SYNC_INTERVAL_MINUTES
+        );
         setContinuousLocked(
           Boolean(campaign.startedAt) ||
             [
@@ -320,6 +328,9 @@ export function OptionsTab({
         openTrackingEnabled: openTracking,
         linkTrackingEnabled: openTracking ? linkTracking : false,
         isContinuous,
+        continuousSyncIntervalMinutes: isContinuous
+          ? continuousSyncIntervalMinutes
+          : undefined,
         reoonVerificationSummary: {
           requireLeadVerification: requireVerification,
         },
@@ -457,13 +468,25 @@ export function OptionsTab({
                 Continuous campaign
               </p>
               <p className="mt-0.5 text-xs text-slate-500">
-                Always-on intake: LeadHub and Google Sheets sync new leads every
-                12 hours, plus an optional webhook API. The campaign stays
+                Always-on intake: LeadHub and Google Sheets sync on your chosen
+                interval, plus an optional webhook API. The campaign stays
                 running when the queue is idle until you pause or stop it.
                 Configure sources on the Leads tab.
               </p>
             </div>
           </label>
+          {isContinuous && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+              <ContinuousSyncIntervalSelect
+                value={continuousSyncIntervalMinutes}
+                onChange={(minutes) => {
+                  setContinuousSyncIntervalMinutes(minutes);
+                  setSaved(false);
+                }}
+                disabled={continuousLocked || isLocked}
+              />
+            </div>
+          )}
           {(continuousLocked || isLocked) && (
             <p className="text-[11px] text-slate-400">
               Campaign mode is locked after launch.

@@ -16,6 +16,8 @@ export interface LeadhubSyncConfig {
   enabled: boolean;
   source: "leadhub_autopilot";
   listIds?: string[];
+  /** When signup, import uses LeadHub GET /api/signups/sync. */
+  listType?: "regular" | "signup";
   categoryIds?: string[];
   priorities?: Array<"hot" | "warm" | "cold" | "unknown">;
   minIntentScore?: number;
@@ -36,6 +38,9 @@ export interface LeadhubList {
   id: string;
   name: string;
   description?: string | null;
+  isSystemList?: boolean;
+  listType?: "regular" | "signup";
+  leadCount?: number;
 }
 
 export interface LeadhubCategory {
@@ -125,6 +130,10 @@ export const previewLeadhubSync = async (
 export interface LeadhubSyncLinkRow {
   leadhubLeadId: string;
   email: string | null;
+  /** LeadHub field path used for import and {{email}} token. */
+  emailField?: "signup.email" | "contact.email" | null;
+  mergeToken?: "{{email}}";
+  isSignupLead?: boolean;
   syncStatus: string;
   lastError: string | null;
   priority: string | null;
