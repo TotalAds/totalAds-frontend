@@ -762,7 +762,8 @@ export function OptionsTab({
                   Open Tracking
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Track when recipients open your emails
+                  Estimated opens via tracking pixel (replies from your inbox are
+                  definitive)
                 </p>
               </div>
             </div>
@@ -825,11 +826,11 @@ export function OptionsTab({
             re-queued.
           </p>
           <p className="mt-2 text-[11px] text-slate-500">
-            Open and reply detection work from your connected inbox (Gmail,
-            Microsoft, Zoho, or SMTP with IMAP). We filter automated prefetch
-            from Google and Microsoft so only real engagement is counted. AWS
-            SES uses SNS for opens, bounces, and complaints — not inbox reply
-            polling.
+            Opens use a tracking pixel on mailbox-connected senders (Gmail,
+            Microsoft, Zoho, SMTP). We filter prefetch bots, security scanners,
+            AI crawlers, and Apple Mail Privacy Protection. Replies are detected
+            from your connected inbox (IMAP) and are the most reliable
+            engagement signal.
           </p>
         </div>
       </div>

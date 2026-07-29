@@ -29,7 +29,7 @@ export const HeroMetrics: React.FC<HeroMetricsProps> = ({
       {/* Open Rate */}
       <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-md transition-shadow">
         <div>
-          <div className="text-xs text-gray-400 mb-2 font-medium tracking-wide uppercase">Open Rate</div>
+          <div className="text-xs text-gray-400 mb-2 font-medium tracking-wide uppercase">Est. Open Rate</div>
           <div className={`text-3xl font-bold leading-none mb-2 ${openColor}`}>
             {oRate > 0 ? `${openRate}%` : '0%'}
           </div>
