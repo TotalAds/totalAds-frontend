@@ -154,13 +154,18 @@ export function CampaignDetailPage({
   const isCancelled = status === "cancelled";
   const isVerifying = status === "verifying_leads";
 
-  const mappedSteps =
-    analytics?.sequenceSteps?.map((step: any) => {
+  const mappedSteps = (() => {
+    const rawSteps: any[] = analytics?.sequenceSteps || [];
+    let cumulativeMinutes = 0;
+    return rawSteps.map((step: any) => {
+      // delayMinutes on each step is relative ("wait after previous step").
+      // We accumulate to get the absolute day offset from campaign start.
+      cumulativeMinutes += Math.max(0, Number(step.delayMinutes || 0));
       const hasSent = (step.sent || 0) > 0;
       const hasPending = (step.pending || 0) > 0 || (step.remaining || 0) > 0;
       return {
         stepNumber: Number(step.stepIndex || 0) + 1,
-        dayOffset: Math.max(0, Math.round((step.delayMinutes || 0) / 1440)),
+        dayOffset: Math.round(cumulativeMinutes / 1440),
         subject: step.subject || "Untitled step",
         totalInStep: step.total || 0,
         sent: step.sent || 0,
@@ -177,7 +182,8 @@ export function CampaignDetailPage({
           : undefined,
         status: hasSent ? "done" : hasPending ? "pending" : ("waiting" as const),
       };
-    }) || [];
+    });
+  })();
 
   const trendData =
     enhancedAnalytics?.timeSeries?.map((point: any) => ({
