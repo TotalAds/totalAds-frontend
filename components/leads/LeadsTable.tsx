@@ -14,6 +14,7 @@ import {
   IconEye,
   IconGripVertical,
   IconMail,
+  IconPencil,
   IconTrash,
 } from "@tabler/icons-react";
 
@@ -134,6 +135,9 @@ interface LeadsTableProps {
   onFiltersChange: (filters: LeadColumnFilters) => void;
   selectedIds: Set<string>;
   onSelectionChange: (ids: Set<string>) => void;
+  isAllMatchingSelected?: boolean;
+  onSelectAllMatchingChange?: (selected: boolean) => void;
+  onEditLead?: (lead: LeadRow) => void;
   onVerify?: (lead: LeadRow) => void;
   onDelete?: (leadId: string) => void;
   onViewDetails?: (lead: LeadRow) => void;
@@ -343,6 +347,9 @@ export default function LeadsTable({
   onFiltersChange,
   selectedIds,
   onSelectionChange,
+  isAllMatchingSelected = false,
+  onSelectAllMatchingChange,
+  onEditLead,
   onVerify,
   onDelete,
   onViewDetails,
@@ -392,13 +399,18 @@ export default function LeadsTable({
   const columnCount = columnOrder.length + 1 + (canEdit ? 1 : 0);
 
   const allPageSelected = useMemo(
-    () => leads.length > 0 && leads.every((lead) => selectedIds.has(lead.id)),
-    [leads, selectedIds]
+    () =>
+      isAllMatchingSelected ||
+      (leads.length > 0 && leads.every((lead) => selectedIds.has(lead.id))),
+    [leads, selectedIds, isAllMatchingSelected]
   );
 
   const somePageSelected = useMemo(
-    () => leads.some((lead) => selectedIds.has(lead.id)) && !allPageSelected,
-    [leads, selectedIds, allPageSelected]
+    () =>
+      !isAllMatchingSelected &&
+      leads.some((lead) => selectedIds.has(lead.id)) &&
+      !allPageSelected,
+    [leads, selectedIds, allPageSelected, isAllMatchingSelected]
   );
 
   const updateFilter = useCallback(
@@ -410,23 +422,25 @@ export default function LeadsTable({
 
   const toggleSelectAll = useCallback(
     (checked: boolean) => {
+      onSelectAllMatchingChange?.(false);
       if (!checked) {
         onSelectionChange(new Set());
         return;
       }
       onSelectionChange(new Set(leads.map((lead) => lead.id)));
     },
-    [leads, onSelectionChange]
+    [leads, onSelectionChange, onSelectAllMatchingChange]
   );
 
   const toggleRow = useCallback(
     (leadId: string, checked: boolean) => {
+      onSelectAllMatchingChange?.(false);
       const next = new Set(selectedIds);
       if (checked) next.add(leadId);
       else next.delete(leadId);
       onSelectionChange(next);
     },
-    [selectedIds, onSelectionChange]
+    [selectedIds, onSelectionChange, onSelectAllMatchingChange]
   );
 
   const handleResizeStart = useCallback(
@@ -766,7 +780,7 @@ export default function LeadsTable({
               </TableRow>
             ) : (
               leads.map((lead) => {
-                const selected = selectedIds.has(lead.id);
+                const selected = isAllMatchingSelected || selectedIds.has(lead.id);
                 return (
                   <TableRow
                     key={lead.id}
@@ -809,6 +823,14 @@ export default function LeadsTable({
                         </button>
                         {canEdit && (
                           <>
+                            <button
+                              type="button"
+                              onClick={() => onEditLead?.(lead)}
+                              className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-purple-50 hover:text-purple-600"
+                              title="Edit categories, tags & lists"
+                            >
+                              <IconPencil size={16} />
+                            </button>
                             <button
                               type="button"
                               onClick={() => onVerify?.(lead)}

@@ -4,10 +4,12 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { BulkOrganizeLeadsModal } from "@/components/leads/BulkOrganizeLeadsModal";
 import BulkUploadModal from "@/components/leads/BulkUploadModal";
 import BulkUploadProgressBanner from "@/components/leads/BulkUploadProgressBanner";
 import ContactPlanLimitBanner from "@/components/leads/ContactPlanLimitBanner";
 import { LeadDetailsModal } from "@/components/leads/LeadDetailsModal";
+import { SingleLeadOrganizeModal } from "@/components/leads/SingleLeadOrganizeModal";
 import LeadsTable, {
   EMPTY_LEAD_FILTERS,
   hasActiveLeadFilters,
@@ -25,7 +27,7 @@ import emailClient, {
   ContactMetrics,
   getContactMetrics,
 } from "@/utils/api/emailClient";
-import { IconMail, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
+import { IconFolderPlus, IconMail, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 
 interface ListResponse {
   leads: LeadRow[];
@@ -82,6 +84,10 @@ export default function LeadsPage() {
   );
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isAllMatchingSelected, setIsAllMatchingSelected] = useState(false);
+  const [showBulkOrganizeModal, setShowBulkOrganizeModal] = useState(false);
+  const [selectedLeadForOrganize, setSelectedLeadForOrganize] =
+    useState<LeadRow | null>(null);
 
   const hasActiveFilters = hasActiveLeadFilters(filters);
 
@@ -110,6 +116,7 @@ export default function LeadsPage() {
 
   useEffect(() => {
     setSelectedLeadsForCampaign(new Set());
+    setIsAllMatchingSelected(false);
   }, [filters, page, limit]);
 
   const loadFilterOptions = async () => {
@@ -263,6 +270,7 @@ export default function LeadsPage() {
 
       setShowBulkDeleteConfirm(false);
       setSelectedLeadsForCampaign(new Set());
+      setIsAllMatchingSelected(false);
       await loadLeads();
     } catch (error) {
       console.error("Failed to delete leads:", error);
@@ -438,35 +446,60 @@ export default function LeadsPage() {
           </div>
         )}
 
-        {canEdit && selectedLeadsForCampaign.size > 0 && (
-          <div className="mb-4 flex items-center justify-between rounded-xl border border-brand-main/30 bg-brand-main/10 p-4">
-            <div className="text-text-100">
-              <span className="font-semibold">
-                {selectedLeadsForCampaign.size}
-              </span>{" "}
-              filtered lead{selectedLeadsForCampaign.size !== 1 ? "s" : ""}{" "}
-              selected on this page
+        {canEdit && (selectedLeadsForCampaign.size > 0 || isAllMatchingSelected) && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-main/30 bg-brand-main/10 p-4">
+            <div className="flex items-center gap-2 text-text-100">
+              {isAllMatchingSelected ? (
+                <span>
+                  All <span className="font-semibold text-brand-main">{total.toLocaleString()}</span> available leads selected across all pages
+                </span>
+              ) : (
+                <span>
+                  <span className="font-semibold">{selectedLeadsForCampaign.size}</span> filtered lead{selectedLeadsForCampaign.size !== 1 ? "s" : ""} selected on this page
+                  {leads.length > 0 && selectedLeadsForCampaign.size === leads.length && total > leads.length && (
+                    <button
+                      type="button"
+                      onClick={() => setIsAllMatchingSelected(true)}
+                      className="ml-3 font-semibold text-brand-main hover:underline"
+                    >
+                      Select all {total.toLocaleString()} available leads
+                    </button>
+                  )}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => setShowBulkDeleteConfirm(true)}
-                disabled={isDeleting}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 hover:text-rose-700 disabled:opacity-50"
-                title={`Delete ${selectedLeadsForCampaign.size} selected lead${selectedLeadsForCampaign.size !== 1 ? "s" : ""}`}
-                aria-label={`Delete ${selectedLeadsForCampaign.size} selected lead${selectedLeadsForCampaign.size !== 1 ? "s" : ""}`}
+                onClick={() => setShowBulkOrganizeModal(true)}
+                className="flex items-center gap-2 rounded-lg bg-brand-main px-4 py-2 font-semibold text-white transition-all duration-200 hover:bg-brand-main/80"
+                title="Add Tag, Category, or List"
               >
-                <IconTrash size={18} />
+                <IconFolderPlus size={18} />
+                Add Category / Tag / List
               </button>
               <button
                 onClick={() => setShowStartCampaignModal(true)}
-                className="flex items-center gap-2 rounded-lg bg-brand-main px-4 py-2 font-semibold text-white transition-all duration-200 hover:bg-brand-main/80"
+                className="flex items-center gap-2 rounded-lg bg-sidebar px-4 py-2 font-semibold text-white transition-all duration-200 hover:bg-sidebar/80"
               >
                 <IconMail size={18} />
                 Start Campaign
               </button>
               <button
-                onClick={() => setSelectedLeadsForCampaign(new Set())}
+                type="button"
+                onClick={() => setShowBulkDeleteConfirm(true)}
+                disabled={isDeleting}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 hover:text-rose-700 disabled:opacity-50"
+                title={`Delete ${isAllMatchingSelected ? total : selectedLeadsForCampaign.size} selected lead${(isAllMatchingSelected ? total : selectedLeadsForCampaign.size) !== 1 ? "s" : ""}`}
+                aria-label={`Delete ${isAllMatchingSelected ? total : selectedLeadsForCampaign.size} selected lead${(isAllMatchingSelected ? total : selectedLeadsForCampaign.size) !== 1 ? "s" : ""}`}
+              >
+                <IconTrash size={18} />
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedLeadsForCampaign(new Set());
+                  setIsAllMatchingSelected(false);
+                }}
                 className="rounded-lg bg-brand-main/10 px-4 py-2 text-text-100 transition-colors hover:bg-brand-main/20"
               >
                 Clear
@@ -484,6 +517,9 @@ export default function LeadsPage() {
           onFiltersChange={handleFiltersChange}
           selectedIds={selectedLeadsForCampaign}
           onSelectionChange={setSelectedLeadsForCampaign}
+          isAllMatchingSelected={isAllMatchingSelected}
+          onSelectAllMatchingChange={setIsAllMatchingSelected}
+          onEditLead={setSelectedLeadForOrganize}
           onVerify={setSelectedLeadForVerification}
           onDelete={handleDelete}
           onViewDetails={setSelectedLeadForDetails}
@@ -697,11 +733,44 @@ export default function LeadsPage() {
           }}
           onConfirm={() => void confirmBulkDelete()}
           title="Delete selected leads?"
-          message={`Are you sure you want to delete ${selectedLeadsForCampaign.size} selected lead${selectedLeadsForCampaign.size !== 1 ? "s" : ""}? This action cannot be undone.`}
+          message={`Are you sure you want to delete ${isAllMatchingSelected ? total : selectedLeadsForCampaign.size} selected lead${(isAllMatchingSelected ? total : selectedLeadsForCampaign.size) !== 1 ? "s" : ""}? This action cannot be undone.`}
           confirmText="Delete"
           cancelText="Cancel"
           type="danger"
           isLoading={isDeleting}
+        />
+
+        <BulkOrganizeLeadsModal
+          isOpen={showBulkOrganizeModal}
+          onClose={() => setShowBulkOrganizeModal(false)}
+          selectedCount={
+            isAllMatchingSelected ? total : selectedLeadsForCampaign.size
+          }
+          selectedLeadIds={Array.from(selectedLeadsForCampaign)}
+          isAllMatchingSelected={isAllMatchingSelected}
+          filters={filters}
+          availableCategories={filterOptions.categories}
+          availableTags={filterOptions.tags}
+          availableLists={filterOptions.lists}
+          onSuccess={() => {
+            loadLeads();
+            loadFilterOptions();
+            setSelectedLeadsForCampaign(new Set());
+            setIsAllMatchingSelected(false);
+          }}
+        />
+
+        <SingleLeadOrganizeModal
+          isOpen={!!selectedLeadForOrganize}
+          lead={selectedLeadForOrganize}
+          onClose={() => setSelectedLeadForOrganize(null)}
+          availableCategories={filterOptions.categories}
+          availableTags={filterOptions.tags}
+          availableLists={filterOptions.lists}
+          onSuccess={() => {
+            loadLeads();
+            loadFilterOptions();
+          }}
         />
       </div>
     </div>
