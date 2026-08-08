@@ -16,6 +16,8 @@ import {
   MoreHorizontal,
   Download,
   Shield,
+  RotateCcw,
+  AlertTriangle,
 } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
@@ -38,6 +40,7 @@ import {
   pauseCampaign,
   sendCampaign,
   stopCampaign,
+  restartCampaign,
   getEmailServiceErrorMessage,
 } from "@/utils/api/emailClient";
 
@@ -261,6 +264,22 @@ export function CampaignDetailPage({
     }
   };
 
+  const [restartingCampaign, setRestartingCampaign] = useState(false);
+
+  const handleRestart = async () => {
+    if (!domainId) return;
+    setRestartingCampaign(true);
+    try {
+      const res = await restartCampaign(domainId, campaignId);
+      toast.success(res.message || "Campaign restarted! Missing sequence steps queued.");
+      onRefresh();
+    } catch (error: unknown) {
+      toast.error(getEmailServiceErrorMessage(error, "Failed to restart campaign"));
+    } finally {
+      setRestartingCampaign(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-bg-100 flex flex-col">
       {/* ────────── TOP HEADER ────────── */}
@@ -310,6 +329,23 @@ export function CampaignDetailPage({
                     <Download className="h-3.5 w-3.5" />
                   )}
                   {downloading ? "Downloading…" : "Report"}
+                </button>
+              )}
+
+              {/* Restart (running, paused, or completed) */}
+              {!isDraft && !isVerifying && (
+                <button
+                  onClick={handleRestart}
+                  disabled={restartingCampaign}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-800 bg-amber-100 border border-amber-300 rounded-lg hover:bg-amber-200 transition-colors disabled:opacity-50 shadow-sm"
+                  title="Restart campaign to queue any newly added sequence steps for existing leads"
+                >
+                  {restartingCampaign ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  )}
+                  Restart Campaign
                 </button>
               )}
 

@@ -10,6 +10,8 @@ import {
   Loader2,
   CalendarDays,
   Zap,
+  AlertTriangle,
+  RotateCcw,
 } from "lucide-react";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import toast from "react-hot-toast";
@@ -32,6 +34,7 @@ import {
   getCampaignMemberLeads,
   getEmailServiceErrorMessage,
   patchCampaign,
+  restartCampaign,
   type Lead,
 } from "@/utils/api/emailClient";
 
@@ -202,6 +205,21 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
   const isLocked = LOCKED_STATUSES.has(campaignStatus);
 
   const [steps, setSteps] = useState<SequenceStep[]>([createDefaultStep(1, 0)]);
+  const [initialStepCount, setInitialStepCount] = useState<number>(0);
+  const [restarting, setRestarting] = useState(false);
+
+  const handleRestartCampaign = async () => {
+    setRestarting(true);
+    try {
+      const res = await restartCampaign(effectiveDomainId, campaignId);
+      toast.success(res.message || "Campaign restarted! Missing sequence steps queued.");
+      setInitialStepCount(steps.length);
+    } catch (err: unknown) {
+      toast.error(getEmailServiceErrorMessage(err, "Failed to restart campaign"));
+    } finally {
+      setRestarting(false);
+    }
+  };
   const [selectedStepId, setSelectedStepId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -360,6 +378,7 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
 
         const mapped = mapApiSequenceToSteps(campaign.sequence || []);
         setSteps(mapped);
+        setInitialStepCount(mapped.length);
         setSelectedStepId(mapped[0]?.id || "");
       } catch (error: unknown) {
         if (!cancelled) {
@@ -556,8 +575,39 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
     );
   }
 
+  const hasUnqueuedSteps = campaignStatus !== 'draft' && steps.length > initialStepCount && initialStepCount > 0;
+
   return (
     <div className="flex h-full min-h-[640px] flex-col">
+      {hasUnqueuedSteps && (
+        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-5 py-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 text-amber-900">
+              <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-amber-900">New sequence step(s) added</p>
+                <p className="text-[11px] text-amber-700">
+                  Emails for new steps will not send until you click <strong className="font-semibold">Restart Campaign</strong>.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleRestartCampaign}
+              disabled={restarting}
+              className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-amber-700 transition-all disabled:opacity-50"
+            >
+              {restarting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3.5 w-3.5" />
+              )}
+              Restart Campaign
+            </button>
+          </div>
+        </div>
+      )}
+
       {leadhubAutopilotEnabled && (
         <div className="shrink-0 border-b border-slate-200 bg-white px-5 py-4">
           <div className="flex flex-wrap items-start gap-3 rounded-xl border border-blue-200 bg-blue-50/70 px-4 py-3">
@@ -591,12 +641,17 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
         <div className="flex-1 space-y-2 overflow-y-auto p-3">
           {steps.map((step) => {
             const isSelected = step.id === selectedStepId;
+            const isUnqueued = campaignStatus !== 'draft' && initialStepCount > 0 && step.stepNumber > initialStepCount;
             return (
               <div
                 key={step.id}
                 onClick={() => setSelectedStepId(step.id)}
                 className={`group relative cursor-pointer rounded-xl border p-3 transition-all ${
-                  isSelected
+                  isUnqueued
+                    ? isSelected
+                      ? "border-amber-400 bg-amber-50/80 shadow-sm ring-1 ring-amber-300"
+                      : "border-amber-300 bg-amber-50/40 hover:border-amber-400 hover:shadow-sm"
+                    : isSelected
                     ? "border-blue-300 bg-white shadow-sm ring-1 ring-blue-200"
                     : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
                 }`}
@@ -605,7 +660,11 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
                   <div className="flex items-center gap-2">
                     <div
                       className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${
-                        isSelected ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-600"
+                        isUnqueued
+                          ? "bg-amber-500 text-white"
+                          : isSelected
+                          ? "bg-blue-600 text-white"
+                          : "bg-slate-200 text-slate-600"
                       }`}
                     >
                       {step.stepNumber}
@@ -613,6 +672,11 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
                     <span className="text-xs font-semibold text-slate-700">
                       Step {step.stepNumber}
                     </span>
+                    {isUnqueued && (
+                      <span className="rounded bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                        Unqueued
+                      </span>
+                    )}
                   </div>
                   {steps.length > 1 && !isLocked && (
                     <button

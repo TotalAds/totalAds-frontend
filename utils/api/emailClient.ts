@@ -805,6 +805,23 @@ export const sendCampaign = async (
   }
 };
 
+/** Restart a campaign (queues missing sequence steps for existing leads). */
+export const restartCampaign = async (
+  domainId: string,
+  campaignId: string,
+): Promise<{ success?: boolean; message?: string; queuedCount?: number; campaign?: unknown }> => {
+  try {
+    const response = await emailClient.post(
+      `/api/domains/${domainId}/campaigns/${campaignId}/restart`,
+      {},
+    );
+    return response.data?.data ?? response.data;
+  } catch (error: unknown) {
+    console.error("Failed to restart campaign:", error);
+    throw error;
+  }
+};
+
 export interface SendTestEmailPayload {
   testEmail: string;
   variables?: Record<string, string>;
