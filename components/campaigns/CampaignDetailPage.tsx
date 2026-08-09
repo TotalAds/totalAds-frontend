@@ -332,13 +332,13 @@ export function CampaignDetailPage({
                 </button>
               )}
 
-              {/* Restart (running, paused, or completed) */}
-              {!isDraft && !isVerifying && (
+              {/* Restart (shown ONLY conditionally when unqueued sequence steps exist) */}
+              {!isDraft && !isVerifying && Boolean(campaign.hasUnqueuedSteps) && (
                 <button
                   onClick={handleRestart}
                   disabled={restartingCampaign}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-800 bg-amber-100 border border-amber-300 rounded-lg hover:bg-amber-200 transition-colors disabled:opacity-50 shadow-sm"
-                  title="Restart campaign to queue any newly added sequence steps for existing leads"
+                  title="Restart campaign to queue newly added sequence steps for existing leads"
                 >
                   {restartingCampaign ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
