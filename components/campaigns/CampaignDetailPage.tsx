@@ -514,6 +514,7 @@ export function CampaignDetailPage({
               campaignId={campaignId}
               domainId={domainId}
               campaignStatus={status}
+              onRefresh={onRefresh}
             />
           )}
 

@@ -95,6 +95,7 @@ interface SequenceTabProps {
   campaignId: string;
   domainId?: string;
   campaignStatus: string;
+  onRefresh?: () => void;
 }
 
 function mapApiSequenceToSteps(
@@ -200,7 +201,7 @@ function buildSequencePayload(steps: SequenceStep[]) {
   });
 }
 
-export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTabProps) {
+export function SequenceTab({ campaignId, domainId, campaignStatus, onRefresh }: SequenceTabProps) {
   const effectiveDomainId = domainId || INBOX_CAMPAIGN_DOMAIN_ID;
   const isLocked = LOCKED_STATUSES.has(campaignStatus);
 
@@ -214,6 +215,7 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
       const res = await restartCampaign(effectiveDomainId, campaignId);
       toast.success(res.message || "Campaign restarted! Missing sequence steps queued.");
       setInitialStepCount(steps.length);
+      onRefresh?.();
     } catch (err: unknown) {
       toast.error(getEmailServiceErrorMessage(err, "Failed to restart campaign"));
     } finally {
@@ -533,13 +535,16 @@ export function SequenceTab({ campaignId, domainId, campaignStatus }: SequenceTa
         });
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
+        if (campaignStatus !== "draft") {
+          onRefresh?.();
+        }
       } catch (error: unknown) {
         toast.error(getEmailServiceErrorMessage(error, "Failed to save sequence"));
       } finally {
         setSaving(false);
       }
     },
-    [campaignId, effectiveDomainId, isLocked]
+    [campaignId, campaignStatus, effectiveDomainId, isLocked, onRefresh]
   );
 
   useEffect(() => {
