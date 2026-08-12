@@ -245,8 +245,8 @@ export default function BulkUploadModal({
       return;
     }
 
-    if (file.size > 50 * 1024 * 1024) {
-      toast.error("File size must be less than 50MB");
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error("File size must be less than 20MB");
       return;
     }
 
@@ -520,16 +520,33 @@ export default function BulkUploadModal({
         return normalized;
       });
 
-      // Create bulk upload job (async)
+      // Create bulk upload job (chunked async upload)
       let job;
       try {
-        job = await createBulkUploadJob(csvData, {
-          tagIds: selectedTags.map((t) => String(t.id)),
-          categoryIds: selectedCategories.map((c) => String(c.id)),
-          listIds: selectedLists
-            .map((l) => String(l.id))
-            .filter((id) => id.length > 0 && id !== "undefined" && id !== "null"),
-        });
+        const uploadToastId = toast.loading(
+          `Uploading ${csvData.length.toLocaleString()} leads…`
+        );
+        job = await createBulkUploadJob(
+          csvData,
+          {
+            tagIds: selectedTags.map((t) => String(t.id)),
+            categoryIds: selectedCategories.map((c) => String(c.id)),
+            listIds: selectedLists
+              .map((l) => String(l.id))
+              .filter((id) => id.length > 0 && id !== "undefined" && id !== "null"),
+          },
+          ({ phase, uploadedRows, totalRows }) => {
+            if (phase === "uploading") {
+              toast.loading(
+                `Uploading leads… ${uploadedRows.toLocaleString()} / ${totalRows.toLocaleString()}`,
+                { id: uploadToastId }
+              );
+            } else if (phase === "complete") {
+              toast.loading("Queuing import…", { id: uploadToastId });
+            }
+          }
+        );
+        toast.dismiss(uploadToastId);
       } catch (error: any) {
         // Handle conflict error (active job exists)
         if (error.response?.status === 409) {
@@ -557,6 +574,14 @@ export default function BulkUploadModal({
             setUploading(false);
             return;
           }
+        }
+        if (error.response?.status === 413) {
+          toast.error(
+            "Upload too large for the server gateway. Please try again — large files are sent in chunks automatically.",
+            { duration: 8000 }
+          );
+          setUploading(false);
+          return;
         }
         // Re-throw other errors
         throw error;
@@ -690,7 +715,7 @@ export default function BulkUploadModal({
               Drag and drop your CSV or Excel file here
             </p>
             <p className="text-text-200 text-sm mb-4">
-              or click to browse (max 50MB)
+              or click to browse (max 20MB)
             </p>
             <input
               ref={fileInputRef}

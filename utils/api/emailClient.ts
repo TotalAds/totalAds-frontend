@@ -2513,7 +2513,8 @@ export interface BulkUploadJobStatus {
 }
 
 /**
- * Create a bulk upload job
+ * Create a bulk upload job (chunked for large CSVs to avoid 413 body limits).
+ * Flow: init → N× chunk (500 rows) → complete.
  */
 export const createBulkUploadJob = async (
   csvData: Record<string, any>[],
@@ -2525,9 +2526,65 @@ export const createBulkUploadJob = async (
     categoryIds?: string[];
     listIds?: string[];
   },
+  onChunkProgress?: (progress: {
+    phase: "init" | "uploading" | "complete";
+    uploadedRows: number;
+    totalRows: number;
+  }) => void,
 ): Promise<{ jobId: string; status: string; totalRows: number }> => {
+  const CHUNK_SIZE = 500;
+  const meta = {
+    tags: options?.tags || [],
+    categories: options?.categories || [],
+    tagIds: options?.tagIds || [],
+    categoryIds: options?.categoryIds || [],
+    listIds: options?.listIds || [],
+  };
+
+  let jobId: string | undefined;
+
   try {
-    const response = await emailClient.post<{
+    onChunkProgress?.({
+      phase: "init",
+      uploadedRows: 0,
+      totalRows: csvData.length,
+    });
+
+    const initResponse = await emailClient.post<{
+      success: boolean;
+      data: {
+        jobId: string;
+        status: string;
+        totalRows: number;
+        chunkMaxRows?: number;
+        message: string;
+      };
+    }>("/api/leads/bulk-upload/init", {
+      totalRows: csvData.length,
+      ...meta,
+    });
+
+    jobId = initResponse.data.data.jobId;
+    const chunkMaxRows = Math.min(
+      initResponse.data.data.chunkMaxRows || CHUNK_SIZE,
+      CHUNK_SIZE,
+    );
+
+    let uploadedRows = 0;
+    for (let i = 0; i < csvData.length; i += chunkMaxRows) {
+      const chunk = csvData.slice(i, i + chunkMaxRows);
+      await emailClient.post(`/api/leads/bulk-upload/${jobId}/chunk`, {
+        csvData: chunk,
+      });
+      uploadedRows += chunk.length;
+      onChunkProgress?.({
+        phase: "uploading",
+        uploadedRows,
+        totalRows: csvData.length,
+      });
+    }
+
+    const completeResponse = await emailClient.post<{
       success: boolean;
       data: {
         jobId: string;
@@ -2535,21 +2592,29 @@ export const createBulkUploadJob = async (
         totalRows: number;
         message: string;
       };
-    }>("/api/leads/bulk-upload", {
-      csvData,
-      tags: options?.tags || [],
-      categories: options?.categories || [],
-      tagIds: options?.tagIds || [],
-      categoryIds: options?.categoryIds || [],
-      listIds: options?.listIds || [],
+    }>(`/api/leads/bulk-upload/${jobId}/complete`, {});
+
+    onChunkProgress?.({
+      phase: "complete",
+      uploadedRows: csvData.length,
+      totalRows: csvData.length,
     });
-    return response.data.data;
+
+    return completeResponse.data.data;
   } catch (error: any) {
+    if (jobId) {
+      try {
+        await emailClient.post(`/api/leads/bulk-upload/${jobId}/cancel`, {
+          reason: "Client upload failed mid-transfer",
+        });
+      } catch {
+        // Best-effort cleanup so a stuck pending job does not block the next upload
+      }
+    }
     console.error("Failed to create bulk upload job:", error);
     throw error;
   }
 };
-
 /**
  * Get bulk upload job status
  */
