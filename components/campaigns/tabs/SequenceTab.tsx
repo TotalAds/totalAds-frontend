@@ -95,7 +95,14 @@ interface SequenceTabProps {
   campaignId: string;
   domainId?: string;
   campaignStatus: string;
+  hasUnqueuedSteps?: boolean;
   onRefresh?: () => void;
+}
+
+function serializeSequencePayload(
+  steps: SequenceStep[]
+): string {
+  return JSON.stringify(buildSequencePayload(steps));
 }
 
 function mapApiSequenceToSteps(
@@ -201,7 +208,13 @@ function buildSequencePayload(steps: SequenceStep[]) {
   });
 }
 
-export function SequenceTab({ campaignId, domainId, campaignStatus, onRefresh }: SequenceTabProps) {
+export function SequenceTab({
+  campaignId,
+  domainId,
+  campaignStatus,
+  hasUnqueuedSteps = false,
+  onRefresh,
+}: SequenceTabProps) {
   const effectiveDomainId = domainId || INBOX_CAMPAIGN_DOMAIN_ID;
   const isLocked = LOCKED_STATUSES.has(campaignStatus);
 
@@ -228,7 +241,13 @@ export function SequenceTab({ campaignId, domainId, campaignStatus, onRefresh }:
   const [saved, setSaved] = useState(false);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const skipAutosaveRef = useRef(true);
+  const hasUserEditedRef = useRef(false);
+  const loadedSequenceSnapshotRef = useRef<string | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const markSequenceEdited = useCallback(() => {
+    hasUserEditedRef.current = true;
+  }, []);
   const [editingVariantInfo, setEditingVariantInfo] = useState<{
     stepId: string;
     variantId: string;
@@ -382,6 +401,8 @@ export function SequenceTab({ campaignId, domainId, campaignStatus, onRefresh }:
         setSteps(mapped);
         setInitialStepCount(mapped.length);
         setSelectedStepId(mapped[0]?.id || "");
+        loadedSequenceSnapshotRef.current = serializeSequencePayload(mapped);
+        hasUserEditedRef.current = false;
       } catch (error: unknown) {
         if (!cancelled) {
           toast.error(getEmailServiceErrorMessage(error, "Failed to load sequence"));
@@ -405,12 +426,14 @@ export function SequenceTab({ campaignId, domainId, campaignStatus, onRefresh }:
     (v) => v.id === selectedStep.activeVariantId
   );
   const updateStep = (stepId: string, patch: Partial<SequenceStep>) => {
+    markSequenceEdited();
     setSteps((prev) =>
       prev.map((s) => (s.id === stepId ? { ...s, ...patch } : s))
     );
   };
 
   const addStep = () => {
+    markSequenceEdited();
     const maxDelay = Math.max(...steps.map((s) => s.delayDays), 0);
     const newStep = createDefaultStep(steps.length + 1, maxDelay + 2);
     setSteps((prev) => [...prev, newStep]);
@@ -422,6 +445,7 @@ export function SequenceTab({ campaignId, domainId, campaignStatus, onRefresh }:
       toast.error("A sequence must have at least one step");
       return;
     }
+    markSequenceEdited();
     setSteps((prev) => {
       const filtered = prev.filter((s) => s.id !== stepId);
       return filtered.map((s, i) => ({
@@ -438,6 +462,7 @@ export function SequenceTab({ campaignId, domainId, campaignStatus, onRefresh }:
   };
 
   const addVariant = (stepId: string) => {
+    markSequenceEdited();
     setSteps((prev) =>
       prev.map((s) => {
         if (s.id !== stepId) return s;
@@ -457,6 +482,7 @@ export function SequenceTab({ campaignId, domainId, campaignStatus, onRefresh }:
   };
 
   const deleteVariant = (stepId: string, variantId: string) => {
+    markSequenceEdited();
     setSteps((prev) =>
       prev.map((s) => {
         if (s.id !== stepId) return s;
@@ -474,6 +500,7 @@ export function SequenceTab({ campaignId, domainId, campaignStatus, onRefresh }:
   };
 
   const setActiveVariant = (stepId: string, variantId: string) => {
+    markSequenceEdited();
     setSteps((prev) =>
       prev.map((s) => (s.id === stepId ? { ...s, activeVariantId: variantId } : s))
     );
@@ -495,6 +522,7 @@ export function SequenceTab({ campaignId, domainId, campaignStatus, onRefresh }:
       strictGrammarMode: boolean;
     }) => {
       if (!editingVariantInfo) return;
+      markSequenceEdited();
       const { stepId, variantId } = editingVariantInfo;
       setSteps((prev) =>
         prev.map((s) => {
@@ -521,18 +549,26 @@ export function SequenceTab({ campaignId, domainId, campaignStatus, onRefresh }:
       setEmailModalOpen(false);
       setEditingVariantInfo(null);
     },
-    [editingVariantInfo]
+    [editingVariantInfo, markSequenceEdited]
   );
 
   const persistSequence = useCallback(
     async (stepsToSave: SequenceStep[]) => {
       if (isLocked) return;
+      const payload = buildSequencePayload(stepsToSave);
+      const serialized = JSON.stringify(payload);
+      if (loadedSequenceSnapshotRef.current === serialized) {
+        hasUserEditedRef.current = false;
+        return;
+      }
       setSaving(true);
       setSaved(false);
       try {
         await patchCampaign(effectiveDomainId, campaignId, {
-          sequence: buildSequencePayload(stepsToSave),
+          sequence: payload,
         });
+        loadedSequenceSnapshotRef.current = serialized;
+        hasUserEditedRef.current = false;
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
         if (campaignStatus !== "draft") {
@@ -548,7 +584,14 @@ export function SequenceTab({ campaignId, domainId, campaignStatus, onRefresh }:
   );
 
   useEffect(() => {
-    if (loading || isLocked || skipAutosaveRef.current) return;
+    if (
+      loading ||
+      isLocked ||
+      skipAutosaveRef.current ||
+      !hasUserEditedRef.current
+    ) {
+      return;
+    }
 
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current);
@@ -580,11 +623,12 @@ export function SequenceTab({ campaignId, domainId, campaignStatus, onRefresh }:
     );
   }
 
-  const hasUnqueuedSteps = campaignStatus !== 'draft' && steps.length > initialStepCount && initialStepCount > 0;
+  const showRestartBanner =
+    campaignStatus !== "draft" && hasUnqueuedSteps;
 
   return (
     <div className="flex h-full min-h-[640px] flex-col">
-      {hasUnqueuedSteps && (
+      {showRestartBanner && (
         <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-5 py-3.5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 text-amber-900">
