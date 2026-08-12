@@ -785,6 +785,7 @@ export function LeadsTab({
         <GoogleSheetsSourcePanel
           campaignId={campaignId}
           domainId={effectiveDomainId}
+          campaignStatus={campaignStatus}
           isContinuous={isContinuous}
           continuousSyncIntervalMinutes={continuousSyncIntervalMinutes}
           value={sheetSyncConfig}

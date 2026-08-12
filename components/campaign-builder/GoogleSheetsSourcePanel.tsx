@@ -37,6 +37,7 @@ export interface SheetSyncConfigState {
 interface GoogleSheetsSourcePanelProps {
   campaignId: string;
   domainId: string;
+  campaignStatus: string;
   isContinuous: boolean;
   continuousSyncIntervalMinutes?: number;
   value: SheetSyncConfigState | null;
@@ -47,12 +48,15 @@ interface GoogleSheetsSourcePanelProps {
 export function GoogleSheetsSourcePanel({
   campaignId,
   domainId,
+  campaignStatus,
   isContinuous,
   continuousSyncIntervalMinutes,
   value,
   onChange,
   onImported,
 }: GoogleSheetsSourcePanelProps) {
+  const isDraftCampaign = campaignStatus === "draft";
+  const isReadOnly = !isDraftCampaign;
   const [connected, setConnected] = useState(false);
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -92,6 +96,69 @@ export function GoogleSheetsSourcePanel({
   useEffect(() => {
     void refreshStatus();
   }, []);
+
+  useEffect(() => {
+    setSpreadsheetId(value?.spreadsheetId || "");
+    setSpreadsheetName(value?.spreadsheetName || "");
+    setSheetName(value?.sheetName || "");
+    setEmailCol(value?.columnMap?.email || "");
+    setNameCol(value?.columnMap?.name || "");
+    if (value?.connectionId) setConnectionId(value.connectionId);
+  }, [
+    value?.connectionId,
+    value?.spreadsheetId,
+    value?.spreadsheetName,
+    value?.sheetName,
+    value?.columnMap?.email,
+    value?.columnMap?.name,
+  ]);
+
+  useEffect(() => {
+    if (!connected || !spreadsheetId) {
+      setTabs([]);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const tabsRes = await listGoogleSpreadsheetTabs(spreadsheetId);
+        if (cancelled) return;
+        setTabs(tabsRes.tabs);
+        if (!spreadsheetName) {
+          setSpreadsheetName(tabsRes.spreadsheetName);
+        }
+      } catch {
+        if (!cancelled) setTabs([]);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connected, spreadsheetId, spreadsheetName]);
+
+  useEffect(() => {
+    if (!connected || !spreadsheetId || !sheetName) {
+      setHeaders([]);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const preview = await previewGoogleSheet({ spreadsheetId, sheetName });
+        if (cancelled) return;
+        setHeaders(preview.headers);
+      } catch {
+        if (!cancelled) setHeaders([]);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connected, spreadsheetId, sheetName]);
 
   const handleConnect = async () => {
     setConnecting(true);
@@ -140,8 +207,8 @@ export function GoogleSheetsSourcePanel({
       const nameGuess =
         preview.headers.find((_, i) => lower[i] === "name" || lower[i].includes("name")) ||
         "";
-      setEmailCol(emailGuess);
-      setNameCol(nameGuess);
+      setEmailCol((prev) => prev || emailGuess);
+      setNameCol((prev) => prev || nameGuess);
     } catch (err) {
       toast.error(getEmailServiceErrorMessage(err, "Failed to preview sheet"));
     }
@@ -182,6 +249,26 @@ export function GoogleSheetsSourcePanel({
       );
     } catch (err) {
       toast.error(getEmailServiceErrorMessage(err, "Failed to save sheet config"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUnlinkSheet = async () => {
+    setSaving(true);
+    try {
+      await patchCampaign(domainId, campaignId, { sheetSyncConfig: null });
+      onChange(null);
+      setSpreadsheetId("");
+      setSpreadsheetName("");
+      setSheetName("");
+      setEmailCol("");
+      setNameCol("");
+      setHeaders([]);
+      setTabs([]);
+      toast.success("Sheet link removed");
+    } catch (err) {
+      toast.error(getEmailServiceErrorMessage(err, "Failed to remove sheet link"));
     } finally {
       setSaving(false);
     }
@@ -236,7 +323,7 @@ export function GoogleSheetsSourcePanel({
           <Button
             type="button"
             className="bg-emerald-600 text-white hover:bg-emerald-700"
-            disabled={connecting}
+            disabled={connecting || isReadOnly}
             onClick={() => void handleConnect()}
           >
             {connecting ? (
@@ -250,6 +337,19 @@ export function GoogleSheetsSourcePanel({
           </Button>
         ) : (
           <>
+            {value?.enabled ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                <p className="font-semibold">
+                  Sheet connected: {value.spreadsheetName || spreadsheetName || "Spreadsheet"} /{" "}
+                  {value.sheetName || sheetName || "Tab"}
+                </p>
+                <p className="mt-0.5 text-emerald-800/90">
+                  {isReadOnly
+                    ? "Running campaign: sheet mapping is locked."
+                    : "Draft campaign: you can change or remove this sheet link."}
+                </p>
+              </div>
+            ) : null}
             <p className="text-xs text-slate-600">
               Connected as <span className="font-medium">{googleEmail}</span>
             </p>
@@ -259,6 +359,7 @@ export function GoogleSheetsSourcePanel({
                 <select
                   className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
                   value={spreadsheetId}
+                  disabled={isReadOnly}
                   onChange={(e) => void handleSelectSpreadsheet(e.target.value)}
                 >
                   <option value="">Select…</option>
@@ -274,7 +375,7 @@ export function GoogleSheetsSourcePanel({
                 <select
                   className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
                   value={sheetName}
-                  disabled={!spreadsheetId}
+                  disabled={!spreadsheetId || isReadOnly}
                   onChange={(e) => void handleSelectTab(e.target.value)}
                 >
                   <option value="">Select…</option>
@@ -290,7 +391,7 @@ export function GoogleSheetsSourcePanel({
                 <select
                   className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
                   value={emailCol}
-                  disabled={!headers.length}
+                  disabled={!headers.length || isReadOnly}
                   onChange={(e) => setEmailCol(e.target.value)}
                 >
                   <option value="">Select…</option>
@@ -306,7 +407,7 @@ export function GoogleSheetsSourcePanel({
                 <select
                   className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
                   value={nameCol}
-                  disabled={!headers.length}
+                  disabled={!headers.length || isReadOnly}
                   onChange={(e) => setNameCol(e.target.value)}
                 >
                   <option value="">None</option>
@@ -322,15 +423,23 @@ export function GoogleSheetsSourcePanel({
               <Button
                 type="button"
                 variant="outline"
-                disabled={saving}
+                disabled={saving || isReadOnly}
                 onClick={() => void handleSave()}
               >
                 {saving ? "Saving…" : "Save sheet link"}
               </Button>
               <Button
                 type="button"
+                variant="outline"
+                disabled={saving || importing || isReadOnly || !value?.enabled}
+                onClick={() => void handleUnlinkSheet()}
+              >
+                Remove sheet link
+              </Button>
+              <Button
+                type="button"
                 className="bg-emerald-600 text-white hover:bg-emerald-700"
-                disabled={importing || (!value?.enabled && !emailCol)}
+                disabled={importing || isReadOnly || (!value?.enabled && !emailCol)}
                 onClick={() => void handleImport()}
               >
                 {importing ? (
@@ -345,6 +454,11 @@ export function GoogleSheetsSourcePanel({
                 )}
               </Button>
             </div>
+            {isReadOnly && (
+              <p className="text-[11px] text-amber-700">
+                This campaign is not in draft. Sheet settings are visible but locked.
+              </p>
+            )}
             {value?.lastSyncedAt && (
               <p className="text-[11px] text-slate-400">
                 Last sync {new Date(value.lastSyncedAt).toLocaleString()} · row{" "}
