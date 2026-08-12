@@ -96,6 +96,7 @@ interface SequenceTabProps {
   domainId?: string;
   campaignStatus: string;
   hasUnqueuedSteps?: boolean;
+  sequenceNeedsRestart?: boolean;
   onRefresh?: () => void;
 }
 
@@ -213,6 +214,7 @@ export function SequenceTab({
   domainId,
   campaignStatus,
   hasUnqueuedSteps = false,
+  sequenceNeedsRestart = false,
   onRefresh,
 }: SequenceTabProps) {
   const effectiveDomainId = domainId || INBOX_CAMPAIGN_DOMAIN_ID;
@@ -624,7 +626,7 @@ export function SequenceTab({
   }
 
   const showRestartBanner =
-    campaignStatus !== "draft" && hasUnqueuedSteps;
+    campaignStatus !== "draft" && sequenceNeedsRestart;
 
   return (
     <div className="flex h-full min-h-[640px] flex-col">

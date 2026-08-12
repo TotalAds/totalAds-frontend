@@ -44,6 +44,8 @@ export interface LeadRow {
   lists?: Array<{ id: string; name: string }>;
   verificationStatus?: string | null;
   isSafeToSend?: boolean | null;
+  verifiedAt?: string | null;
+  verificationExpired?: boolean;
   customFields?: Record<string, unknown> | null;
   enrichedData?: Record<string, unknown> | null;
   createdAt?: string | Date;
@@ -174,6 +176,17 @@ function loadTableLayout(): TableLayout {
 }
 
 function VerificationBadge({ lead }: { lead: LeadRow }) {
+  if (lead.verificationExpired) {
+    return (
+      <span
+        className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700"
+        title="Verification older than your Reoon re-check interval"
+      >
+        Needs re-verify
+      </span>
+    );
+  }
+
   const hasStatus = !!lead.verificationStatus;
   const hasSafeFlag = typeof lead.isSafeToSend === "boolean";
 

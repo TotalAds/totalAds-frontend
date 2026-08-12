@@ -271,7 +271,7 @@ export function CampaignDetailPage({
     setRestartingCampaign(true);
     try {
       const res = await restartCampaign(domainId, campaignId);
-      toast.success(res.message || "Campaign restarted! Missing sequence steps queued.");
+      toast.success(res.message || "Campaign restarted! Pending emails queued.");
       onRefresh();
     } catch (error: unknown) {
       toast.error(getEmailServiceErrorMessage(error, "Failed to restart campaign"));
@@ -338,7 +338,7 @@ export function CampaignDetailPage({
                   onClick={handleRestart}
                   disabled={restartingCampaign}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-800 bg-amber-100 border border-amber-300 rounded-lg hover:bg-amber-200 transition-colors disabled:opacity-50 shadow-sm"
-                  title="Restart campaign to queue newly added sequence steps for existing leads"
+                  title="Restart campaign to queue new leads or sequence steps"
                 >
                   {restartingCampaign ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -505,7 +505,9 @@ export function CampaignDetailPage({
               domainId={domainId}
               campaignStatus={status}
               totalLeads={metrics?.totalLeads || analytics?.progress?.total || 0}
+              leadsNeedRestart={Boolean(campaign.leadsNeedRestart)}
               onLeadsAdded={onRefresh}
+              onRefresh={onRefresh}
             />
           )}
 
@@ -515,6 +517,7 @@ export function CampaignDetailPage({
               domainId={domainId}
               campaignStatus={status}
               hasUnqueuedSteps={Boolean(campaign.hasUnqueuedSteps)}
+              sequenceNeedsRestart={Boolean(campaign.sequenceNeedsRestart)}
               onRefresh={onRefresh}
             />
           )}

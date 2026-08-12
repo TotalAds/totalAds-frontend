@@ -2,16 +2,48 @@
 
 import emailClient from "./emailClient";
 
+export interface ReoonReverificationOption {
+  days: number;
+  label: string;
+}
+
+export const REOON_REVERIFICATION_INTERVAL_OPTIONS: ReoonReverificationOption[] =
+  [
+    { days: 15, label: "15 days" },
+    { days: 30, label: "1 month" },
+    { days: 60, label: "2 months" },
+    { days: 90, label: "3 months" },
+    { days: 120, label: "4 months" },
+    { days: 150, label: "5 months" },
+    { days: 180, label: "6 months" },
+    { days: 210, label: "7 months" },
+    { days: 240, label: "8 months" },
+    { days: 270, label: "9 months" },
+    { days: 300, label: "10 months" },
+    { days: 330, label: "11 months" },
+    { days: 360, label: "12 months" },
+  ];
+
+export const DEFAULT_REOON_REVERIFICATION_INTERVAL_DAYS = 90;
+
 export interface ReoonStatus {
   isConfigured: boolean;
   lastBalanceDailyCredits: number | null;
   lastBalanceInstantCredits: number | null;
   lastBalanceCheckedAt: string | null;
   apiStatus?: string;
+  reverificationIntervalDays?: number;
+  reverificationIntervalOptions?: ReoonReverificationOption[];
 }
 
 const mapStatusResponse = (raw: any): ReoonStatus => {
   const data = raw?.data ?? raw ?? {};
+  const options =
+    Array.isArray(data.reverificationIntervalOptions) &&
+    data.reverificationIntervalOptions.length > 0
+      ? data.reverificationIntervalOptions
+      : REOON_REVERIFICATION_INTERVAL_OPTIONS;
+
   return {
     isConfigured: Boolean(data.isConfigured),
     lastBalanceDailyCredits:
@@ -24,6 +56,11 @@ const mapStatusResponse = (raw: any): ReoonStatus => {
         : null,
     lastBalanceCheckedAt: data.lastBalanceCheckedAt || null,
     apiStatus: data.apiStatus,
+    reverificationIntervalDays:
+      typeof data.reverificationIntervalDays === "number"
+        ? data.reverificationIntervalDays
+        : DEFAULT_REOON_REVERIFICATION_INTERVAL_DAYS,
+    reverificationIntervalOptions: options,
   };
 };
 
@@ -46,6 +83,13 @@ export const saveReoonApiKey = async (apiKey: string): Promise<ReoonStatus> => {
 export const deleteReoonApiKey = async (): Promise<ReoonStatus> => {
   const response = await emailClient.delete("/api/reoon/api-key");
 
+  return mapStatusResponse(response.data);
+};
+
+export const updateReoonSettings = async (params: {
+  reverificationIntervalDays: number;
+}): Promise<ReoonStatus> => {
+  const response = await emailClient.patch("/api/reoon/settings", params);
   return mapStatusResponse(response.data);
 };
 
@@ -157,6 +201,7 @@ export const verifyLeadWithReoon = async (params: {
 export interface EmailVerificationStatusResult {
   email: string;
   isVerified: boolean;
+  isExpired?: boolean;
   status?: string;
   isSafeToSend?: boolean | null;
   verifiedAt?: string;

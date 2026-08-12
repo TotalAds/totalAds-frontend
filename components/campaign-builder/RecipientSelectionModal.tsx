@@ -317,7 +317,11 @@ export default function RecipientSelectionModal({
       setContactsPage(page);
     } catch (error: any) {
       console.error("Failed to load contacts:", error);
-      toast.error("Failed to load contacts");
+      setContacts([]);
+      setContactsTotal(0);
+      if (!search) {
+        toast.error("Failed to load contacts");
+      }
     } finally {
       setLoadingContacts(false);
     }

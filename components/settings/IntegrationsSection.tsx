@@ -15,10 +15,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  DEFAULT_REOON_REVERIFICATION_INTERVAL_DAYS,
   deleteReoonApiKey,
   getReoonStatus,
+  REOON_REVERIFICATION_INTERVAL_OPTIONS,
   ReoonStatus,
   saveReoonApiKey,
+  updateReoonSettings,
 } from "@/utils/api/reoonClient";
 import {
   IconAlertCircle,
@@ -35,6 +38,7 @@ const IntegrationsSection = () => {
   const [saving, setSaving] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [savingInterval, setSavingInterval] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
@@ -118,7 +122,37 @@ const IntegrationsSection = () => {
     }
   };
 
-  const isConfigured = status?.isConfigured;
+  const handleIntervalChange = async (days: number) => {
+    if (!status?.isConfigured || savingInterval) return;
+    if (days === status.reverificationIntervalDays) return;
+
+    try {
+      setSavingInterval(true);
+      const s = await updateReoonSettings({
+        reverificationIntervalDays: days,
+      });
+      setStatus(s);
+      toast.success("Re-verification interval updated");
+    } catch (error: any) {
+      console.error("Failed to update Reoon settings", error);
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to update re-verification interval"
+      );
+    } finally {
+      setSavingInterval(false);
+    }
+  };
+
+  const isConfigured = Boolean(status?.isConfigured);
+  const intervalOptions =
+    status?.reverificationIntervalOptions?.length
+      ? status.reverificationIntervalOptions
+      : REOON_REVERIFICATION_INTERVAL_OPTIONS;
+  const selectedIntervalDays =
+    status?.reverificationIntervalDays ??
+    DEFAULT_REOON_REVERIFICATION_INTERVAL_DAYS;
 
   const formatCredits = (value: number | null | undefined) => {
     if (isLoading) return "—";
@@ -156,8 +190,8 @@ const IntegrationsSection = () => {
               </h3>
               <p className="text-text-200 text-sm mt-1 leading-relaxed">
                 Verify emails during campaigns and lead imports. Results are
-                cached per address so you are not charged twice for the same
-                email.
+                cached per address and re-checked after your re-verification
+                interval so data stays current.
               </p>
             </div>
           </div>
@@ -236,6 +270,37 @@ const IntegrationsSection = () => {
                   {formatLastChecked()}
                 </p>
               </div>
+            </div>
+
+            <div className="rounded-lg border border-brand-main/15 bg-bg-300/40 px-3 py-3 space-y-2">
+              <label
+                htmlFor="reoon-reverification-interval"
+                className="block text-sm font-medium text-text-100"
+              >
+                Re-verify leads every
+              </label>
+              <select
+                id="reoon-reverification-interval"
+                value={selectedIntervalDays}
+                disabled={savingInterval || disconnecting}
+                onChange={(e) =>
+                  void handleIntervalChange(Number(e.target.value))
+                }
+                className="w-full sm:max-w-xs rounded-lg border border-brand-main/30 bg-bg-200 px-3 py-2 text-sm text-text-100 focus:outline-none focus:ring-2 focus:ring-brand-main disabled:opacity-60"
+              >
+                {intervalOptions.map((option) => (
+                  <option key={option.days} value={option.days}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-text-200/80 leading-relaxed">
+                Cached Reoon results older than this interval are treated as
+                unverified. When campaign verification is enabled, those leads
+                are sent to Reoon again so your data stays up to date. Default
+                is 3 months.
+                {savingInterval ? " Saving…" : null}
+              </p>
             </div>
           </div>
         )}

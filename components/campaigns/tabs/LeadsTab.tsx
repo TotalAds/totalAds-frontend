@@ -14,6 +14,8 @@ import {
   RefreshCw,
   Trash2,
   Zap,
+  AlertTriangle,
+  RotateCcw,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
@@ -45,6 +47,7 @@ import {
   getEmailServiceErrorMessage,
   patchCampaign,
   removeLeadsFromCampaign,
+  restartCampaign,
   LeadCategory,
   LeadTag,
 } from "@/utils/api/emailClient";
@@ -70,7 +73,9 @@ interface LeadsTabProps {
   domainId?: string;
   campaignStatus: string;
   totalLeads?: number;
+  leadsNeedRestart?: boolean;
   onLeadsAdded?: () => void;
+  onRefresh?: () => void;
 }
 
 type RecipientType = "list" | "filter" | "individual" | "csv";
@@ -193,10 +198,13 @@ export function LeadsTab({
   domainId,
   campaignStatus,
   totalLeads = 0,
+  leadsNeedRestart = false,
   onLeadsAdded,
+  onRefresh,
 }: LeadsTabProps) {
   const effectiveDomainId = domainId || INBOX_CAMPAIGN_DOMAIN_ID;
   const canModifyLeads = !MODIFY_LEADS_BLOCKED_STATUSES.has(campaignStatus);
+  const [restarting, setRestarting] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
@@ -555,6 +563,26 @@ export function LeadsTab({
 
   const resolvedTotalPages = Math.max(1, totalPages || Math.ceil(displayTotal / pageSize) || 1);
 
+  const showRestartBanner = campaignStatus !== "draft" && leadsNeedRestart;
+
+  const handleRestartCampaign = async () => {
+    setRestarting(true);
+    try {
+      const res = await restartCampaign(effectiveDomainId, campaignId);
+      toast.success(
+        res.message ||
+          "Campaign restarted! New leads are queued and will be verified before sending."
+      );
+      onRefresh?.();
+      onLeadsAdded?.();
+      await fetchCampaignLeads();
+    } catch (err: unknown) {
+      toast.error(getEmailServiceErrorMessage(err, "Failed to restart campaign"));
+    } finally {
+      setRestarting(false);
+    }
+  };
+
   const persistLeadhubConfig = async (config: LeadhubSyncConfig | null) => {
     await patchCampaign(effectiveDomainId, campaignId, {
       leadhubSyncConfig: config,
@@ -658,6 +686,37 @@ export function LeadsTab({
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      {showRestartBanner && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 text-amber-900">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" />
+              <div>
+                <p className="text-xs font-semibold text-amber-900">New leads added</p>
+                <p className="text-[11px] text-amber-700">
+                  Emails for new leads will not send until you click{" "}
+                  <strong className="font-semibold">Restart Campaign</strong>. Risky
+                  addresses are verified before anything is sent.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleRestartCampaign}
+              disabled={restarting}
+              className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-amber-700 disabled:opacity-50"
+            >
+              {restarting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3.5 w-3.5" />
+              )}
+              Restart Campaign
+            </button>
+          </div>
+        </div>
+      )}
+
       {isContinuous && (
         <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-sm text-blue-900">
           <p className="font-semibold">Continuous campaign</p>
