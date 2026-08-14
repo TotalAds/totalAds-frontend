@@ -16,6 +16,8 @@ import {
   IconMail,
   IconPencil,
   IconTrash,
+  IconArchive,
+  IconArchiveOff,
 } from "@tabler/icons-react";
 
 import ColumnFilterMenu, { FilterOption } from "@/components/leads/ColumnFilterMenu";
@@ -43,9 +45,11 @@ export interface LeadRow {
   categories?: Array<{ id: string; name: string; color?: string }>;
   lists?: Array<{ id: string; name: string }>;
   verificationStatus?: string | null;
+  verificationBucket?: string | null;
   isSafeToSend?: boolean | null;
   verifiedAt?: string | null;
   verificationExpired?: boolean;
+  archivedAt?: string | null;
   customFields?: Record<string, unknown> | null;
   enrichedData?: Record<string, unknown> | null;
   createdAt?: string | Date;
@@ -71,9 +75,10 @@ export interface LeadFilterOptions {
 
 const VERIFICATION_OPTIONS: FilterOption[] = [
   { id: "safe", name: "Safe to send" },
+  { id: "catch_all", name: "Catch-all" },
+  { id: "unknown", name: "Unknown" },
   { id: "risky", name: "Risky" },
   { id: "unverified", name: "Unverified" },
-  { id: "pending", name: "Pending" },
 ];
 
 const STORAGE_KEY = "leadsnipper-leads-table-layout";
@@ -142,6 +147,8 @@ interface LeadsTableProps {
   onEditLead?: (lead: LeadRow) => void;
   onVerify?: (lead: LeadRow) => void;
   onDelete?: (leadId: string) => void;
+  onArchive?: (lead: LeadRow) => void;
+  onUnarchive?: (lead: LeadRow) => void;
   onViewDetails?: (lead: LeadRow) => void;
   onCampaignClick?: (lead: LeadRow) => void;
   emptyMessage?: string;
@@ -187,6 +194,43 @@ function VerificationBadge({ lead }: { lead: LeadRow }) {
     );
   }
 
+  const bucket = lead.verificationBucket;
+  if (bucket === "safe") {
+    return (
+      <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+        Safe to send
+      </span>
+    );
+  }
+  if (bucket === "catch_all") {
+    return (
+      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+        Catch-all
+      </span>
+    );
+  }
+  if (bucket === "unknown") {
+    return (
+      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+        Unknown
+      </span>
+    );
+  }
+  if (bucket === "risky") {
+    return (
+      <span className="inline-flex rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700">
+        Risky
+      </span>
+    );
+  }
+  if (bucket === "unverified") {
+    return (
+      <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+        Unverified
+      </span>
+    );
+  }
+
   const hasStatus = !!lead.verificationStatus;
   const hasSafeFlag = typeof lead.isSafeToSend === "boolean";
 
@@ -203,7 +247,6 @@ function VerificationBadge({ lead }: { lead: LeadRow }) {
     "invalid",
     "disposable",
     "spamtrap",
-    "catch_all",
     "role_account",
   ];
   const isSafe = lead.isSafeToSend === true;
@@ -214,6 +257,22 @@ function VerificationBadge({ lead }: { lead: LeadRow }) {
     return (
       <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
         Safe to send
+      </span>
+    );
+  }
+
+  if (status === "catch_all" || status.includes("catch")) {
+    return (
+      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+        Catch-all
+      </span>
+    );
+  }
+
+  if (status === "unknown") {
+    return (
+      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+        Unknown
       </span>
     );
   }
@@ -365,6 +424,8 @@ export default function LeadsTable({
   onEditLead,
   onVerify,
   onDelete,
+  onArchive,
+  onUnarchive,
   onViewDetails,
   onCampaignClick,
   emptyMessage = "No leads found",
@@ -852,6 +913,26 @@ export default function LeadsTable({
                             >
                               <IconMail size={16} />
                             </button>
+                            {onArchive && (
+                              <button
+                                type="button"
+                                onClick={() => onArchive(lead)}
+                                className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-amber-50 hover:text-amber-700"
+                                title="Archive lead"
+                              >
+                                <IconArchive size={16} />
+                              </button>
+                            )}
+                            {onUnarchive && (
+                              <button
+                                type="button"
+                                onClick={() => onUnarchive(lead)}
+                                className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-emerald-50 hover:text-emerald-700"
+                                title="Restore lead"
+                              >
+                                <IconArchiveOff size={16} />
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => onDelete?.(lead.id)}

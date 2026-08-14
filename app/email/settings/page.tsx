@@ -113,8 +113,7 @@ const SettingsPage = () => {
         id: "integrations",
         label: "Integrations",
         icon: <IconPlug className="w-5 h-5" />,
-        description: "Manage third-party integrations",
-        adminOnly: true,
+        description: "MCP, Reoon, and third-party integrations",
       },
       {
         id: "team",
@@ -143,11 +142,7 @@ const SettingsPage = () => {
       if (item.id === "team") return canManageMembers;
       if (item.id === "activity") return canViewAuditLog;
       if (item.id === "workspaces") return canCreateWorkspaces;
-      if (
-        item.id === "billing" ||
-        item.id === "email-delivery" ||
-        item.id === "integrations"
-      ) {
+      if (item.id === "billing" || item.id === "email-delivery") {
         return canManageBilling;
       }
       return true;
@@ -158,7 +153,6 @@ const SettingsPage = () => {
     const adminOnlyTabs: SettingsTab[] = [
       "billing",
       "email-delivery",
-      "integrations",
       "team",
       "activity",
       "workspaces",
@@ -167,7 +161,7 @@ const SettingsPage = () => {
       const allowed =
         (activeTab === "team" && canManageMembers) ||
         (activeTab === "activity" && canViewAuditLog) ||
-        (["billing", "email-delivery", "integrations"].includes(activeTab) &&
+        (["billing", "email-delivery"].includes(activeTab) &&
           canManageBilling) ||
         (activeTab === "workspaces" && canCreateWorkspaces);
       if (!allowed) setActiveTab("profile");
@@ -229,7 +223,11 @@ const SettingsPage = () => {
                 </p>
               </div>
             )}
-            {!canManageBilling && activeTab !== "profile" && activeTab !== "usage" && activeTab !== "roadmap" && (
+            {!canManageBilling &&
+              activeTab !== "profile" &&
+              activeTab !== "usage" &&
+              activeTab !== "roadmap" &&
+              activeTab !== "integrations" && (
               <WorkspaceRoleBanner variant="team-settings" />
             )}
             <div className="backdrop-blur-xl bg-bg-200 border border-brand-main/20 rounded-xl p-6 md:p-8">
@@ -239,9 +237,7 @@ const SettingsPage = () => {
                 <EmailDeliverySection />
               )}
               {activeTab === "usage" && <UsageSection />}
-              {activeTab === "integrations" && canManageBilling && (
-                <IntegrationsSection />
-              )}
+              {activeTab === "integrations" && <IntegrationsSection />}
               {activeTab === "roadmap" && <RoadmapSection />}
               {activeTab === "team" && <TeamMembersTable />}
               {activeTab === "activity" && <ActivityLogTable />}

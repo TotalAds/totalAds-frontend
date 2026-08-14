@@ -1195,6 +1195,44 @@ export const getLeads = async (
   }
 };
 
+export interface LeadArchiveSelection {
+  leadIds?: string[];
+  selectAllMatching?: boolean;
+  filters?: Record<string, unknown>;
+  verification?: string[];
+}
+
+export const archiveLeads = async (
+  payload: LeadArchiveSelection
+): Promise<{ count: number }> => {
+  const response = await emailClient.post("/api/leads/archive", payload);
+  return response.data?.data ?? { count: 0 };
+};
+
+export const unarchiveLeads = async (
+  payload: LeadArchiveSelection
+): Promise<{ count: number }> => {
+  const response = await emailClient.post("/api/leads/unarchive", payload);
+  return response.data?.data ?? { count: 0 };
+};
+
+export const exportLeadsCsv = async (queryString: string): Promise<void> => {
+  const response = await emailClient.get(`/api/leads/export?${queryString}`, {
+    responseType: "blob",
+  });
+  const blob = new Blob([response.data], { type: "text/csv;charset=utf-8;" });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = queryString.includes("archived=true")
+    ? "archived-leads.csv"
+    : "leads.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 export const getCampaignMemberLeads = async (
   campaignId: string,
   page: number = 1,

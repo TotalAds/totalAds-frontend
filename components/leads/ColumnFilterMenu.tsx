@@ -25,6 +25,8 @@ interface TextColumnFilterProps {
   value: string;
   placeholder?: string;
   onApply: (value: string) => void;
+  /** Show label next to the filter icon (toolbar). Default: icon-only for table headers. */
+  showLabel?: boolean;
 }
 
 interface MultiColumnFilterProps {
@@ -34,6 +36,8 @@ interface MultiColumnFilterProps {
   selectedIds: string[];
   onApply: (selectedIds: string[]) => void;
   searchable?: boolean;
+  /** Show label next to the filter icon (toolbar). Default: icon-only for table headers. */
+  showLabel?: boolean;
 }
 
 type ColumnFilterMenuProps = TextColumnFilterProps | MultiColumnFilterProps;
@@ -44,6 +48,11 @@ export default function ColumnFilterMenu(props: ColumnFilterMenuProps) {
     props.type === "text"
       ? props.value.trim().length > 0
       : props.selectedIds.length > 0;
+  const showLabel = props.showLabel === true;
+  const activeCount =
+    props.type === "multi" && props.selectedIds.length > 0
+      ? props.selectedIds.length
+      : 0;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -51,14 +60,27 @@ export default function ColumnFilterMenu(props: ColumnFilterMenuProps) {
         <button
           type="button"
           className={cn(
-            "inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors",
+            "inline-flex items-center justify-center rounded-md transition-colors",
+            showLabel
+              ? "gap-1.5 border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              : "h-6 w-6",
             isActive
-              ? "bg-brand-main/15 text-brand-main"
-              : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              ? showLabel
+                ? "border-brand-main/40 bg-brand-main/10 text-brand-main"
+                : "bg-brand-main/15 text-brand-main"
+              : showLabel
+                ? ""
+                : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"
           )}
           aria-label={`Filter ${props.label}`}
         >
           <IconFilter size={14} stroke={isActive ? 2.25 : 1.75} />
+          {showLabel && <span>{props.label}</span>}
+          {showLabel && activeCount > 0 && (
+            <span className="rounded-full bg-brand-main px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+              {activeCount}
+            </span>
+          )}
         </button>
       </PopoverTrigger>
       <PopoverContent

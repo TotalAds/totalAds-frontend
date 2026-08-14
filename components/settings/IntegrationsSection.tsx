@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 
 import ReoonSetupGuideModal from "@/components/settings/ReoonSetupGuideModal";
 import LeadhubIntegrationsCard from "@/components/settings/LeadhubIntegrationsCard";
+import McpIntegrationsCard from "@/components/settings/McpIntegrationsCard";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useWorkspace } from "@/context/WorkspaceContext";
 import {
   DEFAULT_REOON_REVERIFICATION_INTERVAL_DAYS,
   deleteReoonApiKey,
@@ -33,6 +35,7 @@ import {
 } from "@tabler/icons-react";
 
 const IntegrationsSection = () => {
+  const { canManageBilling } = useWorkspace();
   const [status, setStatus] = useState<ReoonStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -66,9 +69,13 @@ const IntegrationsSection = () => {
   };
 
   useEffect(() => {
-    loadStatus();
+    if (canManageBilling) {
+      loadStatus();
+    } else {
+      setIsLoading(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [canManageBilling]);
 
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -171,12 +178,15 @@ const IntegrationsSection = () => {
       <div>
         <h2 className="text-2xl font-bold text-text-100 mb-2">Integrations</h2>
         <p className="text-text-200 text-sm max-w-2xl">
-          Connect third-party services to enhance deliverability and analytics.
-          Reoon Email Verifier helps you validate email lists before sending
-          campaigns so you avoid bounces, spamtraps, and risky addresses.
+          Connect AI clients via MCP, and manage third-party services for
+          deliverability and lead sync.
         </p>
       </div>
 
+      <McpIntegrationsCard />
+
+      {canManageBilling ? (
+      <>
       <div className="backdrop-blur-xl bg-bg-200 border border-brand-main/20 rounded-xl p-6 md:p-8 flex flex-col gap-6 max-w-3xl">
         {/* Title + status */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -437,6 +447,8 @@ const IntegrationsSection = () => {
       </Dialog>
 
       <LeadhubIntegrationsCard />
+      </>
+      ) : null}
     </div>
   );
 };

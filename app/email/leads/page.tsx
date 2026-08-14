@@ -10,6 +10,14 @@ import BulkUploadProgressBanner from "@/components/leads/BulkUploadProgressBanne
 import ContactPlanLimitBanner from "@/components/leads/ContactPlanLimitBanner";
 import { LeadDetailsModal } from "@/components/leads/LeadDetailsModal";
 import { SingleLeadOrganizeModal } from "@/components/leads/SingleLeadOrganizeModal";
+import LeadsSubNav from "@/components/leads/LeadsSubNav";
+import LeadsToolbar from "@/components/leads/LeadsToolbar";
+import {
+  buildLeadsApiParams,
+  EMPTY_LEAD_COUNTS,
+  filtersToApiBody,
+  type LeadVerificationCounts,
+} from "@/components/leads/leadsFilterUtils";
 import LeadsTable, {
   EMPTY_LEAD_FILTERS,
   hasActiveLeadFilters,
@@ -23,14 +31,16 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useCanEdit, useIsViewer } from "@/context/WorkspaceContext";
 import WorkspaceRoleBanner from "@/components/workspace/WorkspaceRoleBanner";
 import emailClient, {
+  archiveLeads,
   checkActiveBulkUploadJobs,
   ContactMetrics,
   getContactMetrics,
 } from "@/utils/api/emailClient";
-import { IconFolderPlus, IconMail, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
+import { IconArchive, IconFolderPlus, IconMail, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 
 interface ListResponse {
   leads: LeadRow[];
+  counts?: LeadVerificationCounts;
   pagination: {
     page: number;
     limit: number;
@@ -56,6 +66,8 @@ export default function LeadsPage() {
   const [limit, setLimit] = useState(10);
   const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState<LeadColumnFilters>(EMPTY_LEAD_FILTERS);
+  const [search, setSearch] = useState("");
+  const [counts, setCounts] = useState<LeadVerificationCounts>(EMPTY_LEAD_COUNTS);
   const [filterOptions, setFilterOptions] = useState<LeadFilterOptions>({
     categories: [],
     tags: [],
@@ -86,6 +98,14 @@ export default function LeadsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isAllMatchingSelected, setIsAllMatchingSelected] = useState(false);
   const [showBulkOrganizeModal, setShowBulkOrganizeModal] = useState(false);
+  const [showBulkArchiveConfirm, setShowBulkArchiveConfirm] = useState(false);
+  const [showArchiveByTypeConfirm, setShowArchiveByTypeConfirm] = useState<
+    "catch_all" | "unknown" | "risky" | null
+  >(null);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [pendingArchiveLeadId, setPendingArchiveLeadId] = useState<string | null>(
+    null
+  );
   const [selectedLeadForOrganize, setSelectedLeadForOrganize] =
     useState<LeadRow | null>(null);
 
@@ -108,16 +128,16 @@ export default function LeadsPage() {
       .catch((error) => {
         console.error("Failed to check active jobs:", error);
       });
-  }, [page, limit, filters]);
+  }, [page, limit, filters, search]);
 
   useEffect(() => {
     loadFilterOptions();
-  }, [filters]);
+  }, [filters, search]);
 
   useEffect(() => {
     setSelectedLeadsForCampaign(new Set());
     setIsAllMatchingSelected(false);
-  }, [filters, page, limit]);
+  }, [filters, search, page, limit]);
 
   const loadFilterOptions = async () => {
     try {
@@ -175,28 +195,7 @@ export default function LeadsPage() {
   const loadLeads = async () => {
     try {
       setIsLoading(true);
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
-      });
-
-      if (filters.email.trim()) params.append("email", filters.email.trim());
-      if (filters.name.trim()) params.append("name", filters.name.trim());
-      if (filters.categoryIds.length > 0) {
-        params.append("categoryIds", filters.categoryIds.join(","));
-      }
-      if (filters.tagIds.length > 0) {
-        params.append("tagIds", filters.tagIds.join(","));
-      }
-      if (filters.campaignIds.length > 0) {
-        params.append("campaignIds", filters.campaignIds.join(","));
-      }
-      if (filters.listIds.length > 0) {
-        params.append("listIds", filters.listIds.join(","));
-      }
-      if (filters.verification.length > 0) {
-        params.append("verification", filters.verification.join(","));
-      }
+      const params = buildLeadsApiParams({ page, limit, search, filters });
 
       const [response, metrics] = await Promise.all([
         emailClient.get<{ data: ListResponse }>(
@@ -210,6 +209,7 @@ export default function LeadsPage() {
       if (response.data?.data) {
         setLeads(response.data.data.leads);
         setTotal(response.data.data.pagination.total);
+        setCounts(response.data.data.counts ?? EMPTY_LEAD_COUNTS);
       }
     } catch (error) {
       console.error("Failed to load leads:", error);
@@ -287,12 +287,77 @@ export default function LeadsPage() {
 
   const clearAllFilters = () => {
     setFilters(EMPTY_LEAD_FILTERS);
+    setSearch("");
     setPage(1);
+  };
+
+  const buildSelectionPayload = () => {
+    if (isAllMatchingSelected) {
+      return {
+        selectAllMatching: true,
+        filters: filtersToApiBody(search, filters),
+      };
+    }
+    return { leadIds: Array.from(selectedLeadsForCampaign) };
+  };
+
+  const confirmArchiveLead = async () => {
+    if (!pendingArchiveLeadId) return;
+    setIsArchiving(true);
+    try {
+      const result = await archiveLeads({ leadIds: [pendingArchiveLeadId] });
+      toast.success(`Archived ${result.count} lead`);
+      setPendingArchiveLeadId(null);
+      await loadLeads();
+    } catch (error) {
+      console.error("Failed to archive lead:", error);
+      toast.error("Failed to archive lead");
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  const confirmBulkArchive = async () => {
+    setIsArchiving(true);
+    try {
+      const result = await archiveLeads(buildSelectionPayload());
+      toast.success(`Archived ${result.count} lead${result.count !== 1 ? "s" : ""}`);
+      setShowBulkArchiveConfirm(false);
+      setSelectedLeadsForCampaign(new Set());
+      setIsAllMatchingSelected(false);
+      await loadLeads();
+    } catch (error) {
+      console.error("Failed to archive leads:", error);
+      toast.error("Failed to archive selected leads");
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  const confirmArchiveByType = async () => {
+    if (!showArchiveByTypeConfirm) return;
+    setIsArchiving(true);
+    try {
+      const result = await archiveLeads({
+        verification: [showArchiveByTypeConfirm],
+        filters: filtersToApiBody(search, filters),
+      });
+      toast.success(
+        `Archived ${result.count} ${showArchiveByTypeConfirm.replace("_", "-")} lead${result.count !== 1 ? "s" : ""}`
+      );
+      setShowArchiveByTypeConfirm(null);
+      await loadLeads();
+    } catch (error) {
+      console.error("Failed to archive leads by type:", error);
+      toast.error("Failed to archive leads");
+    } finally {
+      setIsArchiving(false);
+    }
   };
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
-    if (filters.email.trim()) count++;
+    if (search.trim()) count++;
     if (filters.name.trim()) count++;
     if (filters.verification.length > 0) count++;
     if (filters.tagIds.length > 0) count++;
@@ -305,12 +370,12 @@ export default function LeadsPage() {
   return (
     <div className="min-h-screen bg-bg-100 p-6">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-5 flex items-center justify-between">
           <div>
-            <h1 className="mb-2 text-4xl font-bold text-text-100">
+            <h1 className="mb-1 text-3xl font-bold text-text-100">
               Lead Management
             </h1>
-            <p className="text-text-200">
+            <p className="text-sm text-text-200">
               Manage and organize your email leads
             </p>
           </div>
@@ -343,13 +408,13 @@ export default function LeadsPage() {
                     setShowBulkUploadModal(true);
                   }}
                   disabled={activeUploadJobs.length > 0}
-                  className={`flex transform items-center gap-2 rounded-xl px-6 py-3 font-semibold transition-all duration-200 hover:scale-[1.02] ${
+                  className={`flex transform items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all duration-200 hover:scale-[1.02] ${
                     activeUploadJobs.length > 0
                       ? "cursor-not-allowed bg-gray-400 opacity-60"
                       : "bg-sidebar text-white hover:bg-sidebar/80"
                   }`}
                 >
-                  <IconPlus size={20} />
+                  <IconPlus size={18} />
                   Bulk Upload
                   {activeUploadJobs.length > 0 && (
                     <span className="ml-2 rounded-full bg-red-500 px-2 py-0.5 text-xs text-white">
@@ -359,9 +424,9 @@ export default function LeadsPage() {
                 </button>
                 <button
                   onClick={() => router.push("/email/leads/create")}
-                  className="flex transform items-center gap-2 rounded-xl bg-brand-main px-6 py-3 font-semibold text-white transition-all duration-200 hover:scale-[1.02] hover:bg-brand-main/80"
+                  className="flex transform items-center gap-2 rounded-xl bg-brand-main px-5 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:scale-[1.02] hover:bg-brand-main/80"
                 >
-                  <IconPlus size={20} />
+                  <IconPlus size={18} />
                   Add Lead
                 </button>
               </>
@@ -373,7 +438,56 @@ export default function LeadsPage() {
           <WorkspaceRoleBanner variant="viewer-action" className="mb-6" />
         )}
 
-        <ContactPlanLimitBanner metrics={contactMetrics} className="mb-6" />
+        <ContactPlanLimitBanner metrics={contactMetrics} className="mb-3" />
+
+        <LeadsSubNav />
+
+        <LeadsToolbar
+          search={search}
+          onSearchChange={(value) => {
+            setSearch(value);
+            setPage(1);
+          }}
+          filters={filters}
+          filterOptions={filterOptions}
+          onFiltersChange={handleFiltersChange}
+          counts={counts}
+          onClearAll={clearAllFilters}
+          trailingActions={
+            canEdit ? (
+              <>
+                <span className="text-xs text-slate-400">Archive all:</span>
+                <button
+                  type="button"
+                  disabled={isArchiving || counts.catchAll === 0}
+                  onClick={() => setShowArchiveByTypeConfirm("catch_all")}
+                  className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                >
+                  <IconArchive size={13} />
+                  Catch-all
+                </button>
+                <button
+                  type="button"
+                  disabled={isArchiving || counts.unknown === 0}
+                  onClick={() => setShowArchiveByTypeConfirm("unknown")}
+                  className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                >
+                  <IconArchive size={13} />
+                  Unknown
+                </button>
+                <button
+                  type="button"
+                  disabled={isArchiving || counts.risky === 0}
+                  onClick={() => setShowArchiveByTypeConfirm("risky")}
+                  className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-medium text-rose-800 hover:bg-rose-100 disabled:opacity-50"
+                >
+                  <IconArchive size={13} />
+                  Risky
+                </button>
+              </>
+            ) : undefined
+          }
+        />
 
         {activeUploadJobs.length > 0 && (
           <div className="mb-6 space-y-3">
@@ -425,30 +539,18 @@ export default function LeadsPage() {
         )}
 
         {hasActiveFilters && (
-          <div className="mb-4 flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-2.5">
-            <div className="flex items-center gap-2 text-sm text-slate-600">
-              <span className="font-medium text-slate-800">
-                {total.toLocaleString()} result{total !== 1 ? "s" : ""}
-              </span>
-              <span className="text-slate-300">·</span>
-              <span>
-                {activeFilterCount} active filter
-                {activeFilterCount !== 1 ? "s" : ""}
-              </span>
-            </div>
-            <button
-              onClick={clearAllFilters}
-              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800"
-            >
-              <IconX size={14} />
-              Clear all filters
-            </button>
-          </div>
+          <p className="mb-2 px-1 text-xs text-slate-500">
+            <span className="font-medium text-slate-700">
+              {total.toLocaleString()} result{total !== 1 ? "s" : ""}
+            </span>{" "}
+            · {activeFilterCount} active filter
+            {activeFilterCount !== 1 ? "s" : ""}
+          </p>
         )}
 
         {canEdit && (selectedLeadsForCampaign.size > 0 || isAllMatchingSelected) && (
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-main/30 bg-brand-main/10 p-4">
-            <div className="flex items-center gap-2 text-text-100">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-brand-main/30 bg-brand-main/10 px-3 py-2">
+            <div className="flex items-center gap-2 text-sm text-text-100">
               {isAllMatchingSelected ? (
                 <span>
                   All <span className="font-semibold text-brand-main">{total.toLocaleString()}</span> available leads selected across all pages
@@ -468,39 +570,48 @@ export default function LeadsPage() {
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowBulkArchiveConfirm(true)}
+                disabled={isArchiving}
+                className="flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-800 transition-all duration-200 hover:bg-amber-100 disabled:opacity-50"
+              >
+                <IconArchive size={16} />
+                Archive
+              </button>
               <button
                 type="button"
                 onClick={() => setShowBulkOrganizeModal(true)}
-                className="flex items-center gap-2 rounded-lg bg-brand-main px-4 py-2 font-semibold text-white transition-all duration-200 hover:bg-brand-main/80"
+                className="flex items-center gap-1.5 rounded-md bg-brand-main px-3 py-1.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-brand-main/80"
                 title="Add Tag, Category, or List"
               >
-                <IconFolderPlus size={18} />
-                Add Category / Tag / List
+                <IconFolderPlus size={16} />
+                Category / Tag / List
               </button>
               <button
                 onClick={() => setShowStartCampaignModal(true)}
-                className="flex items-center gap-2 rounded-lg bg-sidebar px-4 py-2 font-semibold text-white transition-all duration-200 hover:bg-sidebar/80"
+                className="flex items-center gap-1.5 rounded-md bg-sidebar px-3 py-1.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-sidebar/80"
               >
-                <IconMail size={18} />
+                <IconMail size={16} />
                 Start Campaign
               </button>
               <button
                 type="button"
                 onClick={() => setShowBulkDeleteConfirm(true)}
                 disabled={isDeleting}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 hover:text-rose-700 disabled:opacity-50"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 hover:text-rose-700 disabled:opacity-50"
                 title={`Delete ${isAllMatchingSelected ? total : selectedLeadsForCampaign.size} selected lead${(isAllMatchingSelected ? total : selectedLeadsForCampaign.size) !== 1 ? "s" : ""}`}
                 aria-label={`Delete ${isAllMatchingSelected ? total : selectedLeadsForCampaign.size} selected lead${(isAllMatchingSelected ? total : selectedLeadsForCampaign.size) !== 1 ? "s" : ""}`}
               >
-                <IconTrash size={18} />
+                <IconTrash size={16} />
               </button>
               <button
                 onClick={() => {
                   setSelectedLeadsForCampaign(new Set());
                   setIsAllMatchingSelected(false);
                 }}
-                className="rounded-lg bg-brand-main/10 px-4 py-2 text-text-100 transition-colors hover:bg-brand-main/20"
+                className="rounded-md bg-brand-main/10 px-3 py-1.5 text-sm text-text-100 transition-colors hover:bg-brand-main/20"
               >
                 Clear
               </button>
@@ -522,6 +633,7 @@ export default function LeadsPage() {
           onEditLead={setSelectedLeadForOrganize}
           onVerify={setSelectedLeadForVerification}
           onDelete={handleDelete}
+          onArchive={(lead) => setPendingArchiveLeadId(lead.id)}
           onViewDetails={setSelectedLeadForDetails}
           onCampaignClick={setSelectedLeadForCampaigns}
           emptyMessage={
@@ -710,6 +822,48 @@ export default function LeadsPage() {
               }
             }
           }}
+        />
+
+        <ConfirmDialog
+          isOpen={!!pendingArchiveLeadId}
+          onClose={() => {
+            if (!isArchiving) setPendingArchiveLeadId(null);
+          }}
+          onConfirm={() => void confirmArchiveLead()}
+          title="Archive lead?"
+          message="This lead will be hidden from active lists and excluded from campaigns. You can restore it from the Archived tab."
+          confirmText="Archive"
+          cancelText="Cancel"
+          type="warning"
+          isLoading={isArchiving}
+        />
+
+        <ConfirmDialog
+          isOpen={showBulkArchiveConfirm}
+          onClose={() => {
+            if (!isArchiving) setShowBulkArchiveConfirm(false);
+          }}
+          onConfirm={() => void confirmBulkArchive()}
+          title="Archive selected leads?"
+          message={`Archive ${isAllMatchingSelected ? total.toLocaleString() : selectedLeadsForCampaign.size} selected lead${(isAllMatchingSelected ? total : selectedLeadsForCampaign.size) !== 1 ? "s" : ""}? They will be excluded from campaigns until restored.`}
+          confirmText="Archive"
+          cancelText="Cancel"
+          type="warning"
+          isLoading={isArchiving}
+        />
+
+        <ConfirmDialog
+          isOpen={!!showArchiveByTypeConfirm}
+          onClose={() => {
+            if (!isArchiving) setShowArchiveByTypeConfirm(null);
+          }}
+          onConfirm={() => void confirmArchiveByType()}
+          title="Archive leads by verification type?"
+          message={`Archive all matching ${showArchiveByTypeConfirm?.replace("_", "-")} leads in the current filtered view? Pending campaign sends for those leads will be cancelled.`}
+          confirmText="Archive all"
+          cancelText="Cancel"
+          type="warning"
+          isLoading={isArchiving}
         />
 
         <ConfirmDialog
