@@ -176,8 +176,8 @@ export default function McpIntegrationsCard() {
         <p className="text-xs font-medium text-text-200 uppercase tracking-wide">
           MCP server URL
         </p>
-        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-          <code className="flex-1 text-xs sm:text-sm bg-bg-100 border border-brand-main/20 rounded-md px-3 py-2 text-text-100 break-all">
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+          <code className="min-w-0 flex-1 rounded-md border border-brand-main/20 bg-bg-100 px-3 py-2 font-mono text-xs text-text-100 break-all sm:text-sm">
             {mcpUrl || "Loading…"}
           </code>
           {mcpUrl ? <CopyButton value={mcpUrl} label="MCP URL" /> : null}
@@ -220,11 +220,11 @@ export default function McpIntegrationsCard() {
                 key={key.id}
                 className="flex items-center justify-between gap-3 px-3 py-2.5 bg-bg-200/40"
               >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-text-100 truncate">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-text-100">
                     {key.name}
                   </p>
-                  <p className="text-xs text-text-200 font-mono">
+                  <p className="truncate font-mono text-xs text-text-200">
                     {key.keyPrefix}…
                     {key.lastUsedAt
                       ? ` · last used ${new Date(key.lastUsedAt).toLocaleString()}`
@@ -253,8 +253,8 @@ export default function McpIntegrationsCard() {
           if (!open) setCreated(null);
         }}
       >
-        <DialogContent className="bg-bg-200 border border-brand-main/20 max-w-lg backdrop-blur-xl">
-          <DialogHeader>
+        <DialogContent className="bg-bg-200 border border-brand-main/20 w-[calc(100vw-2rem)] max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden backdrop-blur-xl">
+          <DialogHeader className="min-w-0">
             <DialogTitle className="text-text-100">
               Copy your MCP API key
             </DialogTitle>
@@ -265,57 +265,58 @@ export default function McpIntegrationsCard() {
           </DialogHeader>
 
           {created ? (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-text-200 uppercase">
-                  API key
-                </p>
-                <div className="flex gap-2 items-start">
-                  <code className="flex-1 text-xs bg-bg-100 border border-brand-main/20 rounded-md px-3 py-2 text-text-100 break-all">
-                    {created.key}
-                  </code>
+            <div className="min-w-0 space-y-5">
+              <div className="min-w-0 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-text-200">
+                    API key
+                  </p>
                   <CopyButton value={created.key} label="API key" />
                 </div>
+                <code className="block w-full rounded-md border border-brand-main/20 bg-bg-100 px-3 py-2 font-mono text-xs leading-relaxed text-text-100 break-all">
+                  {created.key}
+                </code>
               </div>
 
-              <div className="flex gap-2 text-xs">
-                {(
-                  [
-                    ["claude", "Claude"],
-                    ["cursor", "Cursor"],
-                    ["generic", "Generic"],
-                  ] as const
-                ).map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setConfigTab(id)}
-                    className={`px-3 py-1.5 rounded-md border transition-colors ${
-                      configTab === id
-                        ? "bg-brand-main text-white border-brand-main"
-                        : "border-brand-main/30 text-text-200 hover:bg-bg-100"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="space-y-2">
+              <div className="min-w-0 space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-medium text-text-200 uppercase">
+                  <p className="text-xs font-medium uppercase tracking-wide text-text-200">
                     Client config
                   </p>
                   <CopyButton value={configJson} label="Config" />
                 </div>
-                <pre className="text-xs bg-bg-100 border border-brand-main/20 rounded-md px-3 py-2 text-text-100 overflow-x-auto max-h-48">
+
+                <div className="inline-flex rounded-lg border border-brand-main/20 bg-bg-100 p-1">
+                  {(
+                    [
+                      ["claude", "Claude"],
+                      ["cursor", "Cursor"],
+                      ["generic", "Generic"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setConfigTab(id)}
+                      className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                        configTab === id
+                          ? "bg-brand-main text-white"
+                          : "text-text-200 hover:text-text-100"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <pre className="max-h-56 w-full overflow-y-auto whitespace-pre-wrap break-all rounded-md border border-brand-main/20 bg-bg-100 px-3 py-2 font-mono text-xs leading-relaxed text-text-100">
                   {configJson}
                 </pre>
               </div>
             </div>
           ) : null}
 
-          <DialogFooter>
+          <DialogFooter className="min-w-0">
             <Button
               type="button"
               onClick={() => setCreated(null)}
@@ -333,12 +334,12 @@ export default function McpIntegrationsCard() {
           if (!open) setRevokeTarget(null);
         }}
       >
-        <DialogContent className="bg-bg-200 border border-brand-main/20 max-w-md backdrop-blur-xl">
-          <DialogHeader>
+        <DialogContent className="bg-bg-200 border border-brand-main/20 w-[calc(100vw-2rem)] max-w-md overflow-hidden backdrop-blur-xl">
+          <DialogHeader className="min-w-0">
             <DialogTitle className="text-text-100">
               Revoke MCP key?
             </DialogTitle>
-            <DialogDescription className="text-text-200/80 text-left text-sm leading-relaxed">
+            <DialogDescription className="text-text-200/80 text-left text-sm leading-relaxed break-words">
               {revokeTarget
                 ? `“${revokeTarget.name}” (${revokeTarget.keyPrefix}…) will stop working immediately in all connected AI clients.`
                 : ""}
