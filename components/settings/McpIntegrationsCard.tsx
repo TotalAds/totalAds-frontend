@@ -20,9 +20,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import ChatgptMcpOAuthSection from "@/components/settings/ChatgptMcpOAuthSection";
 import {
+  MCP_ALERT_CLASS,
   MCP_CLIENT_TABS,
   MCP_ONE_TIME_NOTICE,
+  getChatgptOAuthFieldGuide,
+  getChatgptPluginSummary,
   getMcpSetupSteps,
   type McpClientTab,
 } from "@/components/settings/mcpSetupInstructions";
@@ -32,6 +36,8 @@ import {
   revokeMcpApiKey,
   type CreateMcpKeyResponse,
   type McpApiKeyMeta,
+  type McpOAuthEndpoints,
+  type McpOauthClientMeta,
 } from "@/utils/api/mcpClient";
 
 function CopyButton({
@@ -73,12 +79,14 @@ function SetupStepsList({
   client,
   mcpUrl,
   apiKey,
+  oauth,
 }: {
   client: McpClientTab;
   mcpUrl: string;
   apiKey: string;
+  oauth?: McpOAuthEndpoints;
 }) {
-  const steps = getMcpSetupSteps(client, mcpUrl, apiKey);
+  const steps = getMcpSetupSteps(client, mcpUrl, apiKey, oauth, undefined);
 
   return (
     <ol className="space-y-3">
@@ -89,11 +97,16 @@ function SetupStepsList({
           </span>
           <div className="min-w-0 space-y-1">
             <p className="font-medium text-text-100">{step.title}</p>
-            <p className="text-text-300 leading-relaxed">{step.body}</p>
+            <p className="text-text-200 leading-relaxed">{step.body}</p>
+            {step.bullets?.length ? (
+              <ul className="list-disc list-inside space-y-1 text-xs text-text-300 leading-relaxed">
+                {step.bullets.map((bullet) => (
+                  <li key={bullet}>{bullet}</li>
+                ))}
+              </ul>
+            ) : null}
             {step.warning ? (
-              <p className="rounded-md border border-amber-500/40 bg-amber-950/30 px-2.5 py-2 text-xs text-amber-100 leading-relaxed">
-                {step.warning}
-              </p>
+              <p className={`${MCP_ALERT_CLASS} text-xs`}>{step.warning}</p>
             ) : null}
           </div>
         </li>
@@ -104,6 +117,8 @@ function SetupStepsList({
 
 export default function McpIntegrationsCard() {
   const [keys, setKeys] = useState<McpApiKeyMeta[]>([]);
+  const [oauthClients, setOauthClients] = useState<McpOauthClientMeta[]>([]);
+  const [oauth, setOauth] = useState<McpOAuthEndpoints | null>(null);
   const [mcpUrl, setMcpUrl] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -118,6 +133,8 @@ export default function McpIntegrationsCard() {
       setIsLoading(true);
       const data = await listMcpApiKeys();
       setKeys(data.keys || []);
+      setOauthClients(data.oauthClients || []);
+      setOauth(data.oauth || null);
       setMcpUrl(data.mcpUrl || "");
     } catch (error: any) {
       console.error("Failed to list MCP keys", error);
@@ -184,11 +201,20 @@ export default function McpIntegrationsCard() {
   const configJson = useMemo(() => {
     if (!created) return "";
     if (configTab === "chatgpt") {
-      return [
-        `Connector URL: ${created.mcpUrl}`,
-        `Authentication: Token (not OAuth)`,
-        `Token: ${created.key}`,
-      ].join("\n");
+      return oauth
+        ? getChatgptPluginSummary({
+            name: "LeadSnipper",
+            mcpServerUrl: oauth.mcpUrl,
+            authentication: "OAuth",
+            clientSetupMethod: "User-Defined OAuth Client",
+            oauthClientId: "(create OAuth app below)",
+            oauthClientSecret: "(shown once at creation)",
+            authorizationEndpoint: oauth.authorizationEndpoint,
+            tokenEndpoint: oauth.tokenEndpoint,
+            scopes: "openid email offline_access",
+            tokenEndpointAuthMethod: "client_secret_post",
+          })
+        : "";
     }
     if (configTab === "claude") {
       return JSON.stringify(created.clientConfigs.claudeDesktop, null, 2);
@@ -197,16 +223,13 @@ export default function McpIntegrationsCard() {
       return JSON.stringify(created.clientConfigs.cursor, null, 2);
     }
     return JSON.stringify(created.clientConfigs.generic, null, 2);
-  }, [created, configTab]);
+  }, [created, configTab, oauth]);
 
   return (
     <div className="space-y-4 border border-brand-main/20 rounded-xl p-5 bg-bg-100/40">
-      <div
-        role="note"
-        className="rounded-xl border-2 border-amber-500/60 bg-[#1a1408] px-4 py-3 flex gap-3"
-      >
+      <div role="note" className={`${MCP_ALERT_CLASS} flex gap-3`}>
         <IconAlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-        <p className="text-sm text-amber-100 leading-relaxed">{MCP_ONE_TIME_NOTICE}</p>
+        <p>{MCP_ONE_TIME_NOTICE}</p>
       </div>
 
       <div className="flex items-start gap-3">
@@ -218,18 +241,33 @@ export default function McpIntegrationsCard() {
             LeadSnipper MCP
           </h3>
           <p className="text-sm text-text-200 mt-1 leading-relaxed">
-            Connect ChatGPT, Claude Desktop, Cursor, or other MCP clients to your
-            workspace. AI can read campaigns, leads, analytics, and sending
-            accounts — and edit draft or paused campaigns. AI cannot send, pause,
-            or stop a running campaign.
+            Connect ChatGPT (plugin), Claude Desktop, Cursor, or other MCP clients.
+            AI can read campaigns, leads, analytics, and sending accounts — and edit
+            draft or paused campaigns. AI cannot send, pause, or stop a running
+            campaign.
           </p>
-          <p className="text-xs text-text-400 mt-2 leading-relaxed">
-            LeadSnipper uses a Bearer API key (<code className="text-brand-main">ls_mcp_…</code>
-            ), not OAuth. In ChatGPT choose <strong className="text-text-300">Token</strong> auth.
-            In Claude Desktop use the config file below — do not use Claude web Connectors.
+          <p className="text-xs text-text-300 mt-2 leading-relaxed">
+            <strong className="text-text-200">ChatGPT</strong> uses{" "}
+            <strong className="text-text-200">Plugins</strong> with OAuth — create a ChatGPT
+            OAuth app below. <strong className="text-text-200">Cursor</strong> and{" "}
+            <strong className="text-text-200">Claude Desktop</strong> use{" "}
+            <code className="text-brand-main">ls_mcp_*</code> API keys.
           </p>
         </div>
       </div>
+
+      {oauth ? (
+        <ChatgptMcpOAuthSection
+          oauthClients={oauthClients}
+          oauth={oauth}
+          onRefresh={loadKeys}
+        />
+      ) : null}
+
+      <div className="border-t border-brand-main/15 pt-4">
+        <p className="text-sm font-medium text-text-100 mb-3">
+          MCP API keys (Cursor & Claude Desktop)
+        </p>
 
       <div className="rounded-lg border border-brand-main/15 bg-bg-200/60 p-3 space-y-2">
         <p className="text-xs font-medium text-text-200 uppercase tracking-wide">
@@ -250,7 +288,7 @@ export default function McpIntegrationsCard() {
             type="text"
             value={keyName}
             onChange={(e) => setKeyName(e.target.value)}
-            placeholder="Key name (e.g. ChatGPT, Claude Desktop, Cursor)"
+            placeholder="Key name (e.g. Claude Desktop, Cursor)"
             maxLength={80}
             className="w-full pl-9 pr-3 py-2 rounded-lg border border-brand-main/30 bg-bg-100 text-text-100 text-sm focus:outline-none focus:ring-2 focus:ring-brand-main/40"
           />
@@ -306,6 +344,7 @@ export default function McpIntegrationsCard() {
           </ul>
         )}
       </div>
+      </div>
 
       <Dialog
         open={!!created}
@@ -326,10 +365,10 @@ export default function McpIntegrationsCard() {
 
           {created ? (
             <div className="min-w-0 space-y-5">
-              <div className="rounded-lg border border-amber-500/40 bg-amber-950/25 px-3 py-2.5 text-xs text-amber-100 leading-relaxed">
-                You cannot connect by pasting this into a chat. Use ChatGPT&apos;s
-                connector (Token auth), Claude Desktop&apos;s config file, or
-                Cursor MCP settings.
+              <div className={`${MCP_ALERT_CLASS} text-xs`}>
+                <strong className="text-amber-50">ls_mcp_* keys</strong> are for Cursor and
+                Claude Desktop. For ChatGPT, use the{" "}
+                <strong className="text-amber-50">ChatGPT plugin (OAuth)</strong> section above.
               </div>
 
               <div className="min-w-0 space-y-2">
@@ -370,14 +409,44 @@ export default function McpIntegrationsCard() {
                   client={configTab}
                   mcpUrl={created.mcpUrl}
                   apiKey={created.key}
+                  oauth={oauth ?? undefined}
                 />
+
+                {configTab === "chatgpt" && oauth ? (
+                  <div className="space-y-2 pt-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-text-200">
+                      ChatGPT OAuth field guide
+                    </p>
+                    <div className="rounded-xl border border-brand-main/20 overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-bg-300/80 text-text-300 text-left">
+                            <th className="px-3 py-2">Field</th>
+                            <th className="px-3 py-2">Value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {getChatgptOAuthFieldGuide(oauth).map((row) => (
+                            <tr key={row.field} className="border-t border-brand-main/10">
+                              <td className="px-3 py-2 text-text-200">{row.field}</td>
+                              <td className="px-3 py-2 text-text-300 break-all">{row.value}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-xs text-text-500">
+                      Create a ChatGPT OAuth app in the section above for Client ID and Secret.
+                    </p>
+                  </div>
+                ) : null}
               </div>
 
               <div className="min-w-0 space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-medium uppercase tracking-wide text-text-200">
                     {configTab === "chatgpt"
-                      ? "Connector values"
+                      ? "Plugin form summary"
                       : configTab === "claude"
                         ? "Claude Desktop config (merge into claude_desktop_config.json)"
                         : configTab === "cursor"

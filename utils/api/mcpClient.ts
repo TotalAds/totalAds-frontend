@@ -9,6 +9,39 @@ export type McpApiKeyMeta = {
   revokedAt: string | null;
 };
 
+export type McpOAuthEndpoints = {
+  issuer: string;
+  authorizationEndpoint: string;
+  tokenEndpoint: string;
+  metadataUrl: string;
+  mcpUrl: string;
+};
+
+export type McpOauthClientMeta = {
+  id: string;
+  name: string;
+  clientId: string;
+  clientIdPrefix: string;
+  redirectUri: string;
+  lastUsedAt: string | null;
+  createdAt: string;
+  revokedAt: string | null;
+  oauth: McpOAuthEndpoints;
+};
+
+export type ChatgptPluginConfig = {
+  name: string;
+  mcpServerUrl: string;
+  authentication: string;
+  clientSetupMethod: string;
+  oauthClientId: string;
+  oauthClientSecret: string;
+  authorizationEndpoint: string;
+  tokenEndpoint: string;
+  scopes: string;
+  tokenEndpointAuthMethod: string;
+};
+
 export type McpClientConfigs = {
   claudeDesktop: {
     mcpServers: {
@@ -27,10 +60,7 @@ export type McpClientConfigs = {
       };
     };
   };
-  chatgpt: {
-    mcpUrl: string;
-    token: string;
-  };
+  chatgpt: ChatgptPluginConfig;
   generic: {
     url: string;
     authorization: string;
@@ -39,7 +69,9 @@ export type McpClientConfigs = {
 
 export type ListMcpKeysResponse = {
   keys: McpApiKeyMeta[];
+  oauthClients: McpOauthClientMeta[];
   mcpUrl: string;
+  oauth: McpOAuthEndpoints;
 };
 
 export type CreateMcpKeyResponse = {
@@ -47,6 +79,12 @@ export type CreateMcpKeyResponse = {
   mcpUrl: string;
   clientConfigs: McpClientConfigs;
   keyMeta: McpApiKeyMeta;
+};
+
+export type CreateMcpOauthClientResponse = {
+  clientSecret: string;
+  chatgptPlugin: ChatgptPluginConfig;
+  client: McpOauthClientMeta;
 };
 
 export async function listMcpApiKeys(): Promise<ListMcpKeysResponse> {
@@ -64,4 +102,65 @@ export async function createMcpApiKey(
 export async function revokeMcpApiKey(keyId: string): Promise<McpApiKeyMeta> {
   const response = await emailClient.delete(`/api/mcp/keys/${keyId}`);
   return response.data.data as McpApiKeyMeta;
+}
+
+export async function createMcpOauthClient(params: {
+  name: string;
+  redirectUri: string;
+}): Promise<CreateMcpOauthClientResponse> {
+  const response = await emailClient.post("/api/mcp/oauth-clients", params);
+  return response.data.data as CreateMcpOauthClientResponse;
+}
+
+export async function revokeMcpOauthClient(
+  clientId: string
+): Promise<McpOauthClientMeta> {
+  const response = await emailClient.delete(`/api/mcp/oauth-clients/${clientId}`);
+  return response.data.data as McpOauthClientMeta;
+}
+
+export async function previewMcpOauthClient(params: {
+  clientId: string;
+  redirectUri: string;
+}): Promise<{ clientName: string; redirectUri: string; scopes: string }> {
+  const response = await emailClient.get("/api/mcp/oauth/preview", {
+    params: {
+      client_id: params.clientId,
+      redirect_uri: params.redirectUri,
+    },
+  });
+  return response.data.data;
+}
+
+export async function approveMcpOauth(params: {
+  clientId: string;
+  redirectUri: string;
+  codeChallenge: string;
+  codeChallengeMethod: string;
+  state?: string;
+  scope?: string;
+}): Promise<{ redirectUrl: string }> {
+  const response = await emailClient.post("/api/mcp/oauth/approve", params);
+  return response.data.data;
+}
+
+export function formatChatgptPluginSetup(plugin: ChatgptPluginConfig): string {
+  return [
+    "=== ChatGPT New Plugin form ===",
+    `Name: ${plugin.name}`,
+    `Connection: Server URL`,
+    `URL: ${plugin.mcpServerUrl}`,
+    `Authentication: OAuth`,
+    `Client setup method: ${plugin.clientSetupMethod}`,
+    "",
+    "=== Advanced OAuth settings ===",
+    `OAuth Client ID: ${plugin.oauthClientId}`,
+    `OAuth Client Secret: ${plugin.oauthClientSecret}`,
+    `Authorization endpoint: ${plugin.authorizationEndpoint}`,
+    `Token endpoint: ${plugin.tokenEndpoint}`,
+    `Scopes: ${plugin.scopes}`,
+    `Token endpoint auth method: ${plugin.tokenEndpointAuthMethod}`,
+    "",
+    "Callback URL: copy FROM ChatGPT (read-only) → paste when creating OAuth client in LeadSnipper",
+  ].join("\n");
 }
