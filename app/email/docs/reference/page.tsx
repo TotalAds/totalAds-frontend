@@ -1,51 +1,78 @@
 "use client";
 
-import { useState } from "react";
-import { toast } from "react-hot-toast";
-import { IconCopy } from "@tabler/icons-react";
-
-import { API_ENDPOINTS, ERROR_CODES, buildCurl } from "@/components/developer/apiDocsContent";
-import { Button } from "@/components/ui/button";
+import {
+  API_ENDPOINTS,
+  ERROR_CODES,
+  RESPONSE_ENVELOPE_EXAMPLE,
+  RESPONSE_ENVELOPE_FIELDS,
+  buildCurl,
+  getEndpointSampleBody,
+  type ApiEndpoint,
+} from "@/components/developer/apiDocsContent";
+import {
+  CodeBlock,
+  MethodBadge,
+  SchemaTable,
+} from "@/components/developer/ApiDocComponents";
 
 export default function DocsReferencePage() {
   return (
-    <div className="space-y-10">
-      <div>
-        <h1 className="text-2xl font-bold text-text-100">API reference</h1>
-        <p className="text-text-400 text-sm mt-1">
-          All requests require <code>Authorization: Bearer ls_live_...</code>. Responses use a standard envelope with{" "}
-          <code>success</code>, <code>data</code>, and <code>meta</code>.
+    <div className="space-y-12">
+      <header className="space-y-3">
+        <h1 className="text-3xl font-bold text-text-100">API reference</h1>
+        <p className="text-text-300 leading-relaxed max-w-3xl">
+          Every endpoint returns a consistent JSON envelope. Authenticate with{" "}
+          <code className="text-brand-main bg-brand-main/10 px-1.5 py-0.5 rounded">
+            Authorization: Bearer ls_live_...
+          </code>
+          . Required scopes are listed per endpoint.
         </p>
-      </div>
+      </header>
+
+      <section className="space-y-4 rounded-2xl border border-brand-main/20 bg-bg-200/80 p-6">
+        <h2 className="text-lg font-semibold text-text-100">Response envelope</h2>
+        <p className="text-sm text-text-400">
+          All successful and error responses share this top-level shape. Endpoint-specific data lives in{" "}
+          <code className="text-text-200">data</code>.
+        </p>
+        <CodeBlock
+          title="Example response"
+          code={JSON.stringify(RESPONSE_ENVELOPE_EXAMPLE, null, 2)}
+        />
+        <SchemaTable fields={RESPONSE_ENVELOPE_FIELDS} title="Envelope fields" />
+      </section>
 
       {API_ENDPOINTS.map((group) => (
-        <section key={group.group} className="space-y-3">
-          <h2 className="text-lg font-semibold text-text-100">{group.group}</h2>
-          <div className="rounded-xl border border-brand-main/15 divide-y divide-brand-main/10">
-            {group.items.map((item) => (
-              <EndpointRow key={`${item.method}-${item.path}`} {...item} />
+        <section key={group.group} className="space-y-4">
+          <div>
+            <h2 className="text-xl font-semibold text-text-100">{group.group}</h2>
+            <p className="text-sm text-text-400 mt-1">{group.description}</p>
+          </div>
+          <div className="space-y-4">
+            {group.items.map((endpoint) => (
+              <EndpointCard key={endpoint.id} endpoint={endpoint} />
             ))}
           </div>
         </section>
       ))}
 
-      <section>
-        <h2 className="text-lg font-semibold text-text-100 mb-3">Error codes</h2>
-        <div className="rounded-xl border border-brand-main/15 overflow-hidden">
+      <section className="space-y-4">
+        <h2 className="text-xl font-semibold text-text-100">Error codes</h2>
+        <div className="rounded-xl border border-brand-main/20 overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-bg-200/80 text-text-300 text-left">
-              <tr>
-                <th className="px-4 py-2">Code</th>
-                <th className="px-4 py-2">HTTP</th>
-                <th className="px-4 py-2">Description</th>
+            <thead>
+              <tr className="bg-bg-300/80 text-text-300 text-left">
+                <th className="px-4 py-3">Code</th>
+                <th className="px-4 py-3">HTTP</th>
+                <th className="px-4 py-3">When it happens</th>
               </tr>
             </thead>
             <tbody>
               {ERROR_CODES.map((row) => (
                 <tr key={row.code} className="border-t border-brand-main/10">
-                  <td className="px-4 py-2 font-mono text-text-200">{row.code}</td>
-                  <td className="px-4 py-2 text-text-400">{row.status}</td>
-                  <td className="px-4 py-2 text-text-300">{row.description}</td>
+                  <td className="px-4 py-3 font-mono text-brand-main text-xs">{row.code}</td>
+                  <td className="px-4 py-3 text-text-400">{row.status}</td>
+                  <td className="px-4 py-3 text-text-300">{row.description}</td>
                 </tr>
               ))}
             </tbody>
@@ -56,68 +83,86 @@ export default function DocsReferencePage() {
   );
 }
 
-function EndpointRow({
-  method,
-  path,
-  scope,
-  description,
-}: {
-  method: string;
-  path: string;
-  scope: string;
-  description: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const sampleBody =
-    method === "POST" && path === "/emails/send"
-      ? {
-          from: { senderId: "123" },
-          to: { email: "user@example.com" },
-          subject: "Hello",
-          html: "<p>Hi</p>",
-        }
-      : method === "POST" && path === "/campaigns/send"
-        ? {
-            name: "API Campaign",
-            domainId: "0",
-            senderConfig: { senderIds: ["123"] },
-            sequence: [{ subject: "Hi", body: "<p>Hello</p>", delayMinutes: 0 }],
-            recipients: [{ email: "user@example.com", name: "User" }],
-          }
-        : undefined;
+function EndpointCard({ endpoint }: { endpoint: ApiEndpoint }) {
+  const sampleBody = getEndpointSampleBody(endpoint);
+  const curl = buildCurl(endpoint.method, endpoint.path, sampleBody);
 
   return (
-    <div className="px-4 py-3">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full text-left flex flex-wrap items-center gap-2"
-      >
-        <span className="text-xs font-bold px-2 py-0.5 rounded bg-brand-main/20 text-brand-main">
-          {method}
+    <article
+      id={endpoint.id}
+      className="rounded-2xl border border-brand-main/20 bg-bg-200/60 overflow-hidden scroll-mt-6"
+    >
+      <div className="px-5 py-4 border-b border-brand-main/15 bg-bg-300/40 flex flex-wrap items-center gap-3">
+        <MethodBadge method={endpoint.method} />
+        <code className="text-sm text-text-100 font-mono">{endpoint.path}</code>
+        <span className="text-xs px-2 py-0.5 rounded-full border border-brand-main/30 text-text-400">
+          scope: {endpoint.scope}
         </span>
-        <code className="text-sm text-text-100">{path}</code>
-        <span className="text-xs text-text-500">scope: {scope}</span>
-      </button>
-      <p className="text-sm text-text-400 mt-1">{description}</p>
-      {open && (
-        <div className="mt-3 relative">
-          <pre className="rounded-lg bg-bg-300/80 p-3 text-xs text-text-200 overflow-x-auto">
-            {buildCurl(method, path, sampleBody)}
-          </pre>
-          <Button
-            size="sm"
-            variant="outline"
-            className="absolute top-2 right-2 border-brand-main/30"
-            onClick={async () => {
-              await navigator.clipboard.writeText(buildCurl(method, path, sampleBody));
-              toast.success("cURL copied");
-            }}
-          >
-            <IconCopy className="w-3 h-3" />
-          </Button>
+      </div>
+
+      <div className="p-5 space-y-5">
+        <div>
+          <h3 className="text-base font-semibold text-text-100">{endpoint.title}</h3>
+          <p className="text-sm text-text-400 mt-1 leading-relaxed">{endpoint.description}</p>
         </div>
-      )}
-    </div>
+
+        {endpoint.queryParams && endpoint.queryParams.length > 0 && (
+          <SchemaTable fields={endpoint.queryParams} title="Query parameters" />
+        )}
+
+        {endpoint.requestBody && (
+          <div className="space-y-3">
+            <SchemaTable fields={endpoint.requestBody.fields} title="Request body" />
+            {endpoint.requestBody.description && (
+              <p className="text-xs text-text-500">{endpoint.requestBody.description}</p>
+            )}
+            <CodeBlock
+              title="Request example"
+              code={JSON.stringify(endpoint.requestBody.example, null, 2)}
+            />
+          </div>
+        )}
+
+        {endpoint.responseData && (
+          <div className="space-y-3">
+            <SchemaTable fields={endpoint.responseData.fields} title="Response data (inside envelope.data)" />
+            {endpoint.responseData.description && (
+              <p className="text-xs text-text-500">{endpoint.responseData.description}</p>
+            )}
+            <CodeBlock
+              title="Response example"
+              code={JSON.stringify(
+                { success: true, data: endpoint.responseData.example, meta: { requestId: "ls_...", apiVersion: "2026-08-23" } },
+                null,
+                2
+              )}
+            />
+          </div>
+        )}
+
+        {endpoint.statusCodes && endpoint.statusCodes.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold text-text-100">Status codes</h4>
+            <ul className="text-sm text-text-400 space-y-1">
+              {endpoint.statusCodes.map((s) => (
+                <li key={s.code}>
+                  <span className="font-mono text-text-200">{s.code}</span> — {s.description}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {endpoint.notes && endpoint.notes.length > 0 && (
+          <ul className="text-xs text-text-500 list-disc list-inside space-y-1">
+            {endpoint.notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        )}
+
+        <CodeBlock title="cURL" code={curl} />
+      </div>
+    </article>
   );
 }

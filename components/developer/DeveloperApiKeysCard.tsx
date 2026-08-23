@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 import {
+  IconAlertTriangle,
   IconBook,
   IconCheck,
   IconCopy,
@@ -31,6 +32,12 @@ import {
 
 const ALL_SCOPES: DeveloperApiScope[] = ["read", "write", "send"];
 
+const SCOPE_LABELS: Record<DeveloperApiScope, string> = {
+  read: "List campaigns, leads, analytics, senders",
+  write: "Create and update leads, campaigns, lists",
+  send: "Send emails and control campaign delivery",
+};
+
 function CopyButton({ value, label }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -38,7 +45,7 @@ function CopyButton({ value, label }: { value: string; label?: string }) {
       type="button"
       variant="outline"
       size="sm"
-      className="border-brand-main/40 text-text-100 shrink-0"
+      className="border-brand-main/50 text-text-100 bg-bg-300/80 shrink-0 hover:bg-bg-300"
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(value);
@@ -141,20 +148,27 @@ export default function DeveloperApiKeysCard() {
   };
 
   return (
-    <div className="rounded-2xl border border-brand-main/20 bg-bg-200/60 p-6 space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 text-text-100 font-semibold text-lg">
-            <IconKey className="w-5 h-5 text-brand-main" />
-            Developer REST API
+    <div className="backdrop-blur-xl bg-bg-200 border border-brand-main/25 rounded-xl p-6 md:p-8 flex flex-col gap-6 max-w-3xl shadow-lg shadow-black/10">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-main/20 border border-brand-main/35">
+            <IconKey className="h-5 w-5 text-brand-main" />
           </div>
-          <p className="text-sm text-text-300 mt-1 max-w-2xl">
-            Create API keys for programmatic email sending and campaign automation.
-            Keys use the <code className="text-brand-main">ls_live_</code> prefix.
-          </p>
+          <div>
+            <h3 className="text-lg font-semibold text-text-100">Developer REST API</h3>
+            <p className="text-sm text-text-300 mt-1 max-w-xl leading-relaxed">
+              Programmatic access to send emails, run campaigns, and manage leads. Keys use the{" "}
+              <code className="text-brand-main bg-brand-main/10 px-1 rounded text-xs">ls_live_</code>{" "}
+              prefix and are scoped to this workspace.
+            </p>
+          </div>
         </div>
         <Link href="/email/docs">
-          <Button variant="outline" size="sm" className="border-brand-main/40">
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-brand-main/45 text-text-100 bg-bg-300/60 hover:bg-bg-300"
+          >
             <IconBook className="w-4 h-4 mr-1" />
             API docs
           </Button>
@@ -162,96 +176,139 @@ export default function DeveloperApiKeysCard() {
       </div>
 
       {!apiAccessEnabled && !isLoading && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-          API access requires a Scale or Custom plan (current: {tierName || "none"}).{" "}
-          <Link href="/email/pricing" className="underline font-medium">
-            Upgrade in Billing
-          </Link>
+        <div
+          role="alert"
+          className="rounded-xl border-2 border-amber-500/70 bg-[#1a1408] px-4 py-4 flex gap-3"
+        >
+          <IconAlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-amber-100">
+              API access requires Scale or Custom
+            </p>
+            <p className="text-sm text-text-200 mt-1 leading-relaxed">
+              Your current plan is{" "}
+              <span className="font-medium text-white">{tierName || "none"}</span>. Upgrade to create
+              API keys and send programmatically.{" "}
+              <Link
+                href="/email/pricing"
+                className="text-amber-300 underline font-medium hover:text-amber-200"
+              >
+                View plans →
+              </Link>
+            </p>
+          </div>
         </div>
       )}
 
       {apiBaseUrl && (
-        <div className="text-sm text-text-300">
-          Base URL: <code className="text-text-100">{apiBaseUrl}</code>
+        <div className="rounded-lg border border-brand-main/20 bg-bg-300/50 px-4 py-3">
+          <p className="text-xs uppercase tracking-wide text-text-400 mb-1">Base URL</p>
+          <code className="text-sm text-text-100 font-mono break-all">{apiBaseUrl}</code>
         </div>
       )}
 
-      <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
-        <div>
-          <label className="text-sm text-text-300 block mb-1">Key name</label>
-          <input
-            value={keyName}
-            onChange={(e) => setKeyName(e.target.value)}
-            placeholder="Production integration"
-            disabled={!apiAccessEnabled || creating}
-            className="w-full rounded-lg border border-brand-main/20 bg-bg-100 px-3 py-2 text-text-100"
-          />
-        </div>
-        <Button
-          onClick={handleCreate}
-          disabled={!apiAccessEnabled || creating}
-          className="bg-brand-main hover:bg-brand-main/90"
-        >
-          {creating ? "Creating…" : "Create API key"}
-        </Button>
-      </div>
+      <div className="space-y-4 border-t border-brand-main/20 pt-6">
+        <h4 className="text-sm font-semibold text-text-100">Create a new key</h4>
 
-      <div className="flex flex-wrap gap-2">
-        {ALL_SCOPES.map((scope) => (
-          <button
-            key={scope}
-            type="button"
-            onClick={() => toggleScope(scope)}
-            disabled={!apiAccessEnabled}
-            className={`px-3 py-1 rounded-full text-xs border ${
-              scopes.includes(scope)
-                ? "border-brand-main bg-brand-main/20 text-text-100"
-                : "border-brand-main/20 text-text-400"
-            }`}
+        <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+          <div>
+            <label htmlFor="dev-api-key-name" className="text-sm font-medium text-text-200 block mb-1.5">
+              Key name
+            </label>
+            <input
+              id="dev-api-key-name"
+              value={keyName}
+              onChange={(e) => setKeyName(e.target.value)}
+              placeholder="Production integration"
+              disabled={!apiAccessEnabled || creating}
+              className="w-full rounded-lg border border-brand-main/30 bg-bg-300/80 px-3 py-2.5 text-text-100 placeholder:text-text-500 focus:outline-none focus:ring-2 focus:ring-brand-main/40 disabled:opacity-50"
+            />
+          </div>
+          <Button
+            onClick={handleCreate}
+            disabled={!apiAccessEnabled || creating}
+            className="bg-brand-main hover:bg-brand-main/90 text-white disabled:opacity-40"
           >
-            {scope}
-          </button>
-        ))}
+            {creating ? "Creating…" : "Create API key"}
+          </Button>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-text-300 mb-2">Scopes</p>
+          <div className="flex flex-col gap-2">
+            {ALL_SCOPES.map((scope) => (
+              <label
+                key={scope}
+                className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors ${
+                  scopes.includes(scope)
+                    ? "border-brand-main/50 bg-brand-main/15"
+                    : "border-brand-main/20 bg-bg-300/40"
+                } ${!apiAccessEnabled ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={scopes.includes(scope)}
+                  onChange={() => toggleScope(scope)}
+                  disabled={!apiAccessEnabled}
+                  className="mt-0.5 accent-brand-main"
+                />
+                <span className="text-sm">
+                  <span className="font-mono text-brand-main">{scope}</span>
+                  <span className="text-text-400 ml-2">— {SCOPE_LABELS[scope]}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
       </div>
 
       {created && (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 space-y-2">
-          <p className="text-sm font-medium text-emerald-100">
-            Copy your key now — it won&apos;t be shown again.
+        <div className="rounded-xl border-2 border-emerald-500/50 bg-[#0a1a12] p-4 space-y-3">
+          <p className="text-sm font-semibold text-emerald-200">
+            Copy your key now — it won&apos;t be shown again
           </p>
-          <div className="flex gap-2 items-center">
-            <code className="text-xs break-all text-text-100 flex-1">{created.key}</code>
+          <div className="flex gap-2 items-start rounded-lg bg-black/40 p-3 border border-emerald-500/30">
+            <code className="text-xs break-all text-emerald-100 flex-1 font-mono leading-relaxed">
+              {created.key}
+            </code>
             <CopyButton value={created.key} label="API key" />
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setCreated(null)}>
+          <Button variant="ghost" size="sm" className="text-text-400" onClick={() => setCreated(null)}>
             Dismiss
           </Button>
         </div>
       )}
 
-      <div className="space-y-2">
-        <h4 className="text-sm font-medium text-text-200">Active keys</h4>
+      <div className="space-y-3 border-t border-brand-main/20 pt-6">
+        <h4 className="text-sm font-semibold text-text-100">Active keys</h4>
         {isLoading ? (
           <p className="text-sm text-text-400">Loading…</p>
         ) : keys.length === 0 ? (
-          <p className="text-sm text-text-400">No API keys yet.</p>
+          <p className="text-sm text-text-400 rounded-lg border border-dashed border-brand-main/25 px-4 py-6 text-center">
+            No API keys yet. Create one above to get started.
+          </p>
         ) : (
-          <ul className="divide-y divide-brand-main/10 rounded-xl border border-brand-main/15">
+          <ul className="rounded-xl border border-brand-main/25 divide-y divide-brand-main/15 overflow-hidden bg-bg-300/30">
             {keys.map((key) => (
               <li
                 key={key.id}
-                className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"
+                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5"
               >
                 <div>
                   <div className="text-text-100 font-medium">{key.name}</div>
-                  <div className="text-xs text-text-400">
+                  <div className="text-xs text-text-400 mt-0.5 font-mono">
                     {key.keyPrefix}… · {key.environment} · {key.scopes.join(", ")}
                   </div>
+                  {key.lastUsedAt && (
+                    <div className="text-xs text-text-500 mt-0.5">
+                      Last used {new Date(key.lastUsedAt).toLocaleDateString()}
+                    </div>
+                  )}
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="border-red-500/30 text-red-300"
+                  className="border-red-500/40 text-red-300 bg-red-950/20 hover:bg-red-950/40"
                   onClick={() => setRevokeTarget(key)}
                 >
                   <IconTrash className="w-4 h-4 mr-1" />
@@ -268,18 +325,14 @@ export default function DeveloperApiKeysCard() {
           <DialogHeader>
             <DialogTitle>Revoke API key?</DialogTitle>
             <DialogDescription>
-              Integrations using {revokeTarget?.name} will stop working immediately.
+              Integrations using <strong>{revokeTarget?.name}</strong> will stop working immediately.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRevokeTarget(null)}>
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleRevoke}
-              disabled={revoking}
-            >
+            <Button variant="destructive" onClick={handleRevoke} disabled={revoking}>
               {revoking ? "Revoking…" : "Revoke key"}
             </Button>
           </DialogFooter>
