@@ -10,7 +10,6 @@ import {
 } from "@tabler/icons-react";
 
 import {
-  API_BASE_PLACEHOLDER,
   API_VERSION,
   RATE_LIMITS,
   RESPONSE_ENVELOPE_EXAMPLE,
@@ -19,6 +18,7 @@ import {
 } from "@/components/developer/apiDocsContent";
 import { CodeBlock } from "@/components/developer/ApiDocComponents";
 import { Button } from "@/components/ui/button";
+import { getDeveloperApiV1BaseUrl } from "@/lib/emailServiceUrl";
 
 export default function DocsHomePage() {
   return (
@@ -54,7 +54,7 @@ export default function DocsHomePage() {
           body={
             <>
               All endpoints are prefixed with{" "}
-              <code className="text-brand-main text-xs">{API_BASE_PLACEHOLDER}</code>
+              <code className="text-brand-main text-xs">{getDeveloperApiV1BaseUrl()}</code>
             </>
           }
         />

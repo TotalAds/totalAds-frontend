@@ -2,6 +2,7 @@
 
 import { API_ENDPOINTS, buildCurl } from "@/components/developer/apiDocsContent";
 import { CodeBlock, SchemaTable } from "@/components/developer/ApiDocComponents";
+import { getEmailServiceUrl } from "@/lib/emailServiceUrl";
 
 const webhookEndpoint = API_ENDPOINTS.flatMap((g) => g.items).find((e) => e.id === "post-webhooks");
 const getWebhookEndpoint = API_ENDPOINTS.flatMap((g) => g.items).find((e) => e.id === "get-webhooks");
@@ -84,7 +85,7 @@ export default function DocsWebhooksPage() {
         />
         <CodeBlock
           title="POST /api/webhooks/campaign-leads/:publicToken"
-          code={`curl -X POST "https://your-email-service/api/webhooks/campaign-leads/YOUR_PUBLIC_TOKEN" \\
+          code={`curl -X POST "${getEmailServiceUrl()}/api/webhooks/campaign-leads/YOUR_PUBLIC_TOKEN" \\
   -H "Authorization: Bearer YOUR_INGEST_SECRET" \\
   -H "Content-Type: application/json" \\
   -d '{"email": "lead@example.com", "name": "Lead Name"}'`}

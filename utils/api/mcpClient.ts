@@ -13,8 +13,9 @@ export type McpClientConfigs = {
   claudeDesktop: {
     mcpServers: {
       leadsnipper: {
-        url: string;
-        headers: { Authorization: string };
+        command: string;
+        args: string[];
+        env: Record<string, string>;
       };
     };
   };
@@ -25,6 +26,10 @@ export type McpClientConfigs = {
         headers: { Authorization: string };
       };
     };
+  };
+  chatgpt: {
+    mcpUrl: string;
+    token: string;
   };
   generic: {
     url: string;

@@ -1,5 +1,6 @@
+import { getDeveloperApiV1BaseUrl } from "@/lib/emailServiceUrl";
+
 export const API_VERSION = "2026-08-23";
-export const API_BASE_PLACEHOLDER = "https://your-email-service/v1";
 
 export type SchemaField = {
   name: string;
@@ -689,7 +690,7 @@ export const RATE_LIMITS = [
 ];
 
 export function buildCurl(method: string, path: string, body?: object) {
-  const base = API_BASE_PLACEHOLDER;
+  const base = getDeveloperApiV1BaseUrl();
   const resolvedPath = path.replace(/:campaignId|:id|:leadId|:listId|:senderId|:domainId|:messageId|:subscriptionId/g, "123");
   const lines = [
     `curl -X ${method} "${base}${resolvedPath}" \\`,

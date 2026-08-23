@@ -180,7 +180,9 @@ const IntegrationsSection = () => {
         <h2 className="text-2xl font-bold text-text-100 mb-2">Integrations</h2>
         <p className="text-text-200 text-sm max-w-2xl">
           Connect the REST API and AI clients via MCP, and manage third-party
-          services for deliverability and lead sync.
+          services for deliverability and lead sync. MCP setup instructions and
+          API keys are shown only once when you generate a key — create a new key
+          to view them again.
         </p>
       </div>
 
