@@ -6,7 +6,6 @@ import { IconCheck, IconCopy, IconPlugConnected, IconTrash } from "@tabler/icons
 
 import {
   CLAUDE_CONNECTOR_LABEL,
-  CLAUDE_MCP_REDIRECT_URI,
   getClaudePreCreateSteps,
   getClaudeSetupFields,
   getMcpSetupSteps,
@@ -24,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   createMcpOauthClient,
+  CLAUDE_MCP_REDIRECT_URI,
   formatChatgptPluginSetup,
   getOauthClientProvider,
   revokeMcpOauthClient,
@@ -129,14 +129,14 @@ export default function ClaudeMcpOAuthSection({
     ? getMcpSetupSteps("claude", oauth.mcpUrl, "", oauth, {
         ...connector,
         provider: "claude",
-      }).slice(2)
+      }).slice(1)
     : [];
   const setupFields = getClaudeSetupFields(oauth, {
     ...connector,
     provider: "claude",
     oauthClientSecret: created?.clientSecret,
   });
-  const preCreateSteps = getClaudePreCreateSteps();
+  const setupSteps = getClaudePreCreateSteps();
 
   return (
     <div className="rounded-xl border border-brand-main/25 bg-bg-200/40 p-5 space-y-4">
@@ -147,23 +147,57 @@ export default function ClaudeMcpOAuthSection({
         <div>
           <h4 className="text-base font-semibold text-text-100">{CLAUDE_CONNECTOR_LABEL}</h4>
           <p className="text-sm text-text-300 mt-1 leading-relaxed">
-            Connect LeadSnipper to Claude.ai via{" "}
-            <strong className="text-text-200">Add custom connector</strong>. Paste{" "}
-            <strong className="text-text-200">OAuth Client ID</strong> and{" "}
-            <strong className="text-text-200">OAuth Client Secret</strong> under Advanced
-            settings — not your <code className="text-brand-main">ls_mcp_*</code> API key.
+            Start in LeadSnipper (get Client ID + Secret), then paste into Claude’s{" "}
+            <strong className="text-text-200">Add custom connector</strong> → Advanced settings.
+            Claude does <strong className="text-text-200">not</strong> show a callback URL — unlike
+            ChatGPT.
           </p>
         </div>
       </div>
 
       <div className={`${MCP_ALERT_CLASS} text-xs`}>{MCP_ONE_TIME_NOTICE}</div>
 
+      <div className="rounded-lg border border-brand-main/20 bg-bg-100/50 px-3 py-2.5 text-xs text-text-300 leading-relaxed">
+        <strong className="text-text-200">No callback URL in Claude.</strong> Anthropic uses a fixed
+        redirect ({CLAUDE_MCP_REDIRECT_URI}). LeadSnipper registers it when you create the OAuth app
+        below — nothing to copy from Claude’s UI.
+      </div>
+
+      <div className="border-t border-brand-main/15 pt-4 space-y-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-text-400">
+          Step 1 — in LeadSnipper
+        </p>
+        <form onSubmit={handleCreate} className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-text-300 block mb-1">
+              Connector name
+            </label>
+            <input
+              value={appName}
+              onChange={(e) => setAppName(e.target.value)}
+              placeholder="LeadSnipper"
+              className="w-full rounded-lg border border-brand-main/30 bg-bg-100 px-3 py-2 text-sm text-text-100"
+            />
+            <p className="text-xs text-text-500 mt-1">
+              Use the same name in Claude’s “Name” field later.
+            </p>
+          </div>
+          <Button
+            type="submit"
+            disabled={creating || !appName.trim()}
+            className="bg-brand-main hover:bg-brand-main/90 text-white"
+          >
+            {creating ? "Creating…" : "Create Claude OAuth app"}
+          </Button>
+        </form>
+      </div>
+
       <div className="space-y-3">
         <p className="text-xs font-medium uppercase tracking-wide text-text-400">
-          Before you connect — in Claude
+          Step 2 — in Claude
         </p>
         <ol className="space-y-3">
-          {preCreateSteps.map((step, i) => (
+          {setupSteps.map((step, i) => (
             <li key={step.title} className="flex gap-3 text-sm">
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-main/20 text-brand-main text-xs font-bold">
                 {i + 1}
@@ -178,46 +212,6 @@ export default function ClaudeMcpOAuthSection({
             </li>
           ))}
         </ol>
-      </div>
-
-      <div className="border-t border-brand-main/15 pt-4 space-y-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-text-400">
-          Step {preCreateSteps.length + 1} — in LeadSnipper
-        </p>
-        <form onSubmit={handleCreate} className="space-y-3">
-          <div>
-            <label className="text-xs font-medium text-text-300 block mb-1">
-              Connector name
-            </label>
-            <input
-              value={appName}
-              onChange={(e) => setAppName(e.target.value)}
-              placeholder="LeadSnipper"
-              className="w-full rounded-lg border border-brand-main/30 bg-bg-100 px-3 py-2 text-sm text-text-100"
-            />
-            <p className="text-xs text-text-500 mt-1">
-              Use the same name in Claude’s “Name” field.
-            </p>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-text-300 block mb-1">
-              Claude callback URL (fixed)
-            </label>
-            <code className="block w-full rounded-lg border border-brand-main/30 bg-bg-100 px-3 py-2 text-xs text-text-300 font-mono break-all">
-              {CLAUDE_MCP_REDIRECT_URI}
-            </code>
-            <p className="text-xs text-text-500 mt-1">
-              Registered automatically — Claude always uses this redirect URI.
-            </p>
-          </div>
-          <Button
-            type="submit"
-            disabled={creating || !appName.trim()}
-            className="bg-brand-main hover:bg-brand-main/90 text-white"
-          >
-            {creating ? "Creating…" : "Create Claude OAuth app"}
-          </Button>
-        </form>
       </div>
 
       {claudeClients.length > 0 ? (
@@ -249,10 +243,10 @@ export default function ClaudeMcpOAuthSection({
       <Dialog open={!!created} onOpenChange={(open) => !open && setCreated(null)}>
         <DialogContent className="bg-bg-200 border border-brand-main/20 w-[calc(100vw-2rem)] max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-text-100">Configure Claude custom connector</DialogTitle>
+            <DialogTitle className="text-text-100">Paste into Claude</DialogTitle>
             <DialogDescription className="text-text-300 text-left">
-              Copy these into Claude → Add custom connector. Client Secret is shown once —
-              store it securely.
+              Copy Client ID and Secret into Claude → Add custom connector → Advanced settings.
+              Claude has no callback URL field — only these four values.
             </DialogDescription>
           </DialogHeader>
 
@@ -279,7 +273,7 @@ export default function ClaudeMcpOAuthSection({
 
               <div className="space-y-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-text-400">
-                  Claude form — fill in this order
+                  Claude form — only these fields
                 </p>
                 <div className="rounded-xl border border-brand-main/20 overflow-hidden divide-y divide-brand-main/10">
                   {setupFields.map((row) => (

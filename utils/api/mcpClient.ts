@@ -175,6 +175,9 @@ export function formatChatgptPluginSetup(
     return [
       "=== Claude custom connector — configure in this order ===",
       "",
+      "Note: Claude does NOT show a callback URL (unlike ChatGPT).",
+      "LeadSnipper registers https://claude.ai/api/mcp/auth_callback automatically.",
+      "",
       "1. Claude → Settings → Connectors → Add custom connector",
       `   Name: ${plugin.name || "LeadSnipper"}`,
       `   Remote MCP server URL: ${plugin.mcpServerUrl}`,

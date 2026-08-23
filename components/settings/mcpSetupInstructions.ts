@@ -56,14 +56,14 @@ export function getChatgptPreCreateSteps(): McpSetupStep[] {
 export function getClaudePreCreateSteps(): McpSetupStep[] {
   return [
     {
-      title: "Open Claude Connectors",
-      body: "Claude.ai → Settings → Connectors → Add custom connector. You will need Name, Remote MCP server URL, and (under Advanced settings) OAuth Client ID + OAuth Client Secret.",
+      title: "Create OAuth credentials in LeadSnipper first",
+      body: "Click Create Claude OAuth app below — you only need a connector name. LeadSnipper issues Client ID + Client Secret and registers Claude’s callback URL for you.",
+      warning:
+        "Claude does not show a callback URL in Add custom connector (unlike ChatGPT). Do not look for one in Claude.",
     },
     {
-      title: "Create a Claude OAuth app in LeadSnipper first",
-      body: "LeadSnipper registers Claude’s fixed callback URL automatically and issues a confidential Client ID + Client Secret for Advanced settings.",
-      warning:
-        "Use a dedicated Claude OAuth app — do not reuse your ChatGPT Client ID/Secret (redirect URIs differ).",
+      title: "Then open Claude Connectors",
+      body: "Claude.ai → Settings → Connectors → Add custom connector. Fill Name, Remote MCP server URL, then Advanced settings → OAuth Client ID + OAuth Client Secret from LeadSnipper.",
     },
   ];
 }
@@ -256,22 +256,21 @@ export function getMcpSetupSteps(
 
     case "claude":
       return [
-        ...getClaudePreCreateSteps(),
         {
           title: "Create Claude OAuth app in LeadSnipper",
-          body: `Integrations → ${CLAUDE_CONNECTOR_LABEL} → Connect. Copy OAuth Client ID and Client Secret immediately.`,
+          body: `Integrations → ${CLAUDE_CONNECTOR_LABEL} → enter a name → Create. Copy OAuth Client ID and Client Secret immediately. No callback URL is needed from Claude.`,
           warning: MCP_ONE_TIME_NOTICE,
         },
         {
           title: "Fill Claude Add custom connector form",
-          body: "Paste Name, Remote MCP server URL, then open Advanced settings and paste OAuth Client ID + OAuth Client Secret.",
+          body: "Claude only asks for Name, Remote MCP server URL, and (Advanced) OAuth Client ID + Secret — not a callback URL.",
           bullets: getClaudeSetupFields(endpoints, chatgptPlugin).map(
             (f) => `${f.field}: ${f.copyable && f.value.length < 80 ? f.value : "(see field guide)"}`
           ),
         },
         {
           title: "Add and approve",
-          body: "Click Add in Claude → sign in to LeadSnipper if prompted → Allow on the consent screen. Claude discovers OAuth and lists LeadSnipper tools.",
+          body: "Click Add in Claude → sign in to LeadSnipper if prompted → Allow on the consent screen.",
         },
         {
           title: "Optional: Claude Desktop with API key",
