@@ -5,8 +5,10 @@ import { toast } from "react-hot-toast";
 import { IconCheck, IconCopy, IconPlugConnected, IconTrash } from "@tabler/icons-react";
 
 import {
-  getChatgptOAuthFieldGuide,
+  CHATGPT_MCP_APP_LABEL,
   getChatgptPluginSummary,
+  getChatgptPreCreateSteps,
+  getChatgptSetupFields,
   getMcpSetupSteps,
   MCP_ALERT_CLASS,
   MCP_ONE_TIME_NOTICE,
@@ -111,10 +113,13 @@ export default function ChatgptMcpOAuthSection({
   };
 
   const pluginSummary = created
-    ? getChatgptPluginSummary(created.chatgptPlugin)
+    ? getChatgptPluginSummary(created.chatgptPlugin, { includeSecret: false })
     : "";
-  const steps = getMcpSetupSteps("chatgpt", oauth.mcpUrl, "", oauth, created?.chatgptPlugin);
-  const fieldGuide = getChatgptOAuthFieldGuide(oauth, created?.chatgptPlugin);
+  const postCreateSteps = created
+    ? getMcpSetupSteps("chatgpt", oauth.mcpUrl, "", oauth, created.chatgptPlugin).slice(3)
+    : [];
+  const setupFields = getChatgptSetupFields(oauth, created?.chatgptPlugin);
+  const preCreateSteps = getChatgptPreCreateSteps();
 
   return (
     <div className="rounded-xl border border-brand-main/25 bg-bg-200/40 p-5 space-y-4">
@@ -123,61 +128,77 @@ export default function ChatgptMcpOAuthSection({
           <IconPlugConnected className="w-5 h-5" />
         </div>
         <div>
-          <h4 className="text-base font-semibold text-text-100">ChatGPT plugin (OAuth)</h4>
+          <h4 className="text-base font-semibold text-text-100">{CHATGPT_MCP_APP_LABEL}</h4>
           <p className="text-sm text-text-300 mt-1 leading-relaxed">
-            Create an OAuth app for ChatGPT&apos;s New Plugin form. Use{" "}
-            <strong className="text-text-200">OAuth → User-Defined OAuth Client</strong> with
-            the Client ID, Secret, and endpoints below — not your ls_mcp_* API key.
+            Connect LeadSnipper to ChatGPT as a custom MCP app with OAuth. Use{" "}
+            <strong className="text-text-200">User-Defined OAuth Client</strong> in ChatGPT —
+            not your <code className="text-brand-main">ls_mcp_*</code> API key.
           </p>
         </div>
       </div>
 
       <div className={`${MCP_ALERT_CLASS} text-xs`}>{MCP_ONE_TIME_NOTICE}</div>
 
-      <div className="grid gap-2 sm:grid-cols-2 text-xs">
-        <div className="rounded-lg border border-brand-main/15 bg-bg-100/60 p-3">
-          <p className="text-text-400 uppercase tracking-wide mb-1">Authorization endpoint</p>
-          <code className="text-text-100 break-all">{oauth.authorizationEndpoint}</code>
-        </div>
-        <div className="rounded-lg border border-brand-main/15 bg-bg-100/60 p-3">
-          <p className="text-text-400 uppercase tracking-wide mb-1">Token endpoint</p>
-          <code className="text-text-100 break-all">{oauth.tokenEndpoint}</code>
-        </div>
+      <div className="space-y-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-text-400">
+          Before you connect — in ChatGPT
+        </p>
+        <ol className="space-y-3">
+          {preCreateSteps.map((step, i) => (
+            <li key={step.title} className="flex gap-3 text-sm">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-main/20 text-brand-main text-xs font-bold">
+                {i + 1}
+              </span>
+              <div>
+                <p className="font-medium text-text-100">{step.title}</p>
+                <p className="text-text-300 leading-relaxed">{step.body}</p>
+                {step.warning ? (
+                  <p className={`${MCP_ALERT_CLASS} text-xs mt-2`}>{step.warning}</p>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ol>
       </div>
 
-      <form onSubmit={handleCreate} className="space-y-3">
-        <div>
-          <label className="text-xs font-medium text-text-300 block mb-1">App name</label>
-          <input
-            value={appName}
-            onChange={(e) => setAppName(e.target.value)}
-            placeholder="LeadSnipper ChatGPT"
-            className="w-full rounded-lg border border-brand-main/30 bg-bg-100 px-3 py-2 text-sm text-text-100"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-text-300 block mb-1">
-            ChatGPT Callback URL (required)
-          </label>
-          <input
-            value={redirectUri}
-            onChange={(e) => setRedirectUri(e.target.value)}
-            placeholder="https://chatgpt.com/connector/oauth/…"
-            className="w-full rounded-lg border border-brand-main/30 bg-bg-100 px-3 py-2 text-sm text-text-100 font-mono"
-          />
-          <p className="text-xs text-text-500 mt-1">
-            Copy from ChatGPT → New Plugin → Advanced OAuth → Callback URL (read-only field with
-            Copy button).
-          </p>
-        </div>
-        <Button
-          type="submit"
-          disabled={creating || !redirectUri.trim()}
-          className="bg-brand-main hover:bg-brand-main/90 text-white"
-        >
-          {creating ? "Creating…" : "Create ChatGPT OAuth app"}
-        </Button>
-      </form>
+      <div className="border-t border-brand-main/15 pt-4 space-y-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-text-400">
+          Step {preCreateSteps.length + 1} — in LeadSnipper
+        </p>
+        <form onSubmit={handleCreate} className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-text-300 block mb-1">App name</label>
+            <input
+              value={appName}
+              onChange={(e) => setAppName(e.target.value)}
+              placeholder="LeadSnipper ChatGPT"
+              className="w-full rounded-lg border border-brand-main/30 bg-bg-100 px-3 py-2 text-sm text-text-100"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-text-300 block mb-1">
+              ChatGPT Callback URL
+            </label>
+            <input
+              value={redirectUri}
+              onChange={(e) => setRedirectUri(e.target.value)}
+              placeholder="https://chatgpt.com/connector/oauth/…"
+              className="w-full rounded-lg border border-brand-main/30 bg-bg-100 px-3 py-2 text-sm text-text-100 font-mono"
+            />
+            <p className="text-xs text-text-500 mt-1">
+              Paste the Callback URL you copied from ChatGPT → your app → Authentication →
+              Advanced OAuth.
+            </p>
+          </div>
+          <Button
+            type="submit"
+            disabled={creating || !redirectUri.trim()}
+            className="bg-brand-main hover:bg-brand-main/90 text-white"
+          >
+            {creating ? "Creating…" : "Connect ChatGPT MCP App"}
+          </Button>
+        </form>
+      </div>
 
       {oauthClients.length > 0 ? (
         <ul className="divide-y divide-brand-main/10 rounded-lg border border-brand-main/15 overflow-hidden">
@@ -208,14 +229,15 @@ export default function ChatgptMcpOAuthSection({
       <Dialog open={!!created} onOpenChange={(open) => !open && setCreated(null)}>
         <DialogContent className="bg-bg-200 border border-brand-main/20 w-[calc(100vw-2rem)] max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-text-100">ChatGPT plugin setup</DialogTitle>
+            <DialogTitle className="text-text-100">Configure ChatGPT MCP App</DialogTitle>
             <DialogDescription className="text-text-300 text-left">
-              Copy these values into ChatGPT → New Plugin. Client Secret is shown once.
+              Copy each value into ChatGPT in the order shown. Client Secret is shown once —
+              store it securely.
             </DialogDescription>
           </DialogHeader>
 
           {created ? (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <p className="text-xs uppercase text-text-400">OAuth Client ID</p>
@@ -227,7 +249,7 @@ export default function ChatgptMcpOAuthSection({
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <p className="text-xs uppercase text-text-400">OAuth Client Secret</p>
+                  <p className="text-xs uppercase text-text-400">OAuth Client Secret (once)</p>
                   <CopyButton value={created.clientSecret} label="Client Secret" />
                 </div>
                 <code className="block p-2 rounded bg-bg-100 text-xs break-all text-text-100">
@@ -235,8 +257,38 @@ export default function ChatgptMcpOAuthSection({
                 </code>
               </div>
 
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-text-400">
+                  ChatGPT app form — fill in this order
+                </p>
+                <div className="rounded-xl border border-brand-main/20 overflow-hidden divide-y divide-brand-main/10">
+                  {setupFields.map((row) => (
+                    <div
+                      key={`${row.section}-${row.field}`}
+                      className="px-3 py-2.5 bg-bg-100/40 space-y-1"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[10px] uppercase tracking-wide text-text-500">
+                            {row.order}. {row.section}
+                          </p>
+                          <p className="text-sm font-medium text-text-100">{row.field}</p>
+                        </div>
+                        {row.copyable ? (
+                          <CopyButton value={row.value} label={row.field} />
+                        ) : null}
+                      </div>
+                      <code className="block text-xs text-text-300 break-all">{row.value}</code>
+                      {row.hint ? (
+                        <p className="text-xs text-text-500">{row.hint}</p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <ol className="space-y-3">
-                {steps.map((step, i) => (
+                {postCreateSteps.map((step, i) => (
                   <li key={step.title} className="flex gap-3 text-sm">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-main/20 text-brand-main text-xs font-bold">
                       {i + 1}
@@ -249,28 +301,9 @@ export default function ChatgptMcpOAuthSection({
                 ))}
               </ol>
 
-              <div className="rounded-xl border border-brand-main/20 overflow-hidden">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-bg-300/80 text-text-300 text-left">
-                      <th className="px-3 py-2">Field</th>
-                      <th className="px-3 py-2">Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fieldGuide.map((row) => (
-                      <tr key={row.field} className="border-t border-brand-main/10 align-top">
-                        <td className="px-3 py-2 text-text-200 whitespace-nowrap">{row.field}</td>
-                        <td className="px-3 py-2 text-text-300 break-all">{row.value}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
               <div className="flex justify-between items-center">
-                <p className="text-xs uppercase text-text-400">Full plugin form</p>
-                <CopyButton value={pluginSummary} label="Plugin setup" />
+                <p className="text-xs uppercase text-text-400">Setup checklist (no secret)</p>
+                <CopyButton value={pluginSummary} label="Setup checklist" />
               </div>
               <pre className="max-h-48 overflow-y-auto p-3 rounded bg-bg-100 text-xs text-text-100 whitespace-pre-wrap">
                 {pluginSummary}

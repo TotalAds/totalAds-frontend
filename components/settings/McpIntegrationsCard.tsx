@@ -22,10 +22,11 @@ import {
 } from "@/components/ui/dialog";
 import ChatgptMcpOAuthSection from "@/components/settings/ChatgptMcpOAuthSection";
 import {
+  CHATGPT_MCP_APP_LABEL,
   MCP_ALERT_CLASS,
   MCP_CLIENT_TABS,
   MCP_ONE_TIME_NOTICE,
-  getChatgptOAuthFieldGuide,
+  getChatgptSetupFields,
   getChatgptPluginSummary,
   getMcpSetupSteps,
   type McpClientTab,
@@ -241,15 +242,15 @@ export default function McpIntegrationsCard() {
             LeadSnipper MCP
           </h3>
           <p className="text-sm text-text-200 mt-1 leading-relaxed">
-            Connect ChatGPT (plugin), Claude Desktop, Cursor, or other MCP clients.
+            Connect ChatGPT MCP apps, Claude Desktop, Cursor, or other MCP clients.
             AI can read campaigns, leads, analytics, and sending accounts — and edit
             draft or paused campaigns. AI cannot send, pause, or stop a running
             campaign.
           </p>
           <p className="text-xs text-text-300 mt-2 leading-relaxed">
-            <strong className="text-text-200">ChatGPT</strong> uses{" "}
-            <strong className="text-text-200">Plugins</strong> with OAuth — create a ChatGPT
-            OAuth app below. <strong className="text-text-200">Cursor</strong> and{" "}
+            <strong className="text-text-200">ChatGPT</strong> uses a custom{" "}
+            <strong className="text-text-200">MCP app with OAuth</strong> — connect below.{" "}
+            <strong className="text-text-200">Cursor</strong> and{" "}
             <strong className="text-text-200">Claude Desktop</strong> use{" "}
             <code className="text-brand-main">ls_mcp_*</code> API keys.
           </p>
@@ -368,7 +369,7 @@ export default function McpIntegrationsCard() {
               <div className={`${MCP_ALERT_CLASS} text-xs`}>
                 <strong className="text-amber-50">ls_mcp_* keys</strong> are for Cursor and
                 Claude Desktop. For ChatGPT, use the{" "}
-                <strong className="text-amber-50">ChatGPT plugin (OAuth)</strong> section above.
+                <strong className="text-amber-50">{CHATGPT_MCP_APP_LABEL}</strong> section above.
               </div>
 
               <div className="min-w-0 space-y-2">
@@ -415,28 +416,21 @@ export default function McpIntegrationsCard() {
                 {configTab === "chatgpt" && oauth ? (
                   <div className="space-y-2 pt-2">
                     <p className="text-xs font-medium uppercase tracking-wide text-text-200">
-                      ChatGPT OAuth field guide
+                      ChatGPT MCP app field guide
                     </p>
-                    <div className="rounded-xl border border-brand-main/20 overflow-hidden">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="bg-bg-300/80 text-text-300 text-left">
-                            <th className="px-3 py-2">Field</th>
-                            <th className="px-3 py-2">Value</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {getChatgptOAuthFieldGuide(oauth).map((row) => (
-                            <tr key={row.field} className="border-t border-brand-main/10">
-                              <td className="px-3 py-2 text-text-200">{row.field}</td>
-                              <td className="px-3 py-2 text-text-300 break-all">{row.value}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div className="rounded-xl border border-brand-main/20 overflow-hidden divide-y divide-brand-main/10">
+                      {getChatgptSetupFields(oauth).map((row) => (
+                        <div key={row.field} className="px-3 py-2 bg-bg-100/40">
+                          <p className="text-[10px] uppercase text-text-500">
+                            {row.order}. {row.section}
+                          </p>
+                          <p className="text-xs font-medium text-text-200">{row.field}</p>
+                          <p className="text-xs text-text-300 break-all">{row.value}</p>
+                        </div>
+                      ))}
                     </div>
                     <p className="text-xs text-text-500">
-                      Create a ChatGPT OAuth app in the section above for Client ID and Secret.
+                      Connect a ChatGPT MCP App above for Client ID and Secret.
                     </p>
                   </div>
                 ) : null}
@@ -446,7 +440,7 @@ export default function McpIntegrationsCard() {
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-medium uppercase tracking-wide text-text-200">
                     {configTab === "chatgpt"
-                      ? "Plugin form summary"
+                      ? "ChatGPT setup checklist"
                       : configTab === "claude"
                         ? "Claude Desktop config (merge into claude_desktop_config.json)"
                         : configTab === "cursor"

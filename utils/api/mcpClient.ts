@@ -14,6 +14,8 @@ export type McpOAuthEndpoints = {
   authorizationEndpoint: string;
   tokenEndpoint: string;
   metadataUrl: string;
+  openIdConfigurationUrl?: string;
+  protectedResourceMetadataUrl?: string;
   mcpUrl: string;
 };
 
@@ -144,23 +146,32 @@ export async function approveMcpOauth(params: {
   return response.data.data;
 }
 
-export function formatChatgptPluginSetup(plugin: ChatgptPluginConfig): string {
+export function formatChatgptPluginSetup(
+  plugin: ChatgptPluginConfig,
+  options?: { includeSecret?: boolean }
+): string {
+  const secret =
+    options?.includeSecret === true
+      ? plugin.oauthClientSecret
+      : "(paste from LeadSnipper — shown once at creation)";
+
   return [
-    "=== ChatGPT New Plugin form ===",
-    `Name: ${plugin.name}`,
-    `Connection: Server URL`,
-    `URL: ${plugin.mcpServerUrl}`,
-    `Authentication: OAuth`,
-    `Client setup method: ${plugin.clientSetupMethod}`,
+    "=== ChatGPT MCP App — configure in this order ===",
     "",
-    "=== Advanced OAuth settings ===",
-    `OAuth Client ID: ${plugin.oauthClientId}`,
-    `OAuth Client Secret: ${plugin.oauthClientSecret}`,
-    `Authorization endpoint: ${plugin.authorizationEndpoint}`,
-    `Token endpoint: ${plugin.tokenEndpoint}`,
-    `Scopes: ${plugin.scopes}`,
-    `Token endpoint auth method: ${plugin.tokenEndpointAuthMethod}`,
+    "1. Connection",
+    `   MCP Server URL: ${plugin.mcpServerUrl}`,
     "",
-    "Callback URL: copy FROM ChatGPT (read-only) → paste when creating OAuth client in LeadSnipper",
+    "2. Authentication → OAuth → User-Defined OAuth Client",
+    `   OAuth Client ID: ${plugin.oauthClientId}`,
+    `   OAuth Client Secret: ${secret}`,
+    `   Authorization endpoint: ${plugin.authorizationEndpoint}`,
+    `   Token endpoint: ${plugin.tokenEndpoint}`,
+    `   Scopes: ${plugin.scopes}`,
+    `   Token endpoint auth method: ${plugin.tokenEndpointAuthMethod}`,
+    "",
+    "3. Callback URL",
+    "   Copy FROM ChatGPT (read-only) → paste into LeadSnipper when creating OAuth app",
+    "",
+    "4. Save → Scan Tools → approve in LeadSnipper when prompted",
   ].join("\n");
 }

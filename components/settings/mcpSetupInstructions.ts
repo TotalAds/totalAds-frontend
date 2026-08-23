@@ -10,12 +10,129 @@ export type McpSetupStep = {
   bullets?: string[];
 };
 
+export type ChatgptSetupField = {
+  /** Display order in ChatGPT's app form (matches top-to-bottom in the UI). */
+  order: number;
+  section: string;
+  field: string;
+  value: string;
+  copyable: boolean;
+  hint?: string;
+};
+
 export const MCP_ONE_TIME_NOTICE =
-  "Your MCP API key and ChatGPT OAuth credentials are shown only once when you create them. Revoke and recreate to view again.";
+  "OAuth Client Secret and MCP API keys are shown only once at creation. Store them securely — never share in docs, screenshots, or chat.";
 
 export const MCP_ALERT_CLASS =
   "rounded-xl border-2 border-amber-500/70 bg-[#1a1408] px-4 py-3 text-sm text-amber-100 leading-relaxed";
 
+export const CHATGPT_MCP_APP_LABEL = "ChatGPT MCP App";
+
+/** Steps shown before the user creates a LeadSnipper OAuth app. */
+export function getChatgptPreCreateSteps(): McpSetupStep[] {
+  return [
+    {
+      title: "Enable Developer mode in ChatGPT",
+      body: "ChatGPT → Settings → Security and login → Developer mode → ON. Required for custom MCP apps on Plus, Pro, Team, Business, Enterprise, or Edu.",
+    },
+    {
+      title: "Create a new MCP app in ChatGPT",
+      body: "ChatGPT → Settings → Apps (or chatgpt.com/apps) → Create app / New app. Give it a name like LeadSnipper.",
+    },
+    {
+      title: "Copy the Callback URL from ChatGPT",
+      body: "In your ChatGPT app → Authentication → OAuth → Advanced settings → User-Defined OAuth Client. Copy the read-only Callback URL (https://chatgpt.com/connector/oauth/…). You will paste this into LeadSnipper in the next step.",
+      warning: "Do not paste your ls_mcp_* API key anywhere in the ChatGPT OAuth form.",
+    },
+  ];
+}
+
+/** Ordered fields matching ChatGPT's app configuration form (top to bottom). */
+export function getChatgptSetupFields(
+  oauth: McpOAuthEndpoints,
+  plugin?: Partial<ChatgptPluginConfig>
+): ChatgptSetupField[] {
+  return [
+    {
+      order: 1,
+      section: "Connection",
+      field: "MCP Server URL",
+      value: plugin?.mcpServerUrl || oauth.mcpUrl,
+      copyable: true,
+      hint: "Connection type: Server URL",
+    },
+    {
+      order: 2,
+      section: "Authentication",
+      field: "Authentication",
+      value: "OAuth",
+      copyable: false,
+    },
+    {
+      order: 3,
+      section: "Authentication",
+      field: "Client setup method",
+      value: plugin?.clientSetupMethod || "User-Defined OAuth Client",
+      copyable: false,
+      hint: "Advanced OAuth settings",
+    },
+    {
+      order: 4,
+      section: "Authentication",
+      field: "OAuth Client ID",
+      value: plugin?.oauthClientId || "Create OAuth app in LeadSnipper first",
+      copyable: Boolean(plugin?.oauthClientId),
+    },
+    {
+      order: 5,
+      section: "Authentication",
+      field: "OAuth Client Secret",
+      value: plugin?.oauthClientSecret
+        ? plugin.oauthClientSecret
+        : "Shown once when you create the OAuth app in LeadSnipper",
+      copyable: Boolean(plugin?.oauthClientSecret),
+      hint: "Never paste this into docs or share publicly",
+    },
+    {
+      order: 6,
+      section: "Authentication",
+      field: "Authorization endpoint",
+      value: plugin?.authorizationEndpoint || oauth.authorizationEndpoint,
+      copyable: true,
+    },
+    {
+      order: 7,
+      section: "Authentication",
+      field: "Token endpoint",
+      value: plugin?.tokenEndpoint || oauth.tokenEndpoint,
+      copyable: true,
+    },
+    {
+      order: 8,
+      section: "Authentication",
+      field: "Scopes",
+      value: plugin?.scopes || "openid email offline_access",
+      copyable: true,
+    },
+    {
+      order: 9,
+      section: "Authentication",
+      field: "Token endpoint auth method",
+      value: plugin?.tokenEndpointAuthMethod || "client_secret_post",
+      copyable: false,
+    },
+    {
+      order: 10,
+      section: "Note",
+      field: "Callback URL",
+      value:
+        "Read-only in ChatGPT — copy FROM ChatGPT and paste into LeadSnipper when creating your OAuth app. Must match exactly.",
+      copyable: false,
+    },
+  ];
+}
+
+/** @deprecated Use getChatgptSetupFields — kept for table compatibility */
 export type ChatgptOAuthFieldGuideRow = {
   field: string;
   where: string;
@@ -26,64 +143,11 @@ export function getChatgptOAuthFieldGuide(
   oauth: McpOAuthEndpoints,
   plugin?: Partial<ChatgptPluginConfig>
 ): ChatgptOAuthFieldGuideRow[] {
-  return [
-    {
-      field: "Authentication",
-      where: "Plugin form",
-      value: "OAuth (not No Auth)",
-    },
-    {
-      field: "Client setup method",
-      where: "Advanced OAuth settings",
-      value: "User-Defined OAuth Client",
-    },
-    {
-      field: "Callback URL",
-      where: "ChatGPT plugin form (read-only)",
-      value:
-        "Copy from ChatGPT → paste into LeadSnipper when creating the OAuth app. Must match exactly.",
-    },
-    {
-      field: "OAuth Client ID",
-      where: "ChatGPT plugin form",
-      value: plugin?.oauthClientId || "From LeadSnipper after you create ChatGPT OAuth app",
-    },
-    {
-      field: "OAuth Client Secret",
-      where: "ChatGPT plugin form",
-      value: plugin?.oauthClientSecret || "From LeadSnipper (shown once at creation)",
-    },
-    {
-      field: "Authorization endpoint",
-      where: "Advanced OAuth → OAuth endpoints",
-      value: plugin?.authorizationEndpoint || oauth.authorizationEndpoint,
-    },
-    {
-      field: "Token endpoint",
-      where: "Advanced OAuth → OAuth endpoints",
-      value: plugin?.tokenEndpoint || oauth.tokenEndpoint,
-    },
-    {
-      field: "Scopes",
-      where: "Advanced OAuth settings",
-      value: plugin?.scopes || "openid email offline_access",
-    },
-    {
-      field: "Token endpoint client auth",
-      where: "Advanced OAuth settings",
-      value: plugin?.tokenEndpointAuthMethod || "client_secret_post",
-    },
-    {
-      field: "OpenID / OIDC",
-      where: "Advanced OAuth settings",
-      value: "Optional — not required for developer-mode plugins",
-    },
-    {
-      field: "MCP Server URL",
-      where: "Plugin → Connection → Server URL",
-      value: plugin?.mcpServerUrl || oauth.mcpUrl,
-    },
-  ];
+  return getChatgptSetupFields(oauth, plugin).map((row) => ({
+    field: row.field,
+    where: row.section,
+    value: row.value,
+  }));
 }
 
 export function getMcpSetupSteps(
@@ -104,60 +168,35 @@ export function getMcpSetupSteps(
   switch (client) {
     case "chatgpt":
       return [
+        ...getChatgptPreCreateSteps(),
         {
-          title: "Create a ChatGPT OAuth app in LeadSnipper",
-          body: 'In Integrations → "ChatGPT plugin (OAuth)" section, paste the Callback URL from ChatGPT (https://chatgpt.com/connector/oauth/…) and click Create OAuth app. Copy Client ID and Client Secret immediately.',
+          title: "Create OAuth app in LeadSnipper",
+          body: `Integrations → ${CHATGPT_MCP_APP_LABEL} → paste the ChatGPT Callback URL → Connect. Copy Client ID and Client Secret immediately.`,
           warning: MCP_ONE_TIME_NOTICE,
         },
         {
-          title: "Enable Developer mode in ChatGPT",
-          body: "ChatGPT → Settings → Security and login → Developer mode → ON. Required for custom plugins on Plus, Pro, Team, Business, Enterprise, or Edu.",
+          title: "Fill ChatGPT app form (in this order)",
+          body: "Back in ChatGPT, configure your app using the field guide below — MCP Server URL first, then OAuth credentials and endpoints.",
+          bullets: getChatgptSetupFields(endpoints, chatgptPlugin).map(
+            (f) => `${f.field}: ${f.copyable && f.value.length < 80 ? f.value : "(see field guide)"}`
+          ),
         },
         {
-          title: "Create a New Plugin",
-          body: "ChatGPT → Settings → Plugins (sidebar) or chatgpt.com/plugins → + New Plugin. ChatGPT calls this a plugin — not a connector.",
+          title: "Save and Scan Tools",
+          body: "Save your ChatGPT app → Scan Tools. ChatGPT discovers OAuth via your MCP server, completes PKCE authorization, and lists LeadSnipper tools.",
         },
         {
-          title: "Plugin connection details",
-          body: `Name: LeadSnipper. Connection: Server URL. URL: ${endpoints.mcpUrl}. Description: optional.`,
-        },
-        {
-          title: "Set Authentication to OAuth",
-          body: "Authentication dropdown → OAuth. Expand Advanced OAuth settings → User-Defined OAuth Client.",
-          warning:
-            "Do not use No Auth — LeadSnipper requires authentication. Do not paste your ls_mcp_* API key into OAuth Client ID or Secret.",
-        },
-        {
-          title: "Fill OAuth fields from LeadSnipper",
-          body: chatgptPlugin
-            ? `Client ID: ${chatgptPlugin.oauthClientId}. Client Secret: (copied at creation). Authorization: ${chatgptPlugin.authorizationEndpoint}. Token: ${chatgptPlugin.tokenEndpoint}. Scopes: ${chatgptPlugin.scopes}. Token auth: client_secret_post.`
-            : `Use the OAuth field guide below. Authorization endpoint: ${endpoints.authorizationEndpoint}. Token endpoint: ${endpoints.tokenEndpoint}.`,
-          bullets: [
-            "Callback URL: copy FROM ChatGPT into LeadSnipper when creating the OAuth app",
-            "Client ID + Secret: copy FROM LeadSnipper into ChatGPT plugin form",
-          ],
-        },
-        {
-          title: "Scan tools and authorize",
-          body: "Save the plugin → Scan Tools. When ChatGPT connects, you will be redirected to LeadSnipper to sign in and click Allow ChatGPT.",
-        },
-        {
-          title: "Path to a verified public plugin",
-          body: "After developer-mode testing works, submit the plugin for OpenAI review to list it publicly.",
-          bullets: [
-            "Test all MCP tools in Developer mode",
-            "Document privacy and write-action confirmations",
-            "Submit via OpenAI plugin submission portal (developers.openai.com/apps-sdk)",
-          ],
+          title: "Approve access in LeadSnipper",
+          body: "When ChatGPT connects, sign in to LeadSnipper (if needed) and click Allow on the consent screen.",
         },
       ];
 
     case "claude":
       return [
         {
-          title: "Claude web Connectors ≠ ChatGPT plugins",
+          title: "Claude web Connectors ≠ ChatGPT MCP apps",
           body: "Claude Connectors use OAuth only. For ls_mcp_* keys, use Claude Desktop config below.",
-          warning: "Do not paste OAuth Client ID/Secret meant for ChatGPT into Claude.",
+          warning: "Do not paste ChatGPT OAuth Client ID/Secret into Claude.",
         },
         {
           title: "Open Claude Desktop config",
@@ -204,9 +243,10 @@ export function getMcpSetupSteps(
 }
 
 export function getChatgptPluginSummary(
-  plugin: ChatgptPluginConfig
+  plugin: ChatgptPluginConfig,
+  options?: { includeSecret?: boolean }
 ): string {
-  return formatChatgptPluginSetup(plugin);
+  return formatChatgptPluginSetup(plugin, options);
 }
 
 export const MCP_CLIENT_TABS: { id: McpClientTab; label: string }[] = [
