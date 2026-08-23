@@ -124,7 +124,13 @@ export async function revokeMcpOauthClient(
 export async function previewMcpOauthClient(params: {
   clientId: string;
   redirectUri: string;
-}): Promise<{ clientName: string; redirectUri: string; scopes: string }> {
+}): Promise<{
+  clientName: string;
+  redirectUri: string;
+  scopes: string;
+  workspaceId: string;
+  workspaceName: string;
+}> {
   const response = await emailClient.get("/api/mcp/oauth/preview", {
     params: {
       client_id: params.clientId,

@@ -67,6 +67,7 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
     "/email/unsubscribe",
     "/unsubscribe",
     "/email/workspaces/invite",
+    "/email/mcp/oauth/consent",
   ];
 
   const isAuthPage = authPaths.some((path) => pathname.startsWith(path));
