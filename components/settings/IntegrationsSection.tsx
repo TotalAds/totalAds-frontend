@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 
 import ReoonSetupGuideModal from "@/components/settings/ReoonSetupGuideModal";
 import LeadhubIntegrationsCard from "@/components/settings/LeadhubIntegrationsCard";
+import DeveloperApiKeysCard from "@/components/developer/DeveloperApiKeysCard";
 import McpIntegrationsCard from "@/components/settings/McpIntegrationsCard";
 import { Button } from "@/components/ui/button";
 import {
@@ -178,10 +179,12 @@ const IntegrationsSection = () => {
       <div>
         <h2 className="text-2xl font-bold text-text-100 mb-2">Integrations</h2>
         <p className="text-text-200 text-sm max-w-2xl">
-          Connect AI clients via MCP, and manage third-party services for
-          deliverability and lead sync.
+          Connect the REST API and AI clients via MCP, and manage third-party
+          services for deliverability and lead sync.
         </p>
       </div>
+
+      <DeveloperApiKeysCard />
 
       <McpIntegrationsCard />
 
