@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
 import {
   IconArrowRight,
+  IconBrandOpenai,
   IconChevronDown,
   IconCircleCheck,
   IconCircleX,
@@ -42,12 +43,10 @@ const DENIED_SCOPES = [
 function ChatGptMark() {
   return (
     <div
-      className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-[#10a37f] text-white shadow-sm"
+      className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-[#10a37f] shadow-sm"
       aria-hidden
     >
-      <svg viewBox="0 0 24 24" className="size-6 fill-current" role="img">
-        <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A5.985 5.985 0 0 0 4.981 4.18a6.046 6.046 0 0 0-3.998 2.9 5.985 5.985 0 0 0 .742 7.097 5.98 5.98 0 0 0 .511 4.911 6.051 6.051 0 0 0 6.515 2.901 5.985 5.985 0 0 0 5.3-3.178 6.048 6.048 0 0 0 3.997-2.9 5.984 5.984 0 0 0-.266-3.09zm-9.37 10.853a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM4.283 18.37a4.47 4.47 0 0 1-.534-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.492 4.492 0 0 1-5.457-1.58zM2.63 8.533a4.47 4.47 0 0 1 2.365-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0L4.247 14.08a4.502 4.502 0 0 1-1.617-5.547zm16.852 3.907-5.832-3.387L15.637 7.8a.076.076 0 0 1 .071 0l5.83 3.387a4.494 4.494 0 0 1-.676 8.104v-5.851a.79.79 0 0 0-.39-.681zm2.01-3.023-.141-.085-4.774-2.755a.775.775 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l5.83-3.364a4.498 4.498 0 0 1 6.874 4.535zm-12.92 4.213-2.02-1.164a.08.08 0 0 1-.038-.057V6.955a4.498 4.498 0 0 1 7.375-3.453l-.142.08-4.778 2.758a.795.795 0 0 0-.393.681l-.004 6.766z" />
-      </svg>
+      <IconBrandOpenai className="size-7 text-white" stroke={1.5} />
     </div>
   );
 }
