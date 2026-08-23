@@ -19,12 +19,15 @@ export type McpOAuthEndpoints = {
   mcpUrl: string;
 };
 
+export type McpOauthProvider = "chatgpt" | "claude";
+
 export type McpOauthClientMeta = {
   id: string;
   name: string;
   clientId: string;
   clientIdPrefix: string;
   redirectUri: string;
+  provider?: McpOauthProvider;
   lastUsedAt: string | null;
   createdAt: string;
   revokedAt: string | null;
@@ -33,6 +36,7 @@ export type McpOauthClientMeta = {
 
 export type ChatgptPluginConfig = {
   name: string;
+  provider?: McpOauthProvider;
   mcpServerUrl: string;
   authentication: string;
   clientSetupMethod: string;
@@ -42,7 +46,11 @@ export type ChatgptPluginConfig = {
   tokenEndpoint: string;
   scopes: string;
   tokenEndpointAuthMethod: string;
+  redirectUri?: string;
 };
+
+/** Alias — same confidential OAuth connector config for ChatGPT and Claude. */
+export type McpOauthConnectorConfig = ChatgptPluginConfig;
 
 export type McpClientConfigs = {
   claudeDesktop: {
@@ -85,7 +93,9 @@ export type CreateMcpKeyResponse = {
 
 export type CreateMcpOauthClientResponse = {
   clientSecret: string;
+  provider?: McpOauthProvider;
   chatgptPlugin: ChatgptPluginConfig;
+  connector?: McpOauthConnectorConfig;
   client: McpOauthClientMeta;
 };
 
@@ -161,6 +171,22 @@ export function formatChatgptPluginSetup(
       ? plugin.oauthClientSecret
       : "(paste from LeadSnipper — shown once at creation)";
 
+  if (plugin.provider === "claude") {
+    return [
+      "=== Claude custom connector — configure in this order ===",
+      "",
+      "1. Claude → Settings → Connectors → Add custom connector",
+      `   Name: ${plugin.name || "LeadSnipper"}`,
+      `   Remote MCP server URL: ${plugin.mcpServerUrl}`,
+      "",
+      "2. Advanced settings",
+      `   OAuth Client ID: ${plugin.oauthClientId}`,
+      `   OAuth Client Secret: ${secret}`,
+      "",
+      "3. Add → sign in to LeadSnipper → Allow on the consent screen",
+    ].join("\n");
+  }
+
   return [
     "=== ChatGPT MCP App — configure in this order ===",
     "",
@@ -180,4 +206,19 @@ export function formatChatgptPluginSetup(
     "",
     "4. Save → Scan Tools → approve in LeadSnipper when prompted",
   ].join("\n");
+}
+
+export const CLAUDE_MCP_REDIRECT_URI =
+  "https://claude.ai/api/mcp/auth_callback";
+
+export function getOauthClientProvider(
+  client: Pick<McpOauthClientMeta, "redirectUri" | "provider">
+): McpOauthProvider {
+  if (client.provider === "chatgpt" || client.provider === "claude") {
+    return client.provider;
+  }
+  if (client.redirectUri.includes("claude.ai") || client.redirectUri.includes("claude.com")) {
+    return "claude";
+  }
+  return "chatgpt";
 }

@@ -21,13 +21,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import ChatgptMcpOAuthSection from "@/components/settings/ChatgptMcpOAuthSection";
+import ClaudeMcpOAuthSection from "@/components/settings/ClaudeMcpOAuthSection";
 import {
-  CHATGPT_MCP_APP_LABEL,
   MCP_ALERT_CLASS,
   MCP_CLIENT_TABS,
   MCP_ONE_TIME_NOTICE,
   getChatgptSetupFields,
   getChatgptPluginSummary,
+  getClaudeSetupFields,
   getMcpSetupSteps,
   type McpClientTab,
 } from "@/components/settings/mcpSetupInstructions";
@@ -242,27 +243,35 @@ export default function McpIntegrationsCard() {
             LeadSnipper MCP
           </h3>
           <p className="text-sm text-text-200 mt-1 leading-relaxed">
-            Connect ChatGPT MCP apps, Claude Desktop, Cursor, or other MCP clients.
-            AI can read campaigns, leads, analytics, and sending accounts — and edit
-            draft or paused campaigns. AI cannot send, pause, or stop a running
-            campaign.
+            Connect ChatGPT MCP apps, Claude custom connectors, Cursor, or other MCP
+            clients. AI can read campaigns, leads, analytics, and sending accounts —
+            and edit draft or paused campaigns. AI cannot send, pause, or stop a
+            running campaign.
           </p>
           <p className="text-xs text-text-300 mt-2 leading-relaxed">
-            <strong className="text-text-200">ChatGPT</strong> uses a custom{" "}
-            <strong className="text-text-200">MCP app with OAuth</strong> — connect below.{" "}
+            <strong className="text-text-200">ChatGPT</strong> and{" "}
+            <strong className="text-text-200">Claude.ai</strong> use OAuth Client ID +
+            Secret — connect below.{" "}
             <strong className="text-text-200">Cursor</strong> and{" "}
-            <strong className="text-text-200">Claude Desktop</strong> use{" "}
+            <strong className="text-text-200">Claude Desktop</strong> can use{" "}
             <code className="text-brand-main">ls_mcp_*</code> API keys.
           </p>
         </div>
       </div>
 
       {oauth ? (
-        <ChatgptMcpOAuthSection
-          oauthClients={oauthClients}
-          oauth={oauth}
-          onRefresh={loadKeys}
-        />
+        <div className="space-y-4">
+          <ChatgptMcpOAuthSection
+            oauthClients={oauthClients}
+            oauth={oauth}
+            onRefresh={loadKeys}
+          />
+          <ClaudeMcpOAuthSection
+            oauthClients={oauthClients}
+            oauth={oauth}
+            onRefresh={loadKeys}
+          />
+        </div>
       ) : null}
 
       <div className="border-t border-brand-main/15 pt-4">
@@ -367,9 +376,9 @@ export default function McpIntegrationsCard() {
           {created ? (
             <div className="min-w-0 space-y-5">
               <div className={`${MCP_ALERT_CLASS} text-xs`}>
-                <strong className="text-amber-50">ls_mcp_* keys</strong> are for Cursor and
-                Claude Desktop. For ChatGPT, use the{" "}
-                <strong className="text-amber-50">{CHATGPT_MCP_APP_LABEL}</strong> section above.
+                <strong className="text-amber-50">ls_mcp_*</strong> keys are for Cursor and
+                Claude Desktop. For ChatGPT and Claude.ai custom connectors, use the OAuth
+                sections above (Client ID + Secret).
               </div>
 
               <div className="min-w-0 space-y-2">
@@ -431,6 +440,29 @@ export default function McpIntegrationsCard() {
                     </div>
                     <p className="text-xs text-text-500">
                       Connect a ChatGPT MCP App above for Client ID and Secret.
+                    </p>
+                  </div>
+                ) : null}
+
+                {configTab === "claude" && oauth ? (
+                  <div className="space-y-2 pt-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-text-200">
+                      Claude custom connector field guide
+                    </p>
+                    <div className="rounded-xl border border-brand-main/20 overflow-hidden divide-y divide-brand-main/10">
+                      {getClaudeSetupFields(oauth).map((row) => (
+                        <div key={row.field} className="px-3 py-2 bg-bg-100/40">
+                          <p className="text-[10px] uppercase text-text-500">
+                            {row.order}. {row.section}
+                          </p>
+                          <p className="text-xs font-medium text-text-200">{row.field}</p>
+                          <p className="text-xs text-text-300 break-all">{row.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-text-500">
+                      Create a Claude OAuth app above for Client ID and Secret. The JSON
+                      below is only for Claude Desktop with an API key.
                     </p>
                   </div>
                 ) : null}

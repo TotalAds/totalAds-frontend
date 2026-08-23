@@ -5,10 +5,10 @@ import { toast } from "react-hot-toast";
 import { IconCheck, IconCopy, IconPlugConnected, IconTrash } from "@tabler/icons-react";
 
 import {
-  CHATGPT_MCP_APP_LABEL,
-  getChatgptPluginSummary,
-  getChatgptPreCreateSteps,
-  getChatgptSetupFields,
+  CLAUDE_CONNECTOR_LABEL,
+  CLAUDE_MCP_REDIRECT_URI,
+  getClaudePreCreateSteps,
+  getClaudeSetupFields,
   getMcpSetupSteps,
   MCP_ALERT_CLASS,
   MCP_ONE_TIME_NOTICE,
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   createMcpOauthClient,
+  formatChatgptPluginSetup,
   getOauthClientProvider,
   revokeMcpOauthClient,
   type CreateMcpOauthClientResponse,
@@ -62,37 +63,37 @@ type Props = {
   onRefresh: () => Promise<void>;
 };
 
-export default function ChatgptMcpOAuthSection({
+export default function ClaudeMcpOAuthSection({
   oauthClients,
   oauth,
   onRefresh,
 }: Props) {
-  const [appName, setAppName] = useState("LeadSnipper ChatGPT");
-  const [redirectUri, setRedirectUri] = useState("");
+  const [appName, setAppName] = useState("LeadSnipper");
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<CreateMcpOauthClientResponse | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<McpOauthClientMeta | null>(null);
   const [revoking, setRevoking] = useState(false);
 
-  const chatgptClients = oauthClients.filter(
-    (c) => getOauthClientProvider(c) === "chatgpt"
+  const claudeClients = oauthClients.filter(
+    (c) => getOauthClientProvider(c) === "claude"
   );
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = appName.trim();
-    const uri = redirectUri.trim();
-    if (!name || !uri) {
-      toast.error("App name and ChatGPT Callback URL are required");
+    if (!name) {
+      toast.error("App name is required");
       return;
     }
     try {
       setCreating(true);
-      const result = await createMcpOauthClient({ name, redirectUri: uri });
+      const result = await createMcpOauthClient({
+        name,
+        redirectUri: CLAUDE_MCP_REDIRECT_URI,
+      });
       setCreated(result);
-      setRedirectUri("");
       await onRefresh();
-      toast.success("OAuth app created — copy Client ID and Secret now");
+      toast.success("Claude OAuth app created — copy Client ID and Secret now");
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { message?: string } } };
       toast.error(ax.response?.data?.message || "Failed to create OAuth app");
@@ -108,7 +109,7 @@ export default function ChatgptMcpOAuthSection({
       await revokeMcpOauthClient(revokeTarget.id);
       setRevokeTarget(null);
       await onRefresh();
-      toast.success("OAuth app revoked");
+      toast.success("Claude OAuth app revoked");
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { message?: string } } };
       toast.error(ax.response?.data?.message || "Failed to revoke OAuth app");
@@ -117,14 +118,25 @@ export default function ChatgptMcpOAuthSection({
     }
   };
 
-  const pluginSummary = created
-    ? getChatgptPluginSummary(created.chatgptPlugin, { includeSecret: false })
+  const connector = created?.connector || created?.chatgptPlugin;
+  const pluginSummary = connector
+    ? formatChatgptPluginSetup(
+        { ...connector, provider: "claude" },
+        { includeSecret: false }
+      )
     : "";
-  const postCreateSteps = created
-    ? getMcpSetupSteps("chatgpt", oauth.mcpUrl, "", oauth, created.chatgptPlugin).slice(3)
+  const postCreateSteps = connector
+    ? getMcpSetupSteps("claude", oauth.mcpUrl, "", oauth, {
+        ...connector,
+        provider: "claude",
+      }).slice(2)
     : [];
-  const setupFields = getChatgptSetupFields(oauth, created?.chatgptPlugin);
-  const preCreateSteps = getChatgptPreCreateSteps();
+  const setupFields = getClaudeSetupFields(oauth, {
+    ...connector,
+    provider: "claude",
+    oauthClientSecret: created?.clientSecret,
+  });
+  const preCreateSteps = getClaudePreCreateSteps();
 
   return (
     <div className="rounded-xl border border-brand-main/25 bg-bg-200/40 p-5 space-y-4">
@@ -133,11 +145,13 @@ export default function ChatgptMcpOAuthSection({
           <IconPlugConnected className="w-5 h-5" />
         </div>
         <div>
-          <h4 className="text-base font-semibold text-text-100">{CHATGPT_MCP_APP_LABEL}</h4>
+          <h4 className="text-base font-semibold text-text-100">{CLAUDE_CONNECTOR_LABEL}</h4>
           <p className="text-sm text-text-300 mt-1 leading-relaxed">
-            Connect LeadSnipper to ChatGPT as a custom MCP app with OAuth. Use{" "}
-            <strong className="text-text-200">User-Defined OAuth Client</strong> in ChatGPT —
-            not your <code className="text-brand-main">ls_mcp_*</code> API key.
+            Connect LeadSnipper to Claude.ai via{" "}
+            <strong className="text-text-200">Add custom connector</strong>. Paste{" "}
+            <strong className="text-text-200">OAuth Client ID</strong> and{" "}
+            <strong className="text-text-200">OAuth Client Secret</strong> under Advanced
+            settings — not your <code className="text-brand-main">ls_mcp_*</code> API key.
           </p>
         </div>
       </div>
@@ -146,7 +160,7 @@ export default function ChatgptMcpOAuthSection({
 
       <div className="space-y-3">
         <p className="text-xs font-medium uppercase tracking-wide text-text-400">
-          Before you connect — in ChatGPT
+          Before you connect — in Claude
         </p>
         <ol className="space-y-3">
           {preCreateSteps.map((step, i) => (
@@ -172,42 +186,43 @@ export default function ChatgptMcpOAuthSection({
         </p>
         <form onSubmit={handleCreate} className="space-y-3">
           <div>
-            <label className="text-xs font-medium text-text-300 block mb-1">App name</label>
+            <label className="text-xs font-medium text-text-300 block mb-1">
+              Connector name
+            </label>
             <input
               value={appName}
               onChange={(e) => setAppName(e.target.value)}
-              placeholder="LeadSnipper ChatGPT"
+              placeholder="LeadSnipper"
               className="w-full rounded-lg border border-brand-main/30 bg-bg-100 px-3 py-2 text-sm text-text-100"
             />
+            <p className="text-xs text-text-500 mt-1">
+              Use the same name in Claude’s “Name” field.
+            </p>
           </div>
           <div>
             <label className="text-xs font-medium text-text-300 block mb-1">
-              ChatGPT Callback URL
+              Claude callback URL (fixed)
             </label>
-            <input
-              value={redirectUri}
-              onChange={(e) => setRedirectUri(e.target.value)}
-              placeholder="https://chatgpt.com/connector/oauth/…"
-              className="w-full rounded-lg border border-brand-main/30 bg-bg-100 px-3 py-2 text-sm text-text-100 font-mono"
-            />
+            <code className="block w-full rounded-lg border border-brand-main/30 bg-bg-100 px-3 py-2 text-xs text-text-300 font-mono break-all">
+              {CLAUDE_MCP_REDIRECT_URI}
+            </code>
             <p className="text-xs text-text-500 mt-1">
-              Paste the Callback URL you copied from ChatGPT → your app → Authentication →
-              Advanced OAuth.
+              Registered automatically — Claude always uses this redirect URI.
             </p>
           </div>
           <Button
             type="submit"
-            disabled={creating || !redirectUri.trim()}
+            disabled={creating || !appName.trim()}
             className="bg-brand-main hover:bg-brand-main/90 text-white"
           >
-            {creating ? "Creating…" : "Connect ChatGPT MCP App"}
+            {creating ? "Creating…" : "Create Claude OAuth app"}
           </Button>
         </form>
       </div>
 
-      {chatgptClients.length > 0 ? (
+      {claudeClients.length > 0 ? (
         <ul className="divide-y divide-brand-main/10 rounded-lg border border-brand-main/15 overflow-hidden">
-          {chatgptClients.map((client) => (
+          {claudeClients.map((client) => (
             <li
               key={client.id}
               className="flex items-center justify-between gap-3 px-3 py-2.5 bg-bg-100/40"
@@ -234,22 +249,22 @@ export default function ChatgptMcpOAuthSection({
       <Dialog open={!!created} onOpenChange={(open) => !open && setCreated(null)}>
         <DialogContent className="bg-bg-200 border border-brand-main/20 w-[calc(100vw-2rem)] max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-text-100">Configure ChatGPT MCP App</DialogTitle>
+            <DialogTitle className="text-text-100">Configure Claude custom connector</DialogTitle>
             <DialogDescription className="text-text-300 text-left">
-              Copy each value into ChatGPT in the order shown. Client Secret is shown once —
+              Copy these into Claude → Add custom connector. Client Secret is shown once —
               store it securely.
             </DialogDescription>
           </DialogHeader>
 
-          {created ? (
+          {created && connector ? (
             <div className="space-y-5">
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <p className="text-xs uppercase text-text-400">OAuth Client ID</p>
-                  <CopyButton value={created.chatgptPlugin.oauthClientId} label="Client ID" />
+                  <CopyButton value={connector.oauthClientId} label="Client ID" />
                 </div>
                 <code className="block p-2 rounded bg-bg-100 text-xs break-all text-text-100">
-                  {created.chatgptPlugin.oauthClientId}
+                  {connector.oauthClientId}
                 </code>
               </div>
               <div className="space-y-2">
@@ -264,7 +279,7 @@ export default function ChatgptMcpOAuthSection({
 
               <div className="space-y-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-text-400">
-                  ChatGPT app form — fill in this order
+                  Claude form — fill in this order
                 </p>
                 <div className="rounded-xl border border-brand-main/20 overflow-hidden divide-y divide-brand-main/10">
                   {setupFields.map((row) => (
@@ -327,9 +342,9 @@ export default function ChatgptMcpOAuthSection({
       <Dialog open={!!revokeTarget} onOpenChange={(open) => !open && setRevokeTarget(null)}>
         <DialogContent className="bg-bg-200 border border-brand-main/20 max-w-md">
           <DialogHeader>
-            <DialogTitle>Revoke ChatGPT OAuth app?</DialogTitle>
+            <DialogTitle>Revoke Claude OAuth app?</DialogTitle>
             <DialogDescription>
-              {revokeTarget?.name} will stop working in ChatGPT immediately.
+              {revokeTarget?.name} will stop working in Claude immediately.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">

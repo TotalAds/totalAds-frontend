@@ -24,7 +24,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { CHATGPT_MCP_APP_LABEL } from "@/components/settings/mcpSetupInstructions";
+import { CHATGPT_MCP_APP_LABEL, CLAUDE_CONNECTOR_LABEL } from "@/components/settings/mcpSetupInstructions";
 import { tokenStorage } from "@/utils/auth/tokenStorage";
 import { approveMcpOauth, previewMcpOauthClient } from "@/utils/api/mcpClient";
 
@@ -51,11 +51,29 @@ function ChatGptMark() {
   );
 }
 
-function ConnectionHeader({ appName }: { appName: string }) {
+function ClaudeMark() {
+  return (
+    <div
+      className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-[#D97757] shadow-sm text-white text-lg font-semibold"
+      aria-hidden
+    >
+      C
+    </div>
+  );
+}
+
+function ConnectionHeader({
+  appName,
+  clientLabel,
+}: {
+  appName: string;
+  clientLabel: string;
+}) {
+  const isClaude = clientLabel === "Claude";
   return (
     <div className="flex flex-col items-center gap-4">
       <div className="flex items-center gap-3">
-        <ChatGptMark />
+        {isClaude ? <ClaudeMark /> : <ChatGptMark />}
         <div className="flex size-8 items-center justify-center rounded-full bg-brand-main/10 text-brand-main">
           <IconArrowRight className="size-4" stroke={2.5} />
         </div>
@@ -65,7 +83,7 @@ function ConnectionHeader({ appName }: { appName: string }) {
       </div>
       <div className="text-center">
         <p className="text-xs font-medium uppercase tracking-wider text-text-400">
-          {CHATGPT_MCP_APP_LABEL}
+          {isClaude ? CLAUDE_CONNECTOR_LABEL : CHATGPT_MCP_APP_LABEL}
         </p>
         <p className="mt-1 text-sm text-text-300">
           <span className="font-medium text-text-100">{appName}</span> wants to connect
@@ -133,6 +151,9 @@ export default function McpOAuthConsentPage() {
   const codeChallengeMethod = searchParams.get("code_challenge_method") || "S256";
   const state = searchParams.get("state") || undefined;
   const scope = searchParams.get("scope") || undefined;
+  const isClaude =
+    redirectUri.includes("claude.ai") || redirectUri.includes("claude.com");
+  const clientLabel = isClaude ? "Claude" : "ChatGPT";
 
   useEffect(() => {
     const run = async () => {
@@ -143,7 +164,9 @@ export default function McpOAuthConsentPage() {
       }
 
       if (!clientId || !redirectUri || !codeChallenge) {
-        setError("Missing OAuth parameters. Start the connection from ChatGPT → Scan Tools.");
+        setError(
+          `Missing OAuth parameters. Start the connection from ${clientLabel}.`
+        );
         setLoading(false);
         return;
       }
@@ -219,12 +242,12 @@ export default function McpOAuthConsentPage() {
 
         <Card className="overflow-hidden border-brand-main/20 bg-bg-200/90 shadow-xl backdrop-blur-sm">
           <CardHeader className="border-b border-brand-main/10 bg-bg-100/50 pb-6 pt-8">
-            <ConnectionHeader appName={clientName} />
+            <ConnectionHeader appName={clientName} clientLabel={clientLabel} />
             <CardTitle className="pt-4 text-center text-xl font-semibold text-text-100">
-              Allow ChatGPT to access LeadSnipper?
+              Allow {clientLabel} to access LeadSnipper?
             </CardTitle>
             <CardDescription className="text-center text-text-300 leading-relaxed">
-              If you allow this, ChatGPT can use LeadSnipper tools on your behalf in{" "}
+              If you allow this, {clientLabel} can use LeadSnipper tools on your behalf in{" "}
               <strong className="text-text-100">{workspaceName || "your workspace"}</strong>.
             </CardDescription>
           </CardHeader>

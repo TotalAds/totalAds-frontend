@@ -1,5 +1,8 @@
 import type { ChatgptPluginConfig, McpOAuthEndpoints } from "@/utils/api/mcpClient";
-import { formatChatgptPluginSetup } from "@/utils/api/mcpClient";
+import {
+  CLAUDE_MCP_REDIRECT_URI,
+  formatChatgptPluginSetup,
+} from "@/utils/api/mcpClient";
 
 export type McpClientTab = "chatgpt" | "claude" | "cursor" | "generic";
 
@@ -20,6 +23,8 @@ export type ChatgptSetupField = {
   hint?: string;
 };
 
+export type ClaudeSetupField = ChatgptSetupField;
+
 export const MCP_ONE_TIME_NOTICE =
   "OAuth Client Secret and MCP API keys are shown only once at creation. Store them securely — never share in docs, screenshots, or chat.";
 
@@ -27,6 +32,7 @@ export const MCP_ALERT_CLASS =
   "rounded-xl border-2 border-amber-500/70 bg-[#1a1408] px-4 py-3 text-sm text-amber-100 leading-relaxed";
 
 export const CHATGPT_MCP_APP_LABEL = "ChatGPT MCP App";
+export const CLAUDE_CONNECTOR_LABEL = "Claude Custom Connector";
 
 /** Steps shown before the user creates a LeadSnipper OAuth app. */
 export function getChatgptPreCreateSteps(): McpSetupStep[] {
@@ -43,6 +49,21 @@ export function getChatgptPreCreateSteps(): McpSetupStep[] {
       title: "Copy the Callback URL from ChatGPT",
       body: "In your ChatGPT app → Authentication → OAuth → Advanced settings → User-Defined OAuth Client. Copy the read-only Callback URL (https://chatgpt.com/connector/oauth/…). You will paste this into LeadSnipper in the next step.",
       warning: "Do not paste your ls_mcp_* API key anywhere in the ChatGPT OAuth form.",
+    },
+  ];
+}
+
+export function getClaudePreCreateSteps(): McpSetupStep[] {
+  return [
+    {
+      title: "Open Claude Connectors",
+      body: "Claude.ai → Settings → Connectors → Add custom connector. You will need Name, Remote MCP server URL, and (under Advanced settings) OAuth Client ID + OAuth Client Secret.",
+    },
+    {
+      title: "Create a Claude OAuth app in LeadSnipper first",
+      body: "LeadSnipper registers Claude’s fixed callback URL automatically and issues a confidential Client ID + Client Secret for Advanced settings.",
+      warning:
+        "Use a dedicated Claude OAuth app — do not reuse your ChatGPT Client ID/Secret (redirect URIs differ).",
     },
   ];
 }
@@ -132,6 +153,48 @@ export function getChatgptSetupFields(
   ];
 }
 
+/** Fields matching Claude “Add custom connector” form. */
+export function getClaudeSetupFields(
+  oauth: McpOAuthEndpoints,
+  plugin?: Partial<ChatgptPluginConfig>
+): ClaudeSetupField[] {
+  return [
+    {
+      order: 1,
+      section: "Add custom connector",
+      field: "Name",
+      value: plugin?.name || "LeadSnipper",
+      copyable: true,
+      hint: "Shown in the connectors list",
+    },
+    {
+      order: 2,
+      section: "Add custom connector",
+      field: "Remote MCP server URL",
+      value: plugin?.mcpServerUrl || oauth.mcpUrl,
+      copyable: true,
+      hint: "HTTPS address where the server accepts MCP requests",
+    },
+    {
+      order: 3,
+      section: "Advanced settings",
+      field: "OAuth Client ID",
+      value: plugin?.oauthClientId || "Create Claude OAuth app in LeadSnipper first",
+      copyable: Boolean(plugin?.oauthClientId),
+    },
+    {
+      order: 4,
+      section: "Advanced settings",
+      field: "OAuth Client Secret",
+      value: plugin?.oauthClientSecret
+        ? plugin.oauthClientSecret
+        : "Shown once when you create the Claude OAuth app in LeadSnipper",
+      copyable: Boolean(plugin?.oauthClientSecret),
+      hint: "Paste into Claude Advanced settings only",
+    },
+  ];
+}
+
 /** @deprecated Use getChatgptSetupFields — kept for table compatibility */
 export type ChatgptOAuthFieldGuideRow = {
   field: string;
@@ -193,22 +256,26 @@ export function getMcpSetupSteps(
 
     case "claude":
       return [
+        ...getClaudePreCreateSteps(),
         {
-          title: "Claude web Connectors ≠ ChatGPT MCP apps",
-          body: "Claude Connectors use OAuth only. For ls_mcp_* keys, use Claude Desktop config below.",
-          warning: "Do not paste ChatGPT OAuth Client ID/Secret into Claude.",
+          title: "Create Claude OAuth app in LeadSnipper",
+          body: `Integrations → ${CLAUDE_CONNECTOR_LABEL} → Connect. Copy OAuth Client ID and Client Secret immediately.`,
+          warning: MCP_ONE_TIME_NOTICE,
         },
         {
-          title: "Open Claude Desktop config",
-          body: "Settings → Developer → Edit Config, or edit claude_desktop_config.json directly.",
+          title: "Fill Claude Add custom connector form",
+          body: "Paste Name, Remote MCP server URL, then open Advanced settings and paste OAuth Client ID + OAuth Client Secret.",
+          bullets: getClaudeSetupFields(endpoints, chatgptPlugin).map(
+            (f) => `${f.field}: ${f.copyable && f.value.length < 80 ? f.value : "(see field guide)"}`
+          ),
         },
         {
-          title: "Merge the leadsnipper JSON block",
-          body: "Copy the Claude Desktop config below (uses mcp-remote + your ls_mcp_* key).",
+          title: "Add and approve",
+          body: "Click Add in Claude → sign in to LeadSnipper if prompted → Allow on the consent screen. Claude discovers OAuth and lists LeadSnipper tools.",
         },
         {
-          title: "Restart Claude Desktop",
-          body: "Quit fully and reopen. Look for the tools icon when connected.",
+          title: "Optional: Claude Desktop with API key",
+          body: "For Claude Desktop without Connectors OAuth, generate an ls_mcp_* API key below and merge the Desktop JSON config.",
         },
       ];
 
@@ -232,7 +299,7 @@ export function getMcpSetupSteps(
       return [
         {
           title: "Remote MCP endpoint",
-          body: `URL: ${mcpUrl}. Auth: Bearer ls_mcp_* key or OAuth access token from ChatGPT flow.`,
+          body: `URL: ${mcpUrl}. Auth: Bearer ls_mcp_* key or OAuth access token from ChatGPT/Claude flow.`,
         },
         {
           title: "Stdio clients",
@@ -249,9 +316,11 @@ export function getChatgptPluginSummary(
   return formatChatgptPluginSetup(plugin, options);
 }
 
+export { CLAUDE_MCP_REDIRECT_URI };
+
 export const MCP_CLIENT_TABS: { id: McpClientTab; label: string }[] = [
   { id: "chatgpt", label: "ChatGPT" },
-  { id: "claude", label: "Claude Desktop" },
+  { id: "claude", label: "Claude" },
   { id: "cursor", label: "Cursor" },
   { id: "generic", label: "Other" },
 ];
