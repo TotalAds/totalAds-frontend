@@ -163,8 +163,8 @@ export function SignupComponent() {
         <div className="relative z-10 text-center text-white max-w-xs px-2">
           <h2 className="text-xl font-bold mb-2">Get Started with LeadSnipper</h2>
           <p className="text-sm text-white/90">
-            Join thousands of businesses extracting leads and growing their
-            sales pipeline.
+            Join thousands of teams sending deliverability-first cold email and
+            growing their pipeline.
           </p>
         </div>
       </div>

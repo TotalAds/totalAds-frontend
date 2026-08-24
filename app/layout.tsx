@@ -1,22 +1,18 @@
 /* eslint-disable @next/next/no-sync-scripts */
-import type { Metadata } from "next";
 import "./globals.css";
 
 import { Inter } from "next/font/google";
 import { Suspense } from "react";
 
 import ConditionalLayout from "@/components/layout/ConditionalLayout";
+import { buildDefaultMetadata } from "@/lib/seo";
 import { cn } from "@/utils/cn";
 
 import Provider from "./provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export const metadata: Metadata = {
-  title: "Leadsnipper - Email Marketing & Cold Outreach Platform",
-  description:
-    "Convert cold email into predictable revenue with deliverability-first email marketing",
-};
+export const metadata = buildDefaultMetadata();
 
 export default function RootLayout({
   children,
@@ -33,7 +29,6 @@ export default function RootLayout({
             <ConditionalLayout>{children}</ConditionalLayout>
           </Provider>
         </Suspense>
-        {/* subtle footer link */}
       </body>
     </html>
   );
