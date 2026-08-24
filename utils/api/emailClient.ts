@@ -2718,6 +2718,7 @@ export const getCampaignWebhookStatus = async (
   createdAt?: string;
   lastRotatedAt?: string;
   holdMinutes?: number;
+  queueDelayMinutes?: number;
 }> => {
   const response = await emailClient.get(
     `/api/domains/${domainId}/campaigns/${campaignId}/webhook`,
@@ -2734,7 +2735,8 @@ export const enableOrRotateCampaignWebhook = async (
   publicToken: string;
   ingestSecret: string;
   webhookUrl: string;
-  holdMinutes: number;
+  holdMinutes?: number;
+  queueDelayMinutes: number;
 }> => {
   const response = await emailClient.post(
     `/api/domains/${domainId}/campaigns/${campaignId}/webhook`,

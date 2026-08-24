@@ -722,9 +722,11 @@ export function LeadsTab({
           <p className="font-semibold">Continuous campaign</p>
           <p className="mt-0.5 text-xs text-blue-800/90">
             LeadHub and Google Sheets sync new leads {continuousSyncLabel}.
-            Webhook leads wait 30 minutes before entering the send queue. This
-            campaign will not auto-complete while idle — pause or stop it when
-            you are done. Change the interval in Options → Campaign mode.
+            Webhook leads appear in the pending queue immediately and send after
+            a short delay (default 5 minutes). Duplicate webhook submissions for
+            the same lead already in queue are rejected. This campaign will not
+            auto-complete while idle — pause or stop it when you are done. Change
+            the interval in Options → Campaign mode.
           </p>
         </div>
       )}

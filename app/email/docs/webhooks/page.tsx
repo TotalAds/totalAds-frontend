@@ -74,13 +74,21 @@ export default function DocsWebhooksPage() {
         <h2 className="text-lg font-semibold text-text-100">Inbound — campaign lead ingest</h2>
         <p className="text-sm text-text-300 leading-relaxed">
           Continuous campaigns expose a public ingest URL in the campaign builder (Leads tab → Webhook).
-          POST leads with the ingest secret; they are held for 30 minutes before entering the campaign.
+          POST leads with the ingest secret. They appear in the pending send queue
+          immediately and are scheduled to send after a short delay (default 5 minutes).
+          Optional <code>tags</code>, <code>categories</code>, and <code>lists</code> arrays
+          create or reuse those labels. Duplicate submissions for a lead already in queue
+          return HTTP 409.
         </p>
         <SchemaTable
           title="Request body"
           fields={[
             { name: "email", type: "string", required: true, description: "Lead email address" },
-            { name: "name", type: "string", description: "Lead display name" },
+            { name: "name", type: "string", required: true, description: "Lead display name" },
+            { name: "tags", type: "string[]", description: "Tag names to assign (created if missing)" },
+            { name: "categories", type: "string[]", description: "Category names to assign (created if missing)" },
+            { name: "lists", type: "string[]", description: "List names to assign (created if missing)" },
+            { name: "queueDelayMinutes", type: "number", description: "Optional per-lead send delay override (default 5)" },
           ]}
         />
         <CodeBlock

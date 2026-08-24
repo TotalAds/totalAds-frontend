@@ -99,8 +99,11 @@ export function CampaignWebhookPanel({
           <p className="mt-0.5 text-xs text-slate-500">
             POST leads to a unique URL with your API token.{" "}
             <strong>name</strong> and <strong>email</strong> are required. Extra
-            fields are saved as custom data. Leads wait 30 minutes before joining
-            the send queue.
+            fields are saved as custom data. Leads appear in the pending queue
+            immediately and send after a short delay (default 5 minutes). Optional{" "}
+            <strong>tags</strong>, <strong>categories</strong>, and <strong>lists</strong>{" "}
+            are created if missing and applied to the lead. Duplicate queue
+            submissions return an error.
           </p>
         </div>
       </div>
