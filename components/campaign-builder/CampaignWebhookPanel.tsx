@@ -115,8 +115,10 @@ export function CampaignWebhookPanel({
             POST leads to a unique URL with your API token.{" "}
             <strong>name</strong> and <strong>email</strong> are required. Extra
             fields are saved as custom data. On a running continuous campaign,
-            leads appear in the pending queue immediately and send after{" "}
-            {queueDelayMinutes} minute{queueDelayMinutes === 1 ? "" : "s"} — no
+            leads appear in the pending queue immediately. Use{" "}
+            <strong>queueDelayMinutes</strong> in the body to control send delay
+            (including <code>0</code> for immediate); if omitted, default is{" "}
+            {queueDelayMinutes} minute{queueDelayMinutes === 1 ? "" : "s"}. No
             Restart Campaign needed. Optional <strong>tags</strong>,{" "}
             <strong>categories</strong>, and <strong>lists</strong> are created
             if missing and applied to the lead. Duplicate queue submissions

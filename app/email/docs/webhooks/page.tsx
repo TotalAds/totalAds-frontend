@@ -75,7 +75,10 @@ export default function DocsWebhooksPage() {
         <p className="text-sm text-text-300 leading-relaxed">
           Continuous campaigns expose a public ingest URL in the campaign builder (Leads tab → Webhook).
           POST leads with the ingest secret. They appear in the pending send queue
-          immediately and are scheduled to send after a short delay (default 5 minutes).
+          immediately. Pass <code>queueDelayMinutes</code> to control when the email
+          sends (including <code>0</code> for immediate); if omitted, the default is
+          5 minutes. Response <code>message</code> and{" "}
+          <code>data.queueDelayMinutes</code> always reflect the delay that was applied.
           Optional <code>tags</code>, <code>categories</code>, and <code>lists</code> arrays
           create or reuse those labels. Duplicate submissions for a lead already in queue
           return HTTP 409.
