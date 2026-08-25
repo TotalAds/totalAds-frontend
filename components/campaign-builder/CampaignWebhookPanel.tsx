@@ -27,6 +27,7 @@ export function CampaignWebhookPanel({
   const [enabled, setEnabled] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState<string | null>(null);
   const [plaintextSecret, setPlaintextSecret] = useState<string | null>(null);
+  const [queueDelayMinutes, setQueueDelayMinutes] = useState(5);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -35,6 +36,13 @@ export function CampaignWebhookPanel({
       const status = await getCampaignWebhookStatus(domainId, campaignId);
       setEnabled(Boolean(status.enabled));
       setWebhookUrl(status.webhookUrl || null);
+      setQueueDelayMinutes(
+        typeof status.queueDelayMinutes === "number"
+          ? status.queueDelayMinutes
+          : typeof status.holdMinutes === "number"
+            ? status.holdMinutes
+            : 5
+      );
     } catch (err) {
       toast.error(getEmailServiceErrorMessage(err, "Failed to load webhook"));
     } finally {
@@ -56,6 +64,13 @@ export function CampaignWebhookPanel({
       setEnabled(true);
       setWebhookUrl(data.webhookUrl);
       setPlaintextSecret(data.ingestSecret);
+      setQueueDelayMinutes(
+        typeof data.queueDelayMinutes === "number"
+          ? data.queueDelayMinutes
+          : typeof data.holdMinutes === "number"
+            ? data.holdMinutes
+            : 5
+      );
       toast.success(
         rotate
           ? "Token rotated — copy the new secret now"
@@ -99,11 +114,13 @@ export function CampaignWebhookPanel({
           <p className="mt-0.5 text-xs text-slate-500">
             POST leads to a unique URL with your API token.{" "}
             <strong>name</strong> and <strong>email</strong> are required. Extra
-            fields are saved as custom data. Leads appear in the pending queue
-            immediately and send after a short delay (default 5 minutes). Optional{" "}
-            <strong>tags</strong>, <strong>categories</strong>, and <strong>lists</strong>{" "}
-            are created if missing and applied to the lead. Duplicate queue
-            submissions return an error.
+            fields are saved as custom data. On a running continuous campaign,
+            leads appear in the pending queue immediately and send after{" "}
+            {queueDelayMinutes} minute{queueDelayMinutes === 1 ? "" : "s"} — no
+            Restart Campaign needed. Optional <strong>tags</strong>,{" "}
+            <strong>categories</strong>, and <strong>lists</strong> are created
+            if missing and applied to the lead. Duplicate queue submissions
+            return an error.
           </p>
         </div>
       </div>
@@ -180,7 +197,11 @@ Content-Type: application/json
 {
   "name": "Jane Doe",
   "email": "jane@example.com",
-  "company": "Acme"
+  "company": "Acme",
+  "tags": ["webinar"],
+  "categories": ["SaaS"],
+  "lists": ["Inbound Webhook"],
+  "queueDelayMinutes": ${queueDelayMinutes}
 }`}</pre>
               <div className="flex flex-wrap gap-2">
                 <Button

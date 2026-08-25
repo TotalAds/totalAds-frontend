@@ -96,7 +96,14 @@ export default function DocsWebhooksPage() {
           code={`curl -X POST "${getEmailServiceUrl()}/api/webhooks/campaign-leads/YOUR_PUBLIC_TOKEN" \\
   -H "Authorization: Bearer YOUR_INGEST_SECRET" \\
   -H "Content-Type: application/json" \\
-  -d '{"email": "lead@example.com", "name": "Lead Name"}'`}
+  -d '{
+    "email": "lead@example.com",
+    "name": "Lead Name",
+    "tags": ["webinar"],
+    "categories": ["SaaS"],
+    "lists": ["Inbound Webhook"],
+    "queueDelayMinutes": 5
+  }'`}
         />
       </section>
     </div>

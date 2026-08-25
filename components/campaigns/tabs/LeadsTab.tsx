@@ -721,12 +721,14 @@ export function LeadsTab({
         <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-sm text-blue-900">
           <p className="font-semibold">Continuous campaign</p>
           <p className="mt-0.5 text-xs text-blue-800/90">
-            LeadHub and Google Sheets sync new leads {continuousSyncLabel}.
-            Webhook leads appear in the pending queue immediately and send after
-            a short delay (default 5 minutes). Duplicate webhook submissions for
-            the same lead already in queue are rejected. This campaign will not
-            auto-complete while idle — pause or stop it when you are done. Change
-            the interval in Options → Campaign mode.
+            LeadHub, Google Sheets, API, and webhook leads are queued
+            automatically while this campaign is running — no Restart Campaign
+            needed. Webhook leads show in pending immediately and send after a
+            short delay (default 5 minutes). Duplicate webhook submissions for a
+            lead already in queue are rejected. LeadHub/Sheets sync{" "}
+            {continuousSyncLabel}. This campaign will not auto-complete while
+            idle — pause or stop it when you are done. Change the interval in
+            Options → Campaign mode.
           </p>
         </div>
       )}
