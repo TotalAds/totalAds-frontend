@@ -14,6 +14,11 @@ export interface SubscriptionStatus {
   recurringCrypto?: boolean;
   cryptomusRecurringUuid?: string | null;
   status: string;
+  /** razorpay | cryptomus | appsumo | admin */
+  source?: string;
+  /** AppSumo lifetime plan: no renewal, no in-app upgrade or cancellation. */
+  isLifetime?: boolean;
+  appsumoLicenseKey?: string | null;
   tier: {
     id: string;
     name: string;

@@ -67,7 +67,12 @@ function CopyButton({ value, label }: { value: string; label?: string }) {
   );
 }
 
-export default function DeveloperApiKeysCard() {
+export default function DeveloperApiKeysCard({
+  embedded = false,
+}: {
+  /** Render without the outer card chrome and title, for use inside a detail modal. */
+  embedded?: boolean;
+} = {}) {
   const [keys, setKeys] = useState<DeveloperApiKeyMeta[]>([]);
   const [apiBaseUrl, setApiBaseUrl] = useState("");
   const [apiAccessEnabled, setApiAccessEnabled] = useState(false);
@@ -148,22 +153,30 @@ export default function DeveloperApiKeysCard() {
   };
 
   return (
-    <div className="backdrop-blur-xl bg-bg-200 border border-brand-main/25 rounded-xl p-6 md:p-8 flex flex-col gap-6 max-w-3xl shadow-lg shadow-black/10">
+    <div
+      className={
+        embedded
+          ? "flex flex-col gap-6"
+          : "backdrop-blur-xl bg-bg-200 border border-brand-main/25 rounded-xl p-6 md:p-8 flex flex-col gap-6 max-w-3xl shadow-lg shadow-black/10"
+      }
+    >
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-main/20 border border-brand-main/35">
-            <IconKey className="h-5 w-5 text-brand-main" />
+        {embedded ? null : (
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-main/20 border border-brand-main/35">
+              <IconKey className="h-5 w-5 text-brand-main" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-text-100">Developer REST API</h3>
+              <p className="text-sm text-text-300 mt-1 max-w-xl leading-relaxed">
+                Programmatic access to send emails, run campaigns, and manage leads. Keys use the{" "}
+                <code className="text-brand-main bg-brand-main/10 px-1 rounded text-xs">ls_live_</code>{" "}
+                prefix and are scoped to this workspace.
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-lg font-semibold text-text-100">Developer REST API</h3>
-            <p className="text-sm text-text-300 mt-1 max-w-xl leading-relaxed">
-              Programmatic access to send emails, run campaigns, and manage leads. Keys use the{" "}
-              <code className="text-brand-main bg-brand-main/10 px-1 rounded text-xs">ls_live_</code>{" "}
-              prefix and are scoped to this workspace.
-            </p>
-          </div>
-        </div>
-        <Link href="/email/docs">
+        )}
+        <Link href="/email/docs" className={embedded ? "ml-auto" : undefined}>
           <Button
             variant="outline"
             size="sm"

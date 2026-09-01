@@ -17,7 +17,12 @@ import {
   IconKey,
 } from "@tabler/icons-react";
 
-export default function LeadhubIntegrationsCard() {
+export default function LeadhubIntegrationsCard({
+  embedded = false,
+}: {
+  /** Render without the outer card chrome and title, for use inside a detail modal. */
+  embedded?: boolean;
+} = {}) {
   const [status, setStatus] = useState<LeadhubConnectionStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -96,33 +101,41 @@ export default function LeadhubIntegrationsCard() {
   const isConfigured = status?.isConfigured;
 
   return (
-    <div className="backdrop-blur-xl bg-bg-200 border border-brand-main/20 rounded-xl p-6 md:p-8 flex flex-col gap-6 max-w-3xl">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-main/15 border border-brand-main/25">
-            <Zap className="h-5 w-5 text-brand-main" />
+    <div
+      className={
+        embedded
+          ? "flex flex-col gap-6"
+          : "backdrop-blur-xl bg-bg-200 border border-brand-main/20 rounded-xl p-6 md:p-8 flex flex-col gap-6 max-w-3xl"
+      }
+    >
+      {embedded ? null : (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-main/15 border border-brand-main/25">
+              <Zap className="h-5 w-5 text-brand-main" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-xl font-semibold text-text-100">LeadHub Autopilot</h3>
+              <p className="text-text-200 text-sm mt-1 leading-relaxed">
+                Connect your LeadHub workspace to sync enriched leads, skip duplicate
+                verification when LeadHub already validated the email, and auto-enrich
+                before sending.
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <h3 className="text-xl font-semibold text-text-100">LeadHub Autopilot</h3>
-            <p className="text-text-200 text-sm mt-1 leading-relaxed">
-              Connect your LeadHub workspace to sync enriched leads, skip duplicate
-              verification when LeadHub already validated the email, and auto-enrich
-              before sending.
-            </p>
-          </div>
+          {isConfigured ? (
+            <span className="inline-flex shrink-0 items-center gap-1.5 self-start px-3 py-1.5 rounded-full text-xs font-medium bg-success/10 text-success border border-success/40">
+              <IconCheck className="w-3.5 h-3.5" />
+              Connected
+            </span>
+          ) : (
+            <span className="inline-flex shrink-0 items-center gap-1.5 self-start px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-300">
+              <IconAlertCircle className="w-3.5 h-3.5" />
+              Not connected
+            </span>
+          )}
         </div>
-        {isConfigured ? (
-          <span className="inline-flex shrink-0 items-center gap-1.5 self-start px-3 py-1.5 rounded-full text-xs font-medium bg-success/10 text-success border border-success/40">
-            <IconCheck className="w-3.5 h-3.5" />
-            Connected
-          </span>
-        ) : (
-          <span className="inline-flex shrink-0 items-center gap-1.5 self-start px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-300">
-            <IconAlertCircle className="w-3.5 h-3.5" />
-            Not connected
-          </span>
-        )}
-      </div>
+      )}
 
       {isConfigured && (
         <div className="rounded-lg border border-brand-main/15 bg-bg-100/50 p-4 text-sm text-text-200 space-y-1">

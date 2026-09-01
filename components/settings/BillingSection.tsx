@@ -28,7 +28,11 @@ interface BillingOverview {
   nextBillingDate: string;
   monthlyLimit: number;
   totalSpent: number;
+  source?: string;
+  isLifetime?: boolean;
 }
+
+const APPSUMO_ACCOUNT_URL = "https://appsumo.com/account/products/";
 
 const BillingSection = () => {
   const { state } = useAuthContext();
@@ -161,6 +165,13 @@ const BillingSection = () => {
     );
   };
 
+  // AppSumo owns billing for lifetime deals — we never charge, renew or cancel these here.
+  const isAppsumo =
+    subscriptionData?.source === "appsumo" ||
+    subscriptionData?.isLifetime === true ||
+    billingData?.source === "appsumo" ||
+    billingData?.isLifetime === true;
+
   if (isLoading) {
     return (
       <div className="text-center py-12">
@@ -171,6 +182,33 @@ const BillingSection = () => {
 
   return (
     <div className="space-y-8">
+      {isAppsumo && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-amber-400">
+                AppSumo Lifetime Deal
+              </p>
+              <p className="mt-1 text-sm text-text-200">
+                {subscriptionData?.tier?.displayName ??
+                  billingData?.currentPlan ??
+                  "Lifetime plan"}{" "}
+                — no renewals and nothing to pay here. Upgrades, downgrades and
+                refunds are handled by AppSumo.
+              </p>
+            </div>
+            <a
+              href={APPSUMO_ACCOUNT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium text-amber-400 underline underline-offset-4 hover:text-amber-300"
+            >
+              Manage on AppSumo
+            </a>
+          </div>
+        </div>
+      )}
+
       {billingAccount && activeWorkspace && (
         <div className="rounded-xl border border-brand-main/10 bg-bg-300/40 p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-text-100 mb-4">
@@ -237,7 +275,7 @@ const BillingSection = () => {
 
               {/* Action Buttons */}
               <div className="flex gap-2">
-                {subscriptionData.status === "active" && (
+                {subscriptionData.status === "active" && !isAppsumo && (
                   <>
                     <Button
                       variant="destructive"
@@ -255,7 +293,7 @@ const BillingSection = () => {
 
             {/* Subscription Details Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-brand-main/10">
-              {subscriptionData.nextBillingDate && (
+              {subscriptionData.nextBillingDate && !isAppsumo && (
                 <div>
                   <p className="text-sm text-text-200 mb-1">
                     Next Billing Date
@@ -354,8 +392,17 @@ const BillingSection = () => {
 
           <div className="mt-4 p-4 bg-bg-300/40 border border-brand-main/10 rounded-xl">
             <p className="text-text-100 text-sm">
-              <span className="font-medium">Next Billing Date:</span>{" "}
-              {formatMaybeDate(subscriptionData?.nextBillingDate ?? "")}
+              {isAppsumo ? (
+                <>
+                  <span className="font-medium">Billing:</span> Lifetime access
+                  via AppSumo — you will never be billed here.
+                </>
+              ) : (
+                <>
+                  <span className="font-medium">Next Billing Date:</span>{" "}
+                  {formatMaybeDate(subscriptionData?.nextBillingDate ?? "")}
+                </>
+              )}
             </p>
           </div>
         </div>
