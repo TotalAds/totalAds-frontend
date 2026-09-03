@@ -64,6 +64,8 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
     "/reset-password",
     "/onboarding",
     "/verify-email",
+    "/appsumo",
+    "/auth/sso/callback",
     "/email/unsubscribe",
     "/unsubscribe",
     "/email/workspaces/invite",

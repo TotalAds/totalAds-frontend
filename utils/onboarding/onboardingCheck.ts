@@ -116,6 +116,8 @@ export const requiresOnboarding = (pathname: string): boolean => {
     "/onboarding",
     "/social/onboarding", // Social onboarding is the onboarding for social users
     "/verify-email",
+    "/appsumo",
+    "/auth/sso/callback",
     // Public one-click / consent unsubscribe (no account login)
     "/email/unsubscribe",
     "/unsubscribe",
@@ -140,6 +142,8 @@ export const requiresEmailVerification = (pathname: string): boolean => {
     "/forgot-password",
     "/reset-password",
     "/verify-email",
+    "/appsumo",
+    "/auth/sso/callback",
     // Public one-click / consent unsubscribe (no account login)
     "/email/unsubscribe",
     "/unsubscribe",

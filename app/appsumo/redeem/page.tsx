@@ -1,14 +1,17 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 
 import { LegalAcceptanceCheckbox } from "@/components/authentication/LegalAcceptanceCheckbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuthContext } from "@/context/AuthContext";
 import { LEGAL_VERSION } from "@/lib/legal";
-import { redeemAppsumoLicense } from "@/utils/api/appsumoClient";
+import {
+  redeemAppsumoLicense,
+  redeemAppsumoLicenseOnSession,
+} from "@/utils/api/appsumoClient";
 import { tokenStorage } from "@/utils/auth/tokenStorage";
 
 const TIER_LABELS: Record<string, string> = {
@@ -17,15 +20,22 @@ const TIER_LABELS: Record<string, string> = {
   appsumo_scale: "Scale — Tier 3",
 };
 
+type GuestMode = "signup" | "login";
+type LoggedInMode = "session" | "other";
+
 function AppsumoRedeemInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { refreshUser } = useAuthContext();
+  const { state, refreshUser, logoutUser } = useAuthContext();
 
   const redeemToken = searchParams.get("token");
   const callbackError = searchParams.get("error");
 
-  const [mode, setMode] = useState<"signup" | "login">("signup");
+  const isLoggedIn = state.isAuthenticated && Boolean(state.user);
+  const authLoading = state.isLoading;
+
+  const [guestMode, setGuestMode] = useState<GuestMode>("signup");
+  const [loggedInMode, setLoggedInMode] = useState<LoggedInMode>("session");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,19 +48,60 @@ function AppsumoRedeemInner() {
     return tier ? (TIER_LABELS[tier] ?? tier) : null;
   }, [searchParams]);
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  // If the user chooses "use a different account", clear the current session
+  // so they can sign up / log in as someone else without leaving this page.
+  useEffect(() => {
+    if (!isLoggedIn || loggedInMode !== "other") return;
+    // Prefill nothing — they are switching accounts.
+  }, [isLoggedIn, loggedInMode]);
+
+  const finishRedeem = async (result: {
+    accessToken: string;
+    expiresIn: number;
+    redirectTo: string;
+  }) => {
+    if (result.accessToken) {
+      tokenStorage.setTokens(result.accessToken, result.expiresIn, true);
+    }
+    await refreshUser();
+    router.replace(result.redirectTo);
+  };
+
+  const handleSessionRedeem = async () => {
+    if (!redeemToken) return;
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const result = await redeemAppsumoLicenseOnSession(redeemToken);
+      await finishRedeem(result);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "We could not redeem your AppSumo license. Please try again."
+      );
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGuestSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!redeemToken) return;
 
     setError(null);
     setIsSubmitting(true);
     try {
+      // Switching accounts: drop the current session first so the new tokens win.
+      if (isLoggedIn && loggedInMode === "other") {
+        await logoutUser();
+      }
+
       const result = await redeemAppsumoLicense({
         redeemToken,
-        mode,
+        mode: guestMode,
         email: email.trim(),
         password,
-        ...(mode === "signup"
+        ...(guestMode === "signup"
           ? {
               name: name.trim(),
               acceptedLegal,
@@ -59,11 +110,7 @@ function AppsumoRedeemInner() {
           : {}),
       });
 
-      if (result.accessToken) {
-        tokenStorage.setTokens(result.accessToken, result.expiresIn, true);
-      }
-      await refreshUser();
-      router.replace(result.redirectTo);
+      await finishRedeem(result);
     } catch (err: unknown) {
       setError(
         err instanceof Error
@@ -96,6 +143,15 @@ function AppsumoRedeemInner() {
     );
   }
 
+  if (authLoading) {
+    return (
+      <Shell>
+        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-brand-main" />
+        <p className="text-sm text-text-200">Checking your session…</p>
+      </Shell>
+    );
+  }
+
   return (
     <Shell>
       <div className="space-y-1 text-left">
@@ -109,34 +165,158 @@ function AppsumoRedeemInner() {
           {tierLabel
             ? `Your ${tierLabel} license is ready.`
             : "Your license is ready."}{" "}
-          {mode === "signup"
-            ? "Create your account to claim it."
-            : "Sign in to attach it to your existing account."}
+          {isLoggedIn
+            ? "Choose which account should receive it."
+            : "Create an account or sign in to claim it."}
         </p>
       </div>
 
+      {isLoggedIn ? (
+        <div className="space-y-4 text-left">
+          <div className="flex rounded-lg border border-brand-main/20 p-1 text-sm">
+            {(
+              [
+                ["session", "Use this account"],
+                ["other", "Use a different account"],
+              ] as const
+            ).map(([option, label]) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => {
+                  setLoggedInMode(option);
+                  setError(null);
+                }}
+                className={`flex-1 rounded-md px-3 py-2 font-medium transition ${
+                  loggedInMode === option
+                    ? "bg-brand-main text-bg-100"
+                    : "text-text-200 hover:text-text-100"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {loggedInMode === "session" ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-brand-main/10 bg-bg-200/60 px-4 py-3 text-sm">
+                <p className="text-text-200">Signed in as</p>
+                <p className="font-medium text-text-100">
+                  {state.user?.name || "LeadSnipper user"}
+                </p>
+                <p className="text-text-200">{state.user?.email}</p>
+              </div>
+              <p className="text-xs text-text-200">
+                If this account already has a paid Razorpay plan, cancel it first
+                or redeem on a different account.
+              </p>
+              {error && <p className="text-sm text-red-400">{error}</p>}
+              <Button
+                type="button"
+                className="w-full"
+                disabled={isSubmitting}
+                onClick={() => void handleSessionRedeem()}
+              >
+                {isSubmitting
+                  ? "Activating…"
+                  : "Activate on this account"}
+              </Button>
+            </div>
+          ) : (
+            <GuestRedeemForm
+              guestMode={guestMode}
+              setGuestMode={setGuestMode}
+              name={name}
+              setName={setName}
+              email={email}
+              setEmail={setEmail}
+              password={password}
+              setPassword={setPassword}
+              acceptedLegal={acceptedLegal}
+              setAcceptedLegal={setAcceptedLegal}
+              error={error}
+              isSubmitting={isSubmitting}
+              onSubmit={handleGuestSubmit}
+              hint="This will sign you out of your current account and attach the license to the account below."
+            />
+          )}
+        </div>
+      ) : (
+        <GuestRedeemForm
+          guestMode={guestMode}
+          setGuestMode={setGuestMode}
+          name={name}
+          setName={setName}
+          email={email}
+          setEmail={setEmail}
+          password={password}
+          setPassword={setPassword}
+          acceptedLegal={acceptedLegal}
+          setAcceptedLegal={setAcceptedLegal}
+          error={error}
+          isSubmitting={isSubmitting}
+          onSubmit={handleGuestSubmit}
+        />
+      )}
+    </Shell>
+  );
+}
+
+function GuestRedeemForm({
+  guestMode,
+  setGuestMode,
+  name,
+  setName,
+  email,
+  setEmail,
+  password,
+  setPassword,
+  acceptedLegal,
+  setAcceptedLegal,
+  error,
+  isSubmitting,
+  onSubmit,
+  hint,
+}: {
+  guestMode: GuestMode;
+  setGuestMode: (mode: GuestMode) => void;
+  name: string;
+  setName: (value: string) => void;
+  email: string;
+  setEmail: (value: string) => void;
+  password: string;
+  setPassword: (value: string) => void;
+  acceptedLegal: boolean;
+  setAcceptedLegal: (value: boolean) => void;
+  error: string | null;
+  isSubmitting: boolean;
+  onSubmit: (event: React.FormEvent) => void;
+  hint?: string;
+}) {
+  return (
+    <div className="space-y-4 text-left">
       <div className="flex rounded-lg border border-brand-main/20 p-1 text-sm">
         {(["signup", "login"] as const).map((option) => (
           <button
             key={option}
             type="button"
-            onClick={() => {
-              setMode(option);
-              setError(null);
-            }}
+            onClick={() => setGuestMode(option)}
             className={`flex-1 rounded-md px-3 py-2 font-medium transition ${
-              mode === option
+              guestMode === option
                 ? "bg-brand-main text-bg-100"
                 : "text-text-200 hover:text-text-100"
             }`}
           >
-            {option === "signup" ? "I'm new here" : "I already have an account"}
+            {option === "signup" ? "Create new account" : "Sign in"}
           </button>
         ))}
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4 text-left">
-        {mode === "signup" && (
+      {hint && <p className="text-xs text-text-200">{hint}</p>}
+
+      <form onSubmit={onSubmit} className="space-y-4">
+        {guestMode === "signup" && (
           <div className="space-y-1">
             <label htmlFor="appsumo-name" className="text-sm text-text-200">
               Full name
@@ -176,12 +356,12 @@ function AppsumoRedeemInner() {
             onChange={(e) => setPassword(e.target.value)}
             required
             autoComplete={
-              mode === "signup" ? "new-password" : "current-password"
+              guestMode === "signup" ? "new-password" : "current-password"
             }
           />
         </div>
 
-        {mode === "signup" && (
+        {guestMode === "signup" && (
           <LegalAcceptanceCheckbox
             checked={acceptedLegal}
             onCheckedChange={setAcceptedLegal}
@@ -195,12 +375,16 @@ function AppsumoRedeemInner() {
         <Button
           type="submit"
           className="w-full"
-          disabled={isSubmitting || (mode === "signup" && !acceptedLegal)}
+          disabled={isSubmitting || (guestMode === "signup" && !acceptedLegal)}
         >
-          {isSubmitting ? "Activating…" : "Activate lifetime access"}
+          {isSubmitting
+            ? "Activating…"
+            : guestMode === "signup"
+              ? "Create account & activate"
+              : "Sign in & activate"}
         </Button>
       </form>
-    </Shell>
+    </div>
   );
 }
 

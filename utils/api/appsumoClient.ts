@@ -7,7 +7,7 @@ import type { UserProfile } from "./authClient";
 
 export interface RedeemAppsumoLicensePayload {
   redeemToken: string;
-  /** `signup` creates a new account, `login` attaches the license to an existing one. */
+  /** `signup` creates a new account, `login` attaches via email/password. */
   mode: "signup" | "login";
   email: string;
   password: string;
@@ -25,8 +25,34 @@ export interface RedeemAppsumoLicenseResult {
   redirectTo: string;
 }
 
+function parseRedeemResponse(response: {
+  data: Record<string, any>;
+}): RedeemAppsumoLicenseResult {
+  const data = response.data.payload ?? response.data;
+  return {
+    accessToken: data.accessToken || "",
+    expiresIn: data.expiresIn || 900,
+    user: data.user ?? null,
+    tierName: data.tierName,
+    isNewUser: Boolean(data.isNewUser),
+    redirectTo: data.redirectTo || "/email/dashboard",
+  };
+}
+
+function redeemError(error: unknown): never {
+  if (axios.isAxiosError(error) && error.response) {
+    throw new Error(
+      error.response.data?.payload?.message ||
+        error.response.data?.message ||
+        error.response.data?.error ||
+        "We could not redeem your AppSumo license."
+    );
+  }
+  throw error;
+}
+
 /**
- * Redeem an AppSumo license after the OAuth redirect.
+ * Redeem an AppSumo license after the OAuth redirect (signup or login).
  * The `redeemToken` comes from the `?token=` query param set by the API callback.
  */
 export const redeemAppsumoLicense = async (
@@ -34,24 +60,24 @@ export const redeemAppsumoLicense = async (
 ): Promise<RedeemAppsumoLicenseResult> => {
   try {
     const response = await apiClient.post("/appsumo/redeem", payload);
-    const data = response.data.payload ?? response.data;
-    return {
-      accessToken: data.accessToken || "",
-      expiresIn: data.expiresIn || 900,
-      user: data.user ?? null,
-      tierName: data.tierName,
-      isNewUser: Boolean(data.isNewUser),
-      redirectTo: data.redirectTo || "/email/dashboard",
-    };
+    return parseRedeemResponse(response);
   } catch (error: unknown) {
-    if (axios.isAxiosError(error) && error.response) {
-      throw new Error(
-        error.response.data?.payload?.message ||
-          error.response.data?.message ||
-          error.response.data?.error ||
-          "We could not redeem your AppSumo license."
-      );
-    }
-    throw error;
+    return redeemError(error);
+  }
+};
+
+/**
+ * Attach the AppSumo license to the currently signed-in account.
+ */
+export const redeemAppsumoLicenseOnSession = async (
+  redeemToken: string
+): Promise<RedeemAppsumoLicenseResult> => {
+  try {
+    const response = await apiClient.post("/appsumo/redeem/session", {
+      redeemToken,
+    });
+    return parseRedeemResponse(response);
+  } catch (error: unknown) {
+    return redeemError(error);
   }
 };

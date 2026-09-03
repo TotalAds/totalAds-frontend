@@ -9,6 +9,7 @@ const AUTH_FREE_PATH_PREFIXES = [
   "/reset-password",
   "/verify-email",
   "/auth/sso/callback",
+  "/appsumo",
   "/email/unsubscribe",
   "/unsubscribe",
   "/email/workspaces/invite",
