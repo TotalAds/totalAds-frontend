@@ -69,7 +69,7 @@ interface AuthContextType {
     acceptedLegal?: boolean,
     workspaceInviteToken?: string
   ) => Promise<UserProfile>;
-  logoutUser: () => void;
+  logoutUser: (options?: { redirect?: boolean }) => Promise<void>;
   clearError: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -238,8 +238,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  const logoutUser = async () => {
-    await logout();
+  const logoutUser = async (options?: { redirect?: boolean }) => {
+    await logout(options);
     dispatch({ type: "LOGOUT" });
     trackEvent("logout");
     resetIdentity();

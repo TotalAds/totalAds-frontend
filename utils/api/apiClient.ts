@@ -147,13 +147,14 @@ apiClient.interceptors.response.use(
         url.includes("/auth/login") ||
         url.includes("/auth/signup") ||
         url.includes("/auth/reset-password") ||
-        url.includes("/auth/email-verification");
+        url.includes("/auth/email-verification") ||
+        url.includes("/appsumo/redeem");
 
       if (isAuthEndpoint) {
         return Promise.reject(error);
       }
 
-      // On public pages (e.g. unsubscribe), never kick off login redirects from
+      // On public pages (e.g. unsubscribe, AppSumo redeem), never kick off login redirects from
       // background auth checks like AuthProvider → GET /users/me.
       if (isCurrentPathAuthFree()) {
         return Promise.reject(error);

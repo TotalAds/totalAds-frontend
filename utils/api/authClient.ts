@@ -200,16 +200,18 @@ export const getCurrentUser = async (): Promise<UserProfile> => {
 
 /**
  * Logout the current user
+ * @param options.redirect When false, clears tokens without navigating (e.g. AppSumo redeem account switch).
  */
-export const logout = async (): Promise<void> => {
+export const logout = async (options?: {
+  redirect?: boolean;
+}): Promise<void> => {
   try {
     await apiClient.delete("/auth/logout");
   } catch (error) {
     console.error("Logout error:", error);
   } finally {
-    // Always clear tokens and redirect to login page
     tokenStorage.removeTokens();
-    if (typeof window !== "undefined") {
+    if (options?.redirect !== false && typeof window !== "undefined") {
       window.location.href = "/login";
     }
   }

@@ -60,11 +60,14 @@ function AppsumoRedeemInner() {
     expiresIn: number;
     redirectTo: string;
   }) => {
-    if (result.accessToken) {
-      tokenStorage.setTokens(result.accessToken, result.expiresIn, true);
+    if (!result.accessToken) {
+      throw new Error(
+        "Activation succeeded but no session was returned. Please try signing in."
+      );
     }
+    tokenStorage.setTokens(result.accessToken, result.expiresIn, true);
     await refreshUser();
-    router.replace(result.redirectTo);
+    router.replace(result.redirectTo || "/email/dashboard");
   };
 
   const handleSessionRedeem = async () => {
@@ -91,9 +94,11 @@ function AppsumoRedeemInner() {
     setError(null);
     setIsSubmitting(true);
     try {
-      // Switching accounts: drop the current session first so the new tokens win.
-      if (isLoggedIn && loggedInMode === "other") {
-        await logoutUser();
+      // Soft-clear the current session so the new account tokens win.
+      // Never call logout({ redirect: true }) here — that navigates to /login
+      // and drops the redeem token from the URL.
+      if (isLoggedIn) {
+        await logoutUser({ redirect: false });
       }
 
       const result = await redeemAppsumoLicense({

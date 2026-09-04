@@ -28,14 +28,26 @@ export interface RedeemAppsumoLicenseResult {
 function parseRedeemResponse(response: {
   data: Record<string, any>;
 }): RedeemAppsumoLicenseResult {
-  const data = response.data.payload ?? response.data;
+  // totalads-api wraps as { status, message, payload: { ... } }
+  const data = response.data?.payload ?? response.data?.data ?? response.data;
+  const accessToken = data?.accessToken || data?.payload?.accessToken || "";
+  const expiresIn =
+    data?.expiresIn || data?.payload?.expiresIn || data?.expires_in || 900;
+
+  if (!accessToken) {
+    throw new Error(
+      "Activation succeeded but no access token was returned. Please try again."
+    );
+  }
+
   return {
-    accessToken: data.accessToken || "",
-    expiresIn: data.expiresIn || 900,
-    user: data.user ?? null,
-    tierName: data.tierName,
-    isNewUser: Boolean(data.isNewUser),
-    redirectTo: data.redirectTo || "/email/dashboard",
+    accessToken,
+    expiresIn: Number(expiresIn) || 900,
+    user: data?.user ?? data?.payload?.user ?? null,
+    tierName: data?.tierName || data?.payload?.tierName || "",
+    isNewUser: Boolean(data?.isNewUser ?? data?.payload?.isNewUser),
+    redirectTo:
+      data?.redirectTo || data?.payload?.redirectTo || "/email/dashboard",
   };
 }
 
