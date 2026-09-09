@@ -7,13 +7,14 @@ import toast from "react-hot-toast";
 
 import { CampaignDetailPage } from "@/components/campaigns/CampaignDetailPage";
 import emailClient, {
-  AnalyticsReportType,
-  EnhancedCampaignAnalytics,
-  getEmailServiceErrorMessage,
-  getCampaignLeadSequence,
-  getSubscriptionInfo,
-  getEnhancedCampaignAnalytics,
-  markLeadRepliedInCampaign,
+    AnalyticsReportType,
+    EnhancedCampaignAnalytics,
+    getEmailServiceErrorMessage,
+    getCampaignLeadSequence,
+    getSubscriptionInfo,
+    getEnhancedCampaignAnalytics,
+    markLeadRepliedInCampaign,
+    recordLifecycleEvent,
 } from "@/utils/api/emailClient";
 import { exportLeadsnipperCampaignReportPDF } from "@/utils/pdfExport";
 
@@ -295,6 +296,10 @@ export default function CampaignDetailsPage() {
         },
         `${analytics.campaign.name.replace(/\s+/g, "-").toLowerCase()}-report`
       );
+      void recordLifecycleEvent("pdf_exported", {
+        campaignId,
+        campaignName: analytics.campaign.name,
+      }).catch(() => undefined);
       toast.success("Styled PDF report downloaded");
     } catch (error: unknown) {
       toast.error(getEmailServiceErrorMessage(error, "Failed to download PDF report"));

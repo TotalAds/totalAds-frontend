@@ -608,9 +608,43 @@ export function LeadsTab({
       await fetchCampaignLeads();
       onLeadsAdded?.();
       setLeadhubSyncPhase("complete");
-      toast.success(
-        `LeadHub sync: ${stats.ready + stats.queued} ready · ${stats.skipped} skipped`
-      );
+      const imported = stats.ready + stats.queued;
+      const skipBits = [
+        (stats.skippedVerification ?? 0) > 0
+          ? `${stats.skippedVerification} verification`
+          : null,
+        (stats.skippedNoEmail ?? 0) > 0
+          ? `${stats.skippedNoEmail} no email`
+          : null,
+        (stats.skippedEnrichedOnly ?? 0) > 0
+          ? `${stats.skippedEnrichedOnly} enrichment filter`
+          : null,
+        (stats.failed ?? 0) > 0 ? `${stats.failed} failed` : null,
+      ].filter(Boolean);
+      if (imported > 0) {
+        toast.success(
+          `LeadHub sync: ${imported} ready${
+            stats.skipped > 0 ? ` · ${stats.skipped} skipped` : ""
+          }`
+        );
+      } else if ((stats.pendingEnrichment ?? 0) > 0) {
+        toast.success(
+          `LeadHub sync: ${stats.pendingEnrichment} waiting on enrichment`
+        );
+      } else if (stats.skipped > 0 || (stats.failed ?? 0) > 0) {
+        toast.error(
+          `LeadHub sync imported 0 leads (${stats.skipped} skipped${
+            skipBits.length ? `: ${skipBits.join(", ")}` : ""
+          })`
+        );
+      } else if ((stats.processed ?? 0) > 0) {
+        toast.error(
+          `LeadHub sync processed ${stats.processed} leads but imported 0`
+        );
+      } else {
+        toast.success("LeadHub sync: no matching leads to import");
+      }
+      setLeadhubModalOpen(false);
     } catch (err: unknown) {
       setLeadhubSyncPhase("error");
       toast.error(getEmailServiceErrorMessage(err, "LeadHub sync failed"));
@@ -903,6 +937,10 @@ export function LeadsTab({
                       {enrichmentPreview.unenrichedCount.toLocaleString()}
                     </span>{" "}
                     not enriched. Import both, or only one group?
+                  </p>
+                  <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                    Previous LeadHub leads for this campaign will be removed
+                    completely before this import.
                   </p>
                   <div className="mt-5 flex flex-col gap-2">
                     <Button

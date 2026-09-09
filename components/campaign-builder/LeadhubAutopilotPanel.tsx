@@ -2,24 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
-import {
-  Zap,
-  ChevronDown,
-  ChevronUp,
-  Copy,
-  Check,
-  Loader2,
-  X,
-} from "lucide-react";
+import { Zap, Loader2, X, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { BodyPortal } from "@/components/ui/BodyPortal";
 import {
   getLeadhubCategories,
   getLeadhubLists,
-  getLeadhubPersonalizationTokens,
   LeadhubCategory,
+  LeadhubLeadSource,
   LeadhubList,
+  LeadhubPipelineStage,
   LeadhubSyncConfig,
 } from "@/utils/api/leadhubClient";
 import { formatContinuousSyncInterval } from "@/lib/continuousSyncInterval";
@@ -61,143 +54,113 @@ interface LeadhubAutopilotPanelProps {
 
 const PRIORITIES: Array<"hot" | "warm" | "cold"> = ["hot", "warm", "cold"];
 
-const CONTACT_TOKENS = new Set([
-  "first_name",
-  "last_name",
-  "title",
-  "email",
-  "name",
-  "phone",
-  "website",
-  "role",
-  "linkedin_url",
-  "location",
-]);
-const COMPANY_TOKENS = new Set([
-  "company",
-  "company_domain",
-  "company_website",
-  "industry",
-  "company_size",
-  "company_summary",
-  "growth_stage",
-]);
+const PIPELINE_STAGES: Array<{ value: LeadhubPipelineStage; label: string }> = [
+  { value: "new", label: "New" },
+  { value: "contacted", label: "Contacted" },
+  { value: "qualified", label: "Qualified" },
+  { value: "negotiation", label: "Negotiation" },
+  { value: "won", label: "Won" },
+  { value: "lost", label: "Lost" },
+];
 
-function groupTokens(tokens: string[]) {
-  const contact: string[] = [];
-  const company: string[] = [];
-  const outreach: string[] = [];
-  for (const t of tokens) {
-    if (CONTACT_TOKENS.has(t)) contact.push(t);
-    else if (COMPANY_TOKENS.has(t)) company.push(t);
-    else outreach.push(t);
-  }
-  return { contact, company, outreach };
-}
+const LEAD_SOURCES: Array<{ value: LeadhubLeadSource; label: string }> = [
+  { value: "apollo", label: "Apollo" },
+  { value: "apify", label: "Apify" },
+  { value: "google_maps", label: "Google Maps" },
+  { value: "csv", label: "CSV" },
+  { value: "url", label: "URL" },
+  { value: "manual", label: "Manual" },
+  { value: "extension", label: "Extension" },
+];
+
+const selectClassName =
+  "w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-slate-50 disabled:text-slate-400";
+
+const inputClassName =
+  "w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30";
 
 function SyncProgressBar({
   syncing,
   enriching,
   syncPhase,
   syncStats,
+  isContinuous = false,
 }: {
   syncing?: boolean;
   enriching?: boolean;
   syncPhase?: LeadhubAutopilotPanelProps["syncPhase"];
   syncStats?: LeadhubAutopilotPanelProps["syncStats"];
+  isContinuous?: boolean;
 }) {
-  const phases = [
-    { id: "fetching", label: "Fetching" },
-    { id: "ready", label: "Ready" },
-    { id: "queued", label: "Queued" },
-  ] as const;
-
-  const activePhase =
-    syncPhase === "fetching"
-      ? "fetching"
-      : syncPhase === "complete" && syncStats
-        ? syncStats.queued > 0
-          ? "queued"
-          : "ready"
-        : null;
+  const inFlight = Boolean(syncing || enriching);
+  const isComplete = syncPhase === "complete" && Boolean(syncStats);
+  const isError = syncPhase === "error";
 
   const total =
     (syncStats?.ready ?? 0) +
     (syncStats?.queued ?? 0) +
-    (syncStats?.skipped ?? 0);
+    (syncStats?.skipped ?? 0) +
+    (syncStats?.failed ?? 0);
 
-  if (!syncing && !enriching && syncPhase === "idle" && !syncStats) {
+  if (!inFlight && syncPhase === "idle" && !syncStats) {
     return null;
   }
 
+  const imported = (syncStats?.ready ?? 0) + (syncStats?.queued ?? 0);
+
   return (
     <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3">
-      <div className="flex flex-wrap gap-2">
-        {phases.map((phase) => {
-          const isActive = activePhase === phase.id;
-          return (
-            <span
-              key={phase.id}
-              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-                isActive
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-slate-500 ring-1 ring-slate-200"
-              }`}
-            >
-              {isActive && <Loader2 className="h-3 w-3 animate-spin" />}
-              {phase.label}
-            </span>
-          );
-        })}
+      <div className="flex flex-wrap items-center gap-2">
+        {inFlight ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-semibold text-white">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Syncing…
+          </span>
+        ) : isError ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-2.5 py-1 text-[10px] font-semibold text-white">
+            Sync failed
+          </span>
+        ) : isComplete ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-semibold text-white">
+            <Check className="h-3 w-3" />
+            Sync complete
+          </span>
+        ) : null}
       </div>
-      {syncStats && total > 0 && (
-        <p className="text-[11px] text-slate-600">
-          {syncStats.ready} ready · {syncStats.queued} queued ·{" "}
-          {syncStats.skipped} skipped
-          {(syncStats.skippedNoEmail ?? 0) > 0
-            ? ` (${syncStats.skippedNoEmail} no valid email)`
-            : ""}
-          {(syncStats.skippedVerification ?? 0) > 0
-            ? ` (${syncStats.skippedVerification} verification)`
-            : ""}
-          {(syncStats.skippedEnrichedOnly ?? 0) > 0
-            ? ` (${syncStats.skippedEnrichedOnly} filter skipped)`
-            : ""}
-          {(syncStats.failed ?? 0) > 0 ? ` · ${syncStats.failed} failed` : ""}
-        </p>
+
+      {syncStats && (total > 0 || isComplete) && (
+        <div className="space-y-1">
+          <p className="text-[11px] text-slate-600">
+            {imported} imported
+            {isContinuous ? ` · ${syncStats.queued} queued for send` : ""}
+            {" · "}
+            {syncStats.skipped} skipped
+            {(syncStats.failed ?? 0) > 0 ? ` · ${syncStats.failed} failed` : ""}
+          </p>
+          {(syncStats.skippedNoEmail ?? 0) > 0 ||
+          (syncStats.skippedVerification ?? 0) > 0 ||
+          (syncStats.skippedEnrichedOnly ?? 0) > 0 ? (
+            <p className="text-[10px] text-slate-500">
+              {(syncStats.skippedNoEmail ?? 0) > 0
+                ? `${syncStats.skippedNoEmail} no valid email · `
+                : ""}
+              {(syncStats.skippedVerification ?? 0) > 0
+                ? `${syncStats.skippedVerification} verification · `
+                : ""}
+              {(syncStats.skippedEnrichedOnly ?? 0) > 0
+                ? `${syncStats.skippedEnrichedOnly} enrichment filter`
+                : ""}
+            </p>
+          ) : null}
+          {isComplete && imported > 0 && !isContinuous && (
+            <p className="text-[10px] text-slate-500">
+              Leads are in this campaign. They queue for send when the campaign
+              is live (or after Restart Campaign if it was already running).
+            </p>
+          )}
+        </div>
       )}
     </div>
-  );
-}
-
-function TokenChip({ token }: { token: string }) {
-  const [copied, setCopied] = useState(false);
-  const label = `{{${token}}}`;
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(label);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    } catch {
-      toast.error("Could not copy");
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={copy}
-      title={`Copy ${label}`}
-      className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-mono text-slate-700 transition hover:border-blue-300 hover:bg-blue-50"
-    >
-      {label}
-      {copied ? (
-        <Check className="h-2.5 w-2.5 text-emerald-600" />
-      ) : (
-        <Copy className="h-2.5 w-2.5 text-slate-400" />
-      )}
-    </button>
   );
 }
 
@@ -217,12 +180,9 @@ export default function LeadhubAutopilotPanel({
 }: LeadhubAutopilotPanelProps) {
   const [lists, setLists] = useState<LeadhubList[]>([]);
   const [categories, setCategories] = useState<LeadhubCategory[]>([]);
-  const [tokens, setTokens] = useState<string[]>([]);
   const [loadingMeta, setLoadingMeta] = useState(false);
-  const [tokensOpen, setTokensOpen] = useState(false);
 
   const enabled = Boolean(value?.enabled);
-  const grouped = useMemo(() => groupTokens(tokens), [tokens]);
   const selectedList = useMemo(
     () => lists.find((l) => l.id === value?.listIds?.[0]),
     [lists, value?.listIds],
@@ -233,21 +193,28 @@ export default function LeadhubAutopilotPanel({
     ? formatContinuousSyncInterval(continuousSyncIntervalMinutes).toLowerCase()
     : null;
 
+  const crmLists = useMemo(
+    () => lists.filter((l) => l.listType !== "signup"),
+    [lists],
+  );
+  const signupLists = useMemo(
+    () => lists.filter((l) => l.listType === "signup"),
+    [lists],
+  );
+
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     (async () => {
       try {
         setLoadingMeta(true);
-        const [l, c, t] = await Promise.all([
+        const [l, c] = await Promise.all([
           getLeadhubLists(),
           getLeadhubCategories(),
-          getLeadhubPersonalizationTokens(),
         ]);
         if (cancelled) return;
         setLists(l);
         setCategories(c);
-        setTokens(t);
       } catch (err) {
         console.error(err);
         if (!cancelled) {
@@ -271,7 +238,10 @@ export default function LeadhubAutopilotPanel({
       enrichmentGate: "import_both",
       priorities: value?.priorities ?? ["hot", "warm"],
       listIds: value?.listIds,
+      listType: value?.listType ?? "regular",
       categoryIds: value?.categoryIds,
+      pipelineStage: value?.pipelineStage,
+      leadSource: value?.leadSource,
       minIntentScore: value?.minIntentScore,
       minIcpScore: value?.minIcpScore,
       icpProfileId: value?.icpProfileId,
@@ -285,6 +255,7 @@ export default function LeadhubAutopilotPanel({
       enabled: true,
       source: "leadhub_autopilot",
       enrichmentGate: "import_both",
+      listType: "regular",
       priorities: ["hot", "warm"],
     };
 
@@ -294,6 +265,28 @@ export default function LeadhubAutopilotPanel({
       ...partial,
       enabled: true,
       source: "leadhub_autopilot",
+    });
+  };
+
+  const setDataSource = (listType: "regular" | "signup") => {
+    if (listType === "signup") {
+      patch({
+        listType: "signup",
+        listIds: [],
+        categoryIds: [],
+        pipelineStage: undefined,
+        leadSource: undefined,
+        minIntentScore: undefined,
+        minIcpScore: undefined,
+        priorities: value?.priorities ?? ["hot", "warm"],
+      });
+      return;
+    }
+    patch({
+      listType: "regular",
+      listIds: [],
+      pipelineStage: value?.pipelineStage,
+      leadSource: value?.leadSource,
     });
   };
 
@@ -332,8 +325,8 @@ export default function LeadhubAutopilotPanel({
                   Import from LeadHub
                 </h2>
                 <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                  Choose filters and sync matching LeadHub leads into this
-                  campaign.
+                  Pick a lead source, set filters, then sync matching leads into
+                  this campaign.
                   {isContinuous
                     ? ` Continuous campaigns also auto-sync ${continuousSyncLabel ?? "on schedule"}.`
                     : " Sync runs only when you click Sync now."}
@@ -350,7 +343,7 @@ export default function LeadhubAutopilotPanel({
             </button>
           </div>
 
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
             <div
               className={`rounded-lg border px-3 py-2 text-xs ${
                 isContinuous
@@ -363,6 +356,14 @@ export default function LeadhubAutopilotPanel({
                 : "Standard mode: LeadHub does not auto-sync. Use Sync now to pull matching leads."}
             </div>
 
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+              <span className="font-semibold">Re-sync replaces previous LeadHub import.</span>{" "}
+              When you sync again, previous LeadHub leads for this campaign are
+              removed completely from the campaign and from your leads (unless
+              they are used in another campaign). The new sync results replace
+              them.
+            </div>
+
             {loadingMeta && (
               <p className="flex items-center gap-2 text-xs text-slate-500">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -370,77 +371,159 @@ export default function LeadhubAutopilotPanel({
               </p>
             )}
 
+            <section className="space-y-2.5">
+              <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                Lead source
+              </h5>
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    {
+                      id: "regular" as const,
+                      label: "Lead CRM",
+                      hint: "Enriched pipeline leads",
+                    },
+                    {
+                      id: "signup" as const,
+                      label: "Signup data",
+                      hint: "Locked signup emails",
+                    },
+                  ] as const
+                ).map((opt) => {
+                  const active =
+                    opt.id === "signup" ? isSignupList : !isSignupList;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setDataSource(opt.id)}
+                      className={`rounded-xl border px-3.5 py-3 text-left transition ${
+                        active
+                          ? "border-blue-600 bg-blue-50/80 shadow-sm ring-1 ring-blue-600/20"
+                          : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}
+                    >
+                      <p
+                        className={`text-sm font-semibold ${
+                          active ? "text-blue-900" : "text-slate-900"
+                        }`}
+                      >
+                        {opt.label}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-slate-500">
+                        {opt.hint}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
             <section className="space-y-3">
               <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Lead intake
+                Filters
               </h5>
+
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-700">
                     List
                   </label>
                   <select
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                    className={selectClassName}
                     value={value?.listIds?.[0] ?? ""}
                     onChange={(e) => {
                       const listId = e.target.value;
-                      const selected = lists.find((l) => l.id === listId);
                       patch({
                         listIds: listId ? [listId] : [],
-                        listType:
-                          selected?.listType === "signup"
-                            ? "signup"
-                            : listId
-                              ? "regular"
-                              : undefined,
-                        categoryIds:
-                          selected?.listType === "signup"
-                            ? []
-                            : value?.categoryIds,
+                        listType: isSignupList ? "signup" : "regular",
                       });
                     }}
                   >
                     <option value="">Any list</option>
-                    {lists.map((l) => (
+                    {(isSignupList ? signupLists : crmLists).map((l) => (
                       <option key={l.id} value={l.id}>
                         {l.name}
-                        {l.listType === "signup" ? " (Signup)" : ""}
-                      </option>
-                    ))}
-                  </select>
-                  {/* {isSignupList && (
-                    <p className="mt-1.5 text-[11px] leading-relaxed text-amber-800">
-                      Signup list selected — import pulls from{" "}
-                      <span className="font-mono">signup_leads</span> via{" "}
-                      <span className="font-mono">/api/signups/sync</span>, using
-                      locked signup email and generated onboarding content.
-                    </p>
-                  )} */}
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-700">
-                    Category
-                  </label>
-                  <select
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:bg-slate-50 disabled:text-slate-400"
-                    value={value?.categoryIds?.[0] ?? ""}
-                    disabled={isSignupList}
-                    onChange={(e) =>
-                      patch({
-                        categoryIds: e.target.value ? [e.target.value] : [],
-                      })
-                    }
-                  >
-                    <option value="">
-                      {isSignupList ? "N/A for signup list" : "Any category"}
-                    </option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
                       </option>
                     ))}
                   </select>
                 </div>
+
+                {!isSignupList && (
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-700">
+                      Category
+                    </label>
+                    <select
+                      className={selectClassName}
+                      value={value?.categoryIds?.[0] ?? ""}
+                      onChange={(e) =>
+                        patch({
+                          categoryIds: e.target.value ? [e.target.value] : [],
+                        })
+                      }
+                    >
+                      <option value="">Any category</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {!isSignupList && (
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-700">
+                      Stage
+                    </label>
+                    <select
+                      className={selectClassName}
+                      value={value?.pipelineStage ?? ""}
+                      onChange={(e) =>
+                        patch({
+                          pipelineStage: e.target.value
+                            ? (e.target.value as LeadhubPipelineStage)
+                            : undefined,
+                        })
+                      }
+                    >
+                      <option value="">Any stage</option>
+                      {PIPELINE_STAGES.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {!isSignupList && (
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-700">
+                      Origin source
+                    </label>
+                    <select
+                      className={selectClassName}
+                      value={value?.leadSource ?? ""}
+                      onChange={(e) =>
+                        patch({
+                          leadSource: e.target.value
+                            ? (e.target.value as LeadhubLeadSource)
+                            : undefined,
+                        })
+                      }
+                    >
+                      <option value="">Any origin</option>
+                      {LEAD_SOURCES.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -468,34 +551,13 @@ export default function LeadhubAutopilotPanel({
                 </div>
                 {isSignupList && (
                   <p className="mt-1.5 text-[11px] text-slate-500">
-                    Filters signup leads by hot/warm/cold category in{" "}
-                    <span className="font-mono">signup_leads.category</span>.
+                    Filters signup leads by hot / warm / cold category.
                   </p>
                 )}
               </div>
 
               {!isSignupList && (
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-700">
-                      Min intent score
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={value?.minIntentScore ?? ""}
-                      onChange={(e) =>
-                        patch({
-                          minIntentScore: e.target.value
-                            ? Number(e.target.value)
-                            : undefined,
-                        })
-                      }
-                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                      placeholder="e.g. 40"
-                    />
-                  </div>
                   <div>
                     <label className="mb-1 block text-xs font-medium text-slate-700">
                       Min ICP score
@@ -512,89 +574,59 @@ export default function LeadhubAutopilotPanel({
                             : undefined,
                         })
                       }
-                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                      className={inputClassName}
                       placeholder="e.g. 50"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-700">
+                      Min intent confidence
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={value?.minIntentScore ?? ""}
+                      onChange={(e) =>
+                        patch({
+                          minIntentScore: e.target.value
+                            ? Number(e.target.value)
+                            : undefined,
+                        })
+                      }
+                      className={inputClassName}
+                      placeholder="e.g. 40"
                     />
                   </div>
                 </div>
               )}
             </section>
 
-            {tokens.length > 0 && (
-              <section className="rounded-xl border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setTokensOpen((o) => !o)}
-                  className="flex w-full items-center justify-between px-3.5 py-2.5 text-left"
-                >
-                  <span className="text-xs font-semibold text-slate-800">
-                    Personalization tokens
-                    <span className="ml-2 font-normal text-slate-400">
-                      ({tokens.length})
-                    </span>
-                  </span>
-                  {tokensOpen ? (
-                    <ChevronUp className="h-4 w-4 text-slate-400" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 text-slate-400" />
-                  )}
-                </button>
-                {tokensOpen && (
-                  <div className="space-y-3 border-t border-slate-100 px-3.5 py-3">
-                    <p className="text-[11px] text-slate-500">
-                      Click a token to copy. Insert them in Sequence →
-                      Personalize.
-                    </p>
-                    {(
-                      [
-                        ["Contact", grouped.contact],
-                        ["Company", grouped.company],
-                        ["Outreach", grouped.outreach],
-                      ] as const
-                    ).map(([label, group]) =>
-                      group.length > 0 ? (
-                        <div key={label}>
-                          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            {label}
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {group.map((t) => (
-                              <TokenChip key={t} token={t} />
-                            ))}
-                          </div>
-                        </div>
-                      ) : null,
-                    )}
-                  </div>
-                )}
-              </section>
-            )}
-
             <section className="rounded-xl border border-slate-200 bg-white px-3.5 py-3">
               <p className="text-[11px] font-semibold text-slate-800">
                 Email mapping
               </p>
               <p className="mt-1.5 text-[11px] leading-relaxed text-slate-600">
-                The{" "}
-                <span className="font-mono text-slate-800">{"{{email}}"}</span>{" "}
-                token and send address come from LeadHub based on lead type:
+                Send address for{" "}
+                <span className="font-mono text-slate-800">{"{{email}}"}</span>:
               </p>
-              <ul className="mt-2 space-y-1.5 text-[11px] text-slate-600">
-                <li className="flex flex-wrap items-center gap-1.5">
-                  <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">
-                    contact.email
-                  </span>
-                  <span>Normal leads — enriched primary email</span>
-                </li>
-                <li className="flex flex-wrap items-center gap-1.5">
-                  <span className="rounded bg-amber-50 px-1.5 py-0.5 font-mono text-[10px] text-amber-800 ring-1 ring-amber-200">
-                    signup.email
-                  </span>
-                  <span>
-                    Signup leads — locked address from signup (never replaced)
-                  </span>
-                </li>
-              </ul>
+              <p className="mt-2 text-[11px] text-slate-600">
+                {isSignupList ? (
+                  <>
+                    <span className="rounded bg-amber-50 px-1.5 py-0.5 font-mono text-[10px] text-amber-800 ring-1 ring-amber-200">
+                      signup.email
+                    </span>{" "}
+                    — locked signup address
+                  </>
+                ) : (
+                  <>
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">
+                      contact.email
+                    </span>{" "}
+                    — enriched primary email
+                  </>
+                )}
+              </p>
             </section>
 
             <SyncProgressBar
@@ -602,6 +634,7 @@ export default function LeadhubAutopilotPanel({
               enriching={enriching}
               syncPhase={syncPhase}
               syncStats={syncStats}
+              isContinuous={isContinuous}
             />
 
             {syncLinks && syncLinks.length > 0 && (

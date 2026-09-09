@@ -2754,4 +2754,12 @@ export const disableCampaignWebhook = async (
   );
 };
 
+/** Record a lifecycle engine signal (e.g. pdf_exported) for the daily notification worker. */
+export const recordLifecycleEvent = async (
+  eventKey: string,
+  metadata?: Record<string, unknown>,
+): Promise<void> => {
+  await emailClient.post("/api/lifecycle/events", { eventKey, metadata });
+};
+
 export default emailClient;

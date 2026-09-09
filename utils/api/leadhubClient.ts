@@ -12,6 +12,23 @@ export interface LeadhubConnectionStatus {
   syncCursor?: string | null;
 }
 
+export type LeadhubPipelineStage =
+  | "new"
+  | "contacted"
+  | "qualified"
+  | "negotiation"
+  | "won"
+  | "lost";
+
+export type LeadhubLeadSource =
+  | "apollo"
+  | "apify"
+  | "google_maps"
+  | "csv"
+  | "url"
+  | "manual"
+  | "extension";
+
 export interface LeadhubSyncConfig {
   enabled: boolean;
   source: "leadhub_autopilot";
@@ -20,6 +37,10 @@ export interface LeadhubSyncConfig {
   listType?: "regular" | "signup";
   categoryIds?: string[];
   priorities?: Array<"hot" | "warm" | "cold" | "unknown">;
+  /** CRM pipeline stage → LeadHub `pipelineStage`. */
+  pipelineStage?: LeadhubPipelineStage;
+  /** CRM lead origin → LeadHub `source` (apollo, csv, …). */
+  leadSource?: LeadhubLeadSource;
   minIntentScore?: number;
   minIcpScore?: number;
   icpProfileId?: string;
