@@ -88,8 +88,13 @@ export function wrapEmailPreviewDocument(
     : html;
   return `<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><style>
     html,body{margin:0;background:#f8fafc;}
-    body{overflow-x:hidden;overflow-y:auto;padding:12px;}
+    body{
+      overflow-x:hidden;overflow-y:auto;padding:16px;
+      font-family:Arial,Helvetica,sans-serif;
+      font-size:15px;line-height:1.55;color:#111827;
+    }
     *{box-sizing:border-box;}
+    p{margin:0 0 14px 0;}
     table{max-width:100%!important;}
     img{max-width:100%!important;height:auto!important;}
   </style></head><body>${body}</body></html>`;
@@ -233,20 +238,38 @@ export function extractUsedMergeVariables(...texts: string[]): string[] {
 /**
  * Replace `{{field}}` / `{{ field | fallback }}` and `{a|b|c}` spintax in a string
  * (HTML or subject) using sample lead data. Spintax option is chosen by `spintaxPickIndex`.
+ * When `htmlContext` is true (or the text already contains HTML tags), plain merge
+ * values escape + convert newlines to <br/> so inbox preview keeps spacing.
  */
 export function resolveMergeTagsAndSpintax(
   text: string,
   lead: Record<string, string>,
-  spintaxPickIndex: number
+  spintaxPickIndex: number,
+  options?: { htmlContext?: boolean }
 ): string {
+  const htmlContext =
+    options?.htmlContext === true || /<[a-z][\s\S]*>/i.test(text || "");
+
+  const formatValue = (value: string): string => {
+    if (!htmlContext) return value;
+    if (/<[a-z][\s\S]*>/i.test(value)) return value;
+    return value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .replace(/\n/g, "<br/>");
+  };
+
   let result = text.replace(/\{\{\s*([^}]+)\s*\}\}/g, (_m, inner: string) => {
     const parts = String(inner).split("|");
     const fieldPart = parts[0].trim();
     const fallbackPart =
       parts.length > 1 ? parts.slice(1).join("|").trim() : "";
     const val = lookupMergeValue(lead, fieldPart);
-    if (val !== undefined && val !== "") return val;
-    return fallbackPart;
+    if (val !== undefined && val !== "") return formatValue(val);
+    return fallbackPart ? formatValue(fallbackPart) : "";
   });
   result = result.replace(/\{([^{}]*)\}/g, (full, inner: string) => {
     if (!String(inner).includes("|")) return full;

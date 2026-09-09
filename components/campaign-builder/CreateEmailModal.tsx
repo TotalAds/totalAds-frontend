@@ -438,7 +438,12 @@ export default function CreateEmailModal({
         inboxPreviewLead,
         inboxPreviewLeadIndex
       ),
-      html: resolveMergeTagsAndSpintax(draftHtml || "", inboxPreviewLead, inboxPreviewLeadIndex),
+      html: resolveMergeTagsAndSpintax(
+        draftHtml || "",
+        inboxPreviewLead,
+        inboxPreviewLeadIndex,
+        { htmlContext: true }
+      ),
     }),
     [draftSubject, draftPreviewText, draftHtml, inboxPreviewLead, inboxPreviewLeadIndex]
   );
