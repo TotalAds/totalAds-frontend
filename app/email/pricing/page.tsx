@@ -1,15 +1,11 @@
 "use client";
 
 import {
-  BarChart3,
   ChevronDown,
   ChevronUp,
   Clock,
-  Globe,
   Headphones,
-  Mail,
   Shield,
-  Users,
   Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -17,6 +13,8 @@ import React, { useState } from "react";
 import toast from "react-hot-toast";
 
 import RazorpayPayment from "@/components/payment/RazorpayPayment";
+import { useUserRegion } from "@/hooks/useUserRegion";
+import { displayPlanPrice, type DisplayCurrency } from "@/lib/currency";
 
 interface PricingTier {
   id: string;
@@ -75,64 +73,66 @@ const features = [
   {
     name: "Monthly Emails",
     trial: "1,000",
-    starter: "5,000",
-    business: "15,000",
-    custom: "Unlimited",
+    starter: "10,000",
+    growth: "100,000",
+    scale: "500,000",
   },
   {
-    name: "Contacts",
-    trial: "500",
-    starter: "3,000",
-    business: "10,000",
-    custom: "Unlimited",
-  },
-  {
-    name: "Workspaces",
-    trial: "1",
-    starter: "1",
-    business: "3",
-    custom: "Custom",
-  },
-  {
-    name: "Team seats / workspace",
-    trial: "1",
-    starter: "3",
-    business: "10",
-    custom: "Custom",
+    name: "Sending mailboxes",
+    trial: "Limited",
+    starter: "10",
+    growth: "50",
+    scale: "Unlimited",
   },
   {
     name: "Custom Domains",
-    trial: false,
+    trial: "Limited",
     starter: "3",
-    business: "Unlimited",
-    custom: "Unlimited",
+    growth: "Unlimited",
+    scale: "Unlimited",
+  },
+  {
+    name: "AI Email Writer",
+    trial: true,
+    starter: true,
+    growth: true,
+    scale: true,
   },
   {
     name: "Analytics & Reports",
     trial: true,
     starter: true,
-    business: true,
-    custom: true,
+    growth: true,
+    scale: true,
   },
   {
     name: "Priority Support",
     trial: false,
     starter: false,
-    business: true,
-    custom: true,
+    growth: true,
+    scale: true,
   },
   {
-    name: "Dedicated Account Manager",
+    name: "REST API access",
     trial: false,
     starter: false,
-    business: false,
-    custom: true,
+    growth: false,
+    scale: true,
+  },
+  {
+    name: "Dedicated CSM",
+    trial: false,
+    starter: false,
+    growth: false,
+    scale: true,
   },
 ];
 
 export default function PricingPage() {
   const router = useRouter();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const { isIndia } = useUserRegion();
+  const displayCurrency: DisplayCurrency = isIndia ? "INR" : "USD";
 
   const handlePaymentSuccess = (tier: PricingTier) => {
     toast.success(`Successfully subscribed to ${tier.displayName}!`);
@@ -295,29 +295,29 @@ export default function PricingPage() {
                       <span className="text-xs text-text-200 mt-1">Free</span>
                     </div>
                   </th>
-                  <th className="text-center py-5 px-4 font-medium bg-primary-100/5 border-x border-primary-100/20 min-w-[100px]">
+                  <th className="text-center py-5 px-4 font-medium bg-primary-100/5 border-x border-primary-100/20 min-w-[110px]">
                     <div className="flex flex-col items-center">
                       <span className="text-primary-100 font-semibold">
                         Starter
                       </span>
                       <span className="text-xs text-primary-100/70 mt-1">
-                        ₹499/mo
+                        {displayPlanPrice("starter", displayCurrency)}/mo
                       </span>
                     </div>
                   </th>
-                  <th className="text-center py-5 px-4 text-text-200 font-medium bg-bg-300/50 min-w-[100px]">
+                  <th className="text-center py-5 px-4 text-text-200 font-medium bg-bg-300/50 min-w-[110px]">
                     <div className="flex flex-col items-center">
-                      <span className="text-text-100">Business</span>
+                      <span className="text-text-100">Growth</span>
                       <span className="text-xs text-text-200 mt-1">
-                        ₹999/mo
+                        {displayPlanPrice("growth", displayCurrency)}/mo
                       </span>
                     </div>
                   </th>
-                  <th className="text-center py-5 px-4 text-text-200 font-medium bg-bg-300/50 min-w-[100px]">
+                  <th className="text-center py-5 px-4 text-text-200 font-medium bg-bg-300/50 min-w-[110px]">
                     <div className="flex flex-col items-center">
-                      <span className="text-text-100">Custom</span>
+                      <span className="text-text-100">Scale</span>
                       <span className="text-xs text-text-200 mt-1">
-                        Contact Us
+                        {displayPlanPrice("scale", displayCurrency)}/mo
                       </span>
                     </div>
                   </th>
@@ -341,10 +341,10 @@ export default function PricingPage() {
                       {renderFeatureValue(feature.starter)}
                     </td>
                     <td className="text-center py-4 px-4">
-                      {renderFeatureValue(feature.business)}
+                      {renderFeatureValue(feature.growth)}
                     </td>
                     <td className="text-center py-4 px-4">
-                      {renderFeatureValue(feature.custom)}
+                      {renderFeatureValue(feature.scale)}
                     </td>
                   </tr>
                 ))}
@@ -419,8 +419,8 @@ export default function PricingPage() {
               Ready to grow your email marketing?
             </h3>
             <p className="text-text-200 mb-6 max-w-xl mx-auto">
-              Start your free trial today and see why thousands of businesses
-              trust LeadSnipper for their cold email outreach.
+              Start your free trial today and see if LeadSnipper fits your cold
+              email outreach.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button

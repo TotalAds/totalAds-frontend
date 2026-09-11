@@ -228,7 +228,7 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
                     </li>
                     <li className="flex items-center gap-2 text-sm text-text-200">
                       <IconCheck className="w-4 h-4 text-red-500 flex-shrink-0" />
-                      Warmup & reputational analytics
+                      Domain health & reputational analytics
                     </li>
                   </ul>
                 </div>

@@ -116,14 +116,14 @@ export const pageConfigs: Record<string, PageConfig> = {
   signup: {
     title: "Start Free Trial — LeadSnipper Cold Email Platform",
     description:
-      "Create your LeadSnipper account and start sending deliverability-first cold email with verification, warmup, and campaign automation. 14-day free trial.",
+      "Create your LeadSnipper account and start sending deliverability-first cold email with verification, domain health, and campaign automation. 14-day free trial.",
     keywords:
       "LeadSnipper signup, cold email free trial, email outreach platform, cold email tool signup",
     canonical: `${seoConfig.baseUrl}/signup`,
     openGraph: {
       title: "Start Free Trial — LeadSnipper",
       description:
-        "Create your account and start sending cold email with verification, warmup, and campaign automation.",
+        "Create your account and start sending cold email with verification, domain health, and campaign automation.",
       url: `${seoConfig.baseUrl}/signup`,
     },
   },
@@ -272,7 +272,7 @@ export const structuredData = {
     applicationSubCategory: "Cold Email Software",
     operatingSystem: "Web Browser",
     description:
-      "Cold email platform with BYO AWS SES, built-in Reoon email verification, domain health dashboard, AI warmup, and campaign analytics.",
+      "Cold email platform with BYO AWS SES, built-in Reoon email verification, domain health dashboard, deliverability pacing, and campaign analytics.",
     url: "https://leadsnipper.com",
     downloadUrl: "https://app.leadsnipper.com/signup",
     offers: {

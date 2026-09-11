@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 
 import { useAuthContext } from "@/context/AuthContext";
+import { useUserRegion } from "@/hooks/useUserRegion";
+import { displayPlanPrice, type DisplayCurrency } from "@/lib/currency";
 import { getSubscriptionInfo } from "@/utils/api/emailClient";
 import { getSocialAccess } from "@/utils/api/socialClient";
 import {
@@ -100,6 +102,9 @@ export default function DashboardHubPage() {
   const [loading, setLoading] = useState(true);
   const [emailSub, setEmailSub] = useState<any>(null);
   const [socialAccess, setSocialAccess] = useState<any>(null);
+  const { isIndia } = useUserRegion();
+  const displayCurrency: DisplayCurrency = isIndia ? "INR" : "USD";
+  const startingPrice = `From ${displayPlanPrice("starter", displayCurrency)}/month`;
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -158,8 +163,8 @@ export default function DashboardHubPage() {
             features={[
               "Verified domains & sender management",
               "Campaign builder with analytics",
-              "Email verification & warmup",
-              "From ₹499/month",
+              "Email verification & domain health",
+              startingPrice,
             ]}
           />
 

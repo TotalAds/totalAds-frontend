@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
 
 import GetLogo from "@/components/common/getLogo";
+import { useUserRegion } from "@/hooks/useUserRegion";
+import { displayPlanPrice, type DisplayCurrency } from "@/lib/currency";
 import {
   parseProduct,
   ProductType,
@@ -86,6 +88,9 @@ function ProductCard({
 export function ProductChooser({ mode }: ProductChooserProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { isIndia } = useUserRegion();
+  const displayCurrency: DisplayCurrency = isIndia ? "INR" : "USD";
+  const startingPrice = `From ${displayPlanPrice("starter", displayCurrency)}/month`;
 
   const handleProductSelect = (product: ProductType) => {
     // Store in sessionStorage for persistence
@@ -162,8 +167,8 @@ export function ProductChooser({ mode }: ProductChooserProps) {
               features={[
                 "Verified domains & sender management",
                 "Campaign builder with analytics",
-                "Email verification & warmup",
-                "From ₹499/month",
+                "Email verification & domain health",
+                startingPrice,
               ]}
               onClick={() => handleProductSelect("leadsnipper")}
               primary
