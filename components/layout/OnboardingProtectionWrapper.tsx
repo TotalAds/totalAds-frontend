@@ -34,12 +34,11 @@ export const OnboardingProtectionWrapper: React.FC<{
       setIsChecking(true);
 
       try {
-        const status = await protectRoute(pathname);
-
-        // If protection is needed, redirect
-        if (status && status.shouldRedirect) {
-          router.push(status.redirectPath);
-        }
+        // const status = await protectRoute(pathname);
+        // // If protection is needed, redirect
+        // if (status && status.shouldRedirect) {
+        //   router.push(status.redirectPath);
+        // }
       } catch (error) {
         console.error("Error in onboarding protection:", error);
         // On error, redirect to login for safety (never on auth-free pages)

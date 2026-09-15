@@ -5,7 +5,10 @@ import { useEffect, useState } from "react";
 
 import { useAuthContext } from "@/context/AuthContext";
 import { isAuthFreePath } from "@/utils/auth/publicPaths";
-import { protectRoute, OnboardingStatus } from "@/utils/onboarding/onboardingCheck";
+import {
+  protectRoute,
+  OnboardingStatus,
+} from "@/utils/onboarding/onboardingCheck";
 
 interface UseOnboardingProtectionReturn {
   isLoading: boolean;
@@ -23,7 +26,8 @@ export const useOnboardingProtection = (): UseOnboardingProtectionReturn => {
   const pathname = usePathname();
   const { state } = useAuthContext();
   const [isLoading, setIsLoading] = useState(true);
-  const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
+  const [onboardingStatus, setOnboardingStatus] =
+    useState<OnboardingStatus | null>(null);
 
   useEffect(() => {
     const checkAndProtect = async () => {
@@ -39,15 +43,14 @@ export const useOnboardingProtection = (): UseOnboardingProtectionReturn => {
       }
 
       setIsLoading(true);
-      
+
       try {
-        const status = await protectRoute(pathname);
-        setOnboardingStatus(status);
-        
-        // If protection is needed, redirect
-        if (status && status.shouldRedirect) {
-          router.push(status.redirectPath);
-        }
+        // const status = await protectRoute(pathname);
+        // setOnboardingStatus(status);
+        // // If protection is needed, redirect
+        // if (status && status.shouldRedirect) {
+        //   router.push(status.redirectPath);
+        // }
       } catch (error) {
         console.error("Error in onboarding protection:", error);
         if (!isAuthFreePath(pathname)) {
@@ -65,7 +68,7 @@ export const useOnboardingProtection = (): UseOnboardingProtectionReturn => {
     isLoading,
     shouldRedirect: onboardingStatus?.shouldRedirect || false,
     redirectPath: onboardingStatus?.redirectPath || "",
-    onboardingStatus
+    onboardingStatus,
   };
 };
 
