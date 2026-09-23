@@ -5,6 +5,10 @@
 
 import axios, { AxiosError } from "axios";
 
+import {
+  forceLogoutAccountInactive,
+  isAccountInactiveError,
+} from "../auth/accountInactive";
 import { isCurrentPathAuthFree } from "../auth/publicPaths";
 import { refreshAccessToken } from "../auth/refreshAccessToken";
 import { tokenStorage } from "../auth/tokenStorage";
@@ -260,7 +264,17 @@ emailClient.interceptors.response.use(
       }
     }
 
-    // Handle 403 errors - forbidden
+    // Handle 403 errors - forbidden / account suspended
+    if (isAccountInactiveError(error)) {
+      forceLogoutAccountInactive();
+      return Promise.reject(
+        new Error(
+          (error.response?.data as { message?: string } | undefined)?.message ||
+            "This account has been suspended. Contact support if you believe this is a mistake."
+        )
+      );
+    }
+
     if (error.response?.status === 403) {
       console.log("Email service access forbidden");
       return Promise.reject(error);

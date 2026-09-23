@@ -5,6 +5,10 @@
 
 import axios, { AxiosError } from "axios";
 
+import {
+  forceLogoutAccountInactive,
+  isAccountInactiveError,
+} from "../auth/accountInactive";
 import { refreshAccessToken } from "../auth/refreshAccessToken";
 import { tokenStorage } from "../auth/tokenStorage";
 
@@ -63,6 +67,16 @@ whatsappClient.interceptors.response.use(
   },
   async (error: AxiosError) => {
     const originalRequest = error.config as any;
+
+    if (isAccountInactiveError(error)) {
+      forceLogoutAccountInactive();
+      return Promise.reject(
+        new Error(
+          (error.response?.data as { message?: string } | undefined)?.message ||
+            "This account has been suspended. Contact support if you believe this is a mistake."
+        )
+      );
+    }
 
     if (error.response?.status !== 401 || originalRequest._retry) {
       return Promise.reject(error);

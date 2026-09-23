@@ -38,6 +38,12 @@ export function LoginComponent() {
     if (err) {
       setSsoError(err);
     }
+    const reason = searchParams.get("reason");
+    if (reason === "suspended") {
+      setSsoError(
+        "This account has been suspended. Contact support if you believe this is a mistake."
+      );
+    }
   }, [searchParams]);
 
   useEffect(() => {

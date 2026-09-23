@@ -2,6 +2,7 @@
 
 import axios from "axios";
 
+import { isAccountInactiveError, forceLogoutAccountInactive } from "../auth/accountInactive";
 import { isCurrentPathAuthFree } from "../auth/publicPaths";
 import { refreshAccessToken } from "../auth/refreshAccessToken";
 import { tokenStorage } from "../auth/tokenStorage";
@@ -107,6 +108,17 @@ apiClient.interceptors.response.use(
         `❌ ${error.config?.method?.toUpperCase()} ${error.config?.url} - ${
           error.response?.status || "Network Error"
         } (${duration}ms)`
+      );
+    }
+
+    // Blocked/suspended accounts: clear session and force logout
+    if (isAccountInactiveError(error)) {
+      forceLogoutAccountInactive();
+      return Promise.reject(
+        new Error(
+          error.response?.data?.message ||
+            "This account has been suspended. Contact support if you believe this is a mistake."
+        )
       );
     }
 
