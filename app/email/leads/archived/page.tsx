@@ -23,6 +23,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useCanEdit, useIsViewer } from "@/context/WorkspaceContext";
 import WorkspaceRoleBanner from "@/components/workspace/WorkspaceRoleBanner";
 import emailClient, {
+  deleteLeads,
   exportLeadsCsv,
   unarchiveLeads,
 } from "@/utils/api/emailClient";
@@ -195,6 +196,8 @@ export default function ArchivedLeadsPage() {
     return { leadIds: Array.from(selectedLeadIds) };
   };
 
+  const selectedDeleteCount = isAllMatchingSelected ? total : selectedLeadIds.size;
+
   const confirmSingleUnarchive = async () => {
     if (!pendingUnarchiveLeadId) return;
     setIsRestoring(true);
@@ -269,19 +272,18 @@ export default function ArchivedLeadsPage() {
   };
 
   const confirmBulkDelete = async () => {
-    const leadIds = Array.from(selectedLeadIds);
-    if (leadIds.length === 0) return;
+    if (selectedDeleteCount === 0) return;
     setIsDeleting(true);
     try {
-      const results = await Promise.allSettled(
-        leadIds.map((leadId) => emailClient.delete(`/api/leads/${leadId}`))
-      );
-      const failed = results.filter((r) => r.status === "rejected").length;
-      const deleted = leadIds.length - failed;
+      const result = await deleteLeads(buildSelectionPayload());
+      const deleted = result.count ?? 0;
       if (deleted > 0) {
-        toast.success(`Deleted ${deleted} lead${deleted !== 1 ? "s" : ""}`);
+        toast.success(
+          `Deleted ${deleted.toLocaleString()} lead${deleted !== 1 ? "s" : ""}`
+        );
+      } else {
+        toast.error("No leads were deleted");
       }
-      if (failed > 0) toast.error(`Failed to delete ${failed} lead${failed !== 1 ? "s" : ""}`);
       setShowBulkDeleteConfirm(false);
       setSelectedLeadIds(new Set());
       setIsAllMatchingSelected(false);
@@ -364,9 +366,29 @@ export default function ArchivedLeadsPage() {
         {canEdit && (selectedLeadIds.size > 0 || isAllMatchingSelected) && (
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2">
             <span className="text-sm text-emerald-900">
-              {isAllMatchingSelected
-                ? `All ${total.toLocaleString()} archived leads selected`
-                : `${selectedLeadIds.size} selected`}
+              {isAllMatchingSelected ? (
+                <>
+                  All{" "}
+                  <span className="font-semibold">{total.toLocaleString()}</span>{" "}
+                  archived leads selected across all pages
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold">{selectedLeadIds.size}</span>{" "}
+                  selected on this page
+                  {leads.length > 0 &&
+                    selectedLeadIds.size === leads.length &&
+                    total > leads.length && (
+                      <button
+                        type="button"
+                        onClick={() => setIsAllMatchingSelected(true)}
+                        className="ml-3 font-semibold text-emerald-700 hover:underline"
+                      >
+                        Select all {total.toLocaleString()} archived leads
+                      </button>
+                    )}
+                </>
+              )}
             </span>
             <div className="flex items-center gap-2">
               <button
@@ -383,7 +405,8 @@ export default function ArchivedLeadsPage() {
                 onClick={() => setShowBulkDeleteConfirm(true)}
                 disabled={isDeleting}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100"
-                title="Delete permanently"
+                title={`Delete ${selectedDeleteCount.toLocaleString()} selected lead${selectedDeleteCount !== 1 ? "s" : ""}`}
+                aria-label={`Delete ${selectedDeleteCount.toLocaleString()} selected lead${selectedDeleteCount !== 1 ? "s" : ""}`}
               >
                 <IconTrash size={16} />
               </button>
@@ -484,8 +507,8 @@ export default function ArchivedLeadsPage() {
           }}
           onConfirm={() => void confirmBulkDelete()}
           title="Delete selected archived leads?"
-          message="This permanently deletes the selected leads. This cannot be undone."
-          confirmText="Delete"
+          message={`Are you sure you want to delete ${selectedDeleteCount.toLocaleString()} lead${selectedDeleteCount !== 1 ? "s" : ""}? This permanently deletes them and cannot be undone.`}
+          confirmText={`Delete ${selectedDeleteCount.toLocaleString()}`}
           cancelText="Cancel"
           type="danger"
           isLoading={isDeleting}

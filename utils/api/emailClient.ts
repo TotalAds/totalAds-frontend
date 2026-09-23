@@ -1230,6 +1230,14 @@ export const unarchiveLeads = async (
   return response.data?.data ?? { count: 0 };
 };
 
+/** Bulk delete by leadIds or selectAllMatching + filters (same selection shape as archive). */
+export const deleteLeads = async (
+  payload: LeadArchiveSelection
+): Promise<{ count: number }> => {
+  const response = await emailClient.post("/api/leads/bulk-delete", payload);
+  return response.data?.data ?? { count: 0 };
+};
+
 export const exportLeadsCsv = async (queryString: string): Promise<void> => {
   const response = await emailClient.get(`/api/leads/export?${queryString}`, {
     responseType: "blob",

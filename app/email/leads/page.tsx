@@ -34,6 +34,7 @@ import emailClient, {
   archiveLeads,
   checkActiveBulkUploadJobs,
   ContactMetrics,
+  deleteLeads,
   getContactMetrics,
 } from "@/utils/api/emailClient";
 import { IconArchive, IconFolderPlus, IconMail, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
@@ -245,27 +246,24 @@ export default function LeadsPage() {
     }
   };
 
+  const selectedDeleteCount = isAllMatchingSelected
+    ? total
+    : selectedLeadsForCampaign.size;
+
   const confirmBulkDelete = async () => {
-    const leadIds = Array.from(selectedLeadsForCampaign);
-    if (leadIds.length === 0) return;
+    if (selectedDeleteCount === 0) return;
 
     setIsDeleting(true);
     try {
-      const results = await Promise.allSettled(
-        leadIds.map((leadId) => emailClient.delete(`/api/leads/${leadId}`))
-      );
-      const failed = results.filter((r) => r.status === "rejected").length;
-      const deleted = leadIds.length - failed;
+      const result = await deleteLeads(buildSelectionPayload());
+      const deleted = result.count ?? 0;
 
       if (deleted > 0) {
         toast.success(
-          `Deleted ${deleted} lead${deleted !== 1 ? "s" : ""} successfully`
+          `Deleted ${deleted.toLocaleString()} lead${deleted !== 1 ? "s" : ""} successfully`
         );
-      }
-      if (failed > 0) {
-        toast.error(
-          `Failed to delete ${failed} lead${failed !== 1 ? "s" : ""}`
-        );
+      } else {
+        toast.error("No leads were deleted");
       }
 
       setShowBulkDeleteConfirm(false);
@@ -295,7 +293,7 @@ export default function LeadsPage() {
     if (isAllMatchingSelected) {
       return {
         selectAllMatching: true,
-        filters: filtersToApiBody(search, filters),
+        filters: { ...filtersToApiBody(search, filters), archived: false },
       };
     }
     return { leadIds: Array.from(selectedLeadsForCampaign) };
@@ -601,8 +599,8 @@ export default function LeadsPage() {
                 onClick={() => setShowBulkDeleteConfirm(true)}
                 disabled={isDeleting}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 hover:text-rose-700 disabled:opacity-50"
-                title={`Delete ${isAllMatchingSelected ? total : selectedLeadsForCampaign.size} selected lead${(isAllMatchingSelected ? total : selectedLeadsForCampaign.size) !== 1 ? "s" : ""}`}
-                aria-label={`Delete ${isAllMatchingSelected ? total : selectedLeadsForCampaign.size} selected lead${(isAllMatchingSelected ? total : selectedLeadsForCampaign.size) !== 1 ? "s" : ""}`}
+                title={`Delete ${selectedDeleteCount.toLocaleString()} selected lead${selectedDeleteCount !== 1 ? "s" : ""}`}
+                aria-label={`Delete ${selectedDeleteCount.toLocaleString()} selected lead${selectedDeleteCount !== 1 ? "s" : ""}`}
               >
                 <IconTrash size={16} />
               </button>
@@ -887,8 +885,8 @@ export default function LeadsPage() {
           }}
           onConfirm={() => void confirmBulkDelete()}
           title="Delete selected leads?"
-          message={`Are you sure you want to delete ${isAllMatchingSelected ? total : selectedLeadsForCampaign.size} selected lead${(isAllMatchingSelected ? total : selectedLeadsForCampaign.size) !== 1 ? "s" : ""}? This action cannot be undone.`}
-          confirmText="Delete"
+          message={`Are you sure you want to delete ${selectedDeleteCount.toLocaleString()} lead${selectedDeleteCount !== 1 ? "s" : ""}? This action cannot be undone.`}
+          confirmText={`Delete ${selectedDeleteCount.toLocaleString()}`}
           cancelText="Cancel"
           type="danger"
           isLoading={isDeleting}

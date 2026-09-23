@@ -98,7 +98,7 @@ type TestSenderOption = {
 
 function sampleValueForVariable(
   field: string,
-  samples: Record<string, string> | undefined
+  samples: Record<string, string> | undefined,
 ): string {
   if (!samples) return "";
   if (samples[field] != null && samples[field] !== "") return samples[field];
@@ -126,11 +126,20 @@ function splitCapturedTextIntoSpintaxOptions(raw: string): string[] {
   const t = raw.trim();
   if (!t) return [];
   if (t.includes("|")) {
-    return t.split("|").map((s) => s.trim()).filter(Boolean);
+    return t
+      .split("|")
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
-  const byLine = t.split(/\n/).map((s) => s.trim()).filter(Boolean);
+  const byLine = t
+    .split(/\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (byLine.length > 1) return byLine;
-  const byComma = t.split(",").map((s) => s.trim()).filter(Boolean);
+  const byComma = t
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (byComma.length > 1) return byComma;
   return [t];
 }
@@ -200,11 +209,13 @@ export default function CreateEmailModal({
 }: CreateEmailModalProps) {
   const [rightPanel, setRightPanel] = useState<RightPanel>("simple");
   const [draftHtml, setDraftHtml] = useState("");
-  const [draftBodyEditor, setDraftBodyEditor] = useState<BodyEditorMode>("simple");
+  const [draftBodyEditor, setDraftBodyEditor] =
+    useState<BodyEditorMode>("simple");
   const [draftSubject, setDraftSubject] = useState("");
   const [draftPreviewText, setDraftPreviewText] = useState("");
   const [draftUseSpintax, setDraftUseSpintax] = useState(false);
-  const [draftSpintaxPackId, setDraftSpintaxPackId] = useState<SpintaxPackId>("general");
+  const [draftSpintaxPackId, setDraftSpintaxPackId] =
+    useState<SpintaxPackId>("general");
   const [draftStrictGrammarMode, setDraftStrictGrammarMode] = useState(false);
 
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
@@ -258,9 +269,10 @@ export default function CreateEmailModal({
   /** Snapshot from editor/HTML textarea when toolbar opens (selection is lost on focus otherwise). */
   const pendingComposerSelectionRef = useRef("");
   const pendingReplaceSelectionRef = useRef(false);
-  const pendingHtmlSelectionRangeRef = useRef<{ start: number; end: number } | null>(
-    null
-  );
+  const pendingHtmlSelectionRangeRef = useRef<{
+    start: number;
+    end: number;
+  } | null>(null);
 
   const clearPendingInsertSelection = useCallback(() => {
     pendingComposerSelectionRef.current = "";
@@ -270,11 +282,13 @@ export default function CreateEmailModal({
 
   const captureComposerSelection = useCallback(() => {
     pendingHtmlSelectionRangeRef.current = null;
-    const ta = document.getElementById("codeEditor") as HTMLTextAreaElement | null;
+    const ta = document.getElementById(
+      "codeEditor",
+    ) as HTMLTextAreaElement | null;
     if (ta && ta.selectionEnd > ta.selectionStart) {
       pendingComposerSelectionRef.current = ta.value.slice(
         ta.selectionStart,
-        ta.selectionEnd
+        ta.selectionEnd,
       );
       pendingReplaceSelectionRef.current = true;
       pendingHtmlSelectionRangeRef.current = {
@@ -305,7 +319,10 @@ export default function CreateEmailModal({
     const seen = new Set<string>();
     const out: string[] = [];
     for (const item of raw) {
-      const inner = item.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "").trim();
+      const inner = item
+        .replace(/^\{\{\s*/, "")
+        .replace(/\s*\}\}$/, "")
+        .trim();
       if (!inner) continue;
       const tag = `{{${inner}}}`;
       if (seen.has(tag)) continue;
@@ -354,7 +371,10 @@ export default function CreateEmailModal({
       "pipeline_stage",
     ]);
     const strip = (v: string) =>
-      v.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "").trim();
+      v
+        .replace(/^\{\{\s*/, "")
+        .replace(/\s*\}\}$/, "")
+        .trim();
     const contact: string[] = [];
     const company: string[] = [];
     const scores: string[] = [];
@@ -368,11 +388,7 @@ export default function CreateEmailModal({
       else if (mergeTags.length > 8) outreach.push(tag);
       else contact.push(tag);
     }
-    if (
-      outreach.length === 0 &&
-      company.length === 0 &&
-      scores.length === 0
-    ) {
+    if (outreach.length === 0 && company.length === 0 && scores.length === 0) {
       return [{ label: "Fields", tags: mergeTags }];
     }
     return [
@@ -400,52 +416,56 @@ export default function CreateEmailModal({
       if (n <= 0) return;
       setInboxPreviewLeadIndex((i) => (i + delta + n * 10) % n);
     },
-    [previewLeads.length]
+    [previewLeads.length],
   );
 
   const previewLeadRecords = useMemo(
     () =>
       previewLeads.map((lead) =>
-        buildPreviewLeadRecordFromCampaignLead(lead, mergeTags)
+        buildPreviewLeadRecordFromCampaignLead(lead, mergeTags),
       ),
-    [previewLeads, mergeTags]
+    [previewLeads, mergeTags],
   );
 
   const hasPreviewLeads = previewLeadRecords.length > 0;
 
   const inboxPreviewLead = useMemo(() => {
     if (hasPreviewLeads) {
-      const idx = Math.min(inboxPreviewLeadIndex, previewLeadRecords.length - 1);
+      const idx = Math.min(
+        inboxPreviewLeadIndex,
+        previewLeadRecords.length - 1,
+      );
       return previewLeadRecords[idx];
     }
     return buildCompositeLeadForPreview(inboxPreviewLeadIndex, mergeTags);
-  }, [
-    hasPreviewLeads,
-    inboxPreviewLeadIndex,
-    mergeTags,
-    previewLeadRecords,
-  ]);
+  }, [hasPreviewLeads, inboxPreviewLeadIndex, mergeTags, previewLeadRecords]);
 
   const inboxPreviewResolved = useMemo(
     () => ({
       subject: resolveMergeTagsAndSpintax(
         draftSubject,
         inboxPreviewLead,
-        inboxPreviewLeadIndex
+        inboxPreviewLeadIndex,
       ),
       previewText: resolveMergeTagsAndSpintax(
         draftPreviewText,
         inboxPreviewLead,
-        inboxPreviewLeadIndex
+        inboxPreviewLeadIndex,
       ),
       html: resolveMergeTagsAndSpintax(
         draftHtml || "",
         inboxPreviewLead,
         inboxPreviewLeadIndex,
-        { htmlContext: true }
+        { htmlContext: true },
       ),
     }),
-    [draftSubject, draftPreviewText, draftHtml, inboxPreviewLead, inboxPreviewLeadIndex]
+    [
+      draftSubject,
+      draftPreviewText,
+      draftHtml,
+      inboxPreviewLead,
+      inboxPreviewLeadIndex,
+    ],
   );
 
   const inboxPreviewBodySrcDoc = useMemo(() => {
@@ -461,7 +481,7 @@ export default function CreateEmailModal({
       draftHtml.trim() ? draftHtml : emptyBody,
       true,
       tokenSampleValues,
-      tokenCoverage
+      tokenCoverage,
     );
   }, [
     draftHtml,
@@ -520,14 +540,14 @@ export default function CreateEmailModal({
               lookupSampleValue(tokenSampleRef.current, field),
             coverage: hasData ? lookupTokenCoverage(map, field) : null,
             hasCoverageData: hasData,
-          }
+          },
         );
       };
 
       const onOut = (event: MouseEvent) => {
         const related = event.relatedTarget as Node | null;
         const chip = (event.target as HTMLElement | null)?.closest(
-          "[data-merge-field]"
+          "[data-merge-field]",
         );
         if (chip && related && chip.contains(related)) return;
         hideInboxCoverage();
@@ -563,8 +583,12 @@ export default function CreateEmailModal({
 
   const usedTestVariables = useMemo(
     () =>
-      extractUsedMergeVariables(draftSubject, draftPreviewText, draftHtml || ""),
-    [draftSubject, draftPreviewText, draftHtml]
+      extractUsedMergeVariables(
+        draftSubject,
+        draftPreviewText,
+        draftHtml || "",
+      ),
+    [draftSubject, draftPreviewText, draftHtml],
   );
 
   const openSendTestModal = useCallback(async () => {
@@ -585,7 +609,7 @@ export default function CreateEmailModal({
     for (const field of extractUsedMergeVariables(
       draftSubject,
       draftPreviewText,
-      draftHtml || ""
+      draftHtml || "",
     )) {
       nextValues[field] = sampleValueForVariable(field, defaults);
     }
@@ -595,7 +619,9 @@ export default function CreateEmailModal({
 
     try {
       const [sendersRes, campaign] = await Promise.all([
-        emailClient.get("/api/email-senders", { params: { page: 1, limit: 100 } }),
+        emailClient.get("/api/email-senders", {
+          params: { page: 1, limit: 100 },
+        }),
         getCampaignById(domainId, effectiveCampaignId).catch(() => null),
       ]);
       const all: Array<
@@ -603,7 +629,7 @@ export default function CreateEmailModal({
       > = sendersRes.data?.data?.senders || [];
       const list = all
         .filter(
-          (s) => s.status !== "error" && s.verificationStatus === "verified"
+          (s) => s.status !== "error" && s.verificationStatus === "verified",
         )
         .map((s) => ({
           id: String(s.id),
@@ -628,7 +654,10 @@ export default function CreateEmailModal({
       setTestSenderId(preferred);
     } catch (error: unknown) {
       toast.error(
-        getEmailServiceErrorMessage(error, "Failed to load senders for test email")
+        getEmailServiceErrorMessage(
+          error,
+          "Failed to load senders for test email",
+        ),
       );
       setTestSenders([]);
       setTestSenderId("");
@@ -681,7 +710,9 @@ export default function CreateEmailModal({
       toast.success(result?.message || `Test email sent to ${to}`);
       setSendTestOpen(false);
     } catch (error: unknown) {
-      toast.error(getEmailServiceErrorMessage(error, "Failed to send test email"));
+      toast.error(
+        getEmailServiceErrorMessage(error, "Failed to send test email"),
+      );
     } finally {
       setSendingTestEmail(false);
     }
@@ -712,8 +743,8 @@ export default function CreateEmailModal({
         seedHtml.trim().length > 0
           ? seedHtml
           : seedBodyEditor === "html"
-            ? ""
-            : "<p></p>";
+          ? ""
+          : "<p></p>";
       const shouldUseHtmlEditor =
         seedBodyEditor === "html" && isStructuredHtmlEmail(html);
       setDraftHtml(html);
@@ -756,7 +787,10 @@ export default function CreateEmailModal({
   }, [showVariablePanel, clearPendingInsertSelection]);
 
   const normalizeVariableToken = (variable: string) =>
-    variable.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "").trim();
+    variable
+      .replace(/^\{\{\s*/, "")
+      .replace(/\s*\}\}$/, "")
+      .trim();
 
   const toMergeTag = (variable: string) => {
     const inner = normalizeVariableToken(variable);
@@ -778,12 +812,14 @@ export default function CreateEmailModal({
           ? { variable: token, replaceSelection: true as const }
           : token;
       window.dispatchEvent(
-        new CustomEvent("totalads:insert-variable", { detail })
+        new CustomEvent("totalads:insert-variable", { detail }),
       );
       toast.success(`Added ${token}`, { duration: 1500 });
       return;
     }
-    const textarea = document.getElementById("codeEditor") as HTMLTextAreaElement | null;
+    const textarea = document.getElementById(
+      "codeEditor",
+    ) as HTMLTextAreaElement | null;
     if (textarea) {
       let start = textarea.selectionStart || 0;
       let end = textarea.selectionEnd || 0;
@@ -823,12 +859,14 @@ export default function CreateEmailModal({
           ? { token, replaceSelection: true as const }
           : token;
       window.dispatchEvent(
-        new CustomEvent("totalads:insert-spintax", { detail })
+        new CustomEvent("totalads:insert-spintax", { detail }),
       );
       toast.success("Added spintax", { duration: 1500 });
       return;
     }
-    const textarea = document.getElementById("codeEditor") as HTMLTextAreaElement | null;
+    const textarea = document.getElementById(
+      "codeEditor",
+    ) as HTMLTextAreaElement | null;
     if (textarea) {
       let start = textarea.selectionStart || 0;
       let end = textarea.selectionEnd || 0;
@@ -861,7 +899,7 @@ export default function CreateEmailModal({
     source: string,
     oldToken: string,
     newToken: string,
-    occurrenceIndex: number
+    occurrenceIndex: number,
   ) => {
     let seen = 0;
     return source.replace(oldToken, (match) => {
@@ -879,7 +917,9 @@ export default function CreateEmailModal({
       clearPendingInsertSelection();
       const inner = token.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "");
       const [field, fallback] = inner.split("|").map((part) => part.trim());
-      const fieldToken = `{{${field || normalizeVariableToken(mergeTags[0] || "firstName")}}}`;
+      const fieldToken = `{{${
+        field || normalizeVariableToken(mergeTags[0] || "firstName")
+      }}}`;
       setFallbackVariable(fieldToken);
       setFallbackText(fallback || "there");
       setEditingFallbackToken({ token, occurrenceIndex });
@@ -923,7 +963,7 @@ export default function CreateEmailModal({
   const handleEditorTokenClick = (
     type: "merge" | "spintax",
     token: string,
-    occurrenceIndex: number
+    occurrenceIndex: number,
   ) => {
     if (type === "merge") {
       openFallbackModal(token, occurrenceIndex);
@@ -939,15 +979,17 @@ export default function CreateEmailModal({
       toast.error("Select a personalization field");
       return;
     }
-    const newToken = fallback ? `{{${variable} | ${fallback}}}` : `{{${variable}}}`;
+    const newToken = fallback
+      ? `{{${variable} | ${fallback}}}`
+      : `{{${variable}}}`;
     if (editingFallbackToken) {
       setDraftHtml((current) =>
         replaceTokenOccurrence(
           current,
           editingFallbackToken.token,
           newToken,
-          editingFallbackToken.occurrenceIndex
-        )
+          editingFallbackToken.occurrenceIndex,
+        ),
       );
     } else {
       insertVariable(newToken);
@@ -963,8 +1005,8 @@ export default function CreateEmailModal({
         current,
         editingFallbackToken.token,
         "",
-        editingFallbackToken.occurrenceIndex
-      )
+        editingFallbackToken.occurrenceIndex,
+      ),
     );
     setEditingFallbackToken(null);
     setFallbackModalOpen(false);
@@ -985,8 +1027,8 @@ export default function CreateEmailModal({
           current,
           editingSpintaxToken.token,
           newToken,
-          editingSpintaxToken.occurrenceIndex
-        )
+          editingSpintaxToken.occurrenceIndex,
+        ),
       );
     } else {
       insertSpintax(newToken);
@@ -1002,8 +1044,8 @@ export default function CreateEmailModal({
         current,
         editingSpintaxToken.token,
         "",
-        editingSpintaxToken.occurrenceIndex
-      )
+        editingSpintaxToken.occurrenceIndex,
+      ),
     );
     setEditingSpintaxToken(null);
     setSpintaxModalOpen(false);
@@ -1019,7 +1061,7 @@ export default function CreateEmailModal({
 
   const switchEditorMode = (
     mode: BodyEditorMode,
-    options?: { useStarterWhenEmpty?: boolean }
+    options?: { useStarterWhenEmpty?: boolean },
   ) => {
     if (mode === draftBodyEditor && rightPanel === mode) return;
 
@@ -1031,10 +1073,7 @@ export default function CreateEmailModal({
     }
 
     const trimmed = draftHtml.trim();
-    if (
-      options?.useStarterWhenEmpty &&
-      (!trimmed || trimmed === "<p></p>")
-    ) {
+    if (options?.useStarterWhenEmpty && (!trimmed || trimmed === "<p></p>")) {
       setDraftHtml(HTML_STARTER);
     }
     setDraftBodyEditor("html");
@@ -1117,7 +1156,7 @@ export default function CreateEmailModal({
           "inline-flex h-7 items-center gap-1 rounded px-2 text-[11px] font-medium transition-colors",
           rightPanel === "simple"
             ? "bg-brand-main text-white"
-            : "text-slate-500 hover:text-slate-800"
+            : "text-slate-500 hover:text-slate-800",
         )}
       >
         <FileText className="h-3 w-3" />
@@ -1133,7 +1172,7 @@ export default function CreateEmailModal({
           "inline-flex h-7 items-center gap-1 rounded px-2 text-[11px] font-medium transition-colors",
           rightPanel === "html"
             ? "bg-brand-main text-white"
-            : "text-slate-500 hover:text-slate-800"
+            : "text-slate-500 hover:text-slate-800",
         )}
       >
         <Code2 className="h-3 w-3" />
@@ -1146,13 +1185,22 @@ export default function CreateEmailModal({
     <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2.5">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 gap-1.5"
+          >
             <FileText className="h-3.5 w-3.5" />
             Create from scratch
             <ChevronDown className="h-3.5 w-3.5 opacity-70" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-[280px] p-1" sideOffset={6}>
+        <DropdownMenuContent
+          align="start"
+          className="w-[280px] p-1"
+          sideOffset={6}
+        >
           <DropdownMenuItem
             className="flex cursor-pointer flex-col items-start gap-0.5 py-3"
             onClick={startSimpleEditor}
@@ -1196,7 +1244,10 @@ export default function CreateEmailModal({
     <div className="flex-shrink-0 border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-blue-50/60 px-4 py-2">
       <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
         <div className="space-y-1">
-          <Label htmlFor="modal-email-subject" className="text-[11px] font-medium text-text-300">
+          <Label
+            htmlFor="modal-email-subject"
+            className="text-[11px] font-medium text-text-300"
+          >
             Subject
           </Label>
           <MergeHighlightInput
@@ -1209,7 +1260,10 @@ export default function CreateEmailModal({
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="modal-email-preview" className="text-[11px] font-medium text-text-300">
+          <Label
+            htmlFor="modal-email-preview"
+            className="text-[11px] font-medium text-text-300"
+          >
             Preview text
           </Label>
           <MergeHighlightInput
@@ -1222,7 +1276,10 @@ export default function CreateEmailModal({
             tokenSampleValues={tokenSampleValues}
           />
         </div>
-        <div className="relative flex flex-wrap items-end justify-end gap-1.5" ref={variablePanelRef}>
+        <div
+          className="relative flex flex-wrap items-end justify-end gap-1.5"
+          ref={variablePanelRef}
+        >
           {editorModeToggle}
           <Button
             type="button"
@@ -1264,8 +1321,8 @@ export default function CreateEmailModal({
                   Personalization fields
                 </p>
                 <p className="mb-1.5 text-[9px] leading-snug text-text-300">
-                  Hover for how many campaign leads have this value (warning only — not required).
-                  Click to insert.
+                  Hover for how many campaign leads have this value (warning
+                  only — not required). Click to insert.
                 </p>
                 <div className="relative">
                   <Search
@@ -1299,15 +1356,15 @@ export default function CreateEmailModal({
                               .trim();
                             const sample = lookupSampleValue(
                               tokenSampleValues,
-                              field
+                              field,
                             );
                             const coverage = lookupTokenCoverage(
                               tokenCoverage,
-                              field
+                              field,
                             );
                             const hasCoverageData = Boolean(
                               tokenCoverage &&
-                                Object.keys(tokenCoverage).length > 0
+                                Object.keys(tokenCoverage).length > 0,
                             );
                             const status = hasCoverageData
                               ? getCoverageStatus(coverage)
@@ -1334,7 +1391,7 @@ export default function CreateEmailModal({
                                     status === "missing" &&
                                       "hover:border-red-200 hover:bg-red-50",
                                     status === "warning" &&
-                                      "hover:border-amber-200 hover:bg-amber-50"
+                                      "hover:border-amber-200 hover:bg-amber-50",
                                   )}
                                 >
                                   <span
@@ -1343,20 +1400,21 @@ export default function CreateEmailModal({
                                       status === "missing"
                                         ? "text-red-700"
                                         : status === "warning"
-                                          ? "text-amber-800"
-                                          : "text-blue-700"
+                                        ? "text-amber-800"
+                                        : "text-blue-700",
                                     )}
                                   >
                                     {label}
                                   </span>
                                   {coverage && coverage.total > 0 ? (
                                     <span className="mt-0.5 block truncate text-[8px] leading-tight text-slate-500">
-                                      {coverage.withValue}/{coverage.total} leads
+                                      {coverage.withValue}/{coverage.total}{" "}
+                                      leads
                                       {status === "missing"
                                         ? " · missing"
                                         : status === "warning"
-                                          ? " · low coverage"
-                                          : ""}
+                                        ? " · low coverage"
+                                        : ""}
                                     </span>
                                   ) : sample ? (
                                     <span className="mt-0.5 block truncate text-[8px] leading-tight text-slate-500 opacity-70">
@@ -1427,8 +1485,13 @@ export default function CreateEmailModal({
             Send test
           </Button>
         ) : null}
-        <Button type="button" size="sm" className="bg-brand-main px-4" onClick={handleApplyToCampaign}>
-          Apply to campaign
+        <Button
+          type="button"
+          size="sm"
+          className="bg-brand-main px-4"
+          onClick={handleApplyToCampaign}
+        >
+          Save to campaign
         </Button>
       </div>
     </div>
@@ -1440,7 +1503,9 @@ export default function CreateEmailModal({
         <DialogContent className="flex h-[92vh] max-h-[940px] w-[98vw] max-w-[1320px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[1320px]">
           <DialogHeader className="flex-shrink-0 border-b border-border bg-bg-200 px-6 py-2 text-left">
             <DialogTitle className="text-xl font-bold tracking-tight text-text-100">
-              {openDirectlyToEditor && seedHtml.trim() ? "Edit email" : "Create email"}
+              {openDirectlyToEditor && seedHtml.trim()
+                ? "Edit email"
+                : "Create email"}
             </DialogTitle>
           </DialogHeader>
 
@@ -1505,108 +1570,114 @@ export default function CreateEmailModal({
                   Please add a lead before viewing the preview.
                 </p>
                 <p className="mt-1.5 max-w-[16rem] text-xs leading-relaxed text-slate-500">
-                  Add leads to this campaign from the Leads tab, then return here to
-                  preview personalization with real data.
+                  Add leads to this campaign from the Leads tab, then return
+                  here to preview personalization with real data.
                 </p>
               </div>
             ) : (
               <>
-            <div className="space-y-2">
-              <Label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                From
-              </Label>
-              <Input
-                readOnly
-                tabIndex={-1}
-                className="h-9 cursor-default border-slate-200 bg-slate-50 text-xs text-slate-600"
-                value="Your verified sender (LeadSnipper)"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                To
-              </Label>
-              <div className="flex gap-1.5">
-                <Select
-                  value={String(inboxPreviewLeadIndex)}
-                  onValueChange={(v) => setInboxPreviewLeadIndex(Number(v))}
-                >
-                  <SelectTrigger className="h-9 min-w-0 flex-1 text-xs">
-                    <SelectValue placeholder="Recipient" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {previewLeadRecords.map((record, i) => (
-                      <SelectItem key={previewLeads[i]?.id ?? i} value={String(i)}>
-                        {getPreviewLeadDisplayLabel(record)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex shrink-0 rounded-md border border-slate-200">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 rounded-none rounded-l-md"
-                    aria-label="Previous lead"
-                    onClick={() => shiftInboxPreviewLead(-1)}
-                    disabled={previewLeadRecords.length <= 1}
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 rounded-none rounded-r-md border-l border-slate-200"
-                    aria-label="Next lead"
-                    onClick={() => shiftInboxPreviewLead(1)}
-                    disabled={previewLeadRecords.length <= 1}
-                  >
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </Button>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    From
+                  </Label>
+                  <Input
+                    readOnly
+                    tabIndex={-1}
+                    className="h-9 cursor-default border-slate-200 bg-slate-50 text-xs text-slate-600"
+                    value="Your verified sender (LeadSnipper)"
+                  />
                 </div>
-              </div>
-              {previewLeadRecords.length > 1 ? (
-                <p className="text-[10px] text-slate-500">
-                  Lead {inboxPreviewLeadIndex + 1} of {previewLeadRecords.length}
-                </p>
-              ) : null}
-            </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    To
+                  </Label>
+                  <div className="flex gap-1.5">
+                    <Select
+                      value={String(inboxPreviewLeadIndex)}
+                      onValueChange={(v) => setInboxPreviewLeadIndex(Number(v))}
+                    >
+                      <SelectTrigger className="h-9 min-w-0 flex-1 text-xs">
+                        <SelectValue placeholder="Recipient" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {previewLeadRecords.map((record, i) => (
+                          <SelectItem
+                            key={previewLeads[i]?.id ?? i}
+                            value={String(i)}
+                          >
+                            {getPreviewLeadDisplayLabel(record)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex shrink-0 rounded-md border border-slate-200">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 rounded-none rounded-l-md"
+                        aria-label="Previous lead"
+                        onClick={() => shiftInboxPreviewLead(-1)}
+                        disabled={previewLeadRecords.length <= 1}
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 rounded-none rounded-r-md border-l border-slate-200"
+                        aria-label="Next lead"
+                        onClick={() => shiftInboxPreviewLead(1)}
+                        disabled={previewLeadRecords.length <= 1}
+                      >
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                  {previewLeadRecords.length > 1 ? (
+                    <p className="text-[10px] text-slate-500">
+                      Lead {inboxPreviewLeadIndex + 1} of{" "}
+                      {previewLeadRecords.length}
+                    </p>
+                  ) : null}
+                </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white">
-              <div className="border-b border-slate-100 px-3 py-2.5">
-                <p className="text-xs leading-snug text-slate-800">
-                  <span className="text-slate-400">To </span>
-                  <span className="font-medium text-slate-900">
-                    {formatPreviewRecipientLine(inboxPreviewLead)}
-                  </span>
-                </p>
-                <p className="mt-1.5 text-sm font-semibold leading-snug text-slate-900">
-                  <span className="mr-1.5 text-xs font-normal text-slate-400">Subject </span>
-                  {inboxPreviewResolved.subject.trim() || "(no subject)"}
-                </p>
-                {draftPreviewText.trim() ? (
-                  <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
-                    <span className="text-slate-400">Preheader </span>
-                    {inboxPreviewResolved.previewText}
-                  </p>
-                ) : null}
-              </div>
-              <div className="bg-slate-50 p-1.5">
-                <iframe
-                  ref={inboxPreviewIframeRef}
-                  title="Email body preview"
-                  className="h-[min(38vh,320px)] w-full min-h-[160px] rounded-md bg-white [scrollbar-width:thin]"
-                  sandbox="allow-same-origin"
-                  srcDoc={inboxPreviewBodySrcDoc}
-                />
-              </div>
-            </div>
+                <div className="rounded-lg border border-slate-200 bg-white">
+                  <div className="border-b border-slate-100 px-3 py-2.5">
+                    <p className="text-xs leading-snug text-slate-800">
+                      <span className="text-slate-400">To </span>
+                      <span className="font-medium text-slate-900">
+                        {formatPreviewRecipientLine(inboxPreviewLead)}
+                      </span>
+                    </p>
+                    <p className="mt-1.5 text-sm font-semibold leading-snug text-slate-900">
+                      <span className="mr-1.5 text-xs font-normal text-slate-400">
+                        Subject{" "}
+                      </span>
+                      {inboxPreviewResolved.subject.trim() || "(no subject)"}
+                    </p>
+                    {draftPreviewText.trim() ? (
+                      <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                        <span className="text-slate-400">Preheader </span>
+                        {inboxPreviewResolved.previewText}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="bg-slate-50 p-1.5">
+                    <iframe
+                      ref={inboxPreviewIframeRef}
+                      title="Email body preview"
+                      className="h-[min(38vh,320px)] w-full min-h-[160px] rounded-md bg-white [scrollbar-width:thin]"
+                      sandbox="allow-same-origin"
+                      srcDoc={inboxPreviewBodySrcDoc}
+                    />
+                  </div>
+                </div>
 
-            <p className="text-center text-[10px] text-slate-500">
-              Reply &quot;Stop&quot; to opt out.
-            </p>
+                <p className="text-center text-[10px] text-slate-500">
+                  Reply &quot;Stop&quot; to opt out.
+                </p>
               </>
             )}
           </div>
@@ -1639,8 +1710,8 @@ export default function CreateEmailModal({
               Send test email
             </DialogTitle>
             <DialogDescription>
-              Send this draft to your inbox with sample personalization values so
-              you can check how it looks.
+              Send this draft to your inbox with sample personalization values
+              so you can check how it looks.
             </DialogDescription>
           </DialogHeader>
 
@@ -1664,8 +1735,8 @@ export default function CreateEmailModal({
                 <p className="text-xs text-slate-500">Loading senders…</p>
               ) : testSenders.length === 0 ? (
                 <p className="text-xs text-amber-700">
-                  No verified senders found. Connect a sender in Sending Accounts
-                  first.
+                  No verified senders found. Connect a sender in Sending
+                  Accounts first.
                 </p>
               ) : (
                 <Select value={testSenderId} onValueChange={setTestSenderId}>
@@ -1690,8 +1761,8 @@ export default function CreateEmailModal({
               <div className="space-y-2">
                 <Label>Sample values for variables</Label>
                 <p className="text-[11px] text-slate-500">
-                  These replace {"{{variables}}"} in the subject and body for this
-                  test only.
+                  These replace {"{{variables}}"} in the subject and body for
+                  this test only.
                 </p>
                 <div className="max-h-56 space-y-2.5 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
                   {usedTestVariables.map((field) => (
@@ -1768,10 +1839,18 @@ export default function CreateEmailModal({
             />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setSaveTemplateOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSaveTemplateOpen(false)}
+            >
               Cancel
             </Button>
-            <Button type="button" onClick={handleSaveTemplate} disabled={savingTemplate}>
+            <Button
+              type="button"
+              onClick={handleSaveTemplate}
+              disabled={savingTemplate}
+            >
               {savingTemplate ? "Saving…" : "Save"}
             </Button>
           </DialogFooter>
@@ -1793,7 +1872,9 @@ export default function CreateEmailModal({
           <DialogHeader className="border-b border-slate-100 px-6 py-5">
             <DialogTitle className="flex items-center gap-2 text-2xl font-bold text-slate-900">
               <Sparkles className="h-6 w-6 text-blue-600" />
-              {editingFallbackToken ? "Edit Fallback Text" : "Add Fallback Text"}
+              {editingFallbackToken
+                ? "Edit Fallback Text"
+                : "Add Fallback Text"}
             </DialogTitle>
             <DialogDescription className="text-left text-base leading-relaxed text-slate-600">
               Choose what should appear if a recipient is missing this field.
@@ -1817,9 +1898,7 @@ export default function CreateEmailModal({
                       <button
                         key={variable}
                         type="button"
-                        id={
-                          selected ? "fallback-variable" : undefined
-                        }
+                        id={selected ? "fallback-variable" : undefined}
                         onClick={() => setFallbackVariable(variable)}
                         className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
                           selected
@@ -1847,12 +1926,20 @@ export default function CreateEmailModal({
             <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
               Preview:{" "}
               <span className="inline-flex rounded-full border border-blue-200 bg-white px-2 py-1 font-semibold text-blue-700">
-                {fallbackVariable.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "").replace(/[_-]+/g, " ")} · {fallbackText || "fallback"}
+                {fallbackVariable
+                  .replace(/^\{\{\s*/, "")
+                  .replace(/\s*\}\}$/, "")
+                  .replace(/[_-]+/g, " ")}{" "}
+                · {fallbackText || "fallback"}
               </span>
             </div>
           </div>
           <DialogFooter className="border-t border-slate-100 px-6 py-4">
-            <Button type="button" variant="outline" onClick={() => setFallbackModalOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setFallbackModalOpen(false)}
+            >
               Cancel
             </Button>
             {editingFallbackToken ? (
@@ -1865,7 +1952,11 @@ export default function CreateEmailModal({
                 Remove
               </Button>
             ) : null}
-            <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={handleInsertFallback}>
+            <Button
+              type="button"
+              className="bg-blue-600 text-white hover:bg-blue-700"
+              onClick={handleInsertFallback}
+            >
               {editingFallbackToken ? "Update" : "Add"}
             </Button>
           </DialogFooter>
@@ -1890,7 +1981,8 @@ export default function CreateEmailModal({
               {editingSpintaxToken ? "Edit Spintax" : "Add Spintax"}
             </DialogTitle>
             <DialogDescription className="text-left text-base leading-relaxed text-slate-600">
-              Add alternate phrases. The editor shows one chip, and campaign sending keeps the spintax syntax.
+              Add alternate phrases. The editor shows one chip, and campaign
+              sending keeps the spintax syntax.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 px-6 py-5">
@@ -1901,8 +1993,8 @@ export default function CreateEmailModal({
                   onChange={(e) =>
                     setManualSpintaxOptions((items) =>
                       items.map((item, itemIndex) =>
-                        itemIndex === index ? e.target.value : item
-                      )
+                        itemIndex === index ? e.target.value : item,
+                      ),
                     )
                   }
                   placeholder={`Option ${index + 1}`}
@@ -1914,7 +2006,9 @@ export default function CreateEmailModal({
                   className="h-10 w-10 px-0 text-slate-400 hover:text-slate-700"
                   onClick={() =>
                     setManualSpintaxOptions((items) =>
-                      items.length > 2 ? items.filter((_, itemIndex) => itemIndex !== index) : items
+                      items.length > 2
+                        ? items.filter((_, itemIndex) => itemIndex !== index)
+                        : items,
                     )
                   }
                   aria-label="Remove spintax option"
@@ -1934,12 +2028,18 @@ export default function CreateEmailModal({
             <div className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-3 text-sm text-violet-900">
               Preview:{" "}
               <span className="inline-flex rounded-full border border-violet-200 bg-white px-2 py-1 font-semibold text-violet-700">
-                spin {manualSpintaxOptions.filter(Boolean).join(" · ") || "Option A · Option B"}
+                spin{" "}
+                {manualSpintaxOptions.filter(Boolean).join(" · ") ||
+                  "Option A · Option B"}
               </span>
             </div>
           </div>
           <DialogFooter className="border-t border-slate-100 px-6 py-4">
-            <Button type="button" variant="outline" onClick={() => setSpintaxModalOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSpintaxModalOpen(false)}
+            >
               Cancel
             </Button>
             {editingSpintaxToken ? (
@@ -1952,7 +2052,11 @@ export default function CreateEmailModal({
                 Remove
               </Button>
             ) : null}
-            <Button type="button" className="bg-violet-600 text-white hover:bg-violet-700" onClick={handleInsertManualSpintax}>
+            <Button
+              type="button"
+              className="bg-violet-600 text-white hover:bg-violet-700"
+              onClick={handleInsertManualSpintax}
+            >
               {editingSpintaxToken ? "Update" : "Insert"}
             </Button>
           </DialogFooter>
