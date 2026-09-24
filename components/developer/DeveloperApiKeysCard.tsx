@@ -196,7 +196,7 @@ export default function DeveloperApiKeysCard({
           <IconAlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-semibold text-amber-100">
-              API access requires Scale or Custom
+              API access requires Scale, AppSumo Scale, or Custom
             </p>
             <p className="text-sm text-text-200 mt-1 leading-relaxed">
               Your current plan is{" "}

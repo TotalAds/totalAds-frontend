@@ -67,7 +67,7 @@ export const INTEGRATIONS: IntegrationDefinition[] = [
     tagline: "Send email and manage campaigns and leads from your own backend.",
     category: "Developer",
     icon: IconCode,
-    tags: ["REST", "Scale plan"],
+    tags: ["REST", "Scale+"],
     guide: INTEGRATION_GUIDES["developer-api"],
     panel: () => <DeveloperApiKeysCard embedded />,
   },

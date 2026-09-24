@@ -13,6 +13,8 @@ import {
 import { SesConnectionStep } from "@/components/email/SesConnectionStep";
 import { SenderTrustIndicators } from "@/components/email/SenderTrustIndicators";
 import { SmtpAccountConnectWizard } from "@/components/email/SmtpAccountConnectWizard";
+import { SmtpBulkCsvUploadStep } from "@/components/email/SmtpBulkCsvUploadStep";
+import { SmtpBulkModeChoice } from "@/components/email/SmtpBulkModeChoice";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -43,7 +45,13 @@ import {
   IconAlertTriangle,
 } from "@tabler/icons-react";
 
-export type AddSendingAccountModalStep = "pick" | "oauth" | "smtp" | "ses";
+export type AddSendingAccountModalStep =
+  | "pick"
+  | "oauth"
+  | "smtpMode"
+  | "smtp"
+  | "smtpBulk"
+  | "ses";
 
 type OAuthProvider = "gmail" | "outlook" | "zoho";
 
@@ -51,6 +59,8 @@ interface AddSendingAccountModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAccountAdded?: () => void;
+  /** Called when a bulk CSV import job is accepted by the backend. */
+  onBulkImportStarted?: (jobId: string) => void;
   initialStep?: AddSendingAccountModalStep;
   initialOAuthProvider?: OAuthProvider | null;
 }
@@ -164,6 +174,7 @@ export function AddSendingAccountModal({
   open,
   onOpenChange,
   onAccountAdded,
+  onBulkImportStarted,
   initialStep = "pick",
   initialOAuthProvider = null,
 }: AddSendingAccountModalProps) {
@@ -241,7 +252,7 @@ export function AddSendingAccountModal({
   const dialogWidth =
     step === "ses"
       ? "max-w-4xl"
-      : step === "smtp"
+      : step === "smtp" || step === "smtpBulk" || step === "smtpMode"
         ? "max-w-xl"
         : step === "oauth"
           ? "max-w-lg"
@@ -340,7 +351,7 @@ export function AddSendingAccountModal({
                     icon: <IconMail className="h-7 w-7 text-slate-500" />,
                     brand: "Any provider",
                     title: "IMAP / SMTP",
-                    onClick: () => setStep("smtp"),
+                    onClick: () => setStep("smtpMode"),
                   },
                 }[item.provider];
 
@@ -466,15 +477,29 @@ export function AddSendingAccountModal({
               from the Sending Accounts list.
             </p>
           </div>
-        ) : (
-          <SmtpAccountConnectWizard
+        ) : step === "smtpMode" ? (
+          <SmtpBulkModeChoice
             onBack={() => setStep("pick")}
+            onSelectSingle={() => setStep("smtp")}
+            onSelectBulk={() => setStep("smtpBulk")}
+          />
+        ) : step === "smtpBulk" ? (
+          <SmtpBulkCsvUploadStep
+            onBack={() => setStep("smtpMode")}
+            onStarted={(jobId) => {
+              onBulkImportStarted?.(jobId);
+              resetAndClose();
+            }}
+          />
+        ) : step === "smtp" ? (
+          <SmtpAccountConnectWizard
+            onBack={() => setStep("smtpMode")}
             onComplete={() => {
               onAccountAdded?.();
               resetAndClose();
             }}
           />
-        )}
+        ) : null}
       </DialogContent>
     </Dialog>
   );

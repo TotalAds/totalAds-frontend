@@ -120,6 +120,20 @@ const features = [
     scale: true,
   },
   {
+    name: "Custom webhooks",
+    trial: false,
+    starter: false,
+    growth: false,
+    scale: true,
+  },
+  {
+    name: "Continuous Sheets sync",
+    trial: false,
+    starter: false,
+    growth: false,
+    scale: true,
+  },
+  {
     name: "Dedicated CSM",
     trial: false,
     starter: false,

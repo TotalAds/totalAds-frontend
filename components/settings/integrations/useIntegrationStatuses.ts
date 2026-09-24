@@ -41,7 +41,7 @@ export function useIntegrationStatuses(canManageBilling: boolean) {
           patch({
             "developer-api": {
               state: "locked",
-              detail: "Requires Scale or Custom",
+              detail: "Requires Scale, AppSumo Scale, or Custom",
             },
           });
           return;

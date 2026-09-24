@@ -10,8 +10,10 @@ import {
 } from "@/components/email/AddSendingAccountModal";
 import { DomainAuthSetupDialog } from "@/components/email/DomainAuthSetupDialog";
 import { SendingAccountsTable } from "@/components/email/SendingAccountsTable";
+import { SmtpBulkImportBanner } from "@/components/email/SmtpBulkImportBanner";
 import { Button } from "@/components/ui/button";
 import {
+  checkActiveSmtpBulkImportJobs,
   deleteSendingAccount,
   listSendingAccounts,
   SendingAccount,
@@ -30,6 +32,7 @@ export default function SendingAccountsPage() {
     "gmail" | "outlook" | "zoho" | null
   >(null);
   const [dnsSetupAccount, setDnsSetupAccount] = useState<SendingAccount | null>(null);
+  const [bulkImportJobIds, setBulkImportJobIds] = useState<string[]>([]);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -44,9 +47,19 @@ export default function SendingAccountsPage() {
     }
   }, []);
 
+  const restoreBulkImportBanners = useCallback(async () => {
+    try {
+      const jobs = await checkActiveSmtpBulkImportJobs();
+      setBulkImportJobIds(jobs.map((j) => j.id));
+    } catch {
+      // Non-blocking — page still works without banners
+    }
+  }, []);
+
   useEffect(() => {
     fetchAccounts();
-  }, [fetchAccounts]);
+    void restoreBulkImportBanners();
+  }, [fetchAccounts, restoreBulkImportBanners]);
 
   useEffect(() => {
     if (didAutoConnect.current) return;
@@ -54,7 +67,7 @@ export default function SendingAccountsPage() {
     const showSmtp = searchParams.get("showSmtp");
     const showSes = searchParams.get("showSes");
     if (showSmtp === "true") {
-      setAddModalStep("smtp");
+      setAddModalStep("smtpMode");
       setAddModalOAuthProvider(null);
       setAddModalOpen(true);
       didAutoConnect.current = true;
@@ -127,7 +140,22 @@ export default function SendingAccountsPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-4 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-6xl space-y-4 px-4 py-4 sm:px-6 lg:px-8">
+        {bulkImportJobIds.length > 0 && (
+          <div className="space-y-3">
+            {bulkImportJobIds.map((jobId) => (
+              <SmtpBulkImportBanner
+                key={jobId}
+                jobId={jobId}
+                onCompleted={fetchAccounts}
+                onDismissed={(id) => {
+                  setBulkImportJobIds((prev) => prev.filter((x) => x !== id));
+                }}
+              />
+            ))}
+          </div>
+        )}
+
         <SendingAccountsTable
           accounts={accounts}
           loading={loading}
@@ -142,6 +170,11 @@ export default function SendingAccountsPage() {
         open={addModalOpen}
         onOpenChange={setAddModalOpen}
         onAccountAdded={fetchAccounts}
+        onBulkImportStarted={(jobId) => {
+          setBulkImportJobIds((prev) =>
+            prev.includes(jobId) ? prev : [jobId, ...prev]
+          );
+        }}
         initialStep={addModalStep}
         initialOAuthProvider={addModalOAuthProvider}
       />

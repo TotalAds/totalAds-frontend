@@ -2152,6 +2152,127 @@ export const testSmtpSendingAccount = async (id: string): Promise<void> => {
   }
 };
 
+export type SmtpBulkImportInvalidRow = {
+  row: number;
+  email: string;
+  error: string;
+};
+
+export type SmtpBulkImportJobStatus = {
+  id: string;
+  status: "pending" | "processing" | "completed" | "failed" | string;
+  totalRows: number;
+  processedRows: number;
+  progress: number;
+  result: {
+    validCount: number;
+    invalidCount: number;
+    createdSenderIds: string[];
+    invalidRows: SmtpBulkImportInvalidRow[];
+  } | null;
+  error: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  dismissedAt: string | null;
+};
+
+export const createSmtpBulkImportJob = async (
+  rows: Record<string, unknown>[],
+): Promise<SmtpBulkImportJobStatus> => {
+  try {
+    const resp = await emailClient.post<{
+      success: boolean;
+      message?: string;
+      data: SmtpBulkImportJobStatus;
+    }>("/api/sending-accounts/smtp/bulk-import", { rows });
+    if (!resp.data?.success) {
+      throw new Error(resp.data?.message || "Failed to start SMTP bulk import");
+    }
+    return resp.data.data;
+  } catch (error) {
+    throw new Error(
+      getEmailServiceErrorMessage(error, "Failed to start SMTP bulk import"),
+    );
+  }
+};
+
+export const getSmtpBulkImportJobStatus = async (
+  jobId: string,
+): Promise<SmtpBulkImportJobStatus> => {
+  try {
+    const resp = await emailClient.get<{
+      success: boolean;
+      message?: string;
+      data: SmtpBulkImportJobStatus;
+    }>(`/api/sending-accounts/smtp/bulk-import/${jobId}`);
+    if (!resp.data?.success) {
+      throw new Error(resp.data?.message || "Failed to get import status");
+    }
+    return resp.data.data;
+  } catch (error) {
+    throw new Error(
+      getEmailServiceErrorMessage(error, "Failed to get import status"),
+    );
+  }
+};
+
+export const checkActiveSmtpBulkImportJobs = async (): Promise<
+  SmtpBulkImportJobStatus[]
+> => {
+  try {
+    const resp = await emailClient.get<{
+      success: boolean;
+      message?: string;
+      data: { jobs: SmtpBulkImportJobStatus[] };
+    }>("/api/sending-accounts/smtp/bulk-import/active");
+    if (!resp.data?.success) {
+      throw new Error(resp.data?.message || "Failed to list active imports");
+    }
+    return resp.data.data?.jobs ?? [];
+  } catch (error) {
+    throw new Error(
+      getEmailServiceErrorMessage(error, "Failed to list active imports"),
+    );
+  }
+};
+
+export const dismissSmtpBulkImportJob = async (
+  jobId: string,
+): Promise<SmtpBulkImportJobStatus> => {
+  try {
+    const resp = await emailClient.post<{
+      success: boolean;
+      message?: string;
+      data: SmtpBulkImportJobStatus;
+    }>(`/api/sending-accounts/smtp/bulk-import/${jobId}/dismiss`, {});
+    if (!resp.data?.success) {
+      throw new Error(resp.data?.message || "Failed to clear import banner");
+    }
+    return resp.data.data;
+  } catch (error) {
+    throw new Error(
+      getEmailServiceErrorMessage(error, "Failed to clear import banner"),
+    );
+  }
+};
+
+export const downloadSmtpBulkImportInvalidCsv = async (
+  jobId: string,
+): Promise<void> => {
+  const resp = await emailClient.get(
+    `/api/sending-accounts/smtp/bulk-import/${jobId}/invalid-csv`,
+    { responseType: "blob" },
+  );
+  const blob = new Blob([resp.data], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `smtp-bulk-import-${jobId}-invalid.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
 export const deleteSendingAccount = async (id: string): Promise<void> => {
   const resp = await emailClient.delete(`/api/sending-accounts/${id}`);
   if (!resp.data?.success) {
