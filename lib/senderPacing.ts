@@ -24,6 +24,22 @@ export function getSenderConfiguredDailyCap(
   return sender?.campaignDailyLimit ?? SENDER_PACING_DEFAULTS.campaignDailyLimit;
 }
 
+/** Campaign-wide daily cap: sum of each selected account's configured daily limit. */
+export function sumSelectedSenderDailyCaps(
+  senders: ReadonlyArray<{ id: string; campaignDailyLimit?: number | null }>,
+  selectedIds: readonly string[]
+): number {
+  if (selectedIds.length === 0 || senders.length === 0) return 0;
+  const byId = new Map(senders.map((sender) => [sender.id, sender]));
+  let total = 0;
+  for (const id of selectedIds) {
+    const sender = byId.get(id);
+    if (!sender) continue;
+    total += getSenderConfiguredDailyCap(sender);
+  }
+  return total;
+}
+
 export type SenderPacingFormValues = {
   campaignDailyLimit: number;
   minWaitMinutes: number;

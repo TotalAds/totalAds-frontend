@@ -13,7 +13,7 @@ import {
   RefreshCw,
   ExternalLink,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import Link from "next/link";
 
@@ -32,9 +32,8 @@ import {
   type CampaignSenderConfig,
 } from "@/utils/api/emailClient";
 import {
-  buildCampaignPacingOverridePayload,
-  getSenderConfiguredDailyCap,
   SENDER_PACING_DEFAULTS,
+  sumSelectedSenderDailyCaps,
 } from "@/lib/senderPacing";
 import { getReoonStatus } from "@/utils/api/reoonClient";
 import ReoonApiKeyRequiredModal from "@/components/campaign-builder/ReoonApiKeyRequiredModal";
@@ -115,6 +114,7 @@ export function OptionsTab({
   const [openTracking, setOpenTracking] = useState(initialOpenTracking);
   const [linkTracking, setLinkTracking] = useState(initialLinkTracking);
   const [dailyLimit, setDailyLimit] = useState(initialDailyLimit);
+  const [persistedDailyLimit, setPersistedDailyLimit] = useState(initialDailyLimit);
   const [requireVerification, setRequireVerification] = useState(
     initialRequireVerification,
   );
@@ -126,19 +126,24 @@ export function OptionsTab({
   const [saving, setSaving] = useState(false);
   const [reoonModalOpen, setReoonModalOpen] = useState(false);
   const [checkingReoon, setCheckingReoon] = useState(false);
+  const appliedSelectionKey = useRef<string | null>(null);
+  const lastAutoSum = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const loadCampaignOptions = async () => {
       setLoadingOptions(true);
+      appliedSelectionKey.current = null;
+      lastAutoSum.current = null;
       try {
         const campaign = await getCampaignById(effectiveDomainId, campaignId);
         if (cancelled) return;
-        setDailyLimit(
+        const loadedDailyLimit =
           campaign.campaignDailyLimitOverride ??
-            initialDailyLimit ??
-            SENDER_PACING_DEFAULTS.campaignDailyLimit,
-        );
+          initialDailyLimit ??
+          SENDER_PACING_DEFAULTS.campaignDailyLimit;
+        setDailyLimit(loadedDailyLimit);
+        setPersistedDailyLimit(loadedDailyLimit);
         setOpenTracking(campaign.openTrackingEnabled !== false);
         setLinkTracking(campaign.linkTrackingEnabled === true);
         setRequireVerification(
@@ -251,6 +256,65 @@ export function OptionsTab({
     }
   }, [selectedSenderIds, replyToSenderId, hasZohoSelected]);
 
+  const selectedSenderDailySum = useMemo(
+    () => sumSelectedSenderDailyCaps(senders, selectedSenderIds),
+    [senders, selectedSenderIds],
+  );
+
+  useEffect(() => {
+    appliedSelectionKey.current = null;
+    lastAutoSum.current = null;
+  }, [campaignId]);
+
+  // Campaign daily limit follows the combined cap of the selected accounts.
+  // A stored default of 30 is replaced once accounts are known. Later account
+  // adds/removes always recompute the total. A hand-edited number stays until
+  // the selection changes.
+  useEffect(() => {
+    if (loadingOptions || loadingSenders || isLocked) return;
+    if (selectedSenderIds.length === 0 || selectedSenderDailySum <= 0) return;
+
+    const key = [...selectedSenderIds].sort().join(",");
+    const sum = selectedSenderDailySum;
+    const selectionChanged =
+      appliedSelectionKey.current !== null &&
+      appliedSelectionKey.current !== key;
+
+    if (appliedSelectionKey.current === null) {
+      appliedSelectionKey.current = key;
+      lastAutoSum.current = sum;
+      setDailyLimit((current) =>
+        current === SENDER_PACING_DEFAULTS.campaignDailyLimit ? sum : current,
+      );
+      return;
+    }
+
+    if (selectionChanged) {
+      appliedSelectionKey.current = key;
+      lastAutoSum.current = sum;
+      setDailyLimit(sum);
+      return;
+    }
+
+    setDailyLimit((current) => {
+      if (
+        lastAutoSum.current != null &&
+        current === lastAutoSum.current &&
+        current !== sum
+      ) {
+        lastAutoSum.current = sum;
+        return sum;
+      }
+      return current;
+    });
+  }, [
+    loadingOptions,
+    loadingSenders,
+    isLocked,
+    selectedSenderIds,
+    selectedSenderDailySum,
+  ]);
+
   const rotation = useMemo(
     () =>
       calculateSenderRotationDistribution(
@@ -292,12 +356,6 @@ export function OptionsTab({
       return;
     }
 
-    const primarySender = senders.find((s) => s.id === selectedSenderIds[0]);
-    const senderDefaults = {
-      campaignDailyLimit: getSenderConfiguredDailyCap(primarySender),
-      minWaitMinutes: SENDER_PACING_DEFAULTS.minWaitMinutes,
-      slowRampEnabled: SENDER_PACING_DEFAULTS.slowRampEnabled,
-    };
     const pacingPayload = {
       campaignDailyLimitOverride: dailyLimit,
       minWaitMinutesOverride: null,
@@ -335,6 +393,7 @@ export function OptionsTab({
           requireLeadVerification: requireVerification,
         },
       });
+      setPersistedDailyLimit(dailyLimit);
       setSaved(true);
       toast.success("Options saved");
       onOptionsSaved?.();
@@ -837,60 +896,136 @@ export function OptionsTab({
 
       {/* ── Daily Limit ── */}
       <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-        <div className="px-5 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-800">
-                Campaign Daily Limit
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Maximum emails sent per day for this campaign across all
-                accounts
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
+        <div className="px-5 pt-4 pb-3">
+          <h3 className="text-sm font-semibold text-slate-800">
+            Campaign Daily Limit
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5 max-w-md">
+            Combined daily cap of the selected accounts. Updates when you add
+            or remove accounts.
+          </p>
+        </div>
+        <div className="px-5 pb-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div
+              className={`inline-flex h-12 items-stretch overflow-hidden rounded-xl border bg-white focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 ${
+                isLocked ? "border-slate-200 opacity-60" : "border-slate-300"
+              }`}
+            >
               <button
+                type="button"
+                aria-label="Decrease daily limit by 5"
                 onClick={() => {
                   setDailyLimit((prev) => Math.max(1, prev - 5));
                   setSaved(false);
                 }}
                 disabled={isLocked}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                className="flex w-11 items-center justify-center border-r border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:pointer-events-none"
               >
-                <Minus className="h-3.5 w-3.5" />
+                <Minus className="h-4 w-4" />
               </button>
-              <div className="flex items-center">
+              <label className="flex items-center gap-1 px-3">
+                <span className="sr-only">Emails per day</span>
                 <input
                   type="number"
+                  inputMode="numeric"
                   min={1}
-                  max={10000}
+                  max={100000}
                   value={dailyLimit}
                   disabled={isLocked}
+                  aria-label="Campaign daily limit"
                   onChange={(e) => {
-                    setDailyLimit(Math.max(1, parseInt(e.target.value) || 1));
+                    const next = parseInt(e.target.value, 10);
+                    setDailyLimit(
+                      Number.isFinite(next) ? Math.min(100000, Math.max(1, next)) : 1,
+                    );
                     setSaved(false);
                   }}
-                  className="w-16 text-center text-sm font-semibold text-slate-800 border border-slate-200 rounded-lg py-1.5 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  style={{
+                    width: `${Math.max(2, String(dailyLimit).length)}ch`,
+                  }}
+                  className="border-0 bg-transparent p-0 text-center text-2xl font-semibold tabular-nums tracking-tight text-slate-900 outline-none [appearance:textfield] focus:ring-0 disabled:cursor-not-allowed [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 />
-                <span className="ml-1.5 text-xs text-slate-400">/ day</span>
-              </div>
+                <span className="text-xs font-medium text-slate-400">/day</span>
+              </label>
               <button
+                type="button"
+                aria-label="Increase daily limit by 5"
                 onClick={() => {
-                  setDailyLimit((prev) => prev + 5);
+                  setDailyLimit((prev) => Math.min(100000, prev + 5));
                   setSaved(false);
                 }}
                 disabled={isLocked}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                className="flex w-11 items-center justify-center border-l border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:pointer-events-none"
               >
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="h-4 w-4" />
               </button>
             </div>
+            {selectedSenderDailySum > 0 && dailyLimit !== selectedSenderDailySum && (
+              <button
+                type="button"
+                disabled={isLocked}
+                onClick={() => {
+                  lastAutoSum.current = selectedSenderDailySum;
+                  setDailyLimit(selectedSenderDailySum);
+                  setSaved(false);
+                }}
+                className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-white disabled:pointer-events-none disabled:opacity-60"
+              >
+                Use account total · {selectedSenderDailySum.toLocaleString()}
+              </button>
+            )}
           </div>
-          {dailyLimit <= 30 && (
-            <p className="mt-2 text-[11px] text-blue-600 bg-blue-50 rounded-lg px-3 py-1.5">
-              💡 Default limit is 30/day. Increase carefully — higher limits can
-              affect deliverability for newer accounts.
-            </p>
+
+          {selectedSenderDailySum > 0 && (
+            <div className="mt-4">
+              <div className="mb-1.5 flex items-center justify-between gap-3 text-[11px]">
+                <span
+                  className={
+                    dailyLimit < selectedSenderDailySum
+                      ? "font-medium text-amber-800"
+                      : "text-slate-500"
+                  }
+                >
+                  {dailyLimit === selectedSenderDailySum
+                    ? `Matches ${selectedSenderIds.length} selected ${
+                        selectedSenderIds.length === 1 ? "account" : "accounts"
+                      }`
+                    : dailyLimit < selectedSenderDailySum
+                      ? "Under the selected account total"
+                      : "Above the selected account total"}
+                </span>
+                <span className="tabular-nums text-slate-500">
+                  {dailyLimit.toLocaleString()} of{" "}
+                  {selectedSenderDailySum.toLocaleString()}
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    dailyLimit < selectedSenderDailySum
+                      ? "bg-amber-500"
+                      : "bg-blue-600"
+                  }`}
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      (dailyLimit / selectedSenderDailySum) * 100,
+                    )}%`,
+                  }}
+                />
+              </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+                {dailyLimit === selectedSenderDailySum
+                  ? `This campaign can send the full combined cap (${selectedSenderDailySum.toLocaleString()}/day).`
+                  : dailyLimit < selectedSenderDailySum
+                    ? `Sending stops at ${dailyLimit.toLocaleString()}/day even though the accounts can send ${selectedSenderDailySum.toLocaleString()}/day.`
+                    : `Each account still stops at its own cap (${selectedSenderDailySum.toLocaleString()}/day combined).`}
+                {dailyLimit !== persistedDailyLimit
+                  ? " Save options to apply this limit."
+                  : ""}
+              </p>
+            </div>
           )}
         </div>
       </div>
