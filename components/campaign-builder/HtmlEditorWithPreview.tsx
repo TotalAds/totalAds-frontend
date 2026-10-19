@@ -28,6 +28,8 @@ interface HtmlEditorWithPreviewProps {
   tokenSampleValues?: Record<string, string>;
   /** Campaign-lead coverage for merge tags (red/amber warning in preview). */
   tokenCoverage?: Record<string, PersonalizationTokenCoverage>;
+  /** Appended in the preview iframe only. Not written into the saved HTML. */
+  previewFooterHtml?: string;
 }
 
 function getMergeTokenLabel(token: string): string {
@@ -86,6 +88,7 @@ export default function HtmlEditorWithPreview({
   onTokenClick,
   tokenSampleValues,
   tokenCoverage,
+  previewFooterHtml = "",
 }: HtmlEditorWithPreviewProps) {
   const [copied, setCopied] = useState(false);
   const tokens = useMemo(() => extractEmailTokens(htmlContent), [htmlContent]);
@@ -147,7 +150,7 @@ export default function HtmlEditorWithPreview({
   };
 
   const previewSrc = wrapEmailPreviewDocument(
-    htmlContent || "<p></p>",
+    `${htmlContent || "<p></p>"}${previewFooterHtml}`,
     true,
     tokenSampleValues,
     tokenCoverage

@@ -165,12 +165,18 @@ const BillingSection = () => {
     );
   };
 
-  // AppSumo owns billing for lifetime deals — we never charge, renew or cancel these here.
   const isAppsumo =
     subscriptionData?.source === "appsumo" ||
     subscriptionData?.isLifetime === true ||
     billingData?.source === "appsumo" ||
     billingData?.isLifetime === true;
+  const appsumoSource =
+    subscriptionData?.source === "appsumo" || billingData?.source === "appsumo";
+  const appsumoPlanCancelled =
+    appsumoSource &&
+    (subscriptionData?.status === "cancelled" ||
+      subscriptionData?.status === "expired");
+  const showAppsumoLifetime = isAppsumo && !appsumoPlanCancelled;
 
   if (isLoading) {
     return (
@@ -182,7 +188,19 @@ const BillingSection = () => {
 
   return (
     <div className="space-y-8">
-      {isAppsumo && (
+      {appsumoPlanCancelled && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-5">
+          <p className="text-sm font-semibold text-red-400">
+            AppSumo plan cancelled
+          </p>
+          <p className="mt-1 text-sm text-text-200">
+            This license was deactivated on AppSumo. LeadSnipper access for this
+            account is turned off. Manage the license from your AppSumo account.
+          </p>
+        </div>
+      )}
+
+      {showAppsumoLifetime && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>

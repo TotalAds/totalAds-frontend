@@ -74,6 +74,11 @@ type SelectedItemsState = {
     campaignIds: string[];
     statuses: string[];
     listIds: string[];
+    excludeTagIds: string[];
+    excludeCategoryIds: string[];
+    excludeCampaignIds: string[];
+    excludeStatuses: string[];
+    excludeListIds: string[];
   };
   contacts: string[];
   csvData: Array<Record<string, string>>;
@@ -91,6 +96,11 @@ function createEmptySelectedItems(): SelectedItemsState {
       campaignIds: [],
       statuses: [],
       listIds: [],
+      excludeTagIds: [],
+      excludeCategoryIds: [],
+      excludeCampaignIds: [],
+      excludeStatuses: [],
+      excludeListIds: [],
     },
     contacts: [],
     csvData: [],
@@ -107,8 +117,31 @@ function hasFilterCriteria(
     criteria.categoryIds.length > 0 ||
     criteria.campaignIds.length > 0 ||
     criteria.statuses.length > 0 ||
-    criteria.listIds.length > 0
+    criteria.listIds.length > 0 ||
+    criteria.excludeTagIds.length > 0 ||
+    criteria.excludeCategoryIds.length > 0 ||
+    criteria.excludeCampaignIds.length > 0 ||
+    criteria.excludeStatuses.length > 0 ||
+    criteria.excludeListIds.length > 0
   );
+}
+
+function criteriaToApiFilters(criteria: SelectedItemsState["filterCriteria"]) {
+  return {
+    tagIds: criteria.tagIds.length > 0 ? criteria.tagIds : undefined,
+    categoryIds: criteria.categoryIds.length > 0 ? criteria.categoryIds : undefined,
+    campaignIds: criteria.campaignIds.length > 0 ? criteria.campaignIds : undefined,
+    statuses: criteria.statuses.length > 0 ? criteria.statuses : undefined,
+    listIds: criteria.listIds.length > 0 ? criteria.listIds : undefined,
+    excludeTagIds: criteria.excludeTagIds.length > 0 ? criteria.excludeTagIds : undefined,
+    excludeCategoryIds:
+      criteria.excludeCategoryIds.length > 0 ? criteria.excludeCategoryIds : undefined,
+    excludeCampaignIds:
+      criteria.excludeCampaignIds.length > 0 ? criteria.excludeCampaignIds : undefined,
+    excludeStatuses:
+      criteria.excludeStatuses.length > 0 ? criteria.excludeStatuses : undefined,
+    excludeListIds: criteria.excludeListIds.length > 0 ? criteria.excludeListIds : undefined,
+  };
 }
 
 interface Campaign {
@@ -246,15 +279,9 @@ export default function RecipientSelectionModal({
   const loadFilterOptions = async () => {
     setLoadingFilterOptions(true);
     try {
-      const { tagIds, categoryIds, campaignIds, statuses, listIds } =
-        selectedItems.filterCriteria;
-      const options = await getFilterOptions({
-        tagIds: tagIds.length > 0 ? tagIds : undefined,
-        categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
-        campaignIds: campaignIds.length > 0 ? campaignIds : undefined,
-        statuses: statuses.length > 0 ? statuses : undefined,
-        listIds: listIds.length > 0 ? listIds : undefined,
-      });
+      const options = await getFilterOptions(
+        criteriaToApiFilters(selectedItems.filterCriteria)
+      );
       setFilterOptions(options);
       
       // Update tags, categories from filter options
@@ -363,17 +390,7 @@ export default function RecipientSelectionModal({
   // Apply filters (AND across campaign, lists, tags, categories, status) — server-side
   useEffect(() => {
     const applyFilters = async () => {
-      const { tagIds, categoryIds, campaignIds, statuses, listIds } =
-        selectedItems.filterCriteria;
-
-      const hasFilters =
-        tagIds.length > 0 ||
-        categoryIds.length > 0 ||
-        campaignIds.length > 0 ||
-        statuses.length > 0 ||
-        listIds.length > 0;
-
-      if (!hasFilters) {
+      if (!hasFilterCriteria(selectedItems.filterCriteria)) {
         setFilteredLeadIds([]);
         setFilteredLeadCount(0);
         setFilterMatchLoading(false);
@@ -382,13 +399,9 @@ export default function RecipientSelectionModal({
 
       setFilterMatchLoading(true);
       try {
-        const result = await filterLeadsByCriteria({
-          tagIds: tagIds.length > 0 ? tagIds : undefined,
-          categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
-          campaignIds: campaignIds.length > 0 ? campaignIds : undefined,
-          statuses: statuses.length > 0 ? statuses : undefined,
-          listIds: listIds.length > 0 ? listIds : undefined,
-        });
+        const result = await filterLeadsByCriteria(
+          criteriaToApiFilters(selectedItems.filterCriteria)
+        );
         const leadIds = result.data.leadIds || [];
         setFilteredLeadIds(leadIds);
         setFilteredLeadCount(
@@ -615,21 +628,35 @@ export default function RecipientSelectionModal({
 
   const handleFilterChange = (
     type: "tag" | "category" | "campaign" | "status" | "list",
-    selected: Array<{ id: string; name: string }>
+    selected: Array<{ id: string; name: string }>,
+    mode: "include" | "exclude" = "include"
   ) => {
+    const includeKey = {
+      tag: "tagIds",
+      category: "categoryIds",
+      campaign: "campaignIds",
+      status: "statuses",
+      list: "listIds",
+    } as const;
+    const excludeKey = {
+      tag: "excludeTagIds",
+      category: "excludeCategoryIds",
+      campaign: "excludeCampaignIds",
+      status: "excludeStatuses",
+      list: "excludeListIds",
+    } as const;
+
     setSelectedItems((prev) => {
       const criteria = { ...prev.filterCriteria };
-      if (type === "tag") {
-        criteria.tagIds = selected.map((item) => item.id);
-      } else if (type === "category") {
-        criteria.categoryIds = selected.map((item) => item.id);
-      } else if (type === "campaign") {
-        criteria.campaignIds = selected.map((item) => item.id);
-      } else if (type === "status") {
-        // For status, the id is actually the value
-        criteria.statuses = selected.map((item) => item.id);
-      } else if (type === "list") {
-        criteria.listIds = selected.map((item) => item.id);
+      const ids = selected.map((item) => item.id);
+      const kept = includeKey[type];
+      const dropped = excludeKey[type];
+      if (mode === "include") {
+        criteria[kept] = ids;
+        criteria[dropped] = criteria[dropped].filter((id) => !ids.includes(id));
+      } else {
+        criteria[dropped] = ids;
+        criteria[kept] = criteria[kept].filter((id) => !ids.includes(id));
       }
       return { ...prev, filterCriteria: criteria };
     });
@@ -996,9 +1023,9 @@ export default function RecipientSelectionModal({
                       Filter by Criteria
                     </h3>
                     <p className="text-sm text-text-200 mb-6">
-                      Select tags, categories, campaigns, or statuses to
-                      retarget leads. All selected criteria will be combined
-                      (AND logic). Available options update based on your selections.
+                      Include leads that match any selected value, and exclude
+                      leads that match any excluded value. Every field applies
+                      together. Available options update based on your selections.
                     </p>
                   </div>
 
@@ -1012,10 +1039,15 @@ export default function RecipientSelectionModal({
                   {/* Campaigns - Show all campaigns regardless of domain */}
                   <div>
                     <CreatableSelect
-                      options={campaigns.map((c) => ({
-                        id: c.id,
-                        name: `${c.name} (${c.count || 0} leads)`,
-                      }))}
+                      options={campaigns
+                        .filter(
+                          (c) =>
+                            !selectedItems.filterCriteria.excludeCampaignIds.includes(c.id)
+                        )
+                        .map((c) => ({
+                          id: c.id,
+                          name: `${c.name} (${c.count || 0} leads)`,
+                        }))}
                       value={campaigns
                         .filter((c) =>
                           selectedItems.filterCriteria.campaignIds.includes(c.id)
@@ -1031,10 +1063,42 @@ export default function RecipientSelectionModal({
                         )
                       }
                       placeholder="Select campaigns..."
-                      label="Campaigns (All Domains)"
+                      label="Include campaigns"
                       isMulti={true}
                       isLoading={loadingFilterOptions}
                     />
+                    <div className="mt-3">
+                      <CreatableSelect
+                        options={campaigns
+                          .filter(
+                            (c) => !selectedItems.filterCriteria.campaignIds.includes(c.id)
+                          )
+                          .map((c) => ({
+                            id: c.id,
+                            name: `${c.name} (${c.count || 0} leads)`,
+                          }))}
+                        value={campaigns
+                          .filter((c) =>
+                            selectedItems.filterCriteria.excludeCampaignIds.includes(c.id)
+                          )
+                          .map((c) => ({
+                            id: c.id,
+                            name: `${c.name} (${c.count || 0} leads)`,
+                          }))}
+                        onChange={(selected) =>
+                          handleFilterChange(
+                            "campaign",
+                            selected.map((s) => ({ id: s.id, name: s.name })),
+                            "exclude"
+                          )
+                        }
+                        placeholder="Exclude campaigns..."
+                        label="Exclude campaigns"
+                        isMulti={true}
+                        isLoading={loadingFilterOptions}
+                        tone="exclude"
+                      />
+                    </div>
                     <p className="text-xs text-text-200/60 mt-1">
                       Select campaigns from all your domains to retarget recipients. Counts show available leads.
                     </p>
@@ -1043,10 +1107,14 @@ export default function RecipientSelectionModal({
                   {/* Lists */}
                   <div>
                     <CreatableSelect
-                      options={lists.map((l) => ({
-                        id: l.id,
-                        name: `${l.name} (${l.contactCount || 0} contacts)`,
-                      }))}
+                      options={lists
+                        .filter(
+                          (l) => !selectedItems.filterCriteria.excludeListIds.includes(l.id)
+                        )
+                        .map((l) => ({
+                          id: l.id,
+                          name: `${l.name} (${l.contactCount || 0} contacts)`,
+                        }))}
                       value={lists
                         .filter((l) =>
                           selectedItems.filterCriteria.listIds.includes(l.id)
@@ -1070,10 +1138,40 @@ export default function RecipientSelectionModal({
                         };
                       }}
                       placeholder="Select lists..."
-                      label="Lists"
+                      label="Include lists"
                       isMulti={true}
                       isLoading={loading}
                     />
+                    <div className="mt-3">
+                      <CreatableSelect
+                        options={lists
+                          .filter((l) => !selectedItems.filterCriteria.listIds.includes(l.id))
+                          .map((l) => ({
+                            id: l.id,
+                            name: `${l.name} (${l.contactCount || 0} contacts)`,
+                          }))}
+                        value={lists
+                          .filter((l) =>
+                            selectedItems.filterCriteria.excludeListIds.includes(l.id)
+                          )
+                          .map((l) => ({
+                            id: l.id,
+                            name: `${l.name} (${l.contactCount || 0} contacts)`,
+                          }))}
+                        onChange={(selected) =>
+                          handleFilterChange(
+                            "list",
+                            selected.map((s) => ({ id: s.id, name: s.name })),
+                            "exclude"
+                          )
+                        }
+                        placeholder="Exclude lists..."
+                        label="Exclude lists"
+                        isMulti={true}
+                        isLoading={loading}
+                        tone="exclude"
+                      />
+                    </div>
                     <p className="text-xs text-text-200/60 mt-1">
                       Filter leads by lists. Lists with 0 contacts are shown but won't match any leads.
                     </p>
@@ -1082,11 +1180,13 @@ export default function RecipientSelectionModal({
                   {/* Tags */}
                   <div>
                     <CreatableSelect
-                      options={filterOptions.tags.map((t) => ({
-                        id: t.id,
-                        name: `${t.name} (${t.count} leads)`,
-                        color: t.color,
-                      }))}
+                      options={filterOptions.tags
+                        .filter((t) => !selectedItems.filterCriteria.excludeTagIds.includes(t.id))
+                        .map((t) => ({
+                          id: t.id,
+                          name: `${t.name} (${t.count} leads)`,
+                          color: t.color,
+                        }))}
                       value={filterOptions.tags
                         .filter((t) =>
                           selectedItems.filterCriteria.tagIds.includes(t.id)
@@ -1108,20 +1208,56 @@ export default function RecipientSelectionModal({
                         return { id: newTag.id, name: newTag.name, color: newTag.color };
                       }}
                       placeholder="Select tags..."
-                      label="Tags"
+                      label="Include tags"
                       isMulti={true}
                       isLoading={loadingFilterOptions}
                     />
+                    <div className="mt-3">
+                      <CreatableSelect
+                        options={filterOptions.tags
+                          .filter((t) => !selectedItems.filterCriteria.tagIds.includes(t.id))
+                          .map((t) => ({
+                            id: t.id,
+                            name: `${t.name} (${t.count} leads)`,
+                            color: t.color,
+                          }))}
+                        value={filterOptions.tags
+                          .filter((t) =>
+                            selectedItems.filterCriteria.excludeTagIds.includes(t.id)
+                          )
+                          .map((t) => ({
+                            id: t.id,
+                            name: `${t.name} (${t.count} leads)`,
+                            color: t.color,
+                          }))}
+                        onChange={(selected) =>
+                          handleFilterChange(
+                            "tag",
+                            selected.map((s) => ({ id: s.id, name: s.name })),
+                            "exclude"
+                          )
+                        }
+                        placeholder="Exclude tags..."
+                        label="Exclude tags"
+                        isMulti={true}
+                        isLoading={loadingFilterOptions}
+                        tone="exclude"
+                      />
+                    </div>
                   </div>
 
                   {/* Categories */}
                   <div>
                     <CreatableSelect
-                      options={filterOptions.categories.map((c) => ({
-                        id: c.id,
-                        name: `${c.name} (${c.count} leads)`,
-                        color: c.color,
-                      }))}
+                      options={filterOptions.categories
+                        .filter(
+                          (c) => !selectedItems.filterCriteria.excludeCategoryIds.includes(c.id)
+                        )
+                        .map((c) => ({
+                          id: c.id,
+                          name: `${c.name} (${c.count} leads)`,
+                          color: c.color,
+                        }))}
                       value={filterOptions.categories
                         .filter((c) =>
                           selectedItems.filterCriteria.categoryIds.includes(c.id)
@@ -1147,19 +1283,57 @@ export default function RecipientSelectionModal({
                         };
                       }}
                       placeholder="Select categories..."
-                      label="Categories"
+                      label="Include categories"
                       isMulti={true}
                       isLoading={loadingFilterOptions}
                     />
+                    <div className="mt-3">
+                      <CreatableSelect
+                        options={filterOptions.categories
+                          .filter(
+                            (c) => !selectedItems.filterCriteria.categoryIds.includes(c.id)
+                          )
+                          .map((c) => ({
+                            id: c.id,
+                            name: `${c.name} (${c.count} leads)`,
+                            color: c.color,
+                          }))}
+                        value={filterOptions.categories
+                          .filter((c) =>
+                            selectedItems.filterCriteria.excludeCategoryIds.includes(c.id)
+                          )
+                          .map((c) => ({
+                            id: c.id,
+                            name: `${c.name} (${c.count} leads)`,
+                            color: c.color,
+                          }))}
+                        onChange={(selected) =>
+                          handleFilterChange(
+                            "category",
+                            selected.map((s) => ({ id: s.id, name: s.name })),
+                            "exclude"
+                          )
+                        }
+                        placeholder="Exclude categories..."
+                        label="Exclude categories"
+                        isMulti={true}
+                        isLoading={loadingFilterOptions}
+                        tone="exclude"
+                      />
+                    </div>
                   </div>
 
                   {/* Status */}
                   <div>
                     <CreatableSelect
-                      options={filterOptions.statuses.map((s) => ({
-                        id: s.value,
-                        name: `${s.label} (${s.count} leads)`,
-                      }))}
+                      options={filterOptions.statuses
+                        .filter(
+                          (s) => !selectedItems.filterCriteria.excludeStatuses.includes(s.value)
+                        )
+                        .map((s) => ({
+                          id: s.value,
+                          name: `${s.label} (${s.count} leads)`,
+                        }))}
                       value={filterOptions.statuses
                         .filter((s) =>
                           selectedItems.filterCriteria.statuses.includes(s.value)
@@ -1175,10 +1349,40 @@ export default function RecipientSelectionModal({
                         )
                       }
                       placeholder="Select statuses..."
-                      label="Status"
+                      label="Include status"
                       isMulti={true}
                       isLoading={loadingFilterOptions}
                     />
+                    <div className="mt-3">
+                      <CreatableSelect
+                        options={filterOptions.statuses
+                          .filter((s) => !selectedItems.filterCriteria.statuses.includes(s.value))
+                          .map((s) => ({
+                            id: s.value,
+                            name: `${s.label} (${s.count} leads)`,
+                          }))}
+                        value={filterOptions.statuses
+                          .filter((s) =>
+                            selectedItems.filterCriteria.excludeStatuses.includes(s.value)
+                          )
+                          .map((s) => ({
+                            id: s.value,
+                            name: `${s.label} (${s.count} leads)`,
+                          }))}
+                        onChange={(selected) =>
+                          handleFilterChange(
+                            "status",
+                            selected.map((s) => ({ id: s.id, name: s.name })),
+                            "exclude"
+                          )
+                        }
+                        placeholder="Exclude statuses..."
+                        label="Exclude status"
+                        isMulti={true}
+                        isLoading={loadingFilterOptions}
+                        tone="exclude"
+                      />
+                    </div>
                   </div>
 
                   {/* Results */}
@@ -1189,15 +1393,11 @@ export default function RecipientSelectionModal({
                     </div>
                   )}
                   {!filterMatchLoading &&
-                    (selectedItems.filterCriteria.tagIds.length > 0 ||
-                      selectedItems.filterCriteria.categoryIds.length > 0 ||
-                      selectedItems.filterCriteria.campaignIds.length > 0 ||
-                      selectedItems.filterCriteria.statuses.length > 0 ||
-                      selectedItems.filterCriteria.listIds.length > 0) &&
+                    hasFilterCriteria(selectedItems.filterCriteria) &&
                     filteredLeadCount === 0 && (
                       <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-sm text-text-200">
-                        No leads match every selected criterion (all conditions
-                        apply together). Try removing or changing a filter.
+                        No leads match these includes and excludes. Try removing
+                        or changing a filter.
                       </div>
                     )}
                   {!filterMatchLoading && filteredLeadCount > 0 && (

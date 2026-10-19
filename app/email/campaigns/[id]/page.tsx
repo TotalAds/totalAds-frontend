@@ -34,6 +34,8 @@ interface CampaignAnalyticsData {
     deliverabilityPauseReason?: string | null;
     deliverabilityAcknowledgedAt?: string | null;
     requiresDeliverabilityAcknowledgment?: boolean;
+    unsubscribeLinkText?: string;
+    unsubscribeFooterAcknowledgedAt?: string | null;
     reoonVerificationSummary?: { requireLeadVerification?: boolean };
   };
   metrics: {
@@ -105,6 +107,7 @@ interface CampaignAnalyticsData {
     totalLeadsAfterVerification: number | null;
     excludedAsRisky: number | null;
     verificationJobFailed?: boolean;
+    verificationApiFailed?: boolean;
     errorMessage?: string | null;
     failedAt?: string | null;
   } | null;

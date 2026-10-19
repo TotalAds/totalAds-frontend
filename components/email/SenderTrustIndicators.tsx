@@ -50,10 +50,10 @@ export function SenderReputationBadge({
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${styles.bg} ${styles.text} ${
         compact ? "text-[10px]" : "text-[11px]"
       }`}
-      title="Based on account age, send volume, bounce rate, and warmup progress"
+      title="Based on recorded send results. A clean setup is not an inbox-placement claim."
     >
-      <span aria-hidden>{reputation.emoji}</span>
-      <span>{reputation.label} sender reputation</span>
+      {reputation.emoji ? <span aria-hidden>{reputation.emoji}</span> : null}
+      <span>{reputation.label}</span>
     </span>
   );
 }

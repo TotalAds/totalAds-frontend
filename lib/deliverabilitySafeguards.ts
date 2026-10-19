@@ -117,7 +117,7 @@ export function deliverabilityActionDescription(params: {
       }
       return "Bounce or complaint rate is elevated. We are monitoring before slowing or pausing.";
     default:
-      return "Sender reputation is within normal ranges for your current send volume.";
+      return "No delivery issues detected in the current send window.";
   }
 }
 
@@ -155,7 +155,10 @@ export function senderHealthBadge(
   }
 
   if (healthStatus === "good" || healthStatus === "excellent") {
-    return { label: "Healthy", tone: "ok" };
+    if (typeof sent7d === "number" && sent7d < DELIVERABILITY_MIN_SAMPLE_WARN) {
+      return { label: "Limited reputation data", tone: "monitoring" };
+    }
+    return { label: "No delivery issues detected", tone: "ok" };
   }
 
   return null;

@@ -97,7 +97,6 @@ export function OnboardingStep3Combined({
     return {
       email: connectedAccount.email,
       dailyLimit: connectedAccount.campaignDailyLimit ?? 50,
-      score: connectedAccount.healthScore ?? 98,
     };
   }, [connectedAccount]);
 
@@ -210,9 +209,7 @@ export function OnboardingStep3Combined({
           <p className="mt-2 text-sm text-green-800">
             Your daily recommended limit: {connectedMessage.dailyLimit} emails/day
           </p>
-          <p className="text-sm text-green-800">
-            Deliverability score: {connectedMessage.score}%
-          </p>
+          <p className="text-sm text-green-800">Limited reputation data until this mailbox has a send history.</p>
         </div>
       ) : null}
 

@@ -438,6 +438,12 @@ export interface Campaign {
   campaignDailyLimitOverride?: number | null;
   openTrackingEnabled?: boolean;
   linkTrackingEnabled?: boolean;
+  /** When true, every sequence step for a lead stays on the mailbox that sent the first email. */
+  sameSenderSequenceEnabled?: boolean;
+  /** Visible words on the mandatory unsubscribe link. */
+  unsubscribeLinkText?: string;
+  /** Set after the owner confirms the unsubscribe link stays on every email. */
+  unsubscribeFooterAcknowledgedAt?: string | null;
   minWaitMinutesOverride?: number | null;
   slowRampEnabledOverride?: boolean | null;
   replyTo?: string;
@@ -843,6 +849,7 @@ export interface SendTestEmailPayload {
   templateSubject?: string;
   templateBody?: string;
   templatePreviewText?: string;
+  unsubscribeLinkText?: string;
   templateAttachment?: {
     s3Key: string;
     fileName: string;
@@ -1413,6 +1420,7 @@ export interface SubscriptionInfo {
   dailyRemaining: number;
   dailyResetAt: string;
   status?: "active" | "paused" | "cancelled" | "expired" | "trial" | string;
+  source?: string | null;
 }
 
 export const getSubscriptionInfo = async (): Promise<SubscriptionInfo> => {
@@ -1450,6 +1458,7 @@ export const getSubscriptionInfo = async (): Promise<SubscriptionInfo> => {
       dailyRemaining: Number(quota.remaining ?? d.dailyRemaining ?? 0),
       dailyResetAt: quota.resetAt || d.dailyResetAt || new Date().toISOString(),
       status: subscription.status || d.subscription?.status,
+      source: subscription.source || d.subscription?.source || null,
     };
   } catch (error: any) {
     console.error("Failed to fetch subscription info:", error);
@@ -1663,6 +1672,31 @@ export interface AIGeneratedCampaignResponse {
   subject_why_strong: string[];
   emails: AIGeneratedCampaignEmailStep[];
 }
+
+export interface AISpintaxSuggestion {
+  field: "subject" | "preview" | "body";
+  original: string;
+  spintax: string;
+  reason: string;
+}
+
+export interface AIGeneratedSpintaxResponse {
+  suggestions: AISpintaxSuggestion[];
+}
+
+export const generateAISpintax = async (payload: {
+  subject: string;
+  previewText?: string;
+  body: string;
+}): Promise<AIGeneratedSpintaxResponse> => {
+  try {
+    const response = await emailClient.post("/api/ai/spintax", payload);
+    return response.data?.data || response.data;
+  } catch (error: any) {
+    console.error("Failed to generate AI spintax:", error);
+    throw error;
+  }
+};
 
 export const generateAICampaign = async (payload: {
   audience: string;
@@ -2298,6 +2332,118 @@ export const updateSendingAccount = async (
   return resp.data.data;
 };
 
+export interface SenderHealthIssue {
+  checkKey: string;
+  scope: string;
+  issue: string;
+  severity: string;
+  evidence: string;
+  impact: string;
+  recommendedAction: string;
+  actions: Array<"view_instructions" | "recheck" | "preview_dns">;
+  lastChecked: string;
+  result: string;
+  source: string;
+  listingDetail: string | null;
+  fresh: boolean;
+}
+
+export interface SenderHealthAccount {
+  senderId: string;
+  email: string;
+  provider: string;
+  status: string;
+  statusReason: string;
+  cap: number;
+  sent7d: number;
+  personal: boolean;
+  issues: SenderHealthIssue[];
+  coverage: {
+    lastChecked: string | null;
+    stale: boolean;
+    unavailable: boolean;
+    limited: boolean;
+    sources: string[];
+  };
+}
+
+export interface SenderHealthDomain {
+  domain: string;
+  provider: string;
+  sesDomainId: string | null;
+  dnsApplyAvailable: boolean;
+  status: string;
+  statusReason: string;
+  issues: SenderHealthIssue[];
+  website: SenderHealthIssue | null;
+  accounts: SenderHealthAccount[];
+  distribution: string;
+  placement: Array<{
+    id: string;
+    senderId: string | null;
+    provider: string;
+    folder: string;
+    sampleSize: number;
+    testedAt: string;
+    method: string;
+    limitation: string;
+    evidence: string | null;
+  }>;
+  coverage: SenderHealthAccount["coverage"];
+}
+
+export interface SenderHealthResponse {
+  summary: Record<string, number>;
+  domains: SenderHealthDomain[];
+}
+
+export const getSenderHealth = async (): Promise<SenderHealthResponse> => {
+  const resp = await emailClient.get("/api/sending-accounts/health");
+  if (!resp.data?.success) throw new Error(resp.data?.message || "Failed to load sender health");
+  return resp.data.data;
+};
+
+export const recheckSenderHealth = async (body: {
+  domain?: string;
+  senderId?: string;
+  checkKey?: string;
+}): Promise<SenderHealthResponse> => {
+  const resp = await emailClient.post("/api/sending-accounts/health/recheck", body);
+  if (!resp.data?.success) throw new Error(resp.data?.message || "Failed to recheck");
+  return resp.data.data;
+};
+
+export const previewSenderHealthDns = async (domain: string) => {
+  const resp = await emailClient.post("/api/sending-accounts/health/dns-preview", { domain });
+  if (!resp.data?.success) throw new Error(resp.data?.message || "Failed to preview DNS");
+  return resp.data.data as {
+    domain: string;
+    spfChoice: "merge" | "new";
+    note: string;
+    records: Array<{ type: string; host: string; value: string; priority: number | null }>;
+  };
+};
+
+export const applySenderHealthDns = async (body: {
+  domain: string;
+  apiToken: string;
+  spfChoice?: "merge" | "new";
+}): Promise<SenderHealthResponse> => {
+  const resp = await emailClient.post("/api/sending-accounts/health/dns-apply", body);
+  if (!resp.data?.success) throw new Error(resp.data?.message || "Failed to apply DNS");
+  return resp.data.data.health as SenderHealthResponse;
+};
+
+export const runPlacementSample = async (senderId: string) => {
+  const resp = await emailClient.post("/api/sending-accounts/health/placement-tests", { senderId });
+  if (!resp.data?.success) throw new Error(resp.data?.message || "Failed to run placement sample");
+  return resp.data.data as {
+    unavailable: boolean;
+    evidence: string | null;
+    samples: SenderHealthDomain["placement"];
+  };
+};
+
 // Enhanced Campaign Analytics Types
 export interface TimeSeriesDataPoint {
   date: string;
@@ -2603,6 +2749,11 @@ export const filterLeadsByCriteria = async (filters: {
   statuses?: string[];
   /** Union across selected lists; combined with other filters using AND */
   listIds?: string[];
+  excludeTagIds?: string[];
+  excludeCategoryIds?: string[];
+  excludeCampaignIds?: string[];
+  excludeStatuses?: string[];
+  excludeListIds?: string[];
 }): Promise<{ data: { leadIds: string[]; count: number; total: number } }> => {
   try {
     const response = await emailClient.post("/api/lists/filter-leads", filters);
@@ -2626,24 +2777,27 @@ export const getFilterOptions = async (filters?: {
   campaignIds?: string[];
   statuses?: string[];
   listIds?: string[];
+  excludeCategoryIds?: string[];
+  excludeTagIds?: string[];
+  excludeCampaignIds?: string[];
+  excludeListIds?: string[];
+  excludeStatuses?: string[];
 }): Promise<FilterOptions> => {
   try {
     const params = new URLSearchParams();
-    if (filters?.categoryIds && filters.categoryIds.length > 0) {
-      params.append("categoryIds", filters.categoryIds.join(","));
-    }
-    if (filters?.tagIds && filters.tagIds.length > 0) {
-      params.append("tagIds", filters.tagIds.join(","));
-    }
-    if (filters?.campaignIds && filters.campaignIds.length > 0) {
-      params.append("campaignIds", filters.campaignIds.join(","));
-    }
-    if (filters?.statuses && filters.statuses.length > 0) {
-      params.append("statuses", filters.statuses.join(","));
-    }
-    if (filters?.listIds && filters.listIds.length > 0) {
-      params.append("listIds", filters.listIds.join(","));
-    }
+    const append = (key: string, values?: string[]) => {
+      if (values && values.length > 0) params.append(key, values.join(","));
+    };
+    append("categoryIds", filters?.categoryIds);
+    append("tagIds", filters?.tagIds);
+    append("campaignIds", filters?.campaignIds);
+    append("statuses", filters?.statuses);
+    append("listIds", filters?.listIds);
+    append("excludeCategoryIds", filters?.excludeCategoryIds);
+    append("excludeTagIds", filters?.excludeTagIds);
+    append("excludeCampaignIds", filters?.excludeCampaignIds);
+    append("excludeListIds", filters?.excludeListIds);
+    append("excludeStatuses", filters?.excludeStatuses);
     const response = await emailClient.get<{ data: FilterOptions }>(
       `/api/leads/filter-options?${params.toString()}`,
     );

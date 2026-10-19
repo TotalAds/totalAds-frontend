@@ -37,17 +37,20 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
   const { isAuthenticated } = state;
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [subStatus, setSubStatus] = useState<string | null>(null);
+  const [subSource, setSubSource] = useState<string | null>(null);
 
   // Load subscription status to check for expired trial/plan
   useEffect(() => {
     const fetchSubStatus = async () => {
       if (!isAuthenticated) {
         setSubStatus(null);
+        setSubSource(null);
         return;
       }
       try {
         const sub = await getSubscriptionInfo();
         setSubStatus(sub.status || null);
+        setSubSource(sub.source || null);
       } catch (err) {
         console.error("Failed to fetch subscription status:", err);
       }
@@ -101,7 +104,13 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
     return false;
   }, [pathname, searchParams, isSocialRoute, isAuthPage]);
 
-  const showExpiredOverlay = isAuthenticated && !isSocialRoute && subStatus === "expired" && isBlockedPath;
+  const appsumoPlanCancelled =
+    subStatus === "cancelled" && subSource === "appsumo";
+  const showExpiredOverlay =
+    isAuthenticated &&
+    !isSocialRoute &&
+    (subStatus === "expired" || appsumoPlanCancelled) &&
+    isBlockedPath;
 
   // Handle responsive sidebar behavior
   useEffect(() => {
@@ -203,15 +212,18 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
 
                 {/* Badge */}
                 <span className="px-3 py-1 bg-red-500/10 border border-red-500/20 text-red-500 rounded-full text-xs font-semibold uppercase tracking-wider mb-4">
-                  Subscription Expired
+                  {appsumoPlanCancelled ? "Plan cancelled" : "Subscription Expired"}
                 </span>
 
-                {/* Text */}
                 <h2 className="text-2xl font-extrabold text-text-100 mb-3 tracking-tight">
-                  Unlock LeadSnipper to Continue Sending
+                  {appsumoPlanCancelled
+                    ? "This AppSumo plan is cancelled"
+                    : "Unlock LeadSnipper to Continue Sending"}
                 </h2>
                 <p className="text-text-200 text-sm mb-6 leading-relaxed">
-                  Your 14-day free trial or active subscription has expired. Upgrade your plan to resume your campaigns, connect domains, and land in the inbox.
+                  {appsumoPlanCancelled
+                    ? "This license was deactivated on AppSumo, so LeadSnipper access for this account is turned off."
+                    : "Your 14-day free trial or active subscription has expired. Upgrade your plan to resume your campaigns, connect domains, and land in the inbox."}
                 </p>
 
                 {/* Locked Features */}
@@ -239,7 +251,7 @@ const ConditionalLayout: React.FC<ConditionalLayoutProps> = ({ children }) => {
                     onClick={() => router.push("/email/settings?tab=billing")}
                     className="w-full py-3 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/20 transition-all hover:scale-[1.02] transform active:scale-95 flex items-center justify-center gap-2"
                   >
-                    Upgrade Subscription
+                    {appsumoPlanCancelled ? "View billing" : "Upgrade Subscription"}
                     <IconArrowRight className="w-4 h-4" />
                   </button>
                   

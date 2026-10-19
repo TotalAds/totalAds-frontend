@@ -632,21 +632,21 @@ export default function EmailSendersPage() {
                             (quota.domainTrustLevel || quota.healthScore !== undefined) && (
                               <div className="bg-brand-main/5 rounded-lg p-3 mt-3">
                                 <p className="text-text-200 text-xs mb-2 font-medium">
-                                  Reputation & Ramp-Up Status
+                                  Sending signals
                                 </p>
                                 {quota.domainTrustLevel && getTrustLevelBadge(quota.domainTrustLevel, quota.domainAgeInDays)}
                                 {quota.healthScore !== undefined && (
                                   <div className="mt-2 flex flex-col gap-1">
                                     <div className="flex items-center justify-between">
                                       <span className="text-text-200 text-xs">
-                                        Health Score
+                                        Delivery data
                                       </span>
                                       <span className="text-text-100 text-sm font-semibold">
-                                        {quota.healthScore}/100{" "}
-                                        {quota.healthStatus &&
-                                          `(${quota.healthStatus.charAt(0).toUpperCase()}${quota.healthStatus.slice(
-                                            1
-                                          )})`}
+                                        {(quota.totalSent ?? 0) < 100
+                                          ? "Limited reputation data"
+                                          : quota.healthStatus === "critical" || quota.healthStatus === "warning"
+                                            ? "At risk"
+                                            : "No delivery issues detected"}
                                       </span>
                                     </div>
                                     {(quota.bounceRate7d !== undefined ||

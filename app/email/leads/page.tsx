@@ -13,7 +13,9 @@ import { SingleLeadOrganizeModal } from "@/components/leads/SingleLeadOrganizeMo
 import LeadsSubNav from "@/components/leads/LeadsSubNav";
 import LeadsToolbar from "@/components/leads/LeadsToolbar";
 import {
+  appendLeadFilters,
   buildLeadsApiParams,
+  countActiveLeadFilterGroups,
   EMPTY_LEAD_COUNTS,
   filtersToApiBody,
   type LeadVerificationCounts,
@@ -68,6 +70,7 @@ export default function LeadsPage() {
   const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState<LeadColumnFilters>(EMPTY_LEAD_FILTERS);
   const [search, setSearch] = useState("");
+  const [excludeSearch, setExcludeSearch] = useState("");
   const [counts, setCounts] = useState<LeadVerificationCounts>(EMPTY_LEAD_COUNTS);
   const [filterOptions, setFilterOptions] = useState<LeadFilterOptions>({
     categories: [],
@@ -110,7 +113,10 @@ export default function LeadsPage() {
   const [selectedLeadForOrganize, setSelectedLeadForOrganize] =
     useState<LeadRow | null>(null);
 
-  const hasActiveFilters = hasActiveLeadFilters(filters);
+  const hasActiveFilters =
+    hasActiveLeadFilters(filters) ||
+    search.trim().length > 0 ||
+    excludeSearch.trim().length > 0;
 
   useEffect(() => {
     loadLeads();
@@ -129,33 +135,21 @@ export default function LeadsPage() {
       .catch((error) => {
         console.error("Failed to check active jobs:", error);
       });
-  }, [page, limit, filters, search]);
+  }, [page, limit, filters, search, excludeSearch]);
 
   useEffect(() => {
     loadFilterOptions();
-  }, [filters, search]);
+  }, [filters, search, excludeSearch]);
 
   useEffect(() => {
     setSelectedLeadsForCampaign(new Set());
     setIsAllMatchingSelected(false);
-  }, [filters, search, page, limit]);
+  }, [filters, search, excludeSearch, page, limit]);
 
   const loadFilterOptions = async () => {
     try {
       const params = new URLSearchParams();
-
-      if (filters.categoryIds.length > 0) {
-        params.append("categoryIds", filters.categoryIds.join(","));
-      }
-      if (filters.tagIds.length > 0) {
-        params.append("tagIds", filters.tagIds.join(","));
-      }
-      if (filters.campaignIds.length > 0) {
-        params.append("campaignIds", filters.campaignIds.join(","));
-      }
-      if (filters.listIds.length > 0) {
-        params.append("listIds", filters.listIds.join(","));
-      }
+      appendLeadFilters(params, { search, excludeSearch, filters });
 
       const response = await emailClient.get<{ data: FilterOptionsResponse }>(
         `/api/leads/filter-options?${params.toString()}`
@@ -196,7 +190,13 @@ export default function LeadsPage() {
   const loadLeads = async () => {
     try {
       setIsLoading(true);
-      const params = buildLeadsApiParams({ page, limit, search, filters });
+      const params = buildLeadsApiParams({
+        page,
+        limit,
+        search,
+        excludeSearch,
+        filters,
+      });
 
       const [response, metrics] = await Promise.all([
         emailClient.get<{ data: ListResponse }>(
@@ -286,6 +286,7 @@ export default function LeadsPage() {
   const clearAllFilters = () => {
     setFilters(EMPTY_LEAD_FILTERS);
     setSearch("");
+    setExcludeSearch("");
     setPage(1);
   };
 
@@ -293,7 +294,10 @@ export default function LeadsPage() {
     if (isAllMatchingSelected) {
       return {
         selectAllMatching: true,
-        filters: { ...filtersToApiBody(search, filters), archived: false },
+        filters: {
+          ...filtersToApiBody(search, filters, excludeSearch),
+          archived: false,
+        },
       };
     }
     return { leadIds: Array.from(selectedLeadsForCampaign) };
@@ -336,9 +340,12 @@ export default function LeadsPage() {
     if (!showArchiveByTypeConfirm) return;
     setIsArchiving(true);
     try {
+      const archiveFilters = filtersToApiBody(search, filters, excludeSearch);
+      delete archiveFilters.verification;
+      delete archiveFilters.excludeVerification;
       const result = await archiveLeads({
         verification: [showArchiveByTypeConfirm],
-        filters: filtersToApiBody(search, filters),
+        filters: archiveFilters,
       });
       toast.success(
         `Archived ${result.count} ${showArchiveByTypeConfirm.replace("_", "-")} lead${result.count !== 1 ? "s" : ""}`
@@ -353,17 +360,10 @@ export default function LeadsPage() {
     }
   };
 
-  const activeFilterCount = useMemo(() => {
-    let count = 0;
-    if (search.trim()) count++;
-    if (filters.name.trim()) count++;
-    if (filters.verification.length > 0) count++;
-    if (filters.tagIds.length > 0) count++;
-    if (filters.categoryIds.length > 0) count++;
-    if (filters.listIds.length > 0) count++;
-    if (filters.campaignIds.length > 0) count++;
-    return count;
-  }, [filters]);
+  const activeFilterCount = useMemo(
+    () => countActiveLeadFilterGroups(filters, search, excludeSearch),
+    [filters, search, excludeSearch]
+  );
 
   return (
     <div className="min-h-screen bg-bg-100 p-6">
@@ -444,6 +444,11 @@ export default function LeadsPage() {
           search={search}
           onSearchChange={(value) => {
             setSearch(value);
+            setPage(1);
+          }}
+          excludeSearch={excludeSearch}
+          onExcludeSearchChange={(value) => {
+            setExcludeSearch(value);
             setPage(1);
           }}
           filters={filters}
@@ -901,6 +906,8 @@ export default function LeadsPage() {
           selectedLeadIds={Array.from(selectedLeadsForCampaign)}
           isAllMatchingSelected={isAllMatchingSelected}
           filters={filters}
+          search={search}
+          excludeSearch={excludeSearch}
           availableCategories={filterOptions.categories}
           availableTags={filterOptions.tags}
           availableLists={filterOptions.lists}

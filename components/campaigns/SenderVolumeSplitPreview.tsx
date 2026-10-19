@@ -14,6 +14,9 @@ interface SenderVolumeSplitPreviewProps {
   totalLeads: number;
   campaignDailyLimit?: number | null;
   variant?: "slate" | "brand";
+  /** When on, each lead's sequence stays on one mailbox, so volume is leads × steps. */
+  sameSenderSequence?: boolean;
+  sequenceStepCount?: number;
 }
 
 export function SenderVolumeSplitPreview({
@@ -22,6 +25,8 @@ export function SenderVolumeSplitPreview({
   totalLeads,
   campaignDailyLimit,
   variant = "slate",
+  sameSenderSequence = false,
+  sequenceStepCount = 1,
 }: SenderVolumeSplitPreviewProps) {
   const rotation = calculateSenderRotationDistribution(
     senders,
@@ -32,7 +37,14 @@ export function SenderVolumeSplitPreview({
 
   if (!rotation || selectedIds.length === 0) return null;
 
-  const estimatedDays = estimateSendDays(totalLeads, rotation.totalCapacity);
+  const steps = Math.max(1, sequenceStepCount);
+  const showSequenceEmails =
+    sameSenderSequence && selectedIds.length > 1 && steps > 1 && totalLeads > 0;
+  const totalEmails = totalLeads * steps;
+  const estimatedDays = estimateSendDays(
+    showSequenceEmails ? totalEmails : totalLeads,
+    rotation.totalCapacity,
+  );
   const isSlate = variant === "slate";
 
   return (
@@ -57,9 +69,11 @@ export function SenderVolumeSplitPreview({
           }`}
         >
           {totalLeads > 0
-            ? `${totalLeads.toLocaleString()} leads across ${selectedIds.length} account${
-                selectedIds.length !== 1 ? "s" : ""
-              }`
+            ? showSequenceEmails
+              ? `${totalLeads.toLocaleString()} leads × ${steps} steps = ${totalEmails.toLocaleString()} emails across ${selectedIds.length} accounts`
+              : `${totalLeads.toLocaleString()} leads across ${selectedIds.length} account${
+                  selectedIds.length !== 1 ? "s" : ""
+                }`
             : "Select leads to see how volume is distributed"}
         </p>
       </div>
@@ -101,6 +115,12 @@ export function SenderVolumeSplitPreview({
                     >
                       {entry.leads.toLocaleString()} leads
                     </p>
+                    {showSequenceEmails && (
+                      <p className={isSlate ? "text-slate-500" : "text-text-200/80"}>
+                        {entry.leads.toLocaleString()} × {steps} ={" "}
+                        {(entry.leads * steps).toLocaleString()} emails
+                      </p>
+                    )}
                     <p className={isSlate ? "text-slate-400" : "text-text-200/70"}>
                       {pct}%
                     </p>
@@ -137,9 +157,11 @@ export function SenderVolumeSplitPreview({
             )}
             {rotation.totalCapacity > 0 && estimatedDays > 0 && (
               <p>
-                At today&apos;s remaining capacity, sending{" "}
+                At today&apos;s remaining capacity,                 sending{" "}
                 <span className="font-semibold">
-                  {totalLeads.toLocaleString()} leads
+                  {showSequenceEmails
+                    ? `${totalEmails.toLocaleString()} emails`
+                    : `${totalLeads.toLocaleString()} leads`}
                 </span>{" "}
                 takes about{" "}
                 <span className="font-semibold">

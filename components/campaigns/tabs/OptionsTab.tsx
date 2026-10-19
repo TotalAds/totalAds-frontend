@@ -118,6 +118,8 @@ export function OptionsTab({
   const [requireVerification, setRequireVerification] = useState(
     initialRequireVerification,
   );
+  const [sameSenderSequence, setSameSenderSequence] = useState(false);
+  const [sequenceStepCount, setSequenceStepCount] = useState(1);
   const [isContinuous, setIsContinuous] = useState(initialIsContinuous);
   const [continuousSyncIntervalMinutes, setContinuousSyncIntervalMinutes] =
     useState(DEFAULT_CONTINUOUS_SYNC_INTERVAL_MINUTES);
@@ -149,6 +151,12 @@ export function OptionsTab({
         setRequireVerification(
           campaign.reoonVerificationSummary?.requireLeadVerification === true ||
             initialRequireVerification,
+        );
+        setSameSenderSequence(campaign.sameSenderSequenceEnabled === true);
+        setSequenceStepCount(
+          Array.isArray(campaign.sequence) && campaign.sequence.length > 0
+            ? campaign.sequence.length
+            : 1,
         );
         setIsContinuous(Boolean(campaign.isContinuous ?? initialIsContinuous));
         setContinuousSyncIntervalMinutes(
@@ -385,6 +393,7 @@ export function OptionsTab({
         ...pacingPayload,
         openTrackingEnabled: openTracking,
         linkTrackingEnabled: openTracking ? linkTracking : false,
+        sameSenderSequenceEnabled: sameSenderSequence,
         isContinuous,
         continuousSyncIntervalMinutes: isContinuous
           ? continuousSyncIntervalMinutes
@@ -749,6 +758,8 @@ export function OptionsTab({
               totalLeads={totalLeads}
               campaignDailyLimit={dailyLimit}
               variant="slate"
+              sameSenderSequence={sameSenderSequence}
+              sequenceStepCount={sequenceStepCount}
             />
           )}
 
@@ -801,6 +812,54 @@ export function OptionsTab({
                   );
                 })}
               </select>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Same sender for the whole sequence ── */}
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+        <div className="px-5 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <Mail className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800">
+                  Same mailbox for the whole sequence
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  The mailbox that sends the first email to a lead also sends
+                  every follow-up. Leads stay split across the accounts you
+                  select. Turn this off to let a later step send from a
+                  different mailbox.
+                </p>
+              </div>
+            </div>
+            <div
+              onClick={() => {
+                if (isLocked) return;
+                setSameSenderSequence((current) => !current);
+                setSaved(false);
+              }}
+              className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
+                isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+              } ${sameSenderSequence ? "bg-blue-600" : "bg-slate-300"}`}
+            >
+              <span
+                className={`inline-block h-5 w-5 mt-0.5 rounded-full bg-white shadow-sm transition-transform ${
+                  sameSenderSequence ? "translate-x-5.5" : "translate-x-0.5"
+                }`}
+              />
+            </div>
+          </div>
+          {sameSenderSequence && selectedSenderIds.length > 1 && sequenceStepCount > 1 && (
+            <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+              <p className="text-xs text-blue-700 leading-relaxed">
+                Each mailbox keeps its leads for all {sequenceStepCount} steps.
+                {totalLeads > 0
+                  ? ` ${totalLeads.toLocaleString()} leads × ${sequenceStepCount} steps = ${(totalLeads * sequenceStepCount).toLocaleString()} emails.`
+                  : ""}
+              </p>
             </div>
           )}
         </div>

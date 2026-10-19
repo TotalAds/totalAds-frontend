@@ -7,7 +7,9 @@ import { LeadDetailsModal } from "@/components/leads/LeadDetailsModal";
 import LeadsSubNav from "@/components/leads/LeadsSubNav";
 import LeadsToolbar from "@/components/leads/LeadsToolbar";
 import {
+  appendLeadFilters,
   buildLeadsApiParams,
+  countActiveLeadFilterGroups,
   EMPTY_LEAD_COUNTS,
   filtersToApiBody,
   type LeadVerificationCounts,
@@ -57,6 +59,7 @@ export default function ArchivedLeadsPage() {
   const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState<LeadColumnFilters>(EMPTY_LEAD_FILTERS);
   const [search, setSearch] = useState("");
+  const [excludeSearch, setExcludeSearch] = useState("");
   const [counts, setCounts] = useState<LeadVerificationCounts>(EMPTY_LEAD_COUNTS);
   const [filterOptions, setFilterOptions] = useState<LeadFilterOptions>({
     categories: [],
@@ -80,36 +83,33 @@ export default function ArchivedLeadsPage() {
   const [isRestoring, setIsRestoring] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  const hasActiveFilters = hasActiveLeadFilters(filters) || search.trim().length > 0;
+  const hasActiveFilters =
+    hasActiveLeadFilters(filters) ||
+    search.trim().length > 0 ||
+    excludeSearch.trim().length > 0;
 
   useEffect(() => {
     loadLeads();
-  }, [page, limit, filters, search]);
+  }, [page, limit, filters, search, excludeSearch]);
 
   useEffect(() => {
     loadFilterOptions();
-  }, [filters, search]);
+  }, [filters, search, excludeSearch]);
 
   useEffect(() => {
     setSelectedLeadIds(new Set());
     setIsAllMatchingSelected(false);
-  }, [filters, search, page, limit]);
+  }, [filters, search, excludeSearch, page, limit]);
 
   const loadFilterOptions = async () => {
     try {
       const params = new URLSearchParams();
-      if (filters.categoryIds.length > 0) {
-        params.append("categoryIds", filters.categoryIds.join(","));
-      }
-      if (filters.tagIds.length > 0) {
-        params.append("tagIds", filters.tagIds.join(","));
-      }
-      if (filters.campaignIds.length > 0) {
-        params.append("campaignIds", filters.campaignIds.join(","));
-      }
-      if (filters.listIds.length > 0) {
-        params.append("listIds", filters.listIds.join(","));
-      }
+      appendLeadFilters(params, {
+        search,
+        excludeSearch,
+        filters,
+        archived: true,
+      });
 
       const response = await emailClient.get<{ data: FilterOptionsResponse }>(
         `/api/leads/filter-options?${params.toString()}`
@@ -154,6 +154,7 @@ export default function ArchivedLeadsPage() {
         page,
         limit,
         search,
+        excludeSearch,
         filters,
         archived: true,
       });
@@ -183,6 +184,7 @@ export default function ArchivedLeadsPage() {
   const clearAllFilters = () => {
     setFilters(EMPTY_LEAD_FILTERS);
     setSearch("");
+    setExcludeSearch("");
     setPage(1);
   };
 
@@ -190,7 +192,10 @@ export default function ArchivedLeadsPage() {
     if (isAllMatchingSelected) {
       return {
         selectAllMatching: true,
-        filters: { ...filtersToApiBody(search, filters), archived: true },
+        filters: {
+          ...filtersToApiBody(search, filters, excludeSearch),
+          archived: true,
+        },
       };
     }
     return { leadIds: Array.from(selectedLeadIds) };
@@ -238,6 +243,7 @@ export default function ArchivedLeadsPage() {
         page: 1,
         limit: 100,
         search,
+        excludeSearch,
         filters,
         archived: true,
       });
@@ -295,18 +301,10 @@ export default function ArchivedLeadsPage() {
     }
   };
 
-  const activeFilterCount = useMemo(() => {
-    let count = 0;
-    if (search.trim()) count++;
-    if (filters.email.trim()) count++;
-    if (filters.name.trim()) count++;
-    if (filters.verification.length > 0) count++;
-    if (filters.tagIds.length > 0) count++;
-    if (filters.categoryIds.length > 0) count++;
-    if (filters.listIds.length > 0) count++;
-    if (filters.campaignIds.length > 0) count++;
-    return count;
-  }, [filters, search]);
+  const activeFilterCount = useMemo(
+    () => countActiveLeadFilterGroups(filters, search, excludeSearch),
+    [filters, search, excludeSearch]
+  );
 
   return (
     <div className="min-h-screen bg-bg-100 p-6">
@@ -344,6 +342,11 @@ export default function ArchivedLeadsPage() {
           search={search}
           onSearchChange={(value) => {
             setSearch(value);
+            setPage(1);
+          }}
+          excludeSearch={excludeSearch}
+          onExcludeSearchChange={(value) => {
+            setExcludeSearch(value);
             setPage(1);
           }}
           filters={filters}

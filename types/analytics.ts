@@ -50,6 +50,7 @@ export interface ReoonSummary {
   totalLeadsAfterVerification: number | null
   excludedAsRisky: number | null
   verificationJobFailed?: boolean
+  verificationApiFailed?: boolean
   errorMessage?: string | null
   failedAt?: string | null
 }

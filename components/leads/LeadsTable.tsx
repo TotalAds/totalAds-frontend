@@ -64,6 +64,13 @@ export interface LeadColumnFilters {
   categoryIds: string[];
   listIds: string[];
   campaignIds: string[];
+  excludeEmail: string;
+  excludeName: string;
+  excludeVerification: string[];
+  excludeTagIds: string[];
+  excludeCategoryIds: string[];
+  excludeListIds: string[];
+  excludeCampaignIds: string[];
 }
 
 export interface LeadFilterOptions {
@@ -487,13 +494,6 @@ export default function LeadsTable({
     [leads, selectedIds, allPageSelected, isAllMatchingSelected]
   );
 
-  const updateFilter = useCallback(
-    <K extends keyof LeadColumnFilters>(key: K, value: LeadColumnFilters[K]) => {
-      onFiltersChange({ ...filters, [key]: value });
-    },
-    [filters, onFiltersChange]
-  );
-
   const toggleSelectAll = useCallback(
     (checked: boolean) => {
       onSelectAllMatchingChange?.(false);
@@ -575,8 +575,15 @@ export default function LeadsTable({
               type="text"
               label="Email"
               value={filters.email}
+              excludeValue={filters.excludeEmail}
               placeholder="Filter by email…"
-              onApply={(value) => updateFilter("email", value)}
+              onApply={(value, excludeValue) =>
+                onFiltersChange({
+                  ...filters,
+                  email: value,
+                  excludeEmail: excludeValue,
+                })
+              }
             />
           ),
         },
@@ -588,7 +595,14 @@ export default function LeadsTable({
               label="Verification status"
               options={VERIFICATION_OPTIONS}
               selectedIds={filters.verification}
-              onApply={(value) => updateFilter("verification", value)}
+              excludedIds={filters.excludeVerification}
+              onApply={(selectedIds, excludedIds) =>
+                onFiltersChange({
+                  ...filters,
+                  verification: selectedIds,
+                  excludeVerification: excludedIds,
+                })
+              }
               searchable={false}
             />
           ),
@@ -600,8 +614,15 @@ export default function LeadsTable({
               type="text"
               label="Name"
               value={filters.name}
+              excludeValue={filters.excludeName}
               placeholder="Filter by name…"
-              onApply={(value) => updateFilter("name", value)}
+              onApply={(value, excludeValue) =>
+                onFiltersChange({
+                  ...filters,
+                  name: value,
+                  excludeName: excludeValue,
+                })
+              }
             />
           ),
         },
@@ -613,7 +634,14 @@ export default function LeadsTable({
               label="Tags"
               options={filterOptions.tags}
               selectedIds={filters.tagIds}
-              onApply={(value) => updateFilter("tagIds", value)}
+              excludedIds={filters.excludeTagIds}
+              onApply={(selectedIds, excludedIds) =>
+                onFiltersChange({
+                  ...filters,
+                  tagIds: selectedIds,
+                  excludeTagIds: excludedIds,
+                })
+              }
             />
           ),
         },
@@ -625,7 +653,14 @@ export default function LeadsTable({
               label="Categories"
               options={filterOptions.categories}
               selectedIds={filters.categoryIds}
-              onApply={(value) => updateFilter("categoryIds", value)}
+              excludedIds={filters.excludeCategoryIds}
+              onApply={(selectedIds, excludedIds) =>
+                onFiltersChange({
+                  ...filters,
+                  categoryIds: selectedIds,
+                  excludeCategoryIds: excludedIds,
+                })
+              }
             />
           ),
         },
@@ -637,7 +672,14 @@ export default function LeadsTable({
               label="Lists"
               options={filterOptions.lists}
               selectedIds={filters.listIds}
-              onApply={(value) => updateFilter("listIds", value)}
+              excludedIds={filters.excludeListIds}
+              onApply={(selectedIds, excludedIds) =>
+                onFiltersChange({
+                  ...filters,
+                  listIds: selectedIds,
+                  excludeListIds: excludedIds,
+                })
+              }
             />
           ),
         },
@@ -649,7 +691,14 @@ export default function LeadsTable({
               label="Campaigns"
               options={filterOptions.campaigns}
               selectedIds={filters.campaignIds}
-              onApply={(value) => updateFilter("campaignIds", value)}
+              excludedIds={filters.excludeCampaignIds}
+              onApply={(selectedIds, excludedIds) =>
+                onFiltersChange({
+                  ...filters,
+                  campaignIds: selectedIds,
+                  excludeCampaignIds: excludedIds,
+                })
+              }
             />
           ),
         },
@@ -657,7 +706,7 @@ export default function LeadsTable({
         MovableColumnId,
         { label: string; filter: ReactNode }
       >,
-    [filters, filterOptions, updateFilter]
+    [filters, filterOptions, onFiltersChange]
   );
 
   const renderCell = (columnId: MovableColumnId, lead: LeadRow) => {
@@ -1027,16 +1076,30 @@ export const EMPTY_LEAD_FILTERS: LeadColumnFilters = {
   categoryIds: [],
   listIds: [],
   campaignIds: [],
+  excludeEmail: "",
+  excludeName: "",
+  excludeVerification: [],
+  excludeTagIds: [],
+  excludeCategoryIds: [],
+  excludeListIds: [],
+  excludeCampaignIds: [],
 };
 
 export function hasActiveLeadFilters(filters: LeadColumnFilters): boolean {
   return (
     filters.email.trim().length > 0 ||
+    filters.excludeEmail.trim().length > 0 ||
     filters.name.trim().length > 0 ||
+    filters.excludeName.trim().length > 0 ||
     filters.verification.length > 0 ||
+    filters.excludeVerification.length > 0 ||
     filters.tagIds.length > 0 ||
+    filters.excludeTagIds.length > 0 ||
     filters.categoryIds.length > 0 ||
+    filters.excludeCategoryIds.length > 0 ||
     filters.listIds.length > 0 ||
-    filters.campaignIds.length > 0
+    filters.excludeListIds.length > 0 ||
+    filters.campaignIds.length > 0 ||
+    filters.excludeCampaignIds.length > 0
   );
 }

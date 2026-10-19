@@ -20,6 +20,8 @@ interface CreatableSelectProps {
   label?: string;
   isMulti?: boolean;
   isLoading?: boolean;
+  /** Chip color. Default keeps the existing include style. */
+  tone?: "default" | "exclude";
 }
 
 export default function CreatableSelect({
@@ -31,6 +33,7 @@ export default function CreatableSelect({
   label,
   isMulti = true,
   isLoading = false,
+  tone = "default",
 }: CreatableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
@@ -242,7 +245,11 @@ export default function CreatableSelect({
         <div
           ref={triggerRef}
           onClick={() => !isLoading && setIsOpen(!isOpen)}
-          className={`min-h-11 px-4 py-2.5 bg-white border border-slate-200 rounded-lg flex flex-wrap gap-2 items-center transition-colors duration-200 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 ${
+          className={`min-h-11 px-4 py-2.5 bg-white border rounded-lg flex flex-wrap gap-2 items-center transition-colors duration-200 focus-within:ring-2 ${
+            tone === "exclude"
+              ? "border-rose-200 focus-within:ring-rose-200 focus-within:border-rose-400"
+              : "border-slate-200 focus-within:ring-blue-500/20 focus-within:border-blue-500"
+          } ${
             isLoading
               ? "opacity-60 cursor-not-allowed"
               : "cursor-pointer hover:border-slate-300"
@@ -252,7 +259,11 @@ export default function CreatableSelect({
             value.map((item) => (
               <div
                 key={item.id}
-                className="flex items-center gap-1 px-2 py-1 bg-slate-100 rounded-md text-sm text-slate-700"
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-sm ${
+                  tone === "exclude"
+                    ? "bg-rose-50 text-rose-800"
+                    : "bg-slate-100 text-slate-700"
+                }`}
               >
                 {item.color && (
                   <div

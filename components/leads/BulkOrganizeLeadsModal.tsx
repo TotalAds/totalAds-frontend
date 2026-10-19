@@ -14,6 +14,7 @@ import {
 import { BodyPortal } from "@/components/ui/BodyPortal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import emailClient, { getEmailServiceErrorMessage } from "@/utils/api/emailClient";
+import { filtersToApiBody } from "@/components/leads/leadsFilterUtils";
 import { LeadColumnFilters } from "@/components/leads/LeadsTable";
 
 interface OptionItem {
@@ -30,6 +31,8 @@ interface BulkOrganizeLeadsModalProps {
   selectedLeadIds: string[];
   isAllMatchingSelected: boolean;
   filters: LeadColumnFilters;
+  search: string;
+  excludeSearch: string;
   availableCategories: OptionItem[];
   availableTags: OptionItem[];
   availableLists: OptionItem[];
@@ -43,6 +46,8 @@ export function BulkOrganizeLeadsModal({
   selectedLeadIds,
   isAllMatchingSelected,
   filters,
+  search,
+  excludeSearch,
   availableCategories,
   availableTags,
   availableLists,
@@ -201,15 +206,7 @@ export function BulkOrganizeLeadsModal({
 
       if (isAllMatchingSelected) {
         payload.selectAllMatching = true;
-        payload.filters = {
-          email: filters.email.trim() || undefined,
-          name: filters.name.trim() || undefined,
-          verification: filters.verification.length > 0 ? filters.verification : undefined,
-          categoryIds: filters.categoryIds.length > 0 ? filters.categoryIds : undefined,
-          tagIds: filters.tagIds.length > 0 ? filters.tagIds : undefined,
-          listIds: filters.listIds.length > 0 ? filters.listIds : undefined,
-          campaignIds: filters.campaignIds.length > 0 ? filters.campaignIds : undefined,
-        };
+        payload.filters = filtersToApiBody(search, filters, excludeSearch);
       } else {
         payload.leadIds = selectedLeadIds;
       }

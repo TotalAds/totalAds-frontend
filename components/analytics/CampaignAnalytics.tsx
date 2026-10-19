@@ -65,6 +65,8 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
   
   const isCancelled = campaign.status === 'cancelled'
   const isPaused = campaign.status === 'paused'
+  const reoonApiFailureMessage =
+    reoon?.verificationApiFailed && reoon.errorMessage ? reoon.errorMessage : null
   const isSending = campaign.status === 'sending' || campaign.status === 'live'
   const isCompleted = campaign.status === 'completed'
   const requiresDeliverabilityAck = Boolean(campaign.requiresDeliverabilityAcknowledgment)
@@ -225,6 +227,13 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
           </div>
         )}
       </div>
+
+      {reoonApiFailureMessage ? (
+        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 leading-relaxed">
+          <p className="font-medium">Campaign stopped</p>
+          <p className="text-rose-800/90 text-xs mt-1 font-medium">{reoonApiFailureMessage}</p>
+        </div>
+      ) : null}
 
       {/* DELIVERABILITY STATUS */}
       {deliverability?.alerts?.length ? (

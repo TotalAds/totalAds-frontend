@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Braces,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -9,10 +10,12 @@ import {
   Eye,
   FileText,
   LayoutTemplate,
+  Loader2,
   Plus,
   Save,
   Search,
   Send,
+  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -44,13 +47,16 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import emailClient, {
+  generateAISpintax,
   getCampaignById,
   getEmailServiceErrorMessage,
   sendTestEmail,
+  type AISpintaxSuggestion,
   type Lead,
 } from "@/utils/api/emailClient";
 
 import DesignEditor from "./DesignEditor";
+import EmailQualityPanel from "./EmailQualityPanel";
 import EmailTemplatePickerModal from "./EmailTemplatePickerModal";
 import {
   isStructuredHtmlEmail,
@@ -80,6 +86,11 @@ import {
   type PersonalizationTokenCoverage,
 } from "./htmlPreviewUtils";
 import { type SpintaxPackId } from "./spintaxUtils";
+import {
+  bodyAlreadyHasComplianceFooter,
+  campaignComplianceFooterPreviewHtml,
+  UnsubscribeLinkEditor,
+} from "./UnsubscribeLinkEditor";
 
 export type { UserEmailTemplateRow } from "./emailTemplateTypes";
 export type { BodyEditorMode } from "./emailTemplateTypes";
@@ -176,6 +187,7 @@ export interface CreateEmailModalProps {
   seedBodyEditor: BodyEditorMode;
   /** True when opening from &quot;Edit email&quot; on the builder — jump into the composer */
   openDirectlyToEditor: boolean;
+  onUnsubscribeAcknowledged?: () => void;
   onApply: (payload: {
     subject: string;
     previewText: string;
@@ -205,6 +217,7 @@ export default function CreateEmailModal({
   seedHtml,
   seedBodyEditor,
   openDirectlyToEditor,
+  onUnsubscribeAcknowledged,
   onApply,
 }: CreateEmailModalProps) {
   const [rightPanel, setRightPanel] = useState<RightPanel>("simple");
@@ -217,6 +230,7 @@ export default function CreateEmailModal({
   const [draftSpintaxPackId, setDraftSpintaxPackId] =
     useState<SpintaxPackId>("general");
   const [draftStrictGrammarMode, setDraftStrictGrammarMode] = useState(false);
+  const [unsubscribeLinkText, setUnsubscribeLinkText] = useState("Unsubscribe");
 
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [inboxPreviewOpen, setInboxPreviewOpen] = useState(false);
@@ -253,6 +267,11 @@ export default function CreateEmailModal({
     occurrenceIndex: number;
   } | null>(null);
   const [spintaxModalOpen, setSpintaxModalOpen] = useState(false);
+  const [aiSpintaxLoading, setAiSpintaxLoading] = useState(false);
+  const [aiSpintaxSuggestions, setAiSpintaxSuggestions] = useState<
+    Array<AISpintaxSuggestion & { id: string; applied: boolean }>
+  >([]);
+  const [inboxCheckOpen, setInboxCheckOpen] = useState(false);
   const [manualSpintaxOptions, setManualSpintaxOptions] = useState<string[]>([
     "Hi",
     "Hello",
@@ -471,20 +490,25 @@ export default function CreateEmailModal({
   const inboxPreviewBodySrcDoc = useMemo(() => {
     const emptyBody =
       '<p style="margin:0;padding:16px;font-size:13px;line-height:1.5;color:#94a3b8;font-family:system-ui,sans-serif;">No body content yet.</p>';
+    const withFooter = (html: string) =>
+      bodyAlreadyHasComplianceFooter(html)
+        ? html
+        : `${html}${campaignComplianceFooterPreviewHtml(unsubscribeLinkText)}`;
     if (hasPreviewLeads) {
       const html = inboxPreviewResolved.html.trim()
         ? inboxPreviewResolved.html
         : emptyBody;
-      return wrapEmailPreviewDocument(html, false);
+      return wrapEmailPreviewDocument(withFooter(html), false);
     }
     return wrapEmailPreviewDocument(
-      draftHtml.trim() ? draftHtml : emptyBody,
+      withFooter(draftHtml.trim() ? draftHtml : emptyBody),
       true,
       tokenSampleValues,
       tokenCoverage,
     );
   }, [
     draftHtml,
+    unsubscribeLinkText,
     hasPreviewLeads,
     inboxPreviewResolved.html,
     tokenCoverage,
@@ -706,6 +730,7 @@ export default function CreateEmailModal({
         templateSubject: draftSubject,
         templateBody: draftHtml,
         templatePreviewText: draftPreviewText || undefined,
+        unsubscribeLinkText,
       });
       toast.success(result?.message || `Test email sent to ${to}`);
       setSendTestOpen(false);
@@ -726,6 +751,7 @@ export default function CreateEmailModal({
     usedTestVariables,
     testVariableValues,
     domainId,
+    unsubscribeLinkText,
   ]);
 
   useEffect(() => {
@@ -1035,6 +1061,83 @@ export default function CreateEmailModal({
     }
     setEditingSpintaxToken(null);
     setSpintaxModalOpen(false);
+  };
+
+  const handleAISpintax = async () => {
+    if (!draftSubject.trim() || !(draftHtml || "").trim()) {
+      toast.error("Add a subject and email body before generating spintax");
+      return;
+    }
+    setAiSpintaxLoading(true);
+    try {
+      const result = await generateAISpintax({
+        subject: draftSubject,
+        previewText: draftPreviewText,
+        body: draftHtml,
+      });
+      const suggestions = (result?.suggestions || []).filter(
+        (item) => item?.original && item?.spintax,
+      );
+      if (suggestions.length === 0) {
+        toast.error("AI spintax came back empty");
+        return;
+      }
+      setAiSpintaxSuggestions(
+        suggestions.map((item, index) => ({
+          ...item,
+          id: `${item.field}-${index}-${item.original}`,
+          applied: false,
+        })),
+      );
+    } catch (error) {
+      toast.error(
+        getEmailServiceErrorMessage(error, "Failed to generate spintax"),
+      );
+    } finally {
+      setAiSpintaxLoading(false);
+    }
+  };
+
+  const applyAiSpintaxSuggestion = (id: string) => {
+    const suggestion = aiSpintaxSuggestions.find((item) => item.id === id);
+    if (!suggestion || suggestion.applied) return;
+    const replaceOnce = (source: string) => {
+      const index = source.indexOf(suggestion.original);
+      if (index === -1) return null;
+      return (
+        source.slice(0, index) +
+        suggestion.spintax +
+        source.slice(index + suggestion.original.length)
+      );
+    };
+    if (suggestion.field === "subject") {
+      const next = replaceOnce(draftSubject);
+      if (next == null) {
+        toast.error("That phrase is no longer in the subject");
+        return;
+      }
+      setDraftSubject(next);
+    } else if (suggestion.field === "preview") {
+      const next = replaceOnce(draftPreviewText);
+      if (next == null) {
+        toast.error("That phrase is no longer in the preview text");
+        return;
+      }
+      setDraftPreviewText(next);
+    } else {
+      const next = replaceOnce(draftHtml || "");
+      if (next == null) {
+        toast.error("That phrase is no longer in the email");
+        return;
+      }
+      setDraftHtml(next);
+    }
+    setAiSpintaxSuggestions((items) =>
+      items.map((item) =>
+        item.id === id ? { ...item, applied: true } : item,
+      ),
+    );
+    toast.success("Added spintax", { duration: 1500 });
   };
 
   const handleRemoveSpintaxToken = () => {
@@ -1446,7 +1549,14 @@ export default function CreateEmailModal({
   );
 
   const composerFooter = (
-    <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-bg-200 px-2.5 py-1.5">
+    <div className="flex flex-shrink-0 flex-col border-t border-border bg-bg-200">
+      <UnsubscribeLinkEditor
+        domainId={domainId}
+        campaignId={effectiveCampaignId}
+        onTextChange={setUnsubscribeLinkText}
+        onAcknowledged={onUnsubscribeAcknowledged}
+      />
+      <div className="flex flex-wrap items-center justify-end gap-2 px-2.5 py-1.5">
       <div className="flex flex-wrap items-center gap-2">
         {SHOW_EMAIL_TEMPLATE_CONTROLS ? (
           <Button
@@ -1460,6 +1570,16 @@ export default function CreateEmailModal({
             Save as template
           </Button>
         ) : null}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1 border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+          onClick={() => setInboxCheckOpen((open) => !open)}
+        >
+          <ShieldCheck className="h-3.5 w-3.5 text-violet-600" />
+          Inbox check
+        </Button>
         <Button
           type="button"
           variant="outline"
@@ -1494,6 +1614,7 @@ export default function CreateEmailModal({
           Save to campaign
         </Button>
       </div>
+      </div>
     </div>
   );
 
@@ -1509,7 +1630,7 @@ export default function CreateEmailModal({
             </DialogTitle>
           </DialogHeader>
 
-          <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
+          <section className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
             {SHOW_EMAIL_TEMPLATE_CONTROLS ? editorTopBar : null}
             {rightPanel === "simple" ? (
               <div className="flex min-h-0 flex-1 flex-col">
@@ -1538,12 +1659,26 @@ export default function CreateEmailModal({
                       onTokenClick={handleEditorTokenClick}
                       tokenSampleValues={tokenSampleValues}
                       tokenCoverage={tokenCoverage}
+                      previewFooterHtml={
+                        bodyAlreadyHasComplianceFooter(draftHtml)
+                          ? ""
+                          : campaignComplianceFooterPreviewHtml(unsubscribeLinkText)
+                      }
                     />
                   </div>
                 </div>
                 {composerFooter}
               </div>
             )}
+            {inboxCheckOpen ? (
+              <div className="absolute right-3 top-2 z-40">
+                <EmailQualityPanel
+                  subject={draftSubject}
+                  bodyHtml={draftHtml}
+                  onClose={() => setInboxCheckOpen(false)}
+                />
+              </div>
+            ) : null}
           </section>
         </DialogContent>
       </Dialog>
@@ -1969,23 +2104,99 @@ export default function CreateEmailModal({
           setSpintaxModalOpen(nextOpen);
           if (!nextOpen) {
             setEditingSpintaxToken(null);
+            setAiSpintaxSuggestions([]);
             pendingReplaceSelectionRef.current = false;
             pendingHtmlSelectionRangeRef.current = null;
           }
         }}
       >
-        <DialogContent className="max-w-xl border-slate-200 bg-white p-0 sm:max-w-xl">
+        <DialogContent className="max-w-2xl border-slate-200 bg-white p-0 sm:max-w-2xl">
           <DialogHeader className="border-b border-slate-100 px-6 py-5">
             <DialogTitle className="flex items-center gap-2 text-2xl font-bold text-slate-900">
               <Dices className="h-6 w-6 text-violet-600" />
               {editingSpintaxToken ? "Edit Spintax" : "Add Spintax"}
             </DialogTitle>
             <DialogDescription className="text-left text-base leading-relaxed text-slate-600">
-              Add alternate phrases. The editor shows one chip, and campaign
-              sending keeps the spintax syntax.
+              Add alternate phrases yourself, or let AI point out a few places
+              to vary.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 px-6 py-5">
+          <div className="max-h-[min(62vh,560px)] space-y-4 overflow-y-auto px-6 py-5">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="flex items-center gap-1.5 text-sm font-semibold text-emerald-800">
+                    <Braces className="h-4 w-4" />
+                    AI Spintax
+                  </p>
+                  <p className="mt-0.5 text-sm text-emerald-700">
+                    Suggest a few spots to spin, then add the ones you want.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 rounded-full border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-100"
+                  disabled={aiSpintaxLoading}
+                  onClick={() => void handleAISpintax()}
+                >
+                  {aiSpintaxLoading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Braces className="h-3.5 w-3.5" />
+                  )}
+                  {aiSpintaxLoading ? "Finding spots…" : "Generate"}
+                </Button>
+              </div>
+              {aiSpintaxSuggestions.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                  {aiSpintaxSuggestions.map((suggestion) => (
+                    <div
+                      key={suggestion.id}
+                      className="rounded-lg border border-emerald-100 bg-white px-3 py-2.5"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            {suggestion.field === "preview"
+                              ? "Preview text"
+                              : suggestion.field === "subject"
+                                ? "Subject"
+                                : "Email body"}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-800">
+                            <span className="text-slate-500">
+                              {suggestion.original}
+                            </span>
+                            <span className="mx-1.5 text-slate-300">→</span>
+                            <span className="font-semibold text-emerald-800">
+                              {suggestion.spintax}
+                            </span>
+                          </p>
+                          <p className="mt-1 text-xs leading-snug text-slate-500">
+                            {suggestion.reason}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                          disabled={suggestion.applied}
+                          onClick={() => applyAiSpintaxSuggestion(suggestion.id)}
+                        >
+                          {suggestion.applied ? "Added" : "Add"}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <p className="text-sm font-semibold text-slate-800">
+              Or write the options yourself
+            </p>
             {manualSpintaxOptions.map((option, index) => (
               <div key={index} className="flex items-center gap-2">
                 <Input
