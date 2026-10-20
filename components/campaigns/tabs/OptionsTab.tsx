@@ -2,6 +2,7 @@
 
 import {
   Mail,
+  MessageSquareText,
   Eye,
   EyeOff,
   Shield,
@@ -857,15 +858,15 @@ export function OptionsTab({
 
       {/* ── Same sender for the whole sequence ── */}
       <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-        <div className="px-5 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <Mail className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
-              <div>
+        <div className="px-5 py-4 space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <Mail className="mt-0.5 h-5 w-5 shrink-0 text-blue-500" />
+              <div className="min-w-0">
                 <h3 className="text-sm font-semibold text-slate-800">
                   Same mailbox for the whole sequence
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
                   The mailbox that sends the first email to a lead also sends
                   every follow-up. Leads stay split across the accounts you
                   select. Turn this off to let a later step send from a
@@ -873,7 +874,12 @@ export function OptionsTab({
                 </p>
               </div>
             </div>
-            <div
+            <button
+              type="button"
+              role="switch"
+              aria-checked={sameSenderSequence}
+              aria-label="Same mailbox for the whole sequence"
+              disabled={isLocked}
               onClick={() => {
                 if (isLocked) return;
                 setSameSenderSequence((current) => {
@@ -882,56 +888,69 @@ export function OptionsTab({
                 });
                 setSaved(false);
               }}
-              className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
+              className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
                 isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
               } ${sameSenderSequence ? "bg-blue-600" : "bg-slate-300"}`}
             >
               <span
-                className={`inline-block h-5 w-5 mt-0.5 rounded-full bg-white shadow-sm transition-transform ${
-                  sameSenderSequence ? "translate-x-5.5" : "translate-x-0.5"
+                className={`pointer-events-none inline-block h-5 w-5 translate-y-0.5 rounded-full bg-white shadow-sm transition-transform ${
+                  sameSenderSequence ? "translate-x-5" : "translate-x-0.5"
                 }`}
               />
-            </div>
+            </button>
           </div>
-          {sameSenderSequence && selectedSenderIds.length > 1 && sequenceStepCount > 1 && (
-            <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
-              <p className="text-xs text-blue-700 leading-relaxed">
-                Each mailbox keeps its leads for all {sequenceStepCount} steps.
-                {totalLeads > 0
-                  ? ` ${totalLeads.toLocaleString()} leads × ${sequenceStepCount} steps = ${(totalLeads * sequenceStepCount).toLocaleString()} emails.`
-                  : ""}
-              </p>
-            </div>
-          )}
-          {sameSenderSequence && (
-            <div className="mt-4 flex items-center justify-between gap-4 border-t border-slate-100 pt-4">
-              <div>
-                <h4 className="text-sm font-semibold text-slate-800">
-                  Use email 1&apos;s subject on follow-ups
-                </h4>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Follow-ups keep the first email&apos;s subject exactly, with
-                  no &quot;Re:&quot;, so they show in the same conversation.
-                  Turn this off to send each step with its own subject from
-                  that same mailbox.
+
+          {sameSenderSequence &&
+            selectedSenderIds.length > 1 &&
+            sequenceStepCount > 1 && (
+              <div className="ml-8 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+                <p className="text-xs leading-relaxed text-blue-700">
+                  Each mailbox keeps its leads for all {sequenceStepCount}{" "}
+                  steps.
+                  {totalLeads > 0
+                    ? ` ${totalLeads.toLocaleString()} leads × ${sequenceStepCount} steps = ${(totalLeads * sequenceStepCount).toLocaleString()} emails.`
+                    : ""}
                 </p>
               </div>
-              <div
+            )}
+
+          {sameSenderSequence && (
+            <div className="flex items-start justify-between gap-4 border-t border-slate-100 pt-4">
+              <div className="flex min-w-0 items-start gap-3">
+                <MessageSquareText className="mt-0.5 h-5 w-5 shrink-0 text-blue-500" />
+                <div className="min-w-0">
+                  <h4 className="text-sm font-semibold text-slate-800">
+                    Use email 1&apos;s subject on follow-ups
+                  </h4>
+                  <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
+                    Follow-ups keep the first email&apos;s subject exactly, with
+                    no &quot;Re:&quot;, so they show in the same conversation.
+                    Turn this off to send each step with its own subject from
+                    that same mailbox.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={sameSubjectSequence}
+                aria-label="Use email 1's subject on follow-ups"
+                disabled={isLocked}
                 onClick={() => {
                   if (isLocked) return;
                   setSameSubjectSequence((current) => !current);
                   setSaved(false);
                 }}
-                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
+                className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
                   isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
                 } ${sameSubjectSequence ? "bg-blue-600" : "bg-slate-300"}`}
               >
                 <span
-                  className={`inline-block h-5 w-5 mt-0.5 rounded-full bg-white shadow-sm transition-transform ${
-                    sameSubjectSequence ? "translate-x-5.5" : "translate-x-0.5"
+                  className={`pointer-events-none inline-block h-5 w-5 translate-y-0.5 rounded-full bg-white shadow-sm transition-transform ${
+                    sameSubjectSequence ? "translate-x-5" : "translate-x-0.5"
                   }`}
                 />
-              </div>
+              </button>
             </div>
           )}
         </div>

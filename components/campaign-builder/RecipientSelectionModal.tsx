@@ -279,9 +279,14 @@ export default function RecipientSelectionModal({
   const loadFilterOptions = async () => {
     setLoadingFilterOptions(true);
     try {
-      const options = await getFilterOptions(
-        criteriaToApiFilters(selectedItems.filterCriteria)
-      );
+      // Omit status include/exclude from the options request. Passing them narrows
+      // the lead set to only those statuses, so other status choices disappear.
+      const {
+        statuses: _statuses,
+        excludeStatuses: _excludeStatuses,
+        ...facetFilters
+      } = criteriaToApiFilters(selectedItems.filterCriteria);
+      const options = await getFilterOptions(facetFilters);
       setFilterOptions(options);
       
       // Update tags, categories from filter options
@@ -1328,20 +1333,33 @@ export default function RecipientSelectionModal({
                     <CreatableSelect
                       options={filterOptions.statuses
                         .filter(
-                          (s) => !selectedItems.filterCriteria.excludeStatuses.includes(s.value)
+                          (s) =>
+                            !selectedItems.filterCriteria.excludeStatuses.includes(
+                              s.value
+                            )
                         )
                         .map((s) => ({
                           id: s.value,
                           name: `${s.label} (${s.count} leads)`,
                         }))}
-                      value={filterOptions.statuses
-                        .filter((s) =>
-                          selectedItems.filterCriteria.statuses.includes(s.value)
-                        )
-                        .map((s) => ({
-                          id: s.value,
-                          name: `${s.label} (${s.count} leads)`,
-                        }))}
+                      value={selectedItems.filterCriteria.statuses.map(
+                        (statusValue) => {
+                          const opt = filterOptions.statuses.find(
+                            (s) => s.value === statusValue
+                          );
+                          const label =
+                            opt?.label ??
+                            statusValue.charAt(0).toUpperCase() +
+                              statusValue.slice(1);
+                          return {
+                            id: statusValue,
+                            name:
+                              opt != null
+                                ? `${label} (${opt.count} leads)`
+                                : label,
+                          };
+                        }
+                      )}
                       onChange={(selected) =>
                         handleFilterChange(
                           "status",
@@ -1356,19 +1374,34 @@ export default function RecipientSelectionModal({
                     <div className="mt-3">
                       <CreatableSelect
                         options={filterOptions.statuses
-                          .filter((s) => !selectedItems.filterCriteria.statuses.includes(s.value))
-                          .map((s) => ({
-                            id: s.value,
-                            name: `${s.label} (${s.count} leads)`,
-                          }))}
-                        value={filterOptions.statuses
-                          .filter((s) =>
-                            selectedItems.filterCriteria.excludeStatuses.includes(s.value)
+                          .filter(
+                            (s) =>
+                              !selectedItems.filterCriteria.statuses.includes(
+                                s.value
+                              )
                           )
                           .map((s) => ({
                             id: s.value,
                             name: `${s.label} (${s.count} leads)`,
                           }))}
+                        value={selectedItems.filterCriteria.excludeStatuses.map(
+                          (statusValue) => {
+                            const opt = filterOptions.statuses.find(
+                              (s) => s.value === statusValue
+                            );
+                            const label =
+                              opt?.label ??
+                              statusValue.charAt(0).toUpperCase() +
+                                statusValue.slice(1);
+                            return {
+                              id: statusValue,
+                              name:
+                                opt != null
+                                  ? `${label} (${opt.count} leads)`
+                                  : label,
+                            };
+                          }
+                        )}
                         onChange={(selected) =>
                           handleFilterChange(
                             "status",
