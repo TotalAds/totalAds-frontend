@@ -112,9 +112,28 @@ function formatDate(value?: string) {
   });
 }
 
+/** Cancel/detach markers — not real send failures; never show as "Not sent". */
+const STALE_CANCEL_ERROR_PREFIXES = [
+  "lead_removed:",
+  "lead_removed_from_campaign",
+  "campaign_stopped",
+  "CAMPAIGN_STOPPED",
+  "superseded_sequence_step",
+  "sequence_condition_skipped:",
+  "Duplicate campaign+lead+step",
+] as const;
+
+function isStaleCancelSendError(error?: string | null): boolean {
+  if (!error) return false;
+  const trimmed = error.trim();
+  return STALE_CANCEL_ERROR_PREFIXES.some((prefix) => trimmed.startsWith(prefix));
+}
+
 function formatSendError(error?: string | null): string | null {
   if (!error) return null;
-  return error.trim();
+  const trimmed = error.trim();
+  if (isStaleCancelSendError(trimmed)) return null;
+  return trimmed;
 }
 
 function StatusBadge({
@@ -124,7 +143,10 @@ function StatusBadge({
   status: string;
   sendError?: string | null;
 }) {
-  const normalized = (status || "new").toLowerCase();
+  const raw = (status || "new").toLowerCase();
+  // Treat cancel/detach ghosts as New so remove→re-add / stop→restart stay clean.
+  const normalized =
+    raw === "failed" && isStaleCancelSendError(sendError) ? "new" : raw;
   const styles: Record<string, string> = {
     new: "bg-slate-100 text-slate-700",
     pending: "bg-amber-50 text-amber-800",
