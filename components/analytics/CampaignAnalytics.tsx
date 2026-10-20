@@ -65,8 +65,14 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
   
   const isCancelled = campaign.status === 'cancelled'
   const isPaused = campaign.status === 'paused'
+  const isVerificationFailed = campaign.status === 'verification_failed'
+  // Sticky summary flags must not show "Campaign stopped" while sending/resumed.
   const reoonApiFailureMessage =
-    reoon?.verificationApiFailed && reoon.errorMessage ? reoon.errorMessage : null
+    (isPaused || isVerificationFailed) &&
+    reoon?.verificationApiFailed &&
+    reoon.errorMessage
+      ? reoon.errorMessage
+      : null
   const isSending = campaign.status === 'sending' || campaign.status === 'live'
   const isCompleted = campaign.status === 'completed'
   const requiresDeliverabilityAck = Boolean(campaign.requiresDeliverabilityAcknowledgment)
