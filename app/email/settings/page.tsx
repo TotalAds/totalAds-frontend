@@ -10,6 +10,7 @@ import WorkspaceUsageCard from "@/components/workspace/WorkspaceUsageCard";
 import WorkspacesSection from "@/components/workspace/WorkspacesSection";
 import BillingSection from "@/components/settings/BillingSection";
 import EmailDeliverySection from "@/components/settings/EmailDeliverySection";
+import EspWorkspaceSection from "@/components/settings/EspWorkspaceSection";
 import IntegrationsSection from "@/components/settings/IntegrationsSection";
 import ProfileSection from "@/components/settings/ProfileSection";
 import RoadmapSection from "@/components/settings/RoadmapSection";
@@ -234,7 +235,10 @@ const SettingsPage = () => {
               {activeTab === "profile" && <ProfileSection />}
               {activeTab === "billing" && canManageBilling && <BillingSection />}
               {activeTab === "email-delivery" && canManageBilling && (
-                <EmailDeliverySection />
+                <div className="space-y-8">
+                  <EmailDeliverySection />
+                  <EspWorkspaceSection />
+                </div>
               )}
               {activeTab === "usage" && <UsageSection />}
               {activeTab === "integrations" && <IntegrationsSection />}

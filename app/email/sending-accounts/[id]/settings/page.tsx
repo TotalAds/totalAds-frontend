@@ -14,6 +14,8 @@ import {
   SENDER_PACING_DEFAULTS,
   SenderPacingFormValues,
 } from "@/lib/senderPacing";
+import { ESP_FAMILIES } from "@/components/campaigns/EspMatchingCard";
+import { ProviderLogo, providerLabel } from "@/components/email/ProviderLogo";
 import {
   getSendingAccount,
   SendingAccount,
@@ -32,6 +34,7 @@ export default function SendingAccountSettingsPage() {
   const [displayName, setDisplayName] = useState("");
   const [pacing, setPacing] = useState<SenderPacingFormValues>({ ...SENDER_PACING_DEFAULTS });
   const [largeCapModalOpen, setLargeCapModalOpen] = useState(false);
+  const [senderFamily, setSenderFamily] = useState("other_smtp");
 
   const loadAccount = useCallback(async () => {
     try {
@@ -39,6 +42,7 @@ export default function SendingAccountSettingsPage() {
       const data = await getSendingAccount(senderId);
       setAccount(data);
       setDisplayName(data.displayName?.trim() || "");
+      setSenderFamily(data.senderProviderFamily || "other_smtp");
       setPacing({
         campaignDailyLimit:
           data.campaignDailyLimit ?? SENDER_PACING_DEFAULTS.campaignDailyLimit,
@@ -71,6 +75,7 @@ export default function SendingAccountSettingsPage() {
         campaignDailyLimit: pacing.campaignDailyLimit,
         minWaitMinutes: pacing.minWaitMinutes,
         slowRampEnabled: pacing.slowRampEnabled,
+        ...(account?.provider === "smtp" ? { senderProviderFamily: senderFamily } : {}),
       });
       toast.success("Settings saved");
       await loadAccount();
@@ -145,6 +150,40 @@ export default function SendingAccountSettingsPage() {
           </div>
 
           <SenderPacingSettingsForm values={pacing} onChange={setPacing} mode="sender-defaults" />
+
+          <div className="mt-6 rounded-xl border border-slate-200 p-4">
+            <p className="text-sm font-medium text-slate-900">Sender provider</p>
+            <p className="mt-1 text-xs text-slate-500">
+              The From domain is not used to detect the sending provider.
+            </p>
+            {account.provider === "smtp" ? (
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <ProviderLogo provider={senderFamily} size="md" />
+                  <select
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    value={senderFamily}
+                    onChange={(event) => setSenderFamily(event.target.value)}
+                  >
+                    {ESP_FAMILIES.filter((family) => family !== "unknown").map((family) => (
+                      <option key={family} value={family}>
+                        {providerLabel(family)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3">
+                <ProviderLogo
+                  provider={account.senderProviderFamily || account.provider}
+                  showLabel
+                  size="md"
+                  labelClassName="text-sm text-slate-700"
+                />
+              </div>
+            )}
+          </div>
 
           <div className="mt-8 flex gap-2 border-t border-slate-200 pt-6">
             <Button onClick={handleSave} disabled={saving}>

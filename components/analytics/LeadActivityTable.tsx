@@ -28,6 +28,7 @@ import {
   CheckCircle,
   MoreHorizontal,
 } from "lucide-react";
+import { ProviderLogo } from "@/components/email/ProviderLogo";
 import { getCampaignLeadSequence, LeadFilters } from "@/utils/api/emailClient";
 import toast from "react-hot-toast";
 
@@ -84,6 +85,10 @@ interface LeadData {
   failedAt?: string | null;
   nextRetryAt?: string | null;
   error?: string | null;
+  routingReason?: string | null;
+  matchTier?: string | null;
+  routingState?: string | null;
+  recipientProviderFamily?: string | null;
   errorDetails?: string | null;
   engagementStatus?: string;
   hasError?: boolean;
@@ -212,6 +217,7 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
   const [stepFilter, setStepFilter] = useState<number | "all">(selectedStep);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
+  const [reasonFilter, setReasonFilter] = useState("all");
 
   // Debounce search
   useEffect(() => {
@@ -442,15 +448,31 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
       </div>
 
       {/* Table */}
+      <div className="mb-3 flex flex-wrap gap-2">
+        {["all", "exact_provider_match", "fallback_no_match_available", "fallback_recipient_unknown", "strict_match_waiting", "blocked_by_routing_rule"].map((reason) => (
+          <button
+            key={reason}
+            type="button"
+            onClick={() => setReasonFilter(reason)}
+            className={`rounded-full px-2.5 py-1 text-[11px] ${
+              reasonFilter === reason ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"
+            }`}
+          >
+            {reason === "all" ? "All routes" : reason.replaceAll("_", " ")}
+          </button>
+        ))}
+      </div>
       <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="bg-gray-50/50">
                 <TableHead className="text-xs font-medium text-gray-600">Lead</TableHead>
+                <TableHead className="text-xs font-medium text-gray-600">Provider</TableHead>
                 <TableHead className="text-xs font-medium text-gray-600">Mailbox</TableHead>
                 <TableHead className="text-xs font-medium text-gray-600">Step</TableHead>
                 <TableHead className="text-xs font-medium text-gray-600">Status</TableHead>
+                <TableHead className="text-xs font-medium text-gray-600">Route</TableHead>
                 <TableHead className="text-xs font-medium text-gray-600">Timeline</TableHead>
                 <TableHead className="text-xs font-medium text-gray-600">Next Send</TableHead>
                 <TableHead className="text-xs font-medium text-gray-600 min-w-[280px]">
@@ -463,14 +485,14 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-12 text-center">
+                  <TableCell colSpan={11} className="py-12 text-center">
                     <Loader2 className="mx-auto h-6 w-6 animate-spin text-gray-400" />
                     <p className="mt-2 text-sm text-gray-500">Loading leads...</p>
                   </TableCell>
                 </TableRow>
               ) : leads.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-12 text-center">
+                  <TableCell colSpan={11} className="py-12 text-center">
                     <div className="text-gray-400">
                       <MoreHorizontal className="mx-auto h-8 w-8 mb-2" />
                       <p className="text-sm">No leads found matching your filters</p>
@@ -488,13 +510,24 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
                   </TableCell>
                 </TableRow>
               ) : (
-                leads.map((lead) => (
+                leads.filter((lead) => reasonFilter === "all" || lead.routingReason === reasonFilter || (reasonFilter === "strict_match_waiting" && lead.routingState === "held_strict") || (reasonFilter === "blocked_by_routing_rule" && lead.routingState === "blocked_rules")).map((lead) => (
                   <TableRow
                     key={lead.id}
                     className="hover:bg-gray-50/50 transition-colors"
                   >
                     <TableCell className="font-medium text-sm text-gray-900">
                       {lead.toEmail}
+                    </TableCell>
+                    <TableCell className="text-xs text-gray-600">
+                      {lead.recipientProviderFamily ? (
+                        <ProviderLogo
+                          provider={lead.recipientProviderFamily}
+                          showLabel
+                          size="sm"
+                        />
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-xs text-gray-600 max-w-[200px]">
                       {lead.senderEmail ? (
@@ -508,9 +541,14 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
                             </p>
                           ) : null}
                           {lead.senderProvider ? (
-                            <p className="mt-0.5 capitalize text-[10px] text-gray-400">
-                              {lead.senderProvider}
-                            </p>
+                            <div className="mt-0.5">
+                              <ProviderLogo
+                                provider={lead.senderProvider}
+                                showLabel
+                                size="sm"
+                                labelClassName="text-[10px] text-gray-400"
+                              />
+                            </div>
                           ) : null}
                         </div>
                       ) : (
@@ -522,6 +560,10 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={lead.status} engagementStatus={lead.engagementStatus} />
+                    </TableCell>
+                    <TableCell className="text-xs text-gray-600">
+                      {lead.matchTier ? `Tier ${lead.matchTier}` : lead.routingState || "—"}
+                      {lead.routingReason ? ` · ${lead.routingReason.replaceAll("_", " ")}` : ""}
                     </TableCell>
                     <TableCell className="text-xs text-gray-500">
                       <div className="space-y-0.5">

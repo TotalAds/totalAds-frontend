@@ -18,6 +18,11 @@ import toast from "react-hot-toast";
 import Link from "next/link";
 
 import { SenderVolumeSplitPreview } from "@/components/campaigns/SenderVolumeSplitPreview";
+import {
+  EspMatchingCard,
+  type EspMatchingValue,
+} from "@/components/campaigns/EspMatchingCard";
+import { ProviderLogo } from "@/components/email/ProviderLogo";
 import { INBOX_CAMPAIGN_DOMAIN_ID } from "@/lib/campaignDomain";
 import {
   calculateSenderRotationDistribution,
@@ -27,6 +32,7 @@ import {
 import { fetchCampaignSendersWithQuota } from "@/lib/fetchVerifiedSendersWithQuota";
 import {
   getCampaignById,
+  getCampaignEspSettings,
   getEmailServiceErrorMessage,
   patchCampaign,
   type CampaignSenderConfig,
@@ -119,6 +125,7 @@ export function OptionsTab({
     initialRequireVerification,
   );
   const [sameSenderSequence, setSameSenderSequence] = useState(false);
+  const [sameSubjectSequence, setSameSubjectSequence] = useState(false);
   const [sequenceStepCount, setSequenceStepCount] = useState(1);
   const [isContinuous, setIsContinuous] = useState(initialIsContinuous);
   const [continuousSyncIntervalMinutes, setContinuousSyncIntervalMinutes] =
@@ -126,6 +133,12 @@ export function OptionsTab({
   const [continuousLocked, setContinuousLocked] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [espMatching, setEspMatching] = useState<EspMatchingValue>({
+    inheritWorkspaceDefault: true,
+    mode: "off",
+    unknownRecipientPolicy: "any_eligible",
+    rules: [],
+  });
   const [reoonModalOpen, setReoonModalOpen] = useState(false);
   const [checkingReoon, setCheckingReoon] = useState(false);
   const appliedSelectionKey = useRef<string | null>(null);
@@ -153,6 +166,10 @@ export function OptionsTab({
             initialRequireVerification,
         );
         setSameSenderSequence(campaign.sameSenderSequenceEnabled === true);
+        setSameSubjectSequence(
+          campaign.sameSenderSequenceEnabled === true &&
+            campaign.sameSubjectSequenceEnabled === true,
+        );
         setSequenceStepCount(
           Array.isArray(campaign.sequence) && campaign.sequence.length > 0
             ? campaign.sequence.length
@@ -163,6 +180,26 @@ export function OptionsTab({
           campaign.continuousSyncIntervalMinutes ??
             DEFAULT_CONTINUOUS_SYNC_INTERVAL_MINUTES
         );
+        try {
+          const esp = await getCampaignEspSettings(campaignId);
+          if (!cancelled && esp) {
+            setEspMatching({
+              inheritWorkspaceDefault: esp.inheritWorkspaceDefault !== false,
+              mode: esp.mode ?? "off",
+              unknownRecipientPolicy: esp.unknownRecipientPolicy ?? "any_eligible",
+              rules: (esp.rules ?? []).map((rule: EspMatchingValue["rules"][number]) => ({
+                senderFamily: rule.senderFamily,
+                recipientFamily: rule.recipientFamily,
+                action: rule.action,
+                enabled: rule.enabled !== false,
+                label: rule.label ?? "",
+              })),
+            });
+          }
+        } catch {
+          /* settings appear after the ESP tables exist */
+        }
+
         setContinuousLocked(
           Boolean(campaign.startedAt) ||
             [
@@ -394,12 +431,25 @@ export function OptionsTab({
         openTrackingEnabled: openTracking,
         linkTrackingEnabled: openTracking ? linkTracking : false,
         sameSenderSequenceEnabled: sameSenderSequence,
+        sameSubjectSequenceEnabled: sameSenderSequence && sameSubjectSequence,
         isContinuous,
         continuousSyncIntervalMinutes: isContinuous
           ? continuousSyncIntervalMinutes
           : undefined,
         reoonVerificationSummary: {
           requireLeadVerification: requireVerification,
+        },
+        espMatching: {
+          inheritWorkspaceDefault: espMatching.inheritWorkspaceDefault,
+          mode: espMatching.mode,
+          unknownRecipientPolicy: espMatching.unknownRecipientPolicy,
+          rules: espMatching.rules.map((rule) => ({
+            senderFamily: rule.senderFamily,
+            recipientFamily: rule.recipientFamily,
+            action: rule.action,
+            enabled: rule.enabled,
+            label: rule.label || null,
+          })),
         },
       });
       setPersistedDailyLimit(dailyLimit);
@@ -443,21 +493,9 @@ export function OptionsTab({
   };
 
   const providerBadge = (provider: string) => {
-    const map: Record<string, { label: string; color: string }> = {
-      gmail: { label: "Gmail", color: "bg-red-100 text-red-700" },
-      outlook: { label: "Outlook", color: "bg-blue-100 text-blue-700" },
-      smtp: { label: "SMTP", color: "bg-slate-100 text-slate-600" },
-      ses: { label: "SES", color: "bg-orange-100 text-orange-700" },
-    };
-    const info = map[provider] || {
-      label: provider,
-      color: "bg-slate-100 text-slate-600",
-    };
     return (
-      <span
-        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${info.color}`}
-      >
-        {info.label}
+      <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5">
+        <ProviderLogo provider={provider} showLabel size="sm" labelClassName="text-[10px] font-semibold text-slate-700" />
       </span>
     );
   };
@@ -838,7 +876,10 @@ export function OptionsTab({
             <div
               onClick={() => {
                 if (isLocked) return;
-                setSameSenderSequence((current) => !current);
+                setSameSenderSequence((current) => {
+                  if (current) setSameSubjectSequence(false);
+                  return !current;
+                });
                 setSaved(false);
               }}
               className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
@@ -862,8 +903,51 @@ export function OptionsTab({
               </p>
             </div>
           )}
+          {sameSenderSequence && (
+            <div className="mt-4 flex items-center justify-between gap-4 border-t border-slate-100 pt-4">
+              <div>
+                <h4 className="text-sm font-semibold text-slate-800">
+                  Use email 1&apos;s subject on follow-ups
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Follow-ups keep the first email&apos;s subject exactly, with
+                  no &quot;Re:&quot;, so they show in the same conversation.
+                  Turn this off to send each step with its own subject from
+                  that same mailbox.
+                </p>
+              </div>
+              <div
+                onClick={() => {
+                  if (isLocked) return;
+                  setSameSubjectSequence((current) => !current);
+                  setSaved(false);
+                }}
+                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
+                  isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+                } ${sameSubjectSequence ? "bg-blue-600" : "bg-slate-300"}`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 mt-0.5 rounded-full bg-white shadow-sm transition-transform ${
+                    sameSubjectSequence ? "translate-x-5.5" : "translate-x-0.5"
+                  }`}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      <EspMatchingCard
+        value={espMatching}
+        onChange={(next) => {
+          setEspMatching(next);
+          setSaved(false);
+        }}
+        disabled={isLocked}
+        campaignId={campaignId}
+        collapsible
+        defaultOpen={false}
+      />
 
       {/* ── Open Tracking ── */}
       <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">

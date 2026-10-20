@@ -46,6 +46,7 @@ import {
   getCampaignMemberLeads,
   getEmailServiceErrorMessage,
   patchCampaign,
+  removeAllLeadsFromCampaign,
   removeLeadsFromCampaign,
   restartCampaign,
   LeadCategory,
@@ -204,15 +205,18 @@ export function LeadsTab({
 }: LeadsTabProps) {
   const effectiveDomainId = domainId || INBOX_CAMPAIGN_DOMAIN_ID;
   const canModifyLeads = !MODIFY_LEADS_BLOCKED_STATUSES.has(campaignStatus);
+  const isDraft = campaignStatus === "draft";
   const [restarting, setRestarting] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [showRemoveAllConfirm, setShowRemoveAllConfirm] = useState(false);
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const [selectedTags, setSelectedTags] = useState<LeadTag[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<LeadCategory[]>([]);
   const [addingLeads, setAddingLeads] = useState(false);
   const [removingLeads, setRemovingLeads] = useState(false);
+  const [removingAllLeads, setRemovingAllLeads] = useState(false);
 
   const [leads, setLeads] = useState<CampaignLeadRow[]>([]);
   const [loadingLeads, setLoadingLeads] = useState(true);
@@ -538,6 +542,52 @@ export function LeadsTab({
     fetchCampaignLeads,
     onLeadsAdded,
     selectedLeadIds,
+  ]);
+
+  const handleRemoveAllLeads = useCallback(async () => {
+    if (!isDraft) {
+      toast.error("Removing all leads is only available for draft campaigns.");
+      return;
+    }
+
+    const leadCount = totalCount > 0 ? totalCount : totalLeads;
+    if (leadCount <= 0) {
+      toast.error("This campaign has no leads to remove.");
+      return;
+    }
+
+    setRemovingAllLeads(true);
+    try {
+      const result = await removeAllLeadsFromCampaign(
+        effectiveDomainId,
+        campaignId
+      );
+
+      toast.success(
+        result.message ||
+          `Removed all ${result.leadsRemoved} lead${result.leadsRemoved !== 1 ? "s" : ""} from campaign`
+      );
+
+      setShowRemoveAllConfirm(false);
+      setSelectedLeadIds(new Set());
+      setPage(1);
+      onLeadsAdded?.();
+      await fetchCampaignLeads();
+    } catch (error: unknown) {
+      toast.error(
+        getEmailServiceErrorMessage(error, "Failed to remove all leads from campaign")
+      );
+    } finally {
+      setRemovingAllLeads(false);
+    }
+  }, [
+    campaignId,
+    effectiveDomainId,
+    fetchCampaignLeads,
+    isDraft,
+    onLeadsAdded,
+    totalCount,
+    totalLeads,
   ]);
 
   const selectedCount = selectedLeadIds.size;
@@ -1129,7 +1179,7 @@ export function LeadsTab({
                   <button
                     type="button"
                     onClick={() => setShowRemoveConfirm(true)}
-                    disabled={removingLeads}
+                    disabled={removingLeads || removingAllLeads}
                     className="inline-flex items-center gap-1.5 rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
                   >
                     {removingLeads ? (
@@ -1142,7 +1192,7 @@ export function LeadsTab({
                   <button
                     type="button"
                     onClick={() => setSelectedLeadIds(new Set())}
-                    disabled={removingLeads}
+                    disabled={removingLeads || removingAllLeads}
                     className="text-xs font-medium text-rose-700 hover:text-rose-900 disabled:opacity-60"
                   >
                     Clear
@@ -1165,6 +1215,21 @@ export function LeadsTab({
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              {isDraft && displayTotal > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowRemoveAllConfirm(true)}
+                  disabled={removingLeads || removingAllLeads || loadingLeads}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                >
+                  {removingAllLeads ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5" />
+                  )}
+                  Remove all leads
+                </button>
+              )}
               <div className="relative w-full sm:w-72">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
@@ -1275,7 +1340,7 @@ export function LeadsTab({
                             onCheckedChange={(checked) =>
                               toggleLeadSelection(lead.id, checked === true)
                             }
-                            disabled={removingLeads}
+                            disabled={removingLeads || removingAllLeads}
                             aria-label={`Select ${lead.email}`}
                           />
                         </TableCell>
@@ -1380,6 +1445,20 @@ export function LeadsTab({
         cancelText="Keep leads"
         type="danger"
         isLoading={removingLeads}
+      />
+
+      <ConfirmDialog
+        isOpen={showRemoveAllConfirm}
+        onClose={() => {
+          if (!removingAllLeads) setShowRemoveAllConfirm(false);
+        }}
+        onConfirm={() => void handleRemoveAllLeads()}
+        title="Remove all leads from campaign?"
+        message={`Remove all ${displayTotal.toLocaleString()} lead${displayTotal !== 1 ? "s" : ""} from this draft campaign? This clears every recipient in one step. Contacts stay in your lead lists — they are only detached from this campaign.`}
+        confirmText="Remove all leads"
+        cancelText="Keep leads"
+        type="danger"
+        isLoading={removingAllLeads}
       />
 
       <RecipientSelectionModal

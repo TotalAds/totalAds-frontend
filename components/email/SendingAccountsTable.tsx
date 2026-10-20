@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { ProviderLogo } from "@/components/email/ProviderLogo";
 import { SenderTrustIndicators } from "@/components/email/SenderTrustIndicators";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,6 @@ import {
   accountTypeLabel,
   coldOutreachWarning,
   providerConnectionLabel,
-  providerDisplayName,
 } from "@/lib/senderProviderEducation";
 import { cn } from "@/lib/utils";
 import { SendingAccount } from "@/utils/api/emailClient";
@@ -33,14 +33,6 @@ import {
   IconSettings,
   IconTrash,
 } from "@tabler/icons-react";
-
-const PROVIDER_AVATAR: Record<string, string> = {
-  gmail: "bg-red-50 text-red-600 border-red-100",
-  outlook: "bg-blue-50 text-blue-600 border-blue-100",
-  zoho: "bg-orange-50 text-orange-700 border-orange-100",
-  smtp: "bg-violet-50 text-violet-700 border-violet-100",
-  ses: "bg-amber-50 text-amber-700 border-amber-100",
-};
 
 const STATUS_STYLES: Record<SendingAccount["status"], string> = {
   active: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -65,20 +57,13 @@ function bounceStyles(bounceRate?: number, status?: string): string {
 
 function SenderAvatar({
   provider,
-  email,
 }: {
   provider: string;
-  email: string;
+  email?: string;
 }) {
-  const initial = email?.[0]?.toUpperCase() ?? "?";
   return (
-    <div
-      className={cn(
-        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
-        PROVIDER_AVATAR[provider] ?? PROVIDER_AVATAR.smtp
-      )}
-    >
-      {initial}
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white">
+      <ProviderLogo provider={provider} size="md" />
     </div>
   );
 }
@@ -223,7 +208,10 @@ function SendingAccountCard({
   return (
     <div className="rounded-md border border-slate-200 bg-white px-3 py-2 shadow-sm">
       <div className="flex items-start gap-2.5">
-        <SenderAvatar provider={account.provider} email={account.email} />
+        <SenderAvatar
+          provider={account.senderProviderFamily || account.provider}
+          email={account.email}
+        />
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
@@ -248,7 +236,12 @@ function SendingAccountCard({
               <p className="mt-0.5 truncate text-xs text-slate-500">
                 <span className="font-medium text-slate-700">{senderName}</span>
                 <span className="mx-1 text-slate-300">·</span>
-                <span>{providerDisplayName(account.provider)}</span>
+                <ProviderLogo
+                  provider={account.senderProviderFamily || account.provider}
+                  showLabel
+                  size="sm"
+                  labelClassName="text-[11px] font-medium text-slate-600"
+                />
                 <span className="mx-1 text-slate-300">·</span>
                 <span className="text-slate-400">
                   {providerConnectionLabel(account.provider, account.email)}

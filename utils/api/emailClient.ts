@@ -440,6 +440,8 @@ export interface Campaign {
   linkTrackingEnabled?: boolean;
   /** When true, every sequence step for a lead stays on the mailbox that sent the first email. */
   sameSenderSequenceEnabled?: boolean;
+  /** When true, follow-ups reuse email 1's exact subject and thread to that message. */
+  sameSubjectSequenceEnabled?: boolean;
   /** Visible words on the mandatory unsubscribe link. */
   unsubscribeLinkText?: string;
   /** Set after the owner confirms the unsubscribe link stays on every email. */
@@ -620,6 +622,44 @@ export const updateCampaign = async (
 };
 
 /** Partial update (sequence, daily send time, etc.) */
+export type EspMatchingPayload = {
+  inheritWorkspaceDefault?: boolean;
+  mode?: "off" | "prioritize_matching" | "strict_matching";
+  unknownRecipientPolicy?: "any_eligible" | "strict_unknown";
+  rules?: Array<{
+    senderFamily: string;
+    recipientFamily: string;
+    action: "allow" | "deny";
+    enabled?: boolean;
+    label?: string | null;
+  }>;
+};
+
+export const getWorkspaceEspSettings = async () => {
+  const response = await emailClient.get("/api/esp-matching/workspace");
+  return response.data.data;
+};
+
+export const saveWorkspaceEspSettings = async (payload: EspMatchingPayload) => {
+  const response = await emailClient.put("/api/esp-matching/workspace", payload);
+  return response.data.data;
+};
+
+export const getCampaignEspSettings = async (campaignId: string) => {
+  const response = await emailClient.get(`/api/esp-matching/campaigns/${campaignId}`);
+  return response.data.data;
+};
+
+export const getCampaignEspCoverage = async (campaignId: string) => {
+  const response = await emailClient.get(`/api/esp-matching/campaigns/${campaignId}/coverage`);
+  return response.data.data;
+};
+
+export const getCampaignEspSummary = async (campaignId: string) => {
+  const response = await emailClient.get(`/api/esp-matching/campaigns/${campaignId}/summary`);
+  return response.data.data;
+};
+
 export const patchCampaign = async (
   domainId: string,
   campaignId: string,
@@ -760,6 +800,21 @@ export const removeLeadsFromCampaign = async (
   const response = await emailClient.post(
     `/api/domains/${domainId}/campaigns/${campaignId}/remove-leads`,
     { leadIds },
+  );
+  return response.data?.data || response.data;
+};
+
+export interface RemoveAllLeadsFromCampaignResult extends RemoveLeadsFromCampaignResult {
+  batchesProcessed: number;
+}
+
+/** Remove every lead from a draft campaign (server processes in batches). */
+export const removeAllLeadsFromCampaign = async (
+  domainId: string,
+  campaignId: string,
+): Promise<RemoveAllLeadsFromCampaignResult> => {
+  const response = await emailClient.post(
+    `/api/domains/${domainId}/campaigns/${campaignId}/remove-all-leads`,
   );
   return response.data?.data || response.data;
 };
@@ -2005,6 +2060,7 @@ export interface SendingAccount {
   campaignDailyLimit?: number | null;
   minWaitMinutes?: number | null;
   slowRampEnabled?: boolean | null;
+  senderProviderFamily?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -2323,6 +2379,7 @@ export const updateSendingAccount = async (
     campaignDailyLimit?: number;
     minWaitMinutes?: number;
     slowRampEnabled?: boolean;
+    senderProviderFamily?: string;
   },
 ): Promise<SendingAccount> => {
   const resp = await emailClient.patch(`/api/sending-accounts/${id}`, body);
