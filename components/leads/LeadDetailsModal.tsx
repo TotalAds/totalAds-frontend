@@ -63,21 +63,21 @@ function displayValue(value: unknown): string | null {
 
 function namedList(value: unknown): NamedRef[] {
   if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => {
-      const rec = asRecord(item);
-      if (!rec) return null;
-      const name = displayValue(rec.name);
-      if (!name) return null;
-      return {
-        id: rec.id != null ? String(rec.id) : undefined,
-        name,
-        color: typeof rec.color === "string" ? rec.color : undefined,
-        status: displayValue(rec.status) ?? undefined,
-        error: displayValue(rec.error) ?? undefined,
-      };
-    })
-    .filter((item): item is NamedRef => !!item);
+  const rows: NamedRef[] = [];
+  for (const item of value) {
+    const rec = asRecord(item);
+    if (!rec) continue;
+    const name = displayValue(rec.name);
+    if (!name) continue;
+    rows.push({
+      id: rec.id != null ? String(rec.id) : undefined,
+      name,
+      color: typeof rec.color === "string" ? rec.color : undefined,
+      status: displayValue(rec.status) ?? undefined,
+      error: displayValue(rec.error) ?? undefined,
+    });
+  }
+  return rows;
 }
 
 function flattenFields(

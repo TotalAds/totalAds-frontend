@@ -106,7 +106,17 @@ export interface CampaignAnalyticsProps {
   campaign: {
     id: string
     name: string
-    status: 'live' | 'paused' | 'completed' | 'sending' | 'scheduled' | 'draft' | 'cancelled' | 'running'
+    status:
+      | 'live'
+      | 'paused'
+      | 'completed'
+      | 'sending'
+      | 'scheduled'
+      | 'draft'
+      | 'cancelled'
+      | 'running'
+      | 'verifying_leads'
+      | 'verification_failed'
     sender: string
     subject?: string
     replyTo?: string
