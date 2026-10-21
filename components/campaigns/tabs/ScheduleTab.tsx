@@ -352,24 +352,11 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
                       }
                       className="w-full cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60"
                     >
-                      {toTimeGroups.sameDay.length > 0 ? (
-                        <optgroup label="Same day">
-                          {toTimeGroups.sameDay.map((t) => (
-                            <option key={`same-${t}`} value={t}>
-                              {t}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ) : null}
-                      {toTimeGroups.overnight.length > 0 ? (
-                        <optgroup label="Overnight (ends next day)">
-                          {toTimeGroups.overnight.map((t) => (
-                            <option key={`overnight-${t}`} value={t}>
-                              {t}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ) : null}
+                      {toTimeGroups.sameDay.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>

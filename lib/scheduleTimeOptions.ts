@@ -104,11 +104,11 @@ export function coerceToTimeForFromChange(
   allOptions: string[] = FULL_DAY_TIME_OPTIONS
 ): string {
   const split = splitToTimeOptions(fromTime, allOptions);
-  if (currentToTime === fromTime) {
-    return getNextTimeSlotAfter(fromTime, allOptions);
-  }
-  if (split.all.includes(currentToTime)) {
+  if (split.sameDay.includes(currentToTime)) {
     return currentToTime;
   }
-  return getNextTimeSlotAfter(fromTime, allOptions);
+  if (split.sameDay.includes("6:00 PM")) {
+    return "6:00 PM";
+  }
+  return split.sameDay[split.sameDay.length - 1] || getNextTimeSlotAfter(fromTime, allOptions);
 }
