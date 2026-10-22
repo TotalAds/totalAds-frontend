@@ -15,6 +15,7 @@ import { TodayStatsCard } from './TodayStatsCard'
 import { ReoonSummaryCard } from './ReoonSummaryCard'
 import { OptimizationInsights } from './OptimizationInsights'
 import { DeliverabilitySafeguardsInfo } from '@/components/email/DeliverabilitySafeguardsInfo'
+import { alertHasDeliverabilityEvidence } from '@/lib/deliverabilitySafeguards'
 import { DeliverabilityAcknowledgmentModal } from '@/components/campaign-builder/DeliverabilityAcknowledgmentModal'
 import { acknowledgeDeliverabilityPause } from '@/utils/api/emailClient'
 import toast from 'react-hot-toast'
@@ -76,6 +77,13 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
   const isSending = campaign.status === 'sending' || campaign.status === 'live'
   const isCompleted = campaign.status === 'completed'
   const requiresDeliverabilityAck = Boolean(campaign.requiresDeliverabilityAcknowledgment)
+  const deliverabilityAlerts = (deliverability?.alerts || []).filter(alertHasDeliverabilityEvidence)
+  const pauseReasonHasEvidence =
+    Boolean(campaign.deliverabilityPauseReason) &&
+    !/0 bounced/i.test(campaign.deliverabilityPauseReason || '') &&
+    !/safeguards were triggered based on your recent/i.test(
+      campaign.deliverabilityPauseReason || ''
+    )
   const deliverabilityUserMessage = useMemo(
     () =>
       deliverability?.alerts?.find((alert) => alert.userMessage)?.userMessage ||
@@ -241,46 +249,23 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
         </div>
       ) : null}
 
-      {/* DELIVERABILITY STATUS */}
-      {deliverability?.alerts?.length ? (
-        <DeliverabilityStatusCard alerts={deliverability.alerts} />
-      ) : null}
-
-      {/* DELIVERABILITY ALERTS */}
-      {(deliverability?.alerts?.length || deliverability?.throttledPendingCount) ? (
-        <DeliverabilityAlertBanner
-          alerts={deliverability?.alerts || []}
-          throttledPendingCount={deliverability?.throttledPendingCount || 0}
-        />
-      ) : isPaused ? (
+      {/* DELIVERABILITY — only when bounce or complaint data supports it */}
+      {deliverabilityAlerts.length > 0 ? (
+        <>
+          <DeliverabilityStatusCard alerts={deliverabilityAlerts} />
+          <DeliverabilityAlertBanner alerts={deliverabilityAlerts} />
+        </>
+      ) : isPaused && pauseReasonHasEvidence ? (
         <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 leading-relaxed">
           <div className="flex items-start gap-2">
             <span className="text-amber-600 mt-0.5">⏸</span>
             <div>
               <p className="font-medium">Campaign is paused</p>
-              {campaign.deliverabilityPauseReason ? (
-                <p className="text-amber-800/90 text-xs mt-1 font-medium">
-                  {campaign.deliverabilityPauseReason}
-                </p>
-              ) : (
-                <p className="text-amber-800/80 text-xs mt-1">
-                  If this was due to deliverability issues, fix list quality or wait for sender
-                  health to recover, then resume sending.{' '}
-                  <DeliverabilitySafeguardsInfo variant="link" className="inline" />
-                </p>
-              )}
+              <p className="text-amber-800/90 text-xs mt-1 font-medium">
+                {campaign.deliverabilityPauseReason}
+              </p>
             </div>
           </div>
-        </div>
-      ) : isSending ? (
-        <div className="mb-6 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-sm text-blue-800">
-          <div className="flex items-center gap-2">
-            <span className="text-blue-500">ℹ</span>
-            <span>
-              Daily sender caps and bounce rates can change automatically during sending.
-            </span>
-          </div>
-          <DeliverabilitySafeguardsInfo variant="link" />
         </div>
       ) : null}
 

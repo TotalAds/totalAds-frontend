@@ -78,6 +78,23 @@ export function formatDeliverabilityRate(rate?: number): string {
   return `${(rate * 100).toFixed(2)}%`;
 }
 
+/** True only when bounce or complaint data supports a campaign banner. */
+export function alertHasDeliverabilityEvidence(alert: {
+  deliverabilityAction?: DeliverabilityAction;
+  rollingBounceAction?: DeliverabilityAction;
+  bounceRate7d?: number;
+  complaintRate7d?: number;
+}): boolean {
+  if (alert.rollingBounceAction === "pause" || alert.rollingBounceAction === "emergency") {
+    return true;
+  }
+  const action = alert.deliverabilityAction;
+  if (action !== "warn" && action !== "slow" && action !== "pause" && action !== "emergency") {
+    return false;
+  }
+  return (alert.bounceRate7d ?? 0) > 0 || (alert.complaintRate7d ?? 0) > 0;
+}
+
 export function deliverabilityActionLabel(action?: DeliverabilityAction): string {
   switch (action) {
     case "emergency":
