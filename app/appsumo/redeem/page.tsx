@@ -15,9 +15,9 @@ import {
 import { tokenStorage } from "@/utils/auth/tokenStorage";
 
 const TIER_LABELS: Record<string, string> = {
-  appsumo_starter: "Starter — Tier 1",
-  appsumo_growth: "Growth — Tier 2",
-  appsumo_scale: "Scale — Tier 3",
+  appsumo_starter: "Starter — 10k emails · 5 senders · 1 workspace",
+  appsumo_growth: "Growth — 50k emails · 20 senders · 3 workspaces",
+  appsumo_scale: "Scale — 150k emails · unlimited senders · 10 workspaces",
 };
 
 type GuestMode = "signup" | "login";

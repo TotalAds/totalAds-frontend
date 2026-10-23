@@ -224,6 +224,25 @@ const BillingSection = () => {
                 — no renewals and nothing to pay here. Upgrades, downgrades and
                 refunds are handled by AppSumo.
               </p>
+              {(billingData?.monthlyLimit != null ||
+                billingAccount?.maxWorkspaces != null) && (
+                <p className="mt-2 text-xs text-text-200/90">
+                  Included:{" "}
+                  {billingData?.unlimitedSends
+                    ? "unlimited emails/month"
+                    : `${(billingData?.monthlyLimit ?? 0).toLocaleString("en-US")} emails/month`}
+                  {billingAccount?.maxWorkspaces != null && (
+                    <>
+                      {" · "}
+                      {billingAccount.maxWorkspaces === 0
+                        ? "unlimited workspaces"
+                        : `${billingAccount.maxWorkspaces} workspace${
+                            billingAccount.maxWorkspaces === 1 ? "" : "s"
+                          }`}
+                    </>
+                  )}
+                </p>
+              )}
             </div>
             <a
               href={APPSUMO_ACCOUNT_URL}
