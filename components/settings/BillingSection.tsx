@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 
+import CapacityExpansionSection from "@/components/settings/CapacityExpansionSection";
 import { Button } from "@/components/ui/button";
 import { BodyPortal } from "@/components/ui/BodyPortal";
 import { useAuthContext } from "@/context/AuthContext";
@@ -27,6 +28,9 @@ interface BillingOverview {
   currentCredits: number;
   nextBillingDate: string;
   monthlyLimit: number;
+  monthlyRemaining?: number | null;
+  addonMonthlySendIncrement?: number;
+  unlimitedSends?: boolean;
   totalSpent: number;
   source?: string;
   isLifetime?: boolean;
@@ -67,6 +71,12 @@ const BillingSection = () => {
 
   useEffect(() => {
     fetchBillingData();
+    const refresh = () => {
+      void fetchBillingData();
+    };
+    window.addEventListener("leadsnipper:subscription-updated", refresh);
+    return () =>
+      window.removeEventListener("leadsnipper:subscription-updated", refresh);
   }, []);
 
   const fetchBillingData = async () => {
@@ -226,6 +236,8 @@ const BillingSection = () => {
           </div>
         </div>
       )}
+
+      <CapacityExpansionSection />
 
       {billingAccount && activeWorkspace && (
         <div className="rounded-xl border border-brand-main/10 bg-bg-300/40 p-6 shadow-sm">
@@ -392,12 +404,24 @@ const BillingSection = () => {
             </div>
 
             <div className="rounded-xl border border-brand-main/10 bg-bg-300/40 p-5 shadow-sm hover:shadow-md transition">
-              <p className="text-text-200 text-sm mb-1">Monthly Limit</p>
+              <p className="text-text-200 text-sm mb-1">Monthly sending allowance</p>
               <p className="text-2xl font-bold text-text-100">
-                {typeof billingData.monthlyLimit === "number"
-                  ? billingData.monthlyLimit.toLocaleString()
-                  : "—"}
+                {billingData.unlimitedSends
+                  ? "Unlimited"
+                  : typeof billingData.monthlyLimit === "number"
+                    ? billingData.monthlyLimit.toLocaleString()
+                    : "—"}
               </p>
+              {!billingData.unlimitedSends &&
+                typeof billingData.monthlyRemaining === "number" && (
+                  <p className="mt-1 text-xs text-text-200">
+                    {billingData.monthlyRemaining.toLocaleString()} remaining
+                    this month
+                    {(billingData.addonMonthlySendIncrement ?? 0) > 0
+                      ? ` · includes ${billingData.addonMonthlySendIncrement?.toLocaleString()} extra sends`
+                      : ""}
+                  </p>
+                )}
             </div>
 
             {/* <div className="rounded-xl border border-brand-main/10 bg-bg-300/40 p-5 shadow-sm hover:shadow-md transition">
@@ -465,7 +489,7 @@ const BillingSection = () => {
                     className="border-b border-brand-main/10 hover:bg-bg-300/50 transition-colors"
                   >
                     <td className="py-3 px-4 text-text-100">
-                      {format(new Date(payment.createdAt), "MMM dd, yyyy")}
+                      {format(new Date(payment.createdAt), "MMM dd, yyyy · h:mm a")}
                     </td>
                     <td className="py-3 px-4 text-text-100">
                       {payment.description}

@@ -18,14 +18,11 @@ import {
   AnalyticsSummary,
   ContactMetrics,
   DailyCounterRow,
-  default as emailClient,
   EMPTY_ANALYTICS_SUMMARY,
   getAnalyticsSummary,
   getContactMetrics,
   getDailyCounters,
-  getQuotaCardData,
   getSesCredentialsStatus,
-  QuotaCardData,
 } from "@/utils/api/emailClient";
 import { getEmailProvider, type SesProvider } from "@/utils/api/apiClient";
 import { useEmailProvider } from "@/hooks/useEmailProvider";
@@ -34,7 +31,6 @@ import {
   IconArrowUpRight,
   IconChartLine,
   IconMail,
-  IconRocket,
   IconSettings,
   IconUpload,
   IconUsers,
@@ -49,14 +45,12 @@ export default function DashboardPage() {
   const { role, activeWorkspace, isLoading: workspaceLoading } = useWorkspace();
   const {
     isByoSes,
-    isManagedSes,
     isConnectedInboxUser,
     hasConnectedSendingAccount,
     primarySendingMethod,
     sesConnected: byoSesConnected,
   } = useEmailProvider();
   const [loading, setLoading] = useState(true);
-  const [quota, setQuota] = useState<QuotaCardData | null>(null);
   const [counters, setCounters] = useState<DailyCounterRow[]>([]);
   const [analyticsSummary, setAnalyticsSummary] =
     useState<AnalyticsSummary | null>(null);
@@ -64,13 +58,7 @@ export default function DashboardPage() {
     null
   );
   const [range, setRange] = useState<RangeDays>(7);
-  const [sesProvider, setSesProvider] = useState<SesProvider | null>(null);
   const [sesConnected, setSesConnected] = useState(true);
-  const [managedSenderQuota, setManagedSenderQuota] = useState<{
-    cap: number;
-    remaining: number;
-    used: number;
-  } | null>(null);
 
   const summary = analyticsSummary?.summary;
   const rates = analyticsSummary?.rates;
@@ -191,9 +179,8 @@ export default function DashboardPage() {
   const fetchDashboardData = async (days: RangeDays) => {
     try {
       setLoading(true);
-      const [quotaData, dailyCounters, summaryData, contactMetricsData] =
+      const [dailyCounters, summaryData, contactMetricsData] =
         await Promise.all([
-          getQuotaCardData(),
           getDailyCounters(days),
           getAnalyticsSummary().catch((err) => {
             console.error("Failed to fetch analytics summary:", err);
@@ -202,57 +189,20 @@ export default function DashboardPage() {
           getContactMetrics().catch(() => null),
         ]);
 
-      setQuota(quotaData);
       setCounters(dailyCounters || []);
       setAnalyticsSummary(summaryData);
       setContactMetrics(contactMetricsData);
-      setManagedSenderQuota(null);
 
       try {
         const provider = await getEmailProvider();
         const prov = (provider.sesProvider as SesProvider) || null;
         const method = provider.primarySendingMethod ?? null;
-        setSesProvider(prov);
         if (prov === "custom" || method === "byo_ses") {
           try {
             const creds = await getSesCredentialsStatus();
             setSesConnected(creds.connected);
           } catch {
             setSesConnected(false);
-          }
-        } else if (prov === "leadsnipper_managed" || method === "managed_ses") {
-          try {
-            const sendersResp = await emailClient.get("/api/email-senders", {
-              params: { page: 1, limit: 100 },
-            });
-            const allSenders = sendersResp.data?.data?.senders || [];
-            const verifiedSenders = allSenders.filter(
-              (sender: { verificationStatus: string }) =>
-                sender.verificationStatus === "verified"
-            );
-
-            if (verifiedSenders.length > 0) {
-              const quotaResponses = await Promise.all(
-                verifiedSenders.map((sender: { id: string }) =>
-                  emailClient.get(`/api/email-senders/${sender.id}/quota`)
-                )
-              );
-              const aggregated = quotaResponses.reduce(
-                (acc, res) => {
-                  const q = res.data?.data || {};
-                  acc.cap += Number(q.dailyCap || 0);
-                  acc.remaining += Number(q.remaining || 0);
-                  acc.used += Number(q.used || 0);
-                  return acc;
-                },
-                { cap: 0, remaining: 0, used: 0 }
-              );
-              setManagedSenderQuota(aggregated);
-            } else {
-              setManagedSenderQuota({ cap: 0, remaining: 0, used: 0 });
-            }
-          } catch {
-            setManagedSenderQuota(null);
           }
         }
       } catch {
@@ -278,15 +228,6 @@ export default function DashboardPage() {
   }
 
   const sesNotConfigured = isByoSes && !byoSesConnected;
-  const displayedQuota =
-    isManagedSes && managedSenderQuota
-      ? managedSenderQuota
-      : quota;
-
-  const quotaUsedPct =
-    displayedQuota?.cap && displayedQuota.cap > 0
-      ? Math.min(100, ((displayedQuota.used || 0) / displayedQuota.cap) * 100)
-      : 0;
 
   const contactUsedPct =
     contactMetrics?.contacts?.limit && contactMetrics.contacts.limit > 0
@@ -421,14 +362,15 @@ export default function DashboardPage() {
               accent: "from-emerald-500/10 to-emerald-600/5 text-emerald-600",
             },
             {
-              label: "Daily send left",
-              value: sesNotConfigured
-                ? "—"
-                : (displayedQuota?.remaining ?? 0).toLocaleString(),
-              sub: sesNotConfigured
-                ? "Connect SES to view quota"
-                : `of ${(displayedQuota?.cap ?? 0).toLocaleString()} today`,
-              icon: <IconRocket className="h-5 w-5" />,
+              label: "Monthly sends left",
+              value:
+                contactMetrics?.emails?.remaining != null
+                  ? contactMetrics.emails.remaining.toLocaleString()
+                  : "—",
+              sub: contactMetrics?.emails?.allocated
+                ? `of ${contactMetrics.emails.allocated.toLocaleString()} this month`
+                : "Monthly campaign allowance",
+              icon: <IconMail className="h-5 w-5" />,
               accent: "from-amber-500/10 to-amber-600/5 text-amber-600",
             },
           ].map((card) => (
@@ -651,22 +593,6 @@ export default function DashboardPage() {
                     {dashboardMetrics.monthlyEmailsLimit.toLocaleString() || "—"}
                   </dd>
                 </div>
-                {!sesNotConfigured && (
-                  <div>
-                    <div className="mb-1 flex justify-between text-sm">
-                      <dt className="text-slate-500">Today&apos;s quota</dt>
-                      <dd className="font-medium text-slate-900">
-                        {Math.round(quotaUsedPct)}% used
-                      </dd>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-                      <div
-                        className="h-full bg-brand-main"
-                        style={{ width: `${quotaUsedPct}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
               </dl>
             </div>
           </div>

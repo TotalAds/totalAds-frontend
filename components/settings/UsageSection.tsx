@@ -7,10 +7,12 @@ import apiClient from "@/utils/api/apiClient";
 import { IconLoader } from "@tabler/icons-react";
 
 interface UsageStats {
-  emailsSentToday: number;
   emailsSentThisMonth: number;
-  dailyCap: number;
   monthlyCap: number;
+  monthlyBase?: number;
+  monthlyAddon?: number;
+  monthlyUsed?: number;
+  monthlyRemaining?: number;
   bounceRate: number;
   complaintRate: number;
   openRate: number;
@@ -56,16 +58,8 @@ const UsageSection = () => {
     }
   };
 
-  const getDailyUsagePercentage = () => {
-    if (!usageStats) return 0;
-    return Math.min(
-      (usageStats.emailsSentToday / usageStats.dailyCap) * 100,
-      100
-    );
-  };
-
   const getMonthlyUsagePercentage = () => {
-    if (!usageStats) return 0;
+    if (!usageStats || usageStats.monthlyCap <= 0) return 0;
     return Math.min(
       (usageStats.emailsSentThisMonth / usageStats.monthlyCap) * 100,
       100
@@ -141,31 +135,12 @@ const UsageSection = () => {
           Usage Overview
         </h2>
 
-        {/* Daily Usage */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-2">
-            <p className="text-text-100 font-medium">Daily Usage</p>
-            <p className="text-text-200 text-sm">
-              {usageStats.emailsSentToday} / {usageStats.dailyCap}
-            </p>
-          </div>
-          <div className="w-full bg-bg-300 rounded-full h-3 overflow-hidden">
-            <div
-              className="bg-gradient-to-r from-brand-main to-brand-secondary h-full transition-all duration-300"
-              style={{ width: `${getDailyUsagePercentage()}%` }}
-            />
-          </div>
-          <p className="text-text-200 text-xs mt-2">
-            {getDailyUsagePercentage().toFixed(1)}% of daily limit used
-          </p>
-        </div>
-
-        {/* Monthly Usage */}
         <div>
           <div className="flex justify-between items-center mb-2">
             <p className="text-text-100 font-medium">Monthly Usage</p>
             <p className="text-text-200 text-sm">
-              {usageStats.emailsSentThisMonth} / {usageStats.monthlyCap}
+              {usageStats.emailsSentThisMonth} /{" "}
+              {usageStats.monthlyCap <= 0 ? "Unlimited" : usageStats.monthlyCap}
             </p>
           </div>
           <div className="w-full bg-bg-300 rounded-full h-3 overflow-hidden">
@@ -175,7 +150,22 @@ const UsageSection = () => {
             />
           </div>
           <p className="text-text-200 text-xs mt-2">
-            {getMonthlyUsagePercentage().toFixed(1)}% of monthly limit used
+            {usageStats.monthlyCap <= 0
+              ? "No account send cap on this plan"
+              : `${getMonthlyUsagePercentage().toFixed(1)}% of monthly campaign allowance used`}
+            {typeof usageStats.monthlyBase === "number" &&
+              usageStats.monthlyCap > 0 && (
+                <>
+                  {" "}
+                  · base {usageStats.monthlyBase.toLocaleString("en-US")}
+                  {usageStats.monthlyAddon
+                    ? ` + add-on ${usageStats.monthlyAddon.toLocaleString("en-US")}`
+                    : ""}
+                  {typeof usageStats.monthlyRemaining === "number"
+                    ? ` · ${usageStats.monthlyRemaining.toLocaleString("en-US")} remaining`
+                    : ""}
+                </>
+              )}
           </p>
         </div>
       </div>

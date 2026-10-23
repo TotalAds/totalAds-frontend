@@ -64,6 +64,15 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
     refreshSubscriptionInfo();
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    const refresh = () => {
+      void refreshSubscriptionInfo();
+    };
+    window.addEventListener("leadsnipper:subscription-updated", refresh);
+    return () =>
+      window.removeEventListener("leadsnipper:subscription-updated", refresh);
+  }, [isAuthenticated]);
+
   // Refresh subscription info when page becomes visible (user returns from payment)
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -248,20 +257,6 @@ const TopNav: React.FC<TopNavProps> = ({ onSidebarToggle, isSidebarOpen }) => {
                           {metrics.emails.remaining} remaining
                         </div>
                       )}
-                    </div>
-
-                    {/* Daily Limit */}
-                    <div className="bg-brand-main/5 rounded-lg p-3 border border-brand-main/10">
-                      <div className="text-xs text-text-200 mb-1">
-                        Daily Limit
-                      </div>
-                      <div className="text-lg font-semibold text-text-100">
-                        {subInfo.dailyRemaining} / {subInfo.dailyCap} today
-                      </div>
-                      <div className="text-xs text-text-200 mt-1">
-                        Resets:{" "}
-                        {new Date(subInfo.dailyResetAt).toLocaleTimeString()}
-                      </div>
                     </div>
                   </div>
                 </div>
