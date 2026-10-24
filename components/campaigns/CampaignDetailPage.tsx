@@ -19,7 +19,7 @@ import {
   RotateCcw,
   AlertTriangle,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 import { AnalyticsTab } from "@/components/campaigns/tabs/AnalyticsTab";
@@ -42,6 +42,7 @@ import {
   stopCampaign,
   restartCampaign,
   getEmailServiceErrorMessage,
+  getSenderHealth,
 } from "@/utils/api/emailClient";
 
 type TabId = "analytics" | "leads" | "sequence" | "schedule" | "options";
@@ -138,6 +139,36 @@ export function CampaignDetailPage({
   const [pendingLaunchWithVerification, setPendingLaunchWithVerification] = useState<
     boolean | null
   >(null);
+  const [criticalDomainCount, setCriticalDomainCount] = useState(0);
+  const [restartingCampaign, setRestartingCampaign] = useState(false);
+
+  const fromEmail = analytics?.campaign?.fromEmail as string | undefined;
+  const campaignStatus = (analytics?.campaign?.status as string | undefined) || "draft";
+
+  useEffect(() => {
+    if (campaignStatus !== "draft" || !fromEmail?.includes("@")) {
+      setCriticalDomainCount(0);
+      return;
+    }
+    const domain = fromEmail.split("@")[1]?.toLowerCase();
+    if (!domain) return;
+    let cancelled = false;
+    getSenderHealth()
+      .then((health) => {
+        if (cancelled) return;
+        const match = health.domains.find((item) => item.domain === domain);
+        const critical = Boolean(
+          match?.issues.some((issue) => issue.severity === "critical" && issue.result === "fail"),
+        );
+        setCriticalDomainCount(critical ? 1 : 0);
+      })
+      .catch(() => {
+        if (!cancelled) setCriticalDomainCount(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fromEmail, campaignStatus]);
 
   const campaign = analytics?.campaign;
   const metrics = analytics?.metrics;
@@ -279,8 +310,6 @@ export function CampaignDetailPage({
       setStopping(false);
     }
   };
-
-  const [restartingCampaign, setRestartingCampaign] = useState(false);
 
   const handleRestart = async () => {
     if (!domainId) return;
@@ -448,6 +477,16 @@ export function CampaignDetailPage({
           </div>
         </div>
       </div>
+
+      {isDraft && criticalDomainCount > 0 ? (
+        <div className="border-b border-rose-200 bg-rose-50">
+          <p className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 text-sm font-medium text-rose-800">
+            {criticalDomainCount === 1
+              ? "1 sending domain has critical issues."
+              : `${criticalDomainCount} sending domains have critical issues.`}
+          </p>
+        </div>
+      ) : null}
 
       {/* ────────── TAB CONTENT ────────── */}
       <div className="flex-1 max-w-7xl w-full mx-auto px-0 sm:px-6 lg:px-8 py-0">

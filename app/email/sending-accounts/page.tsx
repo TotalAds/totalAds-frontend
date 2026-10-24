@@ -131,7 +131,7 @@ export default function SendingAccountsPage() {
             <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Sending Accounts</h1>
             <p className="mt-1 text-sm text-slate-500">
               {view === "health"
-                ? "Is each inbox safe to send from? Fix anything flagged first."
+                ? "Is each inbox safe to send from? Fix anything flagged, most severe first."
                 : "Connect inboxes, then review domain and account health separately."}
             </p>
           </div>
@@ -181,6 +181,7 @@ export default function SendingAccountsPage() {
               const account = accounts.find((item) => item.id === senderId) || null;
               setDnsSetupAccount(account);
             }}
+            onShowAccounts={() => setView("accounts")}
           />
         ) : (
         <SendingAccountsTable

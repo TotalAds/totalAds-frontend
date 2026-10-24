@@ -2389,20 +2389,39 @@ export const updateSendingAccount = async (
   return resp.data.data;
 };
 
+export interface SenderHealthRecord {
+  type: string;
+  name: string;
+  value: string;
+}
+
 export interface SenderHealthIssue {
   checkKey: string;
   scope: string;
+  code: string | null;
   issue: string;
   severity: string;
   evidence: string;
   impact: string;
   recommendedAction: string;
-  actions: Array<"view_instructions" | "recheck" | "preview_dns">;
+  actions: Array<"view_instructions" | "recheck" | "preview_dns" | "reconnect" | "switch_domain">;
   lastChecked: string;
   result: string;
   source: string;
   listingDetail: string | null;
   fresh: boolean;
+  title: string;
+  found: string;
+  why: string;
+  sendingImpact: string;
+  sendingImpactLabel: string;
+  steps: string[];
+  record: SenderHealthRecord | null;
+  dependsOn: string[];
+  chipLabel: string;
+  chipTone: string;
+  showsCard: boolean;
+  dnsWaitNote: string | null;
 }
 
 export interface SenderHealthAccount {
@@ -2411,8 +2430,10 @@ export interface SenderHealthAccount {
   provider: string;
   status: string;
   statusReason: string;
+  badge: string | null;
   cap: number;
   sent7d: number;
+  sendsToday: number;
   personal: boolean;
   issues: SenderHealthIssue[];
   coverage: {
@@ -2431,6 +2452,9 @@ export interface SenderHealthDomain {
   dnsApplyAvailable: boolean;
   status: string;
   statusReason: string;
+  badge: string | null;
+  providerOwned: boolean;
+  issueCount: number;
   issues: SenderHealthIssue[];
   website: SenderHealthIssue | null;
   accounts: SenderHealthAccount[];
@@ -2450,7 +2474,8 @@ export interface SenderHealthDomain {
 }
 
 export interface SenderHealthResponse {
-  summary: Record<string, number>;
+  summary: { critical: number; recommended: number; building_history: number };
+  scoredKeys: string[];
   domains: SenderHealthDomain[];
 }
 
