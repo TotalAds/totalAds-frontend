@@ -69,7 +69,6 @@ export default function EmailCheckoutModal({
   } | null>(null);
   const [validatingPromo, setValidatingPromo] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [cryptoRecurring, setCryptoRecurring] = useState(false);
   const { isIndia: isIndiaUser } = useUserRegion();
   const displayCurrency: DisplayCurrency = isIndiaUser ? "INR" : "USD";
 
@@ -84,20 +83,9 @@ export default function EmailCheckoutModal({
       setPromoCode("");
       setPromoValid(null);
       setProcessing(false);
-      setCryptoRecurring(false);
       onPaymentMethodChange(defaultPaymentMethod(isIndiaUser));
     }
   }, [open, initialBillingCycle, onPaymentMethodChange, isIndiaUser]);
-
-  useEffect(() => {
-    if (paymentMethod === "cryptomus" && billingCycle === "monthly") {
-      setCryptoRecurring(true);
-      return;
-    }
-    if (paymentMethod !== "cryptomus" || billingCycle !== "monthly") {
-      setCryptoRecurring(false);
-    }
-  }, [paymentMethod, billingCycle]);
 
   if (!open || !tier) return null;
 
@@ -165,6 +153,12 @@ export default function EmailCheckoutModal({
       ? formatUsdFromCents(amount)
       : formatInrFromPaise(amount);
 
+  const promoApplied = Boolean(showPromoInput && promoValid?.valid);
+  const cryptoYearlyQuarter =
+    paysWithCryptocurrency && billingCycle === "yearly" && !promoApplied;
+  const dueTodayMinor = cryptoYearlyQuarter
+    ? Math.max(1, Math.round(finalMinor / 4))
+    : finalMinor;
   const paymentMethods = availablePaymentMethods(isIndiaUser);
   const promoBlocksCheckout =
     showPromoInput && promoCode.trim() !== "" && !promoValid?.valid;
@@ -214,10 +208,6 @@ export default function EmailCheckoutModal({
           promoCode: codeToSend,
           billingCycle,
           paymentMethod,
-          recurring:
-            paymentMethod === "cryptomus" &&
-            billingCycle === "monthly" &&
-            cryptoRecurring,
         },
       );
 
@@ -243,6 +233,45 @@ export default function EmailCheckoutModal({
       if (orderData.provider === "cryptomus" && orderData.paymentUrl) {
         onClose();
         window.location.href = orderData.paymentUrl;
+        return;
+      }
+
+      if (orderData.subscriptionId && orderData.key) {
+        onClose();
+        await openRazorpayCheckout({
+          key: orderData.key,
+          subscriptionId: orderData.subscriptionId,
+          name: "LeadSnipper Email Service",
+          description: `Subscribe to ${tier.displayName} (${billingCycle}). Cancel keeps access through the period already paid.`,
+          email: orderData.email,
+          prefillName: orderData.name,
+          onSuccess: async (response) => {
+            try {
+              const confirmResponse = await emailClient.post(
+                "/api/payment/confirm-subscription",
+                {
+                  subscriptionId:
+                    response.razorpay_subscription_id ||
+                    orderData.subscriptionId,
+                  razorpayPaymentId: response.razorpay_payment_id,
+                  razorpaySignature: response.razorpay_signature,
+                },
+              );
+              if (confirmResponse.data.success) {
+                toast.success("Payment successful! Subscription updated.");
+                onSuccess?.();
+              } else {
+                toast.error("Payment verification failed");
+              }
+            } catch (verifyErr: unknown) {
+              console.error(verifyErr);
+              toast.error("Payment verification failed");
+            }
+          },
+          onDismiss: () => {
+            toast("Payment cancelled", { icon: "ℹ️" });
+          },
+        });
         return;
       }
 
@@ -303,9 +332,9 @@ export default function EmailCheckoutModal({
     if (processing) return null;
     if (finalMinor === 0) return "Activate plan";
     if (paysWithCryptocurrency) {
-      return `Pay ${formatUsdFromCents(finalPriceUsd)} in cryptocurrency`;
+      return `Pay ${formatUsdFromCents(dueTodayMinor)} in cryptocurrency`;
     }
-    return `Pay ${formatInrFromPaise(finalPriceInr)}`;
+    return `Pay ${formatInrFromPaise(dueTodayMinor)}`;
   };
 
   return (
@@ -388,23 +417,6 @@ export default function EmailCheckoutModal({
                 </button>
               )}
             </div>
-            {paymentMethod === "cryptomus" && (
-              <label className="mt-2 flex items-start gap-2 rounded-lg border border-white/10 bg-bg-100/40 px-2.5 py-2 text-xs text-text-200">
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={billingCycle === "monthly" ? cryptoRecurring : false}
-                  onChange={(e) => setCryptoRecurring(e.target.checked)}
-                  disabled={billingCycle !== "monthly"}
-                />
-                <span>
-                  Enable recurring crypto billing (monthly only).
-                  {billingCycle !== "monthly"
-                    ? " Switch to Monthly to use recurring crypto billing."
-                    : ""}
-                </span>
-              </label>
-            )}
           </div>
 
           {/* Billing period */}
@@ -522,15 +534,25 @@ export default function EmailCheckoutModal({
               </p>
             )}
             <div className="flex justify-between border-t border-white/5 pt-1.5 text-sm font-bold text-text-100">
-              <span>Total</span>
-              <span>{formatMinor(finalMinor)}</span>
+              <span>{cryptoYearlyQuarter ? "Due today" : "Total"}</span>
+              <span>{formatMinor(dueTodayMinor)}</span>
             </div>
+            {cryptoYearlyQuarter && (
+              <p className="text-[11px] text-text-200">
+                Annual price {formatMinor(finalMinor)}, split into four equal
+                charges.
+              </p>
+            )}
             <p className="text-[10px] text-text-200">
-              {paysWithCryptocurrency
-                ? cryptoRecurring && billingCycle === "monthly"
-                  ? "Charged in USD. This creates a monthly recurring crypto subscription."
-                  : "Charged in USD. You can pay with Bitcoin, Ethereum, or USDT."
-                : "Charged in Indian rupees via Razorpay."}
+              {showPromoInput && promoValid?.valid
+                ? "This promo is a one-time grant and does not start automatic billing."
+                : paysWithCryptocurrency && billingCycle === "yearly"
+                  ? "Cryptocurrency yearly plans bill every 3 months for one quarter of the annual price. Cancel anytime and keep access through the period already paid."
+                  : paysWithCryptocurrency
+                    ? "Renews monthly in cryptocurrency until you cancel. Cancel anytime and keep access through the period already paid."
+                    : billingCycle === "yearly"
+                      ? "Renews once a year via Razorpay until you cancel. Cancel anytime and keep access through the year already paid."
+                      : "Renews monthly via Razorpay until you cancel. Cancel anytime and keep access through the period already paid."}
             </p>
           </div>
         </div>

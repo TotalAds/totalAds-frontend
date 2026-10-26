@@ -39,9 +39,10 @@ export function loadRazorpayScript(): Promise<void> {
 
 export function openRazorpayCheckout(options: {
   key: string;
-  amount: number;
-  currency: string;
-  orderId: string;
+  amount?: number;
+  currency?: string;
+  orderId?: string;
+  subscriptionId?: string;
   name: string;
   description: string;
   email?: string;
@@ -49,6 +50,7 @@ export function openRazorpayCheckout(options: {
   onSuccess: (response: {
     razorpay_payment_id: string;
     razorpay_order_id: string;
+    razorpay_subscription_id?: string;
     razorpay_signature: string;
   }) => void | Promise<void>;
   onDismiss?: () => void;
@@ -64,16 +66,24 @@ export function openRazorpayCheckout(options: {
           reject(new Error("Payment gateway failed to load"));
           return;
         }
+        if (!options.subscriptionId && !options.orderId) {
+          reject(new Error("Checkout is missing a payment session"));
+          return;
+        }
 
         let paymentCompleted = false;
 
         const instance = new Razorpay({
           key: options.key,
-          amount: options.amount,
-          currency: options.currency,
           name: options.name,
           description: options.description,
-          order_id: options.orderId,
+          ...(options.subscriptionId
+            ? { subscription_id: options.subscriptionId }
+            : {
+                amount: options.amount,
+                currency: options.currency,
+                order_id: options.orderId,
+              }),
           prefill: {
             email: options.email,
             name: options.prefillName,
@@ -81,6 +91,7 @@ export function openRazorpayCheckout(options: {
           handler: async (response: {
             razorpay_payment_id: string;
             razorpay_order_id: string;
+            razorpay_subscription_id?: string;
             razorpay_signature: string;
           }) => {
             try {
