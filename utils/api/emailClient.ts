@@ -1349,12 +1349,14 @@ async function saveLeadExport(
     delete workbook.Sheets[sheetName];
     workbook.Sheets.Leads = sheet;
   }
-  const output = XLSX.write(workbook, { bookType: "xlsx", type: "array" }) as
-    | ArrayBuffer
-    | ArrayLike<number>;
-  const bytes = output instanceof Uint8Array ? output : new Uint8Array(output);
+  const output = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const bytes = Uint8Array.from(output as ArrayLike<number>);
+  const buffer = bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  );
   triggerFileDownload(
-    new Blob([bytes], {
+    new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }),
     `${filenameBase}.xlsx`,
