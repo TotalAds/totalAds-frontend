@@ -272,23 +272,23 @@ export function SequenceTab({
     leadhubSyncConfig?.enabled === true &&
     leadhubSyncConfig?.source === "leadhub_autopilot";
 
-  const baseSequenceVariables = [
-    "first_name",
-    "last_name",
-    "email",
-    "company",
-    "title",
-    "phone",
-    "website",
-  ];
-
-  const availableVariables = useMemo(
-    () =>
-      leadhubAutopilotEnabled || leadhubTokens.length > 0
-        ? mergeVariableLists(leadhubTokens, baseSequenceVariables)
-        : baseSequenceVariables,
-    [leadhubAutopilotEnabled, leadhubTokens]
-  );
+  // Only fields present on current campaign leads (plus LeadHub tokens when enabled).
+  // Never inject a static first_name/last_name list — that caused Personalize to
+  // offer fields the user never uploaded after a delete+reupload.
+  const availableVariables = useMemo(() => {
+    const fromLeads = new Set<string>();
+    for (const lead of campaignLeadsForCoverage.slice(0, 50)) {
+      for (const key of extractVariableKeysFromLead(lead)) {
+        fromLeads.add(key);
+      }
+    }
+    const leadKeys = Array.from(fromLeads);
+    if (leadhubAutopilotEnabled || leadhubTokens.length > 0) {
+      return mergeVariableLists(leadhubTokens, leadKeys);
+    }
+    if (leadKeys.length > 0) return leadKeys;
+    return ["email", "name"];
+  }, [campaignLeadsForCoverage, leadhubAutopilotEnabled, leadhubTokens]);
 
   useEffect(() => {
     if (campaignLeadsForCoverage.length === 0) {
@@ -356,10 +356,20 @@ export function SequenceTab({
                 ?.leadhub)
         );
 
-        setTokenSampleValues(buildTokenSampleValuesFromLead(sampleLead));
+        setTokenSampleValues(
+          buildTokenSampleValuesFromLead(sampleLead, {
+            includeStaticFallback: false,
+          })
+        );
+
+        // Always derive Personalize keys from current leads (CSV or LeadHub).
+        const allKeys = new Set<string>();
+        for (const lead of allLeads.slice(0, 50)) {
+          for (const k of extractVariableKeysFromLead(lead)) allKeys.add(k);
+        }
 
         if (!enabled && !hasLeadhubLead) {
-          setLeadhubTokens([]);
+          setLeadhubTokens(Array.from(allKeys));
           return;
         }
 
@@ -371,11 +381,6 @@ export function SequenceTab({
         }
         if (cancelled) return;
 
-        const leadKeys = extractVariableKeysFromLead(sampleLead);
-        const allKeys = new Set<string>(leadKeys);
-        for (const lead of allLeads.slice(0, 50)) {
-          for (const k of extractVariableKeysFromLead(lead)) allKeys.add(k);
-        }
         setLeadhubTokens(mergeVariableLists(apiTokens, Array.from(allKeys)));
       } catch {
         if (!cancelled) {

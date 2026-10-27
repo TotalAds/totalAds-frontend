@@ -100,19 +100,19 @@ export function wrapEmailPreviewDocument(
   </style></head><body>${body}</body></html>`;
 }
 
-/** Standard lead/contact merge tags; CSV columns are merged in the composer. */
+/**
+ * Built-in tags for empty / no-leads composer state only.
+ * Do not inject these into Personalize when campaign leads are present —
+ * the picker must reflect uploaded columns only.
+ */
 export const STANDARD_MERGE_TAGS = [
-  "{{firstName}}",
-  "{{lastName}}",
   "{{email}}",
   "{{name}}",
-  "{{phone}}",
-  "{{company}}",
 ];
 
 export function mergeVariableLists(
   csvColumns: string[],
-  extras: string[] = STANDARD_MERGE_TAGS
+  extras: string[] = []
 ): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -446,18 +446,8 @@ export function buildTokenSampleValuesFromLead(
   put("role", lead.role);
   put("title", lead.role);
 
-  if (lead.name) {
-    const parts = String(lead.name).trim().split(/\s+/);
-    if (parts[0]) {
-      put("first_name", parts[0]);
-      put("firstName", parts[0]);
-    }
-    if (parts.length > 1) {
-      const last = parts.slice(1).join(" ");
-      put("last_name", last);
-      put("lastName", last);
-    }
-  }
+  // Do not synthesize firstName/lastName from `name` — only show/use fields
+  // that were actually uploaded or enriched onto the lead.
 
   const custom = lead.customFields;
   if (custom && typeof custom === "object") {
@@ -612,7 +602,9 @@ const COVERAGE_ALIASES: Record<string, string[]> = {
     "email_opener",
     "hook",
   ],
-  firstname: ["first_name", "firstName", "name"],
+  // firstName/lastName must NOT fall back to full `name` — that made coverage
+  // and Personalize pretend first_name exists when only `name` was uploaded.
+  firstname: ["first_name", "firstName"],
   lastname: ["last_name", "lastName"],
 };
 
@@ -666,18 +658,8 @@ export function buildRealLeadTokenValues(lead?: {
   put("role", lead.role);
   put("title", lead.role);
 
-  if (lead.name) {
-    const parts = String(lead.name).trim().split(/\s+/);
-    if (parts[0]) {
-      put("first_name", parts[0]);
-      put("firstName", parts[0]);
-    }
-    if (parts.length > 1) {
-      const last = parts.slice(1).join(" ");
-      put("last_name", last);
-      put("lastName", last);
-    }
-  }
+  // Do not synthesize firstName/lastName from `name` — only show/use fields
+  // that were actually uploaded or enriched onto the lead.
 
   const custom = lead.customFields;
   if (custom && typeof custom === "object") {

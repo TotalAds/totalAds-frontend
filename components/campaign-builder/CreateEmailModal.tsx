@@ -157,7 +157,7 @@ function splitCapturedTextIntoSpintaxOptions(raw: string): string[] {
 
 const HTML_STARTER = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;">
   <tr><td style="padding:24px;">
-    <p style="margin:0 0 12px;font-size:16px;color:#0f172a;">Hi {{firstName}},</p>
+    <p style="margin:0 0 12px;font-size:16px;color:#0f172a;">Hi {{name}},</p>
     <p style="margin:0;font-size:15px;line-height:1.6;color:#334155;">Edit this HTML to build your email.</p>
   </td></tr>
 </table>`;
@@ -334,7 +334,9 @@ export default function CreateEmailModal({
   }, []);
 
   const mergeTags = useMemo(() => {
-    const raw = mergeVariableLists(availableVariables);
+    // No STANDARD_MERGE_TAGS injection — availableVariables already reflects
+    // columns present on the campaign's current leads.
+    const raw = mergeVariableLists(availableVariables, []);
     const seen = new Set<string>();
     const out: string[] = [];
     for (const item of raw) {
