@@ -51,8 +51,11 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
   const [selectedScheduleId, setSelectedScheduleId] = useState<string>(schedules[0].id);
   const [timezoneSearch, setTimezoneSearch] = useState("");
 
-  const isLocked = campaignStatus === "sending" || campaignStatus === "verifying_leads";
   const selectedSchedule = schedules.find((s) => s.id === selectedScheduleId) || schedules[0];
+  const isLiveCampaign =
+    campaignStatus === "sending" ||
+    campaignStatus === "paused" ||
+    campaignStatus === "verifying_leads";
 
   const filteredTimezones = useMemo(
     () => buildTimezoneSelectOptions(selectedSchedule?.timezone, timezoneSearch),
@@ -73,6 +76,7 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
       const rawConfig =
         campaign.scheduleConfig ??
         (campaign as { schedule_config?: unknown }).schedule_config;
+      const hadSavedConfig = Boolean(normalizeScheduleConfig(rawConfig));
       const config =
         normalizeScheduleConfig(rawConfig) || createDefaultScheduleConfig();
       const state = configToState(config);
@@ -86,6 +90,23 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
       );
       setSelectedScheduleId(state.selectedScheduleId);
       setTimezoneSearch("");
+
+      // Persist the UI default if nothing was saved yet — otherwise the worker
+      // had no scheduleConfig and sent outside the window the user thought was set.
+      if (!hadSavedConfig) {
+        try {
+          await patchCampaign(effectiveDomainId, campaignId, {
+            scheduleConfig: buildScheduleConfigPayload({
+              startMode: config.startMode,
+              startDate: config.startDate,
+              endMode: "none",
+              schedules: config.schedules,
+            }),
+          });
+        } catch (persistError) {
+          console.warn("Could not auto-save default schedule", persistError);
+        }
+      }
     } catch {
       toast.error("Could not load campaign schedule");
     } finally {
@@ -154,10 +175,6 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
     });
 
   const handleSave = async () => {
-    if (isLocked) {
-      toast.error("Schedule cannot be changed while the campaign is sending");
-      return;
-    }
     if (startMode === "date" && !startDate) {
       toast.error("Select a start date");
       return;
@@ -169,7 +186,11 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
         scheduleConfig: buildPayload(),
       });
       setSaved(true);
-      toast.success("Schedule saved");
+      toast.success(
+        isLiveCampaign
+          ? "Schedule saved — pending sends will follow this window"
+          : "Schedule saved"
+      );
       setTimeout(() => setSaved(false), 2500);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Could not save schedule");
@@ -201,7 +222,7 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
             <div className="flex gap-1">
               <button
                 type="button"
-                disabled={isLocked}
+               
                 onClick={() => {
                   setStartMode("now");
                   setSaved(false);
@@ -216,7 +237,7 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
               </button>
               <button
                 type="button"
-                disabled={isLocked}
+               
                 onClick={() => {
                   setStartMode("date");
                   setSaved(false);
@@ -233,7 +254,7 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
             {startMode === "date" && (
               <input
                 type="date"
-                disabled={isLocked}
+               
                 value={startDate}
                 onChange={(e) => {
                   setStartDate(e.target.value);
@@ -266,7 +287,7 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
                   {schedule.name}
                 </span>
               </div>
-              {schedules.length > 1 && !isLocked && (
+              {schedules.length > 1 && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -285,7 +306,7 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
         <div className="border-t border-slate-200 p-3">
           <button
             type="button"
-            disabled={isLocked}
+           
             onClick={addSchedule}
             className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-500 transition-all hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-60"
           >
@@ -299,12 +320,12 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
         {selectedSchedule && (
           <>
             <div className="flex-1 space-y-5 overflow-y-auto p-6">
-              {isLocked ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  Schedule is locked while this campaign is sending. Pause or stop the campaign to
-                  edit timing.
+              {isLiveCampaign && (
+                <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                  This campaign is live. Saving a new schedule immediately retimes pending emails
+                  to match these days and hours.
                 </div>
-              ) : null}
+              )}
 
               <div className="rounded-xl border border-slate-200 p-5">
                 <label className="mb-2 block text-sm font-semibold text-slate-700">
@@ -312,7 +333,7 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
                 </label>
                 <input
                   type="text"
-                  disabled={isLocked}
+                 
                   value={selectedSchedule.name}
                   onChange={(e) => updateSchedule(selectedSchedule.id, { name: e.target.value })}
                   className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60"
@@ -328,7 +349,7 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-slate-500">From</label>
                     <select
-                      disabled={isLocked}
+                     
                       value={selectedSchedule.fromTime}
                       onChange={(e) =>
                         handleFromTimeChange(selectedSchedule.id, e.target.value)
@@ -345,7 +366,7 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-slate-500">To</label>
                     <select
-                      disabled={isLocked}
+                     
                       value={selectedSchedule.toTime}
                       onChange={(e) =>
                         handleToTimeChange(selectedSchedule.id, e.target.value)
@@ -367,7 +388,7 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
                       <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                       <input
                         type="search"
-                        disabled={isLocked}
+                       
                         value={timezoneSearch}
                         onChange={(e) => setTimezoneSearch(e.target.value)}
                         placeholder="Search timezones…"
@@ -375,7 +396,7 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
                       />
                     </div>
                     <select
-                      disabled={isLocked}
+                     
                       value={selectedSchedule.timezone}
                       onChange={(e) =>
                         updateSchedule(selectedSchedule.id, { timezone: e.target.value })
@@ -406,7 +427,7 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
                       <button
                         key={day}
                         type="button"
-                        disabled={isLocked}
+                       
                         onClick={() => toggleDay(selectedSchedule.id, day)}
                         className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-all disabled:opacity-60 ${
                           active
@@ -431,7 +452,7 @@ export function ScheduleTab({ campaignId, domainId, campaignStatus }: ScheduleTa
             <div className="flex items-center justify-end border-t border-slate-200 bg-slate-50 px-6 py-3">
               <button
                 type="button"
-                disabled={isLocked || saving}
+                disabled={saving}
                 onClick={() => void handleSave()}
                 className={`flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
                   saved

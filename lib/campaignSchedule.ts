@@ -1,8 +1,5 @@
 import { normalizeScheduleTime } from "./scheduleTimeOptions";
-import {
-  getBrowserTimezone,
-  normalizeTimezoneValue,
-} from "@/utils/timezones";
+import { normalizeTimezoneValue } from "@/utils/timezones";
 
 export interface CampaignScheduleWindow {
   id: string;
@@ -23,13 +20,16 @@ export interface CampaignScheduleConfig {
   schedules: CampaignScheduleWindow[];
 }
 
+/** Product default schedule for every new / unsaved campaign (matches backend). */
+export const DEFAULT_CAMPAIGN_SCHEDULE_TIMEZONE = "Asia/Kolkata";
+
 export function createDefaultSchedule(name = "Default schedule"): CampaignScheduleWindow {
   return {
     id: `sched-${Date.now()}`,
     name,
     fromTime: "9:00 AM",
     toTime: "6:00 PM",
-    timezone: getBrowserTimezone(),
+    timezone: DEFAULT_CAMPAIGN_SCHEDULE_TIMEZONE,
     activeDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
   };
 }
@@ -87,7 +87,7 @@ export function buildScheduleConfigPayload(
     timezone: normalizeTimezoneValue(schedule.timezone),
   }));
   const primaryTimezone =
-    schedules[0]?.timezone || getBrowserTimezone();
+    schedules[0]?.timezone || DEFAULT_CAMPAIGN_SCHEDULE_TIMEZONE;
 
   return {
     startMode: config.startMode,
