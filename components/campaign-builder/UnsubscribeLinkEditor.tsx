@@ -1,10 +1,9 @@
 "use client";
 
-import { Check, ChevronDown, Loader2 } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import {
@@ -42,9 +41,14 @@ interface UnsubscribeLinkEditorProps {
   domainId: string;
   campaignId?: string | null;
   onTextChange?: (text: string) => void;
+  /** @deprecated Acknowledgment is default/approved — kept for call-site compat. */
   onAcknowledged?: () => void;
 }
 
+/**
+ * Optional editor for the mandatory unsubscribe link label.
+ * Approved by default — launch is never blocked. Users can expand to edit the words.
+ */
 export function UnsubscribeLinkEditor({
   domainId,
   campaignId,
@@ -53,10 +57,8 @@ export function UnsubscribeLinkEditor({
 }: UnsubscribeLinkEditorProps) {
   const [linkText, setLinkText] = useState(DEFAULT_UNSUBSCRIBE_LINK_TEXT);
   const [savedText, setSavedText] = useState(DEFAULT_UNSUBSCRIBE_LINK_TEXT);
-  const [acknowledged, setAcknowledged] = useState(false);
   const [loading, setLoading] = useState(Boolean(campaignId));
   const [savingText, setSavingText] = useState(false);
-  const [acknowledging, setAcknowledging] = useState(false);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -67,7 +69,7 @@ export function UnsubscribeLinkEditor({
     let cancelled = false;
     setLoading(true);
     getCampaignById(domainId, campaignId)
-      .then((campaign) => {
+      .then(async (campaign) => {
         if (cancelled) return;
         const text = sanitizeUnsubscribeLinkText(
           campaign.unsubscribeLinkText || DEFAULT_UNSUBSCRIBE_LINK_TEXT,
@@ -75,7 +77,18 @@ export function UnsubscribeLinkEditor({
         setLinkText(text);
         setSavedText(text);
         onTextChange?.(text);
-        setAcknowledged(Boolean(campaign.unsubscribeFooterAcknowledgedAt));
+
+        // Stamp default approval for older campaigns that never confirmed.
+        if (!campaign.unsubscribeFooterAcknowledgedAt) {
+          try {
+            await patchCampaign(domainId, campaignId, {
+              unsubscribeFooterAcknowledged: true,
+            });
+            if (!cancelled) onAcknowledged?.();
+          } catch {
+            /* non-fatal — send path also auto-stamps */
+          }
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -89,7 +102,7 @@ export function UnsubscribeLinkEditor({
     return () => {
       cancelled = true;
     };
-  }, [campaignId, domainId, onTextChange]);
+  }, [campaignId, domainId, onTextChange, onAcknowledged]);
 
   const persistText = useCallback(async () => {
     if (!campaignId) return false;
@@ -115,33 +128,6 @@ export function UnsubscribeLinkEditor({
     }
   }, [campaignId, domainId, linkText, savedText]);
 
-  const handleAcknowledge = async () => {
-    if (!campaignId || acknowledged) return;
-    const next = linkText.replace(/\s+/g, " ").trim();
-    if (!next || next.length > MAX_UNSUBSCRIBE_LINK_TEXT || /[<>]/.test(next)) {
-      toast.error("Use 1–80 characters, without < or >.");
-      return;
-    }
-    setAcknowledging(true);
-    try {
-      await patchCampaign(domainId, campaignId, {
-        unsubscribeLinkText: next,
-        unsubscribeFooterAcknowledged: true,
-      });
-      setLinkText(next);
-      setSavedText(next);
-      setAcknowledged(true);
-      onAcknowledged?.();
-      toast.success("Unsubscribe link confirmed");
-    } catch (error: unknown) {
-      toast.error(
-        getEmailServiceErrorMessage(error, "Failed to confirm the unsubscribe link"),
-      );
-    } finally {
-      setAcknowledging(false);
-    }
-  };
-
   const previewLabel = sanitizeUnsubscribeLinkText(linkText);
 
   return (
@@ -155,11 +141,6 @@ export function UnsubscribeLinkEditor({
         <span className="truncate text-xs text-slate-700">
           <span className="font-semibold text-slate-900">Unsubscribe link</span>
           <span className="text-slate-500"> · {previewLabel}</span>
-          {acknowledged ? (
-            <span className="text-emerald-700"> · Confirmed</span>
-          ) : (
-            <span className="text-amber-700"> · Needs confirmation</span>
-          )}
         </span>
         <ChevronDown
           className={cn(
@@ -177,7 +158,7 @@ export function UnsubscribeLinkEditor({
           <Input
             value={linkText}
             maxLength={MAX_UNSUBSCRIBE_LINK_TEXT}
-            disabled={!campaignId || loading || acknowledging}
+            disabled={!campaignId || loading}
             onChange={(event) => {
               setLinkText(event.target.value);
               onTextChange?.(event.target.value);
@@ -192,23 +173,6 @@ export function UnsubscribeLinkEditor({
             {linkText.trim().length}/{MAX_UNSUBSCRIBE_LINK_TEXT}
           </span>
           {savingText ? <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" /> : null}
-          {acknowledged ? (
-            <p className="flex items-center gap-1 text-xs font-medium text-emerald-700">
-              <Check className="h-3.5 w-3.5" />
-              Confirmed
-            </p>
-          ) : (
-            <Button
-              type="button"
-              size="sm"
-              className="h-8 bg-slate-900 text-white hover:bg-slate-800"
-              disabled={!campaignId || loading || acknowledging}
-              onClick={() => void handleAcknowledge()}
-            >
-              {acknowledging ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-              I understand — this link stays on every email
-            </Button>
-          )}
         </div>
       ) : null}
     </div>

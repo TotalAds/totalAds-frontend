@@ -235,18 +235,7 @@ export function CampaignDetailPage({
     [];
 
   // ──────────────── Action handlers ────────────────
-  const unsubscribeAcknowledged = Boolean(
-    campaign?.unsubscribeFooterAcknowledgedAt,
-  );
-
   const handleLaunch = () => {
-    if (!unsubscribeAcknowledged) {
-      toast.error(
-        "Acknowledge the unsubscribe link in the email editor before launching this campaign.",
-      );
-      setActiveTab("sequence");
-      return;
-    }
     setVerificationDialogOpen(true);
   };
 
@@ -286,13 +275,6 @@ export function CampaignDetailPage({
   };
 
   const handleResume = () => {
-    if (!unsubscribeAcknowledged) {
-      toast.error(
-        "Acknowledge the unsubscribe link in the email editor before launching this campaign.",
-      );
-      setActiveTab("sequence");
-      return;
-    }
     setVerificationDialogOpen(true);
   };
 

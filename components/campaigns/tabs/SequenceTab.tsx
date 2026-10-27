@@ -223,8 +223,6 @@ export function SequenceTab({
   const [steps, setSteps] = useState<SequenceStep[]>([createDefaultStep(1, 0)]);
   const [initialStepCount, setInitialStepCount] = useState<number>(0);
   const [restarting, setRestarting] = useState(false);
-  const [unsubscribeAcknowledged, setUnsubscribeAcknowledged] = useState(false);
-
   const handleRestartCampaign = async () => {
     setRestarting(true);
     try {
@@ -406,7 +404,6 @@ export function SequenceTab({
         if (cancelled) return;
 
         const mapped = mapApiSequenceToSteps(campaign.sequence || []);
-        setUnsubscribeAcknowledged(Boolean(campaign.unsubscribeFooterAcknowledgedAt));
         setSteps(mapped);
         setInitialStepCount(mapped.length);
         setSelectedStepId(mapped[0]?.id || "");
@@ -637,11 +634,6 @@ export function SequenceTab({
 
   return (
     <div className="flex h-full min-h-[640px] flex-col">
-      {!unsubscribeAcknowledged && (
-        <div className="shrink-0 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-xs text-slate-700">
-          Every email includes an unsubscribe link. Open an email and confirm the link text before you can launch.
-        </div>
-      )}
       {showRestartBanner && (
         <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-5 py-3.5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1089,10 +1081,6 @@ export function SequenceTab({
             campaignLeadsForCoverage.length > 0 ? tokenCoverage : undefined
           }
           previewLeads={campaignLeadsForCoverage}
-          onUnsubscribeAcknowledged={() => {
-            setUnsubscribeAcknowledged(true);
-            onRefresh?.();
-          }}
           seedSubject={editingVariant.subject}
           seedPreviewText={editingVariant.previewText}
           seedUseSpintax={editingVariant.useSpintax}
