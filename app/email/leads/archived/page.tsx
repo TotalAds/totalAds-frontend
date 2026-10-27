@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import ExportLeadsMenu from "@/components/leads/ExportLeadsMenu";
 import { LeadDetailsModal } from "@/components/leads/LeadDetailsModal";
 import LeadsSubNav from "@/components/leads/LeadsSubNav";
 import LeadsToolbar from "@/components/leads/LeadsToolbar";
@@ -26,10 +27,12 @@ import { useCanEdit, useIsViewer } from "@/context/WorkspaceContext";
 import WorkspaceRoleBanner from "@/components/workspace/WorkspaceRoleBanner";
 import emailClient, {
   deleteLeads,
-  exportLeadsCsv,
+  exportFilteredLeads,
+  exportSelectedLeads,
   unarchiveLeads,
+  type LeadExportFormat,
 } from "@/utils/api/emailClient";
-import { IconArchiveOff, IconDownload, IconTrash } from "@tabler/icons-react";
+import { IconArchiveOff, IconTrash } from "@tabler/icons-react";
 
 interface ListResponse {
   leads: LeadRow[];
@@ -236,7 +239,7 @@ export default function ArchivedLeadsPage() {
     }
   };
 
-  const handleExport = async () => {
+  const handleExportFiltered = async (format: LeadExportFormat) => {
     setIsExporting(true);
     try {
       const params = buildLeadsApiParams({
@@ -247,11 +250,43 @@ export default function ArchivedLeadsPage() {
         filters,
         archived: true,
       });
-      await exportLeadsCsv(params.toString());
-      toast.success("Export started");
+      await exportFilteredLeads(params.toString(), format);
+      toast.success(
+        `Exported ${total.toLocaleString()} archived lead${total !== 1 ? "s" : ""}`,
+      );
     } catch (error) {
       console.error("Failed to export archived leads:", error);
-      toast.error("Failed to export archived leads");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to export archived leads",
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportSelected = async (format: LeadExportFormat) => {
+    if (selectedDeleteCount === 0) return;
+    setIsExporting(true);
+    try {
+      const selection = buildSelectionPayload();
+      await exportSelectedLeads(
+        {
+          ...selection,
+          filters: {
+            ...("filters" in selection ? selection.filters : {}),
+            archived: true,
+          },
+        },
+        format,
+      );
+      toast.success(
+        `Exported ${selectedDeleteCount.toLocaleString()} archived lead${selectedDeleteCount !== 1 ? "s" : ""}`,
+      );
+    } catch (error) {
+      console.error("Failed to export archived leads:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to export archived leads",
+      );
     } finally {
       setIsExporting(false);
     }
@@ -320,15 +355,12 @@ export default function ArchivedLeadsPage() {
             </p>
           </div>
           {canEdit && (
-            <button
-              type="button"
-              onClick={() => void handleExport()}
-              disabled={isExporting || total === 0}
-              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50 disabled:opacity-50"
-            >
-              <IconDownload size={18} />
-              Export CSV
-            </button>
+            <ExportLeadsMenu
+              busy={isExporting}
+              disabled={total === 0}
+              onExport={(format) => void handleExportFiltered(format)}
+              buttonClassName="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50 disabled:opacity-50"
+            />
           )}
         </div>
 
@@ -394,6 +426,10 @@ export default function ArchivedLeadsPage() {
               )}
             </span>
             <div className="flex items-center gap-2">
+              <ExportLeadsMenu
+                busy={isExporting}
+                onExport={(format) => void handleExportSelected(format)}
+              />
               <button
                 type="button"
                 onClick={() => setShowBulkUnarchiveConfirm(true)}

@@ -1300,21 +1300,106 @@ export const deleteLeads = async (
   return response.data?.data ?? { count: 0 };
 };
 
-export const exportLeadsCsv = async (queryString: string): Promise<void> => {
-  const response = await emailClient.get(`/api/leads/export?${queryString}`, {
-    responseType: "blob",
-  });
-  const blob = new Blob([response.data], { type: "text/csv;charset=utf-8;" });
+export type LeadExportFormat = "csv" | "xlsx";
+
+function triggerFileDownload(blob: Blob, filename: string) {
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = queryString.includes("archived=true")
-    ? "archived-leads.csv"
-    : "leads.csv";
+  link.download = filename;
   document.body.appendChild(link);
   link.click();
   link.remove();
   window.URL.revokeObjectURL(url);
+}
+
+async function readExportError(error: unknown, fallback: string): Promise<string> {
+  const data = (error as { response?: { data?: unknown } })?.response?.data;
+  if (typeof Blob !== "undefined" && data instanceof Blob) {
+    try {
+      const parsed = JSON.parse(await data.text()) as { message?: string };
+      if (parsed?.message?.trim()) return parsed.message;
+    } catch {
+      // Response was not a JSON error body.
+    }
+  }
+  return getEmailServiceErrorMessage(error, fallback);
+}
+
+async function saveLeadExport(
+  csvBlob: Blob,
+  format: LeadExportFormat,
+  filenameBase: string,
+) {
+  if (format === "csv") {
+    triggerFileDownload(
+      new Blob([csvBlob], { type: "text/csv;charset=utf-8;" }),
+      `${filenameBase}.csv`,
+    );
+    return;
+  }
+
+  const text = await csvBlob.text();
+  const XLSX = await import("xlsx");
+  const workbook = XLSX.read(text, { type: "string" });
+  const sheetName = workbook.SheetNames[0];
+  const sheet = sheetName ? workbook.Sheets[sheetName] : undefined;
+  if (sheetName && sheet && sheetName !== "Leads") {
+    workbook.SheetNames[0] = "Leads";
+    delete workbook.Sheets[sheetName];
+    workbook.Sheets.Leads = sheet;
+  }
+  const output = XLSX.write(workbook, { bookType: "xlsx", type: "array" }) as
+    | ArrayBuffer
+    | ArrayLike<number>;
+  const bytes = output instanceof Uint8Array ? output : new Uint8Array(output);
+  triggerFileDownload(
+    new Blob([bytes], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+    `${filenameBase}.xlsx`,
+  );
+}
+
+export const exportLeadsCsv = async (queryString: string): Promise<void> => {
+  await exportFilteredLeads(queryString, "csv");
+};
+
+export const exportFilteredLeads = async (
+  queryString: string,
+  format: LeadExportFormat,
+): Promise<void> => {
+  try {
+    const response = await emailClient.get(`/api/leads/export?${queryString}`, {
+      responseType: "blob",
+    });
+    await saveLeadExport(
+      response.data,
+      format,
+      queryString.includes("archived=true") ? "archived-leads" : "leads",
+    );
+  } catch (error) {
+    throw new Error(await readExportError(error, "Failed to export leads"));
+  }
+};
+
+export const exportSelectedLeads = async (
+  payload: LeadArchiveSelection,
+  format: LeadExportFormat,
+): Promise<void> => {
+  try {
+    const response = await emailClient.post("/api/leads/export", payload, {
+      responseType: "blob",
+    });
+    const archived = payload.filters?.archived === true;
+    await saveLeadExport(
+      response.data,
+      format,
+      archived ? "archived-leads" : "leads",
+    );
+  } catch (error) {
+    throw new Error(await readExportError(error, "Failed to export leads"));
+  }
 };
 
 export const getCampaignMemberLeads = async (
@@ -2928,6 +3013,29 @@ export interface BulkUploadJobStatus {
   completedAt?: string;
   createdAt: string;
 }
+
+/**
+ * Preview which emails already exist so bulk upload can show new vs update counts.
+ */
+export const checkExistingLeadEmails = async (
+  emails: string[],
+): Promise<{
+  existing: string[];
+  newEmails: string[];
+  existingCount: number;
+  newCount: number;
+}> => {
+  const response = await emailClient.post("/api/leads/check-existing-emails", {
+    emails,
+  });
+  const data = response.data?.data ?? {};
+  return {
+    existing: Array.isArray(data.existing) ? data.existing : [],
+    newEmails: Array.isArray(data.newEmails) ? data.newEmails : [],
+    existingCount: Number(data.existingCount) || 0,
+    newCount: Number(data.newCount) || 0,
+  };
+};
 
 /**
  * Create a bulk upload job (chunked for large CSVs to avoid 413 body limits).

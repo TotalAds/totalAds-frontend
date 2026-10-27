@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { BulkOrganizeLeadsModal } from "@/components/leads/BulkOrganizeLeadsModal";
+import ExportLeadsMenu from "@/components/leads/ExportLeadsMenu";
 import BulkUploadModal from "@/components/leads/BulkUploadModal";
 import BulkUploadProgressBanner from "@/components/leads/BulkUploadProgressBanner";
 import ContactPlanLimitBanner from "@/components/leads/ContactPlanLimitBanner";
@@ -37,7 +38,9 @@ import emailClient, {
   checkActiveBulkUploadJobs,
   ContactMetrics,
   deleteLeads,
+  exportSelectedLeads,
   getContactMetrics,
+  type LeadExportFormat,
 } from "@/utils/api/emailClient";
 import { IconArchive, IconFolderPlus, IconMail, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 
@@ -107,6 +110,7 @@ export default function LeadsPage() {
     "catch_all" | "unknown" | "risky" | null
   >(null);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [pendingArchiveLeadId, setPendingArchiveLeadId] = useState<string | null>(
     null
   );
@@ -333,6 +337,32 @@ export default function LeadsPage() {
       toast.error("Failed to archive selected leads");
     } finally {
       setIsArchiving(false);
+    }
+  };
+
+  const handleExportSelected = async (format: LeadExportFormat) => {
+    if (selectedDeleteCount === 0) return;
+    setIsExporting(true);
+    try {
+      const selection = buildSelectionPayload();
+      await exportSelectedLeads(
+        {
+          ...selection,
+          filters: {
+            ...("filters" in selection ? selection.filters : {}),
+            archived: false,
+          },
+        },
+        format,
+      );
+      toast.success(
+        `Exported ${selectedDeleteCount.toLocaleString()} lead${selectedDeleteCount !== 1 ? "s" : ""}`,
+      );
+    } catch (error) {
+      console.error("Failed to export leads:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to export leads");
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -574,6 +604,10 @@ export default function LeadsPage() {
               )}
             </div>
             <div className="flex items-center gap-2">
+              <ExportLeadsMenu
+                busy={isExporting}
+                onExport={(format) => void handleExportSelected(format)}
+              />
               <button
                 type="button"
                 onClick={() => setShowBulkArchiveConfirm(true)}

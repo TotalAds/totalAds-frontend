@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { BodyPortal } from "@/components/ui/BodyPortal";
 import emailClient, {
   checkActiveBulkUploadJobs,
+  checkExistingLeadEmails,
   ContactMetrics,
   createBulkUploadJob,
   createLeadCategory,
@@ -63,6 +64,10 @@ export default function BulkUploadModal({
   const [contactMetrics, setContactMetrics] = useState<ContactMetrics | null>(
     null
   );
+  const [existingEmailSet, setExistingEmailSet] = useState<Set<string>>(
+    new Set()
+  );
+  const [checkingExisting, setCheckingExisting] = useState(false);
 
   // Function to refresh all options data
   const refreshOptions = async () => {
@@ -110,8 +115,60 @@ export default function BulkUploadModal({
         .catch((error) => {
           console.warn("Failed to load contact slots:", error);
         });
+    } else {
+      setExistingEmailSet(new Set());
+      setCheckingExisting(false);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !emailColumn || rawRows.length === 0) {
+      setExistingEmailSet(new Set());
+      setCheckingExisting(false);
+      return;
+    }
+
+    const emails = [
+      ...new Set(
+        rawRows
+          .map((row) =>
+            String(row[emailColumn] || "")
+              .toLowerCase()
+              .trim()
+          )
+          .filter((email) => email && isValidEmail(email))
+      ),
+    ];
+
+    if (emails.length === 0) {
+      setExistingEmailSet(new Set());
+      setCheckingExisting(false);
+      return;
+    }
+
+    let cancelled = false;
+    setCheckingExisting(true);
+    const timer = window.setTimeout(() => {
+      checkExistingLeadEmails(emails)
+        .then((result) => {
+          if (cancelled) return;
+          setExistingEmailSet(new Set(result.existing));
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          console.warn("Failed to check existing emails:", error);
+          setExistingEmailSet(new Set());
+        })
+        .finally(() => {
+          if (!cancelled) setCheckingExisting(false);
+        });
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [isOpen, emailColumn, rawRows]);
 
   // Poll job progress
   const pollJobProgress = async (jobId: string, toastId: string) => {
@@ -148,7 +205,7 @@ export default function BulkUploadModal({
           const stats = status.result?.statistics;
           if (stats) {
             const summary = [
-              `${stats.created} created`,
+              `${stats.created} new`,
               stats.updated > 0 ? `${stats.updated} updated` : null,
               stats.skipped > 0 ? `${stats.skipped} skipped` : null,
               stats.invalid > 0 ? `${stats.invalid} invalid` : null,
@@ -455,13 +512,21 @@ export default function BulkUploadModal({
       0
     );
     const distinctInFile = emailMap.size;
+    const distinctEmailsForUpload = [...emailMap.keys()];
+    const updateCountForUpload = distinctEmailsForUpload.filter((email) =>
+      existingEmailSet.has(email)
+    ).length;
+    const newCountForUpload = Math.max(
+      0,
+      distinctInFile - updateCountForUpload
+    );
     const remainingSlots =
       typeof contactMetrics?.contacts?.remaining === "number"
         ? Math.max(0, contactMetrics.contacts.remaining)
         : null;
-    if (remainingSlots !== null && distinctInFile > remainingSlots) {
+    if (remainingSlots !== null && newCountForUpload > remainingSlots) {
       toast.error(
-        `Your plan allows ${remainingSlots} more contact(s). Reduce this file to ${remainingSlots} or fewer distinct emails before uploading.`,
+        `Your plan allows ${remainingSlots} more new contact(s). This file needs ${newCountForUpload} new slot(s) (${updateCountForUpload} existing lead(s) will only be updated).`,
         { duration: 9000 }
       );
       return;
@@ -480,13 +545,18 @@ export default function BulkUploadModal({
           duplicateEmailsInFile.length > 3
             ? ` (and ${duplicateEmailsInFile.length - 3} more)`
             : ""
-        }. ${distinctInFile} distinct contact(s) will be processed (first row per email kept).`,
+        }. ${distinctInFile} distinct contact(s) will be processed (${newCountForUpload} new, ${updateCountForUpload} updated).`,
         { duration: 8000 }
       );
     } else if (invalidRows.length > 0) {
       toast.warning(
-        `Skipping ${invalidRows.length} invalid email(s). ${distinctInFile} contact(s) will be processed.`,
+        `Skipping ${invalidRows.length} invalid email(s). ${newCountForUpload} new and ${updateCountForUpload} updated contact(s) will be processed.`,
         { duration: 6000 }
+      );
+    } else if (updateCountForUpload > 0 || newCountForUpload > 0) {
+      toast.info(
+        `Processing ${newCountForUpload} new lead${newCountForUpload !== 1 ? "s" : ""} and updating ${updateCountForUpload} existing lead${updateCountForUpload !== 1 ? "s" : ""}.`,
+        { duration: 5000 }
       );
     }
 
@@ -674,12 +744,19 @@ export default function BulkUploadModal({
   );
   /** Distinct valid emails in the file — this is how many leads the upload will create/update. */
   const distinctEmailCount = emailMap.size;
+  const distinctEmails = [...emailMap.keys()];
+  const updateCount = distinctEmails.filter((email) =>
+    existingEmailSet.has(email)
+  ).length;
+  const newCount = Math.max(0, distinctEmailCount - updateCount);
+  const invalidRowCount = Math.max(0, rawRows.length - validRows.length);
   const remainingSlots =
     typeof contactMetrics?.contacts?.remaining === "number"
       ? Math.max(0, contactMetrics.contacts.remaining)
       : null;
+  // Only brand-new emails consume contact slots; updates do not.
   const exceedsContactSlots =
-    remainingSlots !== null && distinctEmailCount > remainingSlots;
+    remainingSlots !== null && newCount > remainingSlots;
 
   return (
     <BodyPortal>
@@ -739,19 +816,51 @@ export default function BulkUploadModal({
           <div className="space-y-6">
             {/* File Info */}
             <div className="bg-brand-main/10 border border-brand-main/20 rounded-lg p-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-text-100 font-semibold">
                     {rawRows.length} rows loaded
                   </p>
                   <p className="text-text-200 text-sm">
-                    {validRows.length} valid emails
+                    {validRows.length} valid email
+                    {validRows.length !== 1 ? "s" : ""}
+                    {invalidRowCount > 0 && (
+                      <span className="text-rose-400 ml-2">
+                        · {invalidRowCount} invalid
+                      </span>
+                    )}
                     {duplicateEmails.size > 0 && (
                       <span className="text-amber-400 ml-2">
-                        ({duplicateEmails.size} duplicates in file)
+                        · {duplicateEmails.size} duplicate
+                        {duplicateEmails.size !== 1 ? "s" : ""} in file
                       </span>
                     )}
                   </p>
+                  {emailColumn && distinctEmailCount > 0 && (
+                    <p className="mt-1 text-sm text-text-100">
+                      {checkingExisting ? (
+                        <span className="text-text-200">
+                          Checking existing leads…
+                        </span>
+                      ) : (
+                        <>
+                          <span className="font-semibold text-emerald-600">
+                            {newCount} new
+                          </span>
+                          <span className="text-text-200"> · </span>
+                          <span className="font-semibold text-sky-600">
+                            {updateCount} will be updated
+                          </span>
+                        </>
+                      )}
+                    </p>
+                  )}
+                  {emailColumn && validRows.length === 0 && (
+                    <p className="mt-1 text-sm text-rose-500">
+                      No valid emails found in the selected email column.
+                      Choose the correct column below.
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={() => {
@@ -759,6 +868,7 @@ export default function BulkUploadModal({
                     setColumns([]);
                     setEmailColumn("");
                     setDuplicateEmails(new Set());
+                    setExistingEmailSet(new Set());
                   }}
                   className="text-text-200 hover:text-text-100 text-sm"
                 >
@@ -785,16 +895,49 @@ export default function BulkUploadModal({
                     >
                       Available contact slots:{" "}
                       <span className="font-semibold">{remainingSlots}</span>
+                      <span>
+                        {" "}
+                        · {newCount} new lead{newCount !== 1 ? "s" : ""} need a
+                        slot
+                        {updateCount > 0
+                          ? ` · ${updateCount} update${updateCount !== 1 ? "s" : ""} do not`
+                          : ""}
+                      </span>
                       {exceedsContactSlots && (
                         <span>
                           {" "}
-                          • File has {distinctEmailCount} distinct emails.
-                          Remove {distinctEmailCount - remainingSlots} to
+                          · Remove {newCount - remainingSlots} new contact
+                          {newCount - remainingSlots !== 1 ? "s" : ""} to
                           continue.
                         </span>
                       )}
                     </div>
                   )}
+
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">
+                        New leads
+                      </p>
+                      <p className="text-lg font-semibold text-emerald-900">
+                        {checkingExisting ? "…" : newCount}
+                      </p>
+                      <p className="text-xs text-emerald-700/80">
+                        Will be added to your lead list
+                      </p>
+                    </div>
+                    <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-sky-700">
+                        Existing leads
+                      </p>
+                      <p className="text-lg font-semibold text-sky-900">
+                        {checkingExisting ? "…" : updateCount}
+                      </p>
+                      <p className="text-xs text-sky-700/80">
+                        Will be updated with new columns/details
+                      </p>
+                    </div>
+                  </div>
 
                   {duplicateCount > 0 && (
                     <div className="flex items-start gap-2">
@@ -806,7 +949,7 @@ export default function BulkUploadModal({
                         <p className="text-text-200 text-sm mt-1">
                           {duplicateEmailsInFile.length} unique email(s) have
                           duplicates. Only the first occurrence of each will be
-                          inserted.
+                          created or updated.
                         </p>
                         {duplicateEmailsInFile.length > 0 && (
                           <div className="mt-2 text-xs text-text-200 bg-bg-300 rounded p-2 max-h-32 overflow-y-auto">
@@ -837,7 +980,22 @@ export default function BulkUploadModal({
                     <span className="text-green-400 mt-0.5">✅</span>
                     <div className="flex-1">
                       <p className="text-text-100 font-medium">
-                        {distinctEmailCount} contact(s) will be processed
+                        {distinctEmailCount} contact
+                        {distinctEmailCount !== 1 ? "s" : ""} will be processed
+                        {!checkingExisting && (
+                          <>
+                            {" "}
+                            (
+                            <span className="text-emerald-600">
+                              {newCount} new
+                            </span>
+                            ,{" "}
+                            <span className="text-sky-600">
+                              {updateCount} updated
+                            </span>
+                            )
+                          </>
+                        )}
                       </p>
                       {duplicateCount > 0 && (
                         <p className="text-text-200 text-sm mt-1">
@@ -999,13 +1157,22 @@ export default function BulkUploadModal({
               <Button
                 onClick={handleUpload}
                 disabled={
-                  uploading || distinctEmailCount === 0 || exceedsContactSlots
+                  uploading ||
+                  checkingExisting ||
+                  distinctEmailCount === 0 ||
+                  exceedsContactSlots
                 }
                 className="bg-brand-main hover:bg-brand-main/80 text-white"
               >
                 {uploading
                   ? "Uploading..."
-                  : `Upload ${distinctEmailCount} contact(s)`}
+                  : checkingExisting
+                    ? "Checking existing leads..."
+                    : updateCount > 0 && newCount > 0
+                      ? `Add ${newCount} new · update ${updateCount}`
+                      : updateCount > 0
+                        ? `Update ${updateCount} lead${updateCount !== 1 ? "s" : ""}`
+                        : `Upload ${newCount} new lead${newCount !== 1 ? "s" : ""}`}
               </Button>
             </div>
           </div>

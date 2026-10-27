@@ -145,7 +145,7 @@ export default function BulkUploadProgressBanner({
             <div className="space-y-2 text-sm">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <div>
-                  <span className="text-text-200">Created:</span>
+                  <span className="text-text-200">New:</span>
                   <span className="ml-2 text-green-400 font-medium">
                     {jobStatus.result.statistics.created}
                   </span>

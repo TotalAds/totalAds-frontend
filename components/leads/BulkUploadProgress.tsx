@@ -126,7 +126,7 @@ export default function BulkUploadProgress({
               </span>
             </div>
             <div>
-              <span className="text-text-200">Created:</span>
+              <span className="text-text-200">New:</span>
               <span className="ml-2 text-green-400 font-medium">
                 {jobStatus.result.statistics.created}
               </span>
@@ -156,7 +156,7 @@ export default function BulkUploadProgress({
               </span>
             </div>
             <div>
-              <span className="text-text-200">Duplicates (DB):</span>
+              <span className="text-text-200">Unresolved:</span>
               <span className="ml-2 text-amber-400 font-medium">
                 {jobStatus.result.statistics.duplicatesInDatabase}
               </span>
