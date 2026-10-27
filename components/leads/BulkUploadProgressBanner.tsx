@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -21,42 +21,97 @@ export default function BulkUploadProgressBanner({
   onDismiss,
 }: BulkUploadProgressBannerProps) {
   const [jobStatus, setJobStatus] = useState<BulkUploadJobStatus | null>(null);
-  const [isPolling, setIsPolling] = useState(true);
+  const onCompleteRef = useRef(onComplete);
+  const finishedRef = useRef(false);
 
   useEffect(() => {
-    if (!jobId || !isPolling) return;
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
-    const pollInterval = setInterval(async () => {
+  useEffect(() => {
+    if (!jobId) return;
+
+    finishedRef.current = false;
+    let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const finish = (status: BulkUploadJobStatus) => {
+      if (finishedRef.current || cancelled) return;
+      finishedRef.current = true;
+      if (intervalId) clearInterval(intervalId);
+
+      const activeJobs = JSON.parse(
+        localStorage.getItem("activeBulkUploadJobs") || "[]"
+      ) as string[];
+      localStorage.setItem(
+        "activeBulkUploadJobs",
+        JSON.stringify(activeJobs.filter((id) => id !== jobId))
+      );
+
+      if (status.status === "completed") {
+        const stats = status.result?.statistics;
+        if (stats) {
+          const summary = [
+            `${stats.created} new`,
+            stats.updated > 0 ? `${stats.updated} updated` : null,
+            stats.skipped > 0 ? `${stats.skipped} skipped` : null,
+            stats.invalid > 0 ? `${stats.invalid} invalid` : null,
+          ]
+            .filter(Boolean)
+            .join(", ");
+          toast.success(`Upload complete! ${summary}`, { duration: 10000 });
+        } else {
+          toast.success("Upload complete!", { duration: 5000 });
+        }
+        onCompleteRef.current();
+      } else if (status.status === "failed") {
+        toast.error(`Upload failed: ${status.error || "Unknown error"}`, {
+          duration: 10000,
+        });
+        onCompleteRef.current();
+      } else {
+        onCompleteRef.current();
+      }
+    };
+
+    const pollOnce = async () => {
       try {
         const status = await getBulkUploadJobStatus(jobId);
+        if (cancelled) return;
         setJobStatus(status);
 
-        if (status.status === "completed") {
-          setIsPolling(false);
-          clearInterval(pollInterval);
-          onComplete();
-        } else if (status.status === "failed") {
-          setIsPolling(false);
-          clearInterval(pollInterval);
+        if (
+          status.status === "completed" ||
+          status.status === "failed"
+        ) {
+          finish(status);
         }
       } catch (error: any) {
         console.error("Failed to poll job status:", error);
         if (error.response?.status === 404) {
-          setIsPolling(false);
-          clearInterval(pollInterval);
+          finish({
+            jobId,
+            status: "failed",
+            totalRows: 0,
+            processedRows: 0,
+            progress: 0,
+            error: "Job not found",
+            createdAt: new Date().toISOString(),
+          });
         }
       }
-    }, 2000); // Poll every 2 seconds
+    };
 
-    // Initial fetch
-    getBulkUploadJobStatus(jobId)
-      .then(setJobStatus)
-      .catch((error) => {
-        console.error("Failed to fetch initial job status:", error);
-      });
+    void pollOnce();
+    intervalId = setInterval(() => {
+      void pollOnce();
+    }, 2000);
 
-    return () => clearInterval(pollInterval);
-  }, [jobId, isPolling, onComplete]);
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [jobId]);
 
   if (!jobStatus) {
     return (
@@ -87,7 +142,6 @@ export default function BulkUploadProgressBanner({
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 space-y-3">
-          {/* Header */}
           <div className="flex items-center gap-3">
             {isCompleted ? (
               <IconCheck className="text-green-400 flex-shrink-0" size={20} />
@@ -119,9 +173,18 @@ export default function BulkUploadProgressBanner({
                 Job ID: {jobId} • {jobStatus.totalRows} total rows
               </p>
             </div>
+            {(isCompleted || isFailed) && (
+              <button
+                type="button"
+                onClick={onDismiss}
+                className="text-text-200 hover:text-text-100 transition-colors flex-shrink-0"
+                aria-label="Dismiss"
+              >
+                <IconX size={18} />
+              </button>
+            )}
           </div>
 
-          {/* Progress Bar */}
           {isProcessing && (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
@@ -140,7 +203,6 @@ export default function BulkUploadProgressBanner({
             </div>
           )}
 
-          {/* Results Summary */}
           {isCompleted && jobStatus.result?.statistics && (
             <div className="space-y-2 text-sm">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -172,7 +234,6 @@ export default function BulkUploadProgressBanner({
             </div>
           )}
 
-          {/* Error Display */}
           {isFailed && (
             <div className="text-sm">
               <p className="text-red-300 font-medium mb-1">Error:</p>
@@ -182,20 +243,7 @@ export default function BulkUploadProgressBanner({
             </div>
           )}
         </div>
-
-        {/* Dismiss Button */}
-        {/* <button
-          onClick={onDismiss}
-          className="text-text-200 hover:text-text-100 transition-colors flex-shrink-0"
-          aria-label="Dismiss"
-        >
-          <IconX size={18} />
-        </button> */}
       </div>
     </div>
   );
 }
-
-
-
-

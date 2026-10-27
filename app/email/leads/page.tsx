@@ -528,43 +528,21 @@ export default function LeadsPage() {
               <BulkUploadProgressBanner
                 key={job.jobId}
                 jobId={job.jobId}
-                onComplete={async () => {
-                  const updated = activeUploadJobs.filter(
-                    (j) => j.jobId !== job.jobId
+                onComplete={() => {
+                  setActiveUploadJobs((prev) =>
+                    prev.filter((j) => j.jobId !== job.jobId)
                   );
-                  setActiveUploadJobs(updated);
-
-                  try {
-                    const activeJobsResult = await checkActiveBulkUploadJobs();
-                    if (
-                      activeJobsResult.hasActiveJobs &&
-                      activeJobsResult.activeJobs.length > 0
-                    ) {
-                      setActiveUploadJobs(
-                        activeJobsResult.activeJobs.map((j) => ({
-                          jobId: j.jobId,
-                          totalRows: j.totalRows,
-                        }))
-                      );
-                    } else {
-                      setActiveUploadJobs([]);
-                    }
-                  } catch (error) {
-                    console.error("Failed to refresh active jobs:", error);
-                  }
-
-                  loadLeads();
+                  void loadLeads();
                 }}
                 onDismiss={() => {
-                  const updated = activeUploadJobs.filter(
-                    (j) => j.jobId !== job.jobId
-                  );
-                  setActiveUploadJobs(updated);
-                  const jobIds = updated.map((j) => j.jobId);
-                  localStorage.setItem(
-                    "activeBulkUploadJobs",
-                    JSON.stringify(jobIds)
-                  );
+                  setActiveUploadJobs((prev) => {
+                    const updated = prev.filter((j) => j.jobId !== job.jobId);
+                    localStorage.setItem(
+                      "activeBulkUploadJobs",
+                      JSON.stringify(updated.map((j) => j.jobId))
+                    );
+                    return updated;
+                  });
                 }}
               />
             ))}
@@ -834,29 +812,15 @@ export default function LeadsPage() {
           isOpen={showBulkUploadModal}
           onClose={() => setShowBulkUploadModal(false)}
           onSuccess={(jobId?: string, totalRows?: number) => {
-            loadLeads();
             setShowBulkUploadModal(false);
-            if (jobId && totalRows) {
-              setActiveUploadJobs((prev) => [...prev, { jobId, totalRows }]);
-            } else {
-              const jobIds = JSON.parse(
-                localStorage.getItem("activeBulkUploadJobs") || "[]"
-              );
-              if (jobIds.length > 0) {
-                Promise.all(
-                  jobIds.map(async (id: string) => {
-                    try {
-                      const { getBulkUploadJobStatus } = await import(
-                        "@/utils/api/emailClient"
-                      );
-                      const status = await getBulkUploadJobStatus(id);
-                      return { jobId: id, totalRows: status.totalRows };
-                    } catch {
-                      return { jobId: id, totalRows: 0 };
-                    }
-                  })
-                ).then(setActiveUploadJobs);
-              }
+            if (jobId) {
+              setActiveUploadJobs((prev) => {
+                if (prev.some((job) => job.jobId === jobId)) return prev;
+                return [
+                  ...prev,
+                  { jobId, totalRows: totalRows && totalRows > 0 ? totalRows : 0 },
+                ];
+              });
             }
           }}
         />

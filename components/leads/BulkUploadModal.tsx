@@ -17,7 +17,6 @@ import emailClient, {
   createLeadTag,
   createList,
   EmailList,
-  getBulkUploadJobStatus,
   getContactMetrics,
   getEmailServiceErrorMessage,
   getLeadCategories,
@@ -44,6 +43,7 @@ export default function BulkUploadModal({
   onSuccess,
 }: BulkUploadModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadInFlightRef = useRef(false);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [rawRows, setRawRows] = useState<Array<Record<string, any>>>([]);
@@ -169,121 +169,6 @@ export default function BulkUploadModal({
       window.clearTimeout(timer);
     };
   }, [isOpen, emailColumn, rawRows]);
-
-  // Poll job progress
-  const pollJobProgress = async (jobId: string, toastId: string) => {
-    let pollCount = 0;
-    const maxPolls = 300; // Max 10 minutes (300 * 2 seconds)
-
-    const pollInterval = setInterval(async () => {
-      pollCount++;
-
-      try {
-        const status = await getBulkUploadJobStatus(jobId);
-        const progress = status.progress || 0;
-        const processedRows = status.processedRows || 0;
-        const totalRows = status.totalRows || 0;
-
-        console.log(
-          `[Bulk Upload] Job ${jobId} status: ${status.status}, progress: ${progress}%, processed: ${processedRows}/${totalRows}`
-        );
-
-        if (status.status === "completed") {
-          clearInterval(pollInterval);
-
-          // Remove from active jobs (localStorage is just for UI, backend is source of truth)
-          const activeJobs = JSON.parse(
-            localStorage.getItem("activeBulkUploadJobs") || "[]"
-          );
-          const updatedJobs = activeJobs.filter((id: string) => id !== jobId);
-          localStorage.setItem(
-            "activeBulkUploadJobs",
-            JSON.stringify(updatedJobs)
-          );
-
-          // Show success with summary
-          const stats = status.result?.statistics;
-          if (stats) {
-            const summary = [
-              `${stats.created} new`,
-              stats.updated > 0 ? `${stats.updated} updated` : null,
-              stats.skipped > 0 ? `${stats.skipped} skipped` : null,
-              stats.invalid > 0 ? `${stats.invalid} invalid` : null,
-            ]
-              .filter(Boolean)
-              .join(", ");
-
-            toast.success(`Upload complete! ${summary}`, {
-              id: toastId,
-              duration: 10000,
-            });
-          } else {
-            toast.success("Upload complete!", {
-              id: toastId,
-              duration: 5000,
-            });
-          }
-
-          // Refresh leads list
-          onSuccess();
-        } else if (status.status === "failed") {
-          clearInterval(pollInterval);
-
-          // Remove from active jobs (localStorage is just for UI, backend is source of truth)
-          const activeJobs = JSON.parse(
-            localStorage.getItem("activeBulkUploadJobs") || "[]"
-          );
-          const updatedJobs = activeJobs.filter((id: string) => id !== jobId);
-          localStorage.setItem(
-            "activeBulkUploadJobs",
-            JSON.stringify(updatedJobs)
-          );
-
-          toast.error(`Upload failed: ${status.error || "Unknown error"}`, {
-            id: toastId,
-            duration: 10000,
-          });
-        } else {
-          // Update progress - show more detailed info
-          const statusText =
-            status.status === "pending"
-              ? "Queued"
-              : status.status === "processing"
-              ? "Processing"
-              : status.status;
-
-          toast.loading(
-            `${statusText}: ${processedRows}/${totalRows} leads (${progress}%)`,
-            {
-              id: toastId,
-              duration: Infinity,
-            }
-          );
-        }
-      } catch (error: any) {
-        console.error("Failed to poll job status:", error);
-        if (error.response?.status === 404) {
-          clearInterval(pollInterval);
-          toast.error("Job not found", {
-            id: toastId,
-            duration: 5000,
-          });
-        } else if (pollCount >= maxPolls) {
-          clearInterval(pollInterval);
-          toast.error(
-            "Upload is taking longer than expected. Please check the job status manually.",
-            {
-              id: toastId,
-              duration: 10000,
-            }
-          );
-        }
-      }
-    }, 5000); // Poll every 2 seconds
-
-    // Cleanup on unmount
-    return () => clearInterval(pollInterval);
-  };
 
   const handleFileUpload = async (file: File) => {
     if (!file) return;
@@ -427,6 +312,8 @@ export default function BulkUploadModal({
   };
 
   const handleUpload = async () => {
+    if (uploadInFlightRef.current || uploading) return;
+
     if (!emailColumn) {
       toast.error("Please select an email column");
       return;
@@ -436,6 +323,9 @@ export default function BulkUploadModal({
       toast.error("No data to upload");
       return;
     }
+
+    uploadInFlightRef.current = true;
+    setUploading(true);
 
     // Check for active jobs before starting upload (user-specific check from backend)
     try {
@@ -450,6 +340,8 @@ export default function BulkUploadModal({
           } in progress. Please wait for them to complete before starting a new upload.`,
           { duration: 6000 }
         );
+        uploadInFlightRef.current = false;
+        setUploading(false);
         return;
       }
     } catch (error: any) {
@@ -484,6 +376,8 @@ export default function BulkUploadModal({
       toast.error(
         `No valid emails found. Found ${invalidRows.length} invalid email(s). Please fix them before uploading.`
       );
+      uploadInFlightRef.current = false;
+      setUploading(false);
       return;
     }
 
@@ -529,6 +423,8 @@ export default function BulkUploadModal({
         `Your plan allows ${remainingSlots} more new contact(s). This file needs ${newCountForUpload} new slot(s) (${updateCountForUpload} existing lead(s) will only be updated).`,
         { duration: 9000 }
       );
+      uploadInFlightRef.current = false;
+      setUploading(false);
       return;
     }
 
@@ -560,8 +456,6 @@ export default function BulkUploadModal({
       );
     }
 
-    setUploading(true);
-
     try {
       // Dedupe by email (first occurrence wins) — matches createLeadsFromCSVService / worker
       const seenEmails = new Set<string>();
@@ -590,11 +484,11 @@ export default function BulkUploadModal({
         return normalized;
       });
 
-      // Create bulk upload job (chunked async upload)
+      // Create bulk upload job (chunked async upload) — only once per click
       let job;
       try {
         const uploadToastId = toast.loading(
-          `Uploading ${csvData.length.toLocaleString()} leads…`
+          `Uploading ${csvData.length.toLocaleString()} lead${csvData.length !== 1 ? "s" : ""}…`
         );
         job = await createBulkUploadJob(
           csvData,
@@ -616,7 +510,10 @@ export default function BulkUploadModal({
             }
           }
         );
-        toast.dismiss(uploadToastId);
+        toast.success(
+          `Queued ${job.totalRows.toLocaleString()} lead${job.totalRows !== 1 ? "s" : ""} for import`,
+          { id: uploadToastId, duration: 4000 }
+        );
       } catch (error: any) {
         // Handle conflict error (active job exists)
         if (error.response?.status === 409) {
@@ -630,18 +527,20 @@ export default function BulkUploadModal({
                 duration: 8000,
               }
             );
-            // Optionally, add the existing job to active jobs list
             const activeJobs = JSON.parse(
               localStorage.getItem("activeBulkUploadJobs") || "[]"
-            );
-            if (!activeJobs.includes(errorData.activeJobId)) {
-              activeJobs.push(errorData.activeJobId);
+            ) as string[];
+            if (!activeJobs.includes(String(errorData.activeJobId))) {
+              activeJobs.push(String(errorData.activeJobId));
               localStorage.setItem(
                 "activeBulkUploadJobs",
                 JSON.stringify(activeJobs)
               );
             }
-            setUploading(false);
+            onSuccess(
+              String(errorData.activeJobId),
+              Number(errorData.totalRows) || 0
+            );
             return;
           }
         }
@@ -650,7 +549,6 @@ export default function BulkUploadModal({
             "Upload too large for the server gateway. Please try again — large files are sent in chunks automatically.",
             { duration: 8000 }
           );
-          setUploading(false);
           return;
         }
         // Re-throw other errors
@@ -665,28 +563,24 @@ export default function BulkUploadModal({
       setSelectedCategories([]);
       setSelectedLists([]);
       setDuplicateEmails(new Set());
+      setExistingEmailSet(new Set());
 
       // Close modal immediately
       onClose();
 
-      // Store job ID in localStorage for progress tracking
+      // Store job ID once for progress tracking (banner is the only poller)
       const activeJobs = JSON.parse(
         localStorage.getItem("activeBulkUploadJobs") || "[]"
-      );
-      activeJobs.push(job.jobId);
-      localStorage.setItem("activeBulkUploadJobs", JSON.stringify(activeJobs));
+      ) as string[];
+      if (!activeJobs.includes(job.jobId)) {
+        activeJobs.push(job.jobId);
+        localStorage.setItem(
+          "activeBulkUploadJobs",
+          JSON.stringify(activeJobs)
+        );
+      }
 
-      // Show persistent toast with progress tracking
-      const toastId = `bulk-upload-${job.jobId}`;
-      toast.loading(`Processing ${job.totalRows} contact(s)... 0%`, {
-        id: toastId,
-        duration: Infinity, // Keep toast until dismissed or completed
-      });
-
-      // Start polling for progress
-      pollJobProgress(job.jobId, toastId);
-
-      // Trigger success callback with job info
+      // Hand off to the page banner — do not start a second status poller here
       onSuccess(job.jobId, job.totalRows);
     } catch (error: any) {
       const errorMsg = getEmailServiceErrorMessage(
@@ -698,6 +592,7 @@ export default function BulkUploadModal({
       });
       console.error("Bulk upload error:", error);
     } finally {
+      uploadInFlightRef.current = false;
       setUploading(false);
     }
   };
