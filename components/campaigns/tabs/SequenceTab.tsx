@@ -49,6 +49,13 @@ interface SequenceStep {
   activeVariantId: string;
 }
 
+interface StepAttachmentRef {
+  assetId: number;
+  fileName?: string;
+  mimeType?: string;
+  size?: number;
+}
+
 interface StepVariant {
   id: string;
   label: string;
@@ -59,6 +66,7 @@ interface StepVariant {
   useSpintax: boolean;
   spintaxPackId: string;
   strictGrammarMode: boolean;
+  attachments: StepAttachmentRef[];
 }
 
 function createDefaultVariant(label: string): StepVariant {
@@ -72,6 +80,7 @@ function createDefaultVariant(label: string): StepVariant {
     useSpintax: false,
     spintaxPackId: "general",
     strictGrammarMode: false,
+    attachments: [],
   };
 }
 
@@ -126,7 +135,9 @@ function mapApiSequenceToSteps(
       useSpintax?: boolean;
       spintaxPackId?: string;
       strictGrammarMode?: boolean;
+      attachments?: StepAttachmentRef[];
     }>;
+    attachments?: StepAttachmentRef[];
   }>
 ): SequenceStep[] {
   if (!sequence?.length) {
@@ -154,6 +165,16 @@ function mapApiSequenceToSteps(
             created.useSpintax = Boolean(variant.useSpintax);
             created.spintaxPackId = variant.spintaxPackId || "general";
             created.strictGrammarMode = Boolean(variant.strictGrammarMode);
+            created.attachments = Array.isArray(variant.attachments)
+              ? variant.attachments
+                  .map((a) => ({
+                    assetId: Number(a.assetId),
+                    fileName: a.fileName,
+                    mimeType: a.mimeType,
+                    size: a.size,
+                  }))
+                  .filter((a) => Number.isFinite(a.assetId) && a.assetId > 0)
+              : [];
             return created;
           })
         : (() => {
@@ -165,6 +186,16 @@ function mapApiSequenceToSteps(
             variantA.useSpintax = Boolean(step.useSpintax);
             variantA.spintaxPackId = step.spintaxPackId || "general";
             variantA.strictGrammarMode = Boolean(step.strictGrammarMode);
+            variantA.attachments = Array.isArray(step.attachments)
+              ? step.attachments
+                  .map((a) => ({
+                    assetId: Number(a.assetId),
+                    fileName: a.fileName,
+                    mimeType: a.mimeType,
+                    size: a.size,
+                  }))
+                  .filter((a) => Number.isFinite(a.assetId) && a.assetId > 0)
+              : [];
             return [variantA];
           })();
 
@@ -190,6 +221,7 @@ function buildSequencePayload(steps: SequenceStep[]) {
       useSpintax: Boolean(variant.useSpintax),
       spintaxPackId: variant.spintaxPackId || "general",
       strictGrammarMode: Boolean(variant.strictGrammarMode),
+      attachments: variant.attachments || [],
     }));
     const primary =
       step.variants.find((v) => v.id === step.activeVariantId) || step.variants[0];
@@ -526,6 +558,7 @@ export function SequenceTab({
       useSpintax: boolean;
       spintaxPackId: string;
       strictGrammarMode: boolean;
+      attachments: StepAttachmentRef[];
     }) => {
       if (!editingVariantInfo) return;
       markSequenceEdited();
@@ -546,6 +579,7 @@ export function SequenceTab({
                     useSpintax: payload.useSpintax,
                     spintaxPackId: payload.spintaxPackId,
                     strictGrammarMode: payload.strictGrammarMode,
+                    attachments: payload.attachments || [],
                   }
                 : v
             ),
@@ -1088,6 +1122,7 @@ export function SequenceTab({
           seedStrictGrammarMode={editingVariant.strictGrammarMode}
           seedHtml={editingVariant.body}
           seedBodyEditor={editingVariant.bodyEditor}
+          seedAttachments={editingVariant.attachments || []}
           openDirectlyToEditor
           onApply={handleEmailApply}
         />

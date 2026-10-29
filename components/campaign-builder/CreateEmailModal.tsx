@@ -17,6 +17,7 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
@@ -56,6 +57,16 @@ import emailClient, {
 } from "@/utils/api/emailClient";
 
 import DesignEditor from "./DesignEditor";
+import { EmailAssetLibraryModal } from "./EmailAssetLibraryModal";
+import {
+  extractInlineAssetIds,
+  getEmailAssetPreviewUrl,
+  hydrateEmailHtmlAssetSrcs,
+  MAX_EMAIL_ATTACHMENTS,
+  normalizeEmailHtmlAssetSrcs,
+  type EmailAttachmentRef,
+  type EmailLibraryAsset,
+} from "@/utils/api/emailAssets";
 import EmailQualityPanel from "./EmailQualityPanel";
 import EmailTemplatePickerModal from "./EmailTemplatePickerModal";
 import {
@@ -185,6 +196,7 @@ export interface CreateEmailModalProps {
   /** Current campaign body when opening the modal */
   seedHtml: string;
   seedBodyEditor: BodyEditorMode;
+  seedAttachments?: EmailAttachmentRef[];
   /** True when opening from &quot;Edit email&quot; on the builder — jump into the composer */
   openDirectlyToEditor: boolean;
   onUnsubscribeAcknowledged?: () => void;
@@ -196,6 +208,7 @@ export interface CreateEmailModalProps {
     useSpintax: boolean;
     spintaxPackId: SpintaxPackId;
     strictGrammarMode: boolean;
+    attachments: EmailAttachmentRef[];
   }) => void;
 }
 
@@ -216,6 +229,7 @@ export default function CreateEmailModal({
   seedStrictGrammarMode,
   seedHtml,
   seedBodyEditor,
+  seedAttachments = [],
   openDirectlyToEditor,
   onUnsubscribeAcknowledged,
   onApply,
@@ -230,6 +244,13 @@ export default function CreateEmailModal({
   const [draftSpintaxPackId, setDraftSpintaxPackId] =
     useState<SpintaxPackId>("general");
   const [draftStrictGrammarMode, setDraftStrictGrammarMode] = useState(false);
+  const [draftAttachments, setDraftAttachments] = useState<EmailAttachmentRef[]>(
+    []
+  );
+  const [assetLibraryOpen, setAssetLibraryOpen] = useState(false);
+  const [assetLibraryMode, setAssetLibraryMode] = useState<"attach" | "insert">(
+    "attach"
+  );
   const [unsubscribeLinkText, setUnsubscribeLinkText] = useState("Unsubscribe");
 
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
@@ -719,6 +740,18 @@ export default function CreateEmailModal({
       return;
     }
 
+    const selectedSender = testSenders.find((s) => String(s.id) === String(testSenderId));
+    const senderProvider = String(selectedSender?.provider || "").toLowerCase();
+    const hasFiles =
+      draftAttachments.length > 0 ||
+      extractInlineAssetIds(draftHtml).length > 0;
+    if (hasFiles && (senderProvider === "outlook" || senderProvider === "zoho")) {
+      toast.error(
+        `${senderProvider === "outlook" ? "Outlook" : "Zoho"} cannot deliver attachments or inline images. Choose an SES or Gmail sender, or remove files first.`
+      );
+      return;
+    }
+
     setSendingTestEmail(true);
     try {
       const variables: Record<string, string> = {};
@@ -730,9 +763,10 @@ export default function CreateEmailModal({
         senderId: testSenderId,
         variables,
         templateSubject: draftSubject,
-        templateBody: draftHtml,
+        templateBody: normalizeEmailHtmlAssetSrcs(draftHtml),
         templatePreviewText: draftPreviewText || undefined,
         unsubscribeLinkText,
+        templateAttachments: draftAttachments,
       });
       toast.success(result?.message || `Test email sent to ${to}`);
       setSendTestOpen(false);
@@ -750,10 +784,12 @@ export default function CreateEmailModal({
     draftSubject,
     draftHtml,
     draftPreviewText,
+    draftAttachments,
     usedTestVariables,
     testVariableValues,
     domainId,
     unsubscribeLinkText,
+    testSenders,
   ]);
 
   useEffect(() => {
@@ -765,6 +801,8 @@ export default function CreateEmailModal({
     setDraftSpintaxPackId(seedSpintaxPackId || "general");
     setDraftStrictGrammarMode(seedStrictGrammarMode);
 
+    setDraftAttachments(seedAttachments || []);
+
     const hasSeed = seedHtml.trim().length > 0;
     if (hasSeed || openDirectlyToEditor) {
       const html =
@@ -775,9 +813,11 @@ export default function CreateEmailModal({
           : "<p></p>";
       const shouldUseHtmlEditor =
         seedBodyEditor === "html" && isStructuredHtmlEmail(html);
-      setDraftHtml(html);
       setDraftBodyEditor(shouldUseHtmlEditor ? "html" : "simple");
       setRightPanel(shouldUseHtmlEditor ? "html" : "simple");
+      void hydrateEmailHtmlAssetSrcs(html).then((hydrated) => {
+        setDraftHtml(hydrated || (shouldUseHtmlEditor ? "" : "<p></p>"));
+      });
     } else {
       setDraftHtml("<p></p>");
       setDraftBodyEditor("simple");
@@ -795,6 +835,7 @@ export default function CreateEmailModal({
     seedUseSpintax,
     seedSpintaxPackId,
     seedStrictGrammarMode,
+    seedAttachments,
     clearPendingInsertSelection,
   ]);
 
@@ -1201,6 +1242,57 @@ export default function CreateEmailModal({
     setRightPanel("simple");
   };
 
+  const handleSelectAttach = (assets: EmailLibraryAsset[]) => {
+    setDraftAttachments((prev) => {
+      let next = [...prev];
+      for (const asset of assets) {
+        if (next.some((a) => a.assetId === asset.id)) continue;
+        if (next.length >= MAX_EMAIL_ATTACHMENTS) {
+          toast.error(`You can attach at most ${MAX_EMAIL_ATTACHMENTS} files`);
+          break;
+        }
+        next.push({
+          assetId: asset.id,
+          fileName: asset.fileName,
+          mimeType: asset.mimeType,
+          size: asset.size,
+        });
+      }
+      return next;
+    });
+  };
+
+  const handleSelectInline = async (assets: EmailLibraryAsset[]) => {
+    try {
+      let html = draftHtml || "";
+      const existingIds = extractInlineAssetIds(html);
+
+      for (const asset of assets) {
+        if (!existingIds.includes(asset.id) && existingIds.length >= 10) {
+          toast.error("You can insert at most 10 unique images");
+          break;
+        }
+        const src = await getEmailAssetPreviewUrl(asset.id);
+        if (draftBodyEditor === "html") {
+          html += `<img data-asset-id="${asset.id}" src="${src}" alt="${asset.fileName.replace(/"/g, "")}" />`;
+          if (!existingIds.includes(asset.id)) existingIds.push(asset.id);
+        } else {
+          window.dispatchEvent(
+            new CustomEvent("totalads:insert-email-image", {
+              detail: { assetId: asset.id, src, alt: asset.fileName },
+            })
+          );
+        }
+      }
+
+      if (draftBodyEditor === "html") {
+        setDraftHtml(html);
+      }
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to insert image");
+    }
+  };
+
   const handleApplyToCampaign = () => {
     if (!draftHtml.trim()) {
       toast.error("Add email content first");
@@ -1209,11 +1301,12 @@ export default function CreateEmailModal({
     onApply({
       subject: draftSubject.trim(),
       previewText: draftPreviewText.trim(),
-      htmlContent: draftHtml,
+      htmlContent: normalizeEmailHtmlAssetSrcs(draftHtml),
       bodyEditor: draftBodyEditor,
       useSpintax: draftUseSpintax,
       spintaxPackId: draftSpintaxPackId,
       strictGrammarMode: draftStrictGrammarMode,
+      attachments: draftAttachments,
     });
     onOpenChange(false);
     toast.success("Email saved to campaign");
@@ -1550,8 +1643,47 @@ export default function CreateEmailModal({
     </div>
   );
 
+  const openAttachLibrary = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    setAssetLibraryMode("attach");
+    setAssetLibraryOpen(true);
+  };
+
+  const openImageLibrary = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    setAssetLibraryMode("insert");
+    setAssetLibraryOpen(true);
+  };
+
   const composerFooter = (
     <div className="flex flex-shrink-0 flex-col border-t border-border bg-bg-200">
+      {draftAttachments.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-border/60 px-2.5 py-1.5">
+          <span className="text-[11px] font-medium text-slate-500">Attachments:</span>
+          {draftAttachments.map((att) => (
+            <span
+              key={att.assetId}
+              className="inline-flex max-w-[180px] items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700"
+            >
+              <span className="truncate">{att.fileName || `File ${att.assetId}`}</span>
+              <button
+                type="button"
+                className="rounded-full p-0.5 hover:bg-slate-200"
+                onClick={() =>
+                  setDraftAttachments((prev) =>
+                    prev.filter((a) => a.assetId !== att.assetId)
+                  )
+                }
+                aria-label="Remove attachment"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
       <UnsubscribeLinkEditor
         domainId={domainId}
         campaignId={effectiveCampaignId}
@@ -1622,8 +1754,29 @@ export default function CreateEmailModal({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="flex h-[92vh] max-h-[940px] w-[98vw] max-w-[1320px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[1320px]">
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          // Keep Create email open while the file library is showing.
+          if (!next && assetLibraryOpen) return;
+          onOpenChange(next);
+        }}
+      >
+        <DialogContent
+          className="flex h-[92vh] max-h-[940px] w-[98vw] max-w-[1320px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[1320px]"
+          onInteractOutside={(e) => {
+            if (assetLibraryOpen) e.preventDefault();
+          }}
+          onPointerDownOutside={(e) => {
+            if (assetLibraryOpen) e.preventDefault();
+          }}
+          onFocusOutside={(e) => {
+            if (assetLibraryOpen) e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (assetLibraryOpen) e.preventDefault();
+          }}
+        >
           <DialogHeader className="flex-shrink-0 border-b border-border bg-bg-200 px-6 py-2 text-left">
             <DialogTitle className="text-xl font-bold tracking-tight text-text-100">
               {openDirectlyToEditor && seedHtml.trim()
@@ -1645,6 +1798,8 @@ export default function CreateEmailModal({
                       onTokenClick={handleEditorTokenClick}
                       tokenSampleValues={tokenSampleValues}
                       tokenCoverage={tokenCoverage}
+                      onAttachFile={openAttachLibrary}
+                      onAddImage={openImageLibrary}
                     />
                   </div>
                 </div>
@@ -1661,6 +1816,7 @@ export default function CreateEmailModal({
                       onTokenClick={handleEditorTokenClick}
                       tokenSampleValues={tokenSampleValues}
                       tokenCoverage={tokenCoverage}
+                      onAttachFile={openAttachLibrary}
                       previewFooterHtml={
                         bodyAlreadyHasComplianceFooter(draftHtml)
                           ? ""
@@ -1684,6 +1840,16 @@ export default function CreateEmailModal({
           </section>
         </DialogContent>
       </Dialog>
+
+      <EmailAssetLibraryModal
+        open={assetLibraryOpen}
+        onOpenChange={setAssetLibraryOpen}
+        mode={assetLibraryMode}
+        onSelectAttach={handleSelectAttach}
+        onSelectInline={(assets) => {
+          void handleSelectInline(assets);
+        }}
+      />
 
       {SHOW_EMAIL_TEMPLATE_CONTROLS ? (
         <EmailTemplatePickerModal

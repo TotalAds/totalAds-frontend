@@ -65,6 +65,7 @@ export default function EmailTemplateEditor({
     useSpintax: boolean;
     spintaxPackId: SpintaxPackId;
     strictGrammarMode: boolean;
+    attachments?: unknown[];
   }) => {
     onSubjectChange(payload.subject);
     onPreviewTextChange && onPreviewTextChange(payload.previewText);

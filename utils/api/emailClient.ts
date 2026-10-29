@@ -375,6 +375,13 @@ export interface CampaignSenderConfig {
   replyToSenderId?: string;
 }
 
+export interface CampaignSequenceAttachmentRef {
+  assetId: number;
+  fileName?: string;
+  mimeType?: string;
+  size?: number;
+}
+
 export interface CampaignSequenceVariant {
   label?: string;
   subject: string;
@@ -394,6 +401,7 @@ export interface CampaignSequenceVariant {
     | "real_estate";
   strictGrammarMode?: boolean;
   replyTo?: string;
+  attachments?: CampaignSequenceAttachmentRef[];
 }
 
 export interface CampaignSequenceStep {
@@ -910,6 +918,7 @@ export interface SendTestEmailPayload {
     fileName: string;
     mimeType: string;
   };
+  templateAttachments?: CampaignSequenceAttachmentRef[];
 }
 
 /** Send a one-off test email using the draft template + sample merge values. */

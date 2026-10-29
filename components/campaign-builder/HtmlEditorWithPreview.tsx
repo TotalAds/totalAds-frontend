@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, Dices, Sparkles } from "lucide-react";
+import { Check, Copy, Dices, Paperclip, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
@@ -30,6 +30,7 @@ interface HtmlEditorWithPreviewProps {
   tokenCoverage?: Record<string, PersonalizationTokenCoverage>;
   /** Appended in the preview iframe only. Not written into the saved HTML. */
   previewFooterHtml?: string;
+  onAttachFile?: (e?: React.MouseEvent) => void;
 }
 
 function getMergeTokenLabel(token: string): string {
@@ -89,6 +90,7 @@ export default function HtmlEditorWithPreview({
   tokenSampleValues,
   tokenCoverage,
   previewFooterHtml = "",
+  onAttachFile,
 }: HtmlEditorWithPreviewProps) {
   const [copied, setCopied] = useState(false);
   const tokens = useMemo(() => extractEmailTokens(htmlContent), [htmlContent]);
@@ -240,7 +242,19 @@ export default function HtmlEditorWithPreview({
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3 lg:flex-row">
       <div className="flex min-h-0 min-w-0 flex-[1_1_50%] flex-col border-b border-border lg:border-b-0 lg:border-r">
-        <div className="flex flex-shrink-0 flex-wrap gap-1 border-b border-border bg-bg-300/40 px-2 py-1.5">
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-1 border-b border-border bg-bg-300/40 px-2 py-1.5">
+          {onAttachFile ? (
+            <button
+              type="button"
+              onClick={onAttachFile}
+              className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-text-200 transition hover:bg-bg-300"
+              title="Attach file — add a PDF, doc, or other file as an email attachment (not shown in the HTML body)"
+              aria-label="Attach file"
+            >
+              <Paperclip className="h-3.5 w-3.5" />
+              Attach file
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={handleFormat}

@@ -11,10 +11,12 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  ImagePlus,
   Italic,
   Link as LinkIcon,
   List,
   ListOrdered,
+  Paperclip,
   Redo2,
   Underline as UnderlineIcon,
   Undo2,
@@ -23,6 +25,7 @@ import { useEffect, useRef } from "react";
 
 import Color from "@tiptap/extension-color";
 import Highlight from "@tiptap/extension-highlight";
+import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
 import { TextStyle } from "@tiptap/extension-text-style";
@@ -30,6 +33,15 @@ import Underline from "@tiptap/extension-underline";
 import { Placeholder } from "@tiptap/extensions";
 import { EditorContent, mergeAttributes, Node, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import toast from "react-hot-toast";
+
+import {
+  getEmailAssetPreviewUrl,
+  MAX_EMAIL_INLINE_ASSETS,
+  normalizeEmailHtmlAssetSrcs,
+  uploadEmailAsset,
+  extractInlineAssetIds,
+} from "@/utils/api/emailAssets";
 
 import {
   fieldFromMergeToken,
@@ -52,7 +64,38 @@ interface DesignEditorProps {
   ) => void;
   tokenSampleValues?: Record<string, string>;
   tokenCoverage?: Record<string, PersonalizationTokenCoverage>;
+  /** Called when paste/upload of an image fails so parent can surface errors. */
+  onInlineImageError?: (message: string) => void;
+  onAttachFile?: (e?: React.MouseEvent) => void;
+  onAddImage?: (e?: React.MouseEvent) => void;
 }
+
+const EmailImage = Image.extend({
+  name: "image",
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      assetId: {
+        default: null,
+        parseHTML: (element: HTMLElement) => {
+          const raw = element.getAttribute("data-asset-id");
+          const id = raw ? Number(raw) : null;
+          return Number.isFinite(id) && id && id > 0 ? id : null;
+        },
+        renderHTML: (attributes: { assetId?: number | null }) => {
+          if (!attributes.assetId) return {};
+          return { "data-asset-id": String(attributes.assetId) };
+        },
+      },
+      src: {
+        default: null,
+      },
+      alt: {
+        default: null,
+      },
+    };
+  },
+});
 
 function escapeHtml(value: string): string {
   return value
@@ -128,7 +171,7 @@ function editorHtmlToEmailSyntax(html: string): string {
     .forEach((node) => {
       node.replaceWith(document.createTextNode(decodeHtml(node.dataset.token || "")));
     });
-  return wrapper.innerHTML;
+  return normalizeEmailHtmlAssetSrcs(wrapper.innerHTML);
 }
 
 const MergeVariableNode = Node.create({
@@ -237,12 +280,17 @@ export default function DesignEditor({
   onTokenClick,
   tokenSampleValues,
   tokenCoverage,
+  onInlineImageError,
+  onAttachFile,
+  onAddImage,
 }: DesignEditorProps) {
   const { showAt, hide, portal } = useAnchoredCoveragePopover();
   const coverageRef = useRef(tokenCoverage);
   const samplesRef = useRef(tokenSampleValues);
+  const onInlineImageErrorRef = useRef(onInlineImageError);
   coverageRef.current = tokenCoverage;
   samplesRef.current = tokenSampleValues;
+  onInlineImageErrorRef.current = onInlineImageError;
 
   const editor = useEditor({
     extensions: [
@@ -264,11 +312,69 @@ export default function DesignEditor({
       Highlight.configure({
         multicolor: true,
       }),
+      EmailImage.configure({
+        inline: false,
+        allowBase64: false,
+      }),
     ],
     content: emailSyntaxToEditorHtml(htmlContent),
     immediatelyRender: false,
     onUpdate: ({ editor }) => {
       onHtmlContentChange(editorHtmlToEmailSyntax(editor.getHTML()));
+    },
+    editorProps: {
+      handlePaste: (_view, event) => {
+        const items = event.clipboardData?.items;
+        if (!items) return false;
+        const imageItem = Array.from(items).find((item) =>
+          item.type.startsWith("image/")
+        );
+        if (!imageItem) return false;
+
+        event.preventDefault();
+        const file = imageItem.getAsFile();
+        if (!file) return true;
+
+        void (async () => {
+          try {
+            const asset = await uploadEmailAsset(file);
+            const currentHtml = editor?.getHTML() || "";
+            const existing = extractInlineAssetIds(
+              editorHtmlToEmailSyntax(currentHtml)
+            );
+            if (
+              !existing.includes(asset.id) &&
+              existing.length >= MAX_EMAIL_INLINE_ASSETS
+            ) {
+              const msg = `You can insert at most ${MAX_EMAIL_INLINE_ASSETS} unique images`;
+              onInlineImageErrorRef.current?.(msg);
+              toast.error(msg);
+              return;
+            }
+            const src = await getEmailAssetPreviewUrl(asset.id);
+            editor
+              ?.chain()
+              .focus()
+              .insertContent({
+                type: "image",
+                attrs: {
+                  src,
+                  alt: asset.fileName,
+                  assetId: asset.id,
+                },
+              })
+              .run();
+          } catch (error: any) {
+            const msg =
+              error?.response?.data?.message ||
+              error?.message ||
+              "Failed to paste image";
+            onInlineImageErrorRef.current?.(msg);
+            toast.error(msg);
+          }
+        })();
+        return true;
+      },
     },
   });
 
@@ -299,6 +405,43 @@ export default function DesignEditor({
     window.addEventListener("totalads:insert-variable", handler);
     return () =>
       window.removeEventListener("totalads:insert-variable", handler);
+  }, [editor]);
+
+  // Insert library image (Show as image) from CreateEmailModal
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{
+        assetId: number;
+        src: string;
+        alt?: string;
+      }>;
+      const d = ce.detail;
+      if (!d?.assetId || !d.src || !editor) return;
+      const existing = extractInlineAssetIds(
+        editorHtmlToEmailSyntax(editor.getHTML())
+      );
+      if (!existing.includes(d.assetId) && existing.length >= MAX_EMAIL_INLINE_ASSETS) {
+        const msg = `You can insert at most ${MAX_EMAIL_INLINE_ASSETS} unique images`;
+        onInlineImageErrorRef.current?.(msg);
+        toast.error(msg);
+        return;
+      }
+      editor
+        .chain()
+        .focus()
+        .insertContent({
+          type: "image",
+          attrs: {
+            src: d.src,
+            alt: d.alt || "",
+            assetId: d.assetId,
+          },
+        })
+        .run();
+    };
+    window.addEventListener("totalads:insert-email-image", handler);
+    return () =>
+      window.removeEventListener("totalads:insert-email-image", handler);
   }, [editor]);
 
   useEffect(() => {
@@ -617,12 +760,41 @@ export default function DesignEditor({
             <Undo2 size={14} />
           </button>
           <button
+            type="button"
             onClick={() => editor.chain().focus().redo().run()}
             className="p-1.5 rounded text-gray-600 hover:bg-gray-100 transition"
             title="Redo"
           >
             <Redo2 size={14} />
           </button>
+
+          {(onAttachFile || onAddImage) && (
+            <>
+              <div className="w-px h-5 bg-gray-300 mx-0.5" />
+              {onAttachFile ? (
+                <button
+                  type="button"
+                  onClick={onAttachFile}
+                  className="p-1.5 rounded text-gray-600 hover:bg-gray-100 transition"
+                  title="Attach file — add a PDF, doc, or other file as an email attachment (not shown in the body)"
+                  aria-label="Attach file"
+                >
+                  <Paperclip size={14} />
+                </button>
+              ) : null}
+              {onAddImage ? (
+                <button
+                  type="button"
+                  onClick={onAddImage}
+                  className="p-1.5 rounded text-gray-600 hover:bg-gray-100 transition"
+                  title="Add image — insert an image/GIF into the email body, or attach it as a document"
+                  aria-label="Add image"
+                >
+                  <ImagePlus size={14} />
+                </button>
+              ) : null}
+            </>
+          )}
         </div>
 
       {/* Editor - Gmail style */}
