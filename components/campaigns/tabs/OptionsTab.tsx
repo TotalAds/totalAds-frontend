@@ -45,6 +45,7 @@ import {
 import { getReoonStatus } from "@/utils/api/reoonClient";
 import ReoonApiKeyRequiredModal from "@/components/campaign-builder/ReoonApiKeyRequiredModal";
 import { ContinuousSyncIntervalSelect } from "@/components/campaign-builder/ContinuousSyncIntervalSelect";
+import { Switch } from "@/components/ui/switch";
 import { DEFAULT_CONTINUOUS_SYNC_INTERVAL_MINUTES } from "@/lib/continuousSyncInterval";
 
 interface OptionsTabProps {
@@ -874,30 +875,17 @@ export function OptionsTab({
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={sameSenderSequence}
+            <Switch
+              className="mt-0.5"
+              checked={sameSenderSequence}
               aria-label="Same mailbox for the whole sequence"
               disabled={isLocked}
-              onClick={() => {
-                if (isLocked) return;
-                setSameSenderSequence((current) => {
-                  if (current) setSameSubjectSequence(false);
-                  return !current;
-                });
+              onCheckedChange={(next) => {
+                setSameSenderSequence(next);
+                if (!next) setSameSubjectSequence(false);
                 setSaved(false);
               }}
-              className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
-                isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
-              } ${sameSenderSequence ? "bg-blue-600" : "bg-slate-300"}`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-5 w-5 translate-y-0.5 rounded-full bg-white shadow-sm transition-transform ${
-                  sameSenderSequence ? "translate-x-5" : "translate-x-0.5"
-                }`}
-              />
-            </button>
+            />
           </div>
 
           {sameSenderSequence &&
@@ -930,27 +918,16 @@ export function OptionsTab({
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={sameSubjectSequence}
+              <Switch
+                className="mt-0.5"
+                checked={sameSubjectSequence}
                 aria-label="Use email 1's subject on follow-ups"
                 disabled={isLocked}
-                onClick={() => {
-                  if (isLocked) return;
-                  setSameSubjectSequence((current) => !current);
+                onCheckedChange={(next) => {
+                  setSameSubjectSequence(next);
                   setSaved(false);
                 }}
-                className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
-                  isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
-                } ${sameSubjectSequence ? "bg-blue-600" : "bg-slate-300"}`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 translate-y-0.5 rounded-full bg-white shadow-sm transition-transform ${
-                    sameSubjectSequence ? "translate-x-5" : "translate-x-0.5"
-                  }`}
-                />
-              </button>
+              />
             </div>
           )}
         </div>
@@ -1212,18 +1189,14 @@ export function OptionsTab({
                 </p>
               </div>
             </div>
-            <div
-              onClick={() => void handleRequireVerificationToggle()}
-              className={`relative inline-flex h-6 w-11 cursor-pointer rounded-full transition-colors ${
-                requireVerification ? "bg-blue-600" : "bg-slate-300"
-              }`}
-            >
-              <span
-                className={`inline-block h-5 w-5 mt-0.5 rounded-full bg-white shadow-sm transition-transform ${
-                  requireVerification ? "translate-x-5.5" : "translate-x-0.5"
-                }`}
-              />
-            </div>
+            <Switch
+              checked={requireVerification}
+              aria-label="Lead Verification"
+              disabled={isLocked || checkingReoon}
+              onCheckedChange={() => {
+                void handleRequireVerificationToggle();
+              }}
+            />
           </div>
 
           {requireVerification && (

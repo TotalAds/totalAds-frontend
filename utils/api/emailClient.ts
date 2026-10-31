@@ -823,6 +823,7 @@ export const removeAllLeadsFromCampaign = async (
 ): Promise<RemoveAllLeadsFromCampaignResult> => {
   const response = await emailClient.post(
     `/api/domains/${domainId}/campaigns/${campaignId}/remove-all-leads`,
+    {}, // empty body keeps Content-Type: application/json (axios drops it without a body)
   );
   return response.data?.data || response.data;
 };
