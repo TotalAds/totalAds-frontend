@@ -9,7 +9,6 @@ import {
   extractUsedMergeVariables,
   getCoverageStatus,
   lookupTokenCoverage,
-  highlightMergeTagsInPlainText,
   type PersonalizationTokenCoverage,
 } from "@/components/campaign-builder/htmlPreviewUtils";
 import {
@@ -33,9 +32,15 @@ type Props = {
   onSelect?: ReactEventHandler<HTMLInputElement>;
 };
 
+function humanizeField(field: string): string {
+  return field
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 /**
- * Subject / preview input with in-field merge-tag colors + coverage pills.
- * Hover pills for a formatted coverage popover (warning only).
+ * Subject / preview input. Shows editable `{{merge}}` syntax in the field;
+ * coverage lives in a compact helper row under the input (hover for details).
  */
 export function MergeHighlightInput({
   id,
@@ -51,49 +56,30 @@ export function MergeHighlightInput({
   onSelect,
 }: Props) {
   const used = extractUsedMergeVariables(value);
-  const hasMergeTags = used.length > 0;
   const hasCoverageData = Boolean(
     tokenCoverage && Object.keys(tokenCoverage).length > 0
   );
-  const highlightedHtml = hasMergeTags
-    ? highlightMergeTagsInPlainText(value, tokenCoverage, tokenSampleValues)
-    : "";
 
   return (
-    <div className="space-y-1.5">
-      <div className="relative">
-        {hasMergeTags ? (
-          <div
-            aria-hidden
-            className={cn(
-              "pointer-events-none absolute inset-0 z-0 overflow-hidden whitespace-pre rounded-md border border-transparent px-3 py-2 text-sm leading-5",
-              className
-            )}
-            dangerouslySetInnerHTML={{ __html: highlightedHtml || "&nbsp;" }}
-          />
-        ) : null}
-        <Input
-          id={id}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onFocus={onFocus}
-          onBlur={onBlur}
-          onSelect={onSelect}
-          placeholder={placeholder}
-          maxLength={maxLength}
-          className={cn(
-            "relative z-10 h-9 bg-bg-100 text-sm",
-            hasMergeTags &&
-              "bg-transparent text-transparent caret-slate-900 selection:bg-blue-200/50 selection:text-transparent",
-            className
-          )}
-        />
-      </div>
-      {used.length > 0 && hasCoverageData ? (
-        <div className="flex flex-wrap gap-1">
+    <div className="space-y-1">
+      <Input
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        onSelect={onSelect}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        className={cn("relative z-10 h-9 bg-bg-100 text-sm", className)}
+      />
+      {used.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-1">
           {used.map((field) => {
             const coverage = lookupTokenCoverage(tokenCoverage, field);
-            const status = getCoverageStatus(coverage);
+            const status = hasCoverageData
+              ? getCoverageStatus(coverage)
+              : "ok";
             const sample = lookupSampleValue(tokenSampleValues, field);
             return (
               <PersonalizationHoverTrigger
@@ -101,21 +87,23 @@ export function MergeHighlightInput({
                 field={field}
                 sample={sample}
                 coverage={coverage}
-                hasCoverageData
+                hasCoverageData={hasCoverageData}
               >
                 <span
                   className={cn(
-                    "inline-flex cursor-help items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                    "inline-flex max-w-full cursor-help items-center gap-1 truncate rounded-md border px-1.5 py-0.5 text-[10px] font-medium leading-tight",
                     status === "missing" &&
-                      "border-red-300 bg-red-50 text-red-700",
+                      "border-red-200 bg-red-50 text-red-700",
                     status === "warning" &&
-                      "border-amber-300 bg-amber-50 text-amber-800",
-                    status === "ok" && "border-blue-200 bg-blue-50 text-blue-700"
+                      "border-amber-200 bg-amber-50 text-amber-800",
+                    status === "ok" &&
+                      "border-slate-200 bg-slate-50 text-slate-600"
                   )}
+                  title={`{{${field}}}`}
                 >
-                  {`{{${field}}}`}
-                  {coverage && coverage.total > 0 ? (
-                    <span className="ml-1 font-normal opacity-80">
+                  <span className="truncate">{humanizeField(field)}</span>
+                  {hasCoverageData && coverage && coverage.total > 0 ? (
+                    <span className="shrink-0 font-normal tabular-nums opacity-70">
                       {coverage.withValue}/{coverage.total}
                     </span>
                   ) : null}

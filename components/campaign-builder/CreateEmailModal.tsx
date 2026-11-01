@@ -88,7 +88,6 @@ import {
   extractUsedMergeVariables,
   getCoverageStatus,
   getPreviewLeadDisplayLabel,
-  highlightMergeTagsInPlainText,
   lookupTokenCoverage,
   mergeVariableLists,
   normalizeMergeFieldKey,
