@@ -313,15 +313,46 @@ export default function CreateEmailModal({
     start: number;
     end: number;
   } | null>(null);
+  /** Subject / preview cursor range captured before Personalize steals focus. */
+  const pendingPlainSelectionRangeRef = useRef<{
+    start: number;
+    end: number;
+  } | null>(null);
+  type ComposerInsertTarget = "subject" | "preview" | "body";
+  const pendingInsertTargetRef = useRef<ComposerInsertTarget>("body");
+  /** Last focused composer field — used if activeElement is already gone. */
+  const lastComposerFieldRef = useRef<ComposerInsertTarget>("body");
 
   const clearPendingInsertSelection = useCallback(() => {
     pendingComposerSelectionRef.current = "";
     pendingReplaceSelectionRef.current = false;
     pendingHtmlSelectionRangeRef.current = null;
+    pendingPlainSelectionRangeRef.current = null;
   }, []);
 
-  const captureComposerSelection = useCallback(() => {
-    pendingHtmlSelectionRangeRef.current = null;
+  const rememberPlainFieldFocus = useCallback(
+    (target: "subject" | "preview", el: HTMLInputElement) => {
+      lastComposerFieldRef.current = target;
+      pendingInsertTargetRef.current = target;
+      const start = el.selectionStart ?? el.value.length;
+      const end = el.selectionEnd ?? el.value.length;
+      pendingPlainSelectionRangeRef.current = { start, end };
+      if (end > start) {
+        pendingComposerSelectionRef.current = el.value.slice(start, end);
+        pendingReplaceSelectionRef.current = true;
+      } else {
+        pendingComposerSelectionRef.current = "";
+        pendingReplaceSelectionRef.current = false;
+      }
+    },
+    [],
+  );
+
+  const captureBodySelection = useCallback(() => {
+    pendingInsertTargetRef.current = "body";
+    lastComposerFieldRef.current = "body";
+    pendingPlainSelectionRangeRef.current = null;
+
     const ta = document.getElementById(
       "codeEditor",
     ) as HTMLTextAreaElement | null;
@@ -353,6 +384,58 @@ export default function CreateEmailModal({
     pendingComposerSelectionRef.current = "";
     pendingReplaceSelectionRef.current = false;
   }, []);
+
+  const captureComposerSelection = useCallback(() => {
+    pendingHtmlSelectionRangeRef.current = null;
+    pendingPlainSelectionRangeRef.current = null;
+
+    const active = document.activeElement as
+      | HTMLInputElement
+      | HTMLTextAreaElement
+      | null;
+
+    if (
+      active &&
+      (active.id === "modal-email-subject" || active.id === "modal-email-preview")
+    ) {
+      const target =
+        active.id === "modal-email-subject" ? "subject" : "preview";
+      rememberPlainFieldFocus(target, active as HTMLInputElement);
+      return;
+    }
+
+    const inBodyEditor =
+      active?.id === "codeEditor" ||
+      Boolean(
+        (active as Element | null)?.closest?.(".ProseMirror") ||
+          (window.getSelection()?.anchorNode &&
+            (window.getSelection()?.anchorNode as Node | null)?.parentElement?.closest?.(
+              ".ProseMirror",
+            )),
+      );
+    if (inBodyEditor) {
+      captureBodySelection();
+      return;
+    }
+
+    // Toolbar stole focus — keep last subject/preview target + cursor snap.
+    if (
+      lastComposerFieldRef.current === "subject" ||
+      lastComposerFieldRef.current === "preview"
+    ) {
+      const inputId =
+        lastComposerFieldRef.current === "subject"
+          ? "modal-email-subject"
+          : "modal-email-preview";
+      const input = document.getElementById(inputId) as HTMLInputElement | null;
+      if (input) {
+        rememberPlainFieldFocus(lastComposerFieldRef.current, input);
+        return;
+      }
+    }
+
+    captureBodySelection();
+  }, [captureBodySelection, rememberPlainFieldFocus]);
 
   const mergeTags = useMemo(() => {
     // No STANDARD_MERGE_TAGS injection — availableVariables already reflects
@@ -867,15 +950,52 @@ export default function CreateEmailModal({
     return `{{${inner}}}`;
   };
 
+  const insertTokenIntoPlainField = (
+    target: "subject" | "preview",
+    token: string,
+    successLabel: string,
+  ) => {
+    const inputId =
+      target === "subject" ? "modal-email-subject" : "modal-email-preview";
+    const current = target === "subject" ? draftSubject : draftPreviewText;
+    const setValue = target === "subject" ? setDraftSubject : setDraftPreviewText;
+    const snap = pendingPlainSelectionRangeRef.current;
+    const start = snap?.start ?? current.length;
+    const end = snap?.end ?? current.length;
+    const next = current.slice(0, start) + token + current.slice(end);
+    setValue(next);
+    pendingPlainSelectionRangeRef.current = null;
+    pendingReplaceSelectionRef.current = false;
+    pendingComposerSelectionRef.current = "";
+    pendingHtmlSelectionRangeRef.current = null;
+    setTimeout(() => {
+      const el = document.getElementById(inputId) as HTMLInputElement | null;
+      if (!el) return;
+      const pos = start + token.length;
+      el.focus();
+      el.setSelectionRange(pos, pos);
+      lastComposerFieldRef.current = target;
+      pendingInsertTargetRef.current = target;
+    }, 0);
+    toast.success(successLabel, { duration: 1500 });
+  };
+
   const insertVariable = (variable: string) => {
     const token = toMergeTag(variable);
     if (!token) return;
+
+    const target = pendingInsertTargetRef.current;
+    if (target === "subject" || target === "preview") {
+      insertTokenIntoPlainField(target, token, `Added ${token}`);
+      return;
+    }
 
     if (draftBodyEditor === "simple" || rightPanel === "simple") {
       const replaceSel = pendingReplaceSelectionRef.current;
       pendingReplaceSelectionRef.current = false;
       pendingHtmlSelectionRangeRef.current = null;
       pendingComposerSelectionRef.current = "";
+      pendingPlainSelectionRangeRef.current = null;
       const detail =
         replaceSel && token.trim().length > 0
           ? { variable: token, replaceSelection: true as const }
@@ -900,6 +1020,7 @@ export default function CreateEmailModal({
       pendingHtmlSelectionRangeRef.current = null;
       pendingReplaceSelectionRef.current = false;
       pendingComposerSelectionRef.current = "";
+      pendingPlainSelectionRangeRef.current = null;
       const newContent =
         draftHtml.substring(0, start) + token + draftHtml.substring(end);
       setDraftHtml(newContent);
@@ -908,21 +1029,31 @@ export default function CreateEmailModal({
         textarea.selectionStart = pos;
         textarea.selectionEnd = pos;
         textarea.focus();
+        lastComposerFieldRef.current = "body";
+        pendingInsertTargetRef.current = "body";
       }, 0);
       toast.success(`Added ${token}`, { duration: 1500 });
       return;
     }
     pendingReplaceSelectionRef.current = false;
     pendingComposerSelectionRef.current = "";
+    pendingPlainSelectionRangeRef.current = null;
     setDraftHtml((draftHtml || "") + token);
   };
 
   const insertSpintax = (token: string) => {
+    const target = pendingInsertTargetRef.current;
+    if (target === "subject" || target === "preview") {
+      insertTokenIntoPlainField(target, token, "Added spintax");
+      return;
+    }
+
     if (draftBodyEditor === "simple" || rightPanel === "simple") {
       const replaceSel = pendingReplaceSelectionRef.current;
       pendingReplaceSelectionRef.current = false;
       pendingHtmlSelectionRangeRef.current = null;
       pendingComposerSelectionRef.current = "";
+      pendingPlainSelectionRangeRef.current = null;
       const detail =
         replaceSel && token.trim().length > 0
           ? { token, replaceSelection: true as const }
@@ -947,6 +1078,7 @@ export default function CreateEmailModal({
       pendingHtmlSelectionRangeRef.current = null;
       pendingReplaceSelectionRef.current = false;
       pendingComposerSelectionRef.current = "";
+      pendingPlainSelectionRangeRef.current = null;
       const newContent =
         draftHtml.substring(0, start) + token + draftHtml.substring(end);
       setDraftHtml(newContent);
@@ -955,12 +1087,15 @@ export default function CreateEmailModal({
         textarea.selectionStart = pos;
         textarea.selectionEnd = pos;
         textarea.focus();
+        lastComposerFieldRef.current = "body";
+        pendingInsertTargetRef.current = "body";
       }, 0);
       toast.success("Added spintax", { duration: 1500 });
       return;
     }
     pendingReplaceSelectionRef.current = false;
     pendingComposerSelectionRef.current = "";
+    pendingPlainSelectionRangeRef.current = null;
     setDraftHtml((draftHtml || "") + token);
   };
 
@@ -1455,6 +1590,12 @@ export default function CreateEmailModal({
             placeholder="Add subject line"
             tokenCoverage={tokenCoverage}
             tokenSampleValues={tokenSampleValues}
+            onFocus={(e) =>
+              rememberPlainFieldFocus("subject", e.currentTarget)
+            }
+            onSelect={(e) =>
+              rememberPlainFieldFocus("subject", e.currentTarget)
+            }
           />
         </div>
         <div className="space-y-1">
@@ -1472,6 +1613,12 @@ export default function CreateEmailModal({
             maxLength={100}
             tokenCoverage={tokenCoverage}
             tokenSampleValues={tokenSampleValues}
+            onFocus={(e) =>
+              rememberPlainFieldFocus("preview", e.currentTarget)
+            }
+            onSelect={(e) =>
+              rememberPlainFieldFocus("preview", e.currentTarget)
+            }
           />
         </div>
         <div
@@ -1791,7 +1938,13 @@ export default function CreateEmailModal({
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   {composerSetupBar}
-                  <div className="min-h-0 flex-1 overflow-y-auto bg-bg-200">
+                  <div
+                    className="min-h-0 flex-1 overflow-y-auto bg-bg-200"
+                    onFocusCapture={() => {
+                      lastComposerFieldRef.current = "body";
+                      pendingInsertTargetRef.current = "body";
+                    }}
+                  >
                     <DesignEditor
                       htmlContent={draftHtml}
                       onHtmlContentChange={setDraftHtml}
@@ -1809,7 +1962,13 @@ export default function CreateEmailModal({
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   {composerSetupBar}
-                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <div
+                    className="flex min-h-0 flex-1 flex-col overflow-hidden"
+                    onFocusCapture={() => {
+                      lastComposerFieldRef.current = "body";
+                      pendingInsertTargetRef.current = "body";
+                    }}
+                  >
                     <HtmlEditorWithPreview
                       htmlContent={draftHtml}
                       onHtmlContentChange={setDraftHtml}

@@ -1,5 +1,10 @@
 "use client";
 
+import type {
+  FocusEventHandler,
+  ReactEventHandler,
+} from "react";
+
 import {
   extractUsedMergeVariables,
   getCoverageStatus,
@@ -23,6 +28,9 @@ type Props = {
   className?: string;
   tokenCoverage?: Record<string, PersonalizationTokenCoverage>;
   tokenSampleValues?: Record<string, string>;
+  onFocus?: FocusEventHandler<HTMLInputElement>;
+  onBlur?: FocusEventHandler<HTMLInputElement>;
+  onSelect?: ReactEventHandler<HTMLInputElement>;
 };
 
 /**
@@ -38,6 +46,9 @@ export function MergeHighlightInput({
   className,
   tokenCoverage,
   tokenSampleValues,
+  onFocus,
+  onBlur,
+  onSelect,
 }: Props) {
   const used = extractUsedMergeVariables(value);
   const hasMergeTags = used.length > 0;
@@ -65,6 +76,9 @@ export function MergeHighlightInput({
           id={id}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          onSelect={onSelect}
           placeholder={placeholder}
           maxLength={maxLength}
           className={cn(
