@@ -60,9 +60,16 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
   const openRateMultiplier = (parseFloat(openRate) / industryAvgOpenRate).toFixed(1)
   
   const showHealthBanner = metrics.opened > 0 || metrics.sent > 0
-  const progressPercent = progress?.percentage ?? (campaign.totalEmails > 0 
-    ? Math.round((campaign.sentEmails / campaign.totalEmails) * 100) 
-    : 0)
+  // Prefer backend step-0 resolved / totalLeads. Do not fall back to totalSent/totalLeads —
+  // follow-up sends inflate that ratio and can look "100% complete" while Email 1 is half done.
+  const progressPercent =
+    typeof progress?.percentage === 'number'
+      ? Math.min(100, Math.max(0, Math.round(progress.percentage)))
+      : typeof progress?.completed === 'number' &&
+          typeof progress?.total === 'number' &&
+          progress.total > 0
+        ? Math.min(100, Math.round((progress.completed / progress.total) * 100))
+        : 0
   
   const isCancelled = campaign.status === 'cancelled'
   const isPaused = campaign.status === 'paused'

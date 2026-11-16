@@ -195,14 +195,28 @@ export function CampaignDetailPage({
       // delayMinutes on each step is relative ("wait after previous step").
       // We accumulate to get the absolute day offset from campaign start.
       cumulativeMinutes += Math.max(0, Number(step.delayMinutes || 0));
-      const hasSent = (step.sent || 0) > 0;
-      const hasPending = (step.pending || 0) > 0 || (step.remaining || 0) > 0;
+      const totalInStep = Number(step.total || 0);
+      const sent = Number(step.sent || 0);
+      const remaining = Number(
+        step.remaining != null
+          ? step.remaining
+          : (step.pending || 0) + (step.processing || 0)
+      );
+      const hasSent = sent > 0;
+      const hasRemaining = remaining > 0;
+      // Complete only when every row in the step is terminal (nothing left to send).
+      const status: "done" | "pending" | "waiting" =
+        totalInStep > 0 && !hasRemaining
+          ? "done"
+          : hasSent || hasRemaining
+            ? "pending"
+            : "waiting";
       return {
         stepNumber: Number(step.stepIndex || 0) + 1,
         dayOffset: Math.round(cumulativeMinutes / 1440),
         subject: step.subject || "Untitled step",
-        totalInStep: step.total || 0,
-        sent: step.sent || 0,
+        totalInStep,
+        sent,
         delivered: step.delivered || 0,
         opened: step.opened || 0,
         replied: step.replied || 0,
@@ -214,7 +228,7 @@ export function CampaignDetailPage({
         nextSendAt: step.nextPlannedSendAt
           ? new Date(step.nextPlannedSendAt).toLocaleString()
           : undefined,
-        status: hasSent ? "done" : hasPending ? "pending" : ("waiting" as const),
+        status,
       };
     });
   })();
