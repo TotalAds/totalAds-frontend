@@ -943,6 +943,8 @@ export function OptionsTab({
         campaignId={campaignId}
         collapsible
         defaultOpen={false}
+        sameSenderSequence={sameSenderSequence}
+        sequenceStepCount={sequenceStepCount}
       />
 
       {/* ── Open Tracking ── */}

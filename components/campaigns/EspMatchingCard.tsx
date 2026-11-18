@@ -9,7 +9,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { getCampaignEspCoverage } from "@/utils/api/emailClient";
+import { estimateSendDays } from "@/lib/campaignSenderRotation";
+import {
+  getCampaignEspCoverage,
+  type EspCoveragePayload,
+} from "@/utils/api/emailClient";
 
 export type EspMode = "off" | "prioritize_matching" | "strict_matching";
 
@@ -70,14 +74,6 @@ const MODES: Array<{
   },
 ];
 
-type Coverage = {
-  leadsByFamily: Record<string, number>;
-  sendersByFamily: Record<string, number>;
-  confidentLeads: number;
-  eligibleLeads: number;
-  uncovered: string[];
-};
-
 export function EspMatchingCard({
   value,
   onChange,
@@ -86,6 +82,8 @@ export function EspMatchingCard({
   showInherit = true,
   collapsible = false,
   defaultOpen = true,
+  sameSenderSequence = false,
+  sequenceStepCount,
 }: {
   value: EspMatchingValue;
   onChange: (next: EspMatchingValue) => void;
@@ -94,10 +92,24 @@ export function EspMatchingCard({
   showInherit?: boolean;
   collapsible?: boolean;
   defaultOpen?: boolean;
+  /** When true with ESP on, show match+lock+capacity note. */
+  sameSenderSequence?: boolean;
+  /** Preferred step count from Options; coverage API is fallback. */
+  sequenceStepCount?: number;
 }) {
-  const [coverage, setCoverage] = useState<Coverage | null>(null);
+  const [coverage, setCoverage] = useState<EspCoveragePayload | null>(null);
   const [showAdvancedRules, setShowAdvancedRules] = useState(false);
   const conflicts = useMemo(() => contradictory(value.rules), [value.rules]);
+  const showCombinedNote = sameSenderSequence && value.mode !== "off";
+  const [accordionValue, setAccordionValue] = useState<string | undefined>(
+    defaultOpen || showCombinedNote ? "esp-matching" : undefined
+  );
+
+  useEffect(() => {
+    if (showCombinedNote) {
+      setAccordionValue("esp-matching");
+    }
+  }, [showCombinedNote]);
 
   useEffect(() => {
     if (!campaignId || value.mode === "off") {
@@ -105,10 +117,12 @@ export function EspMatchingCard({
       return;
     }
     const handle = window.setTimeout(() => {
-      void getCampaignEspCoverage(campaignId).then(setCoverage).catch(() => setCoverage(null));
+      void getCampaignEspCoverage(campaignId)
+        .then(setCoverage)
+        .catch(() => setCoverage(null));
     }, 300);
     return () => window.clearTimeout(handle);
-  }, [campaignId, value.mode, value.rules, value.unknownRecipientPolicy]);
+  }, [campaignId, value.mode, value.rules, value.unknownRecipientPolicy, sameSenderSequence]);
 
   const selectMode = (mode: EspMode) => {
     onChange({
@@ -124,190 +138,215 @@ export function EspMatchingCard({
     ? "Workspace default"
     : MODES.find((mode) => mode.id === value.mode)?.label ?? "Off";
 
+  const steps = Math.max(
+    1,
+    sequenceStepCount ?? coverage?.sequenceStepCount ?? 1
+  );
+
   const body = (
-      <div className="p-4 space-y-4">
-        {showInherit && (
-          <label className="flex items-center justify-between gap-3 text-sm text-slate-700">
-            <span>Use workspace default</span>
-            <input
-              type="checkbox"
-              checked={value.inheritWorkspaceDefault}
-              disabled={disabled}
-              onChange={(event) =>
-                onChange({ ...value, inheritWorkspaceDefault: event.target.checked })
-              }
-            />
-          </label>
-        )}
+    <div className="p-4 space-y-4">
+      {showInherit && (
+        <label className="flex items-center justify-between gap-3 text-sm text-slate-700">
+          <span>Use workspace default</span>
+          <input
+            type="checkbox"
+            checked={value.inheritWorkspaceDefault}
+            disabled={disabled}
+            onChange={(event) =>
+              onChange({ ...value, inheritWorkspaceDefault: event.target.checked })
+            }
+          />
+        </label>
+      )}
 
-        {showInherit && value.inheritWorkspaceDefault && (
-          <p className="text-xs text-slate-500">
-            This campaign uses the workspace default.{" "}
-            <a href="/email/settings?tab=email-delivery" className="font-medium text-slate-900">
-              Edit workspace ESP matching
-            </a>
-          </p>
-        )}
+      {showInherit && value.inheritWorkspaceDefault && (
+        <p className="text-xs text-slate-500">
+          This campaign uses the workspace default.{" "}
+          <a href="/email/settings?tab=email-delivery" className="font-medium text-slate-900">
+            Edit workspace ESP matching
+          </a>
+        </p>
+      )}
 
-        {(!showInherit || !value.inheritWorkspaceDefault) && (
-          <>
-            <div className="grid gap-2">
-              {MODES.map((mode) => {
-                const selected = value.mode === mode.id;
-                return (
-                  <button
-                    key={mode.id}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => selectMode(mode.id)}
-                    className={`rounded-xl border px-3 py-3 text-left transition ${
-                      selected ? "border-slate-900 bg-slate-50" : "border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                      {mode.label}
-                      {mode.recommended && (
-                        <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-medium text-white">
-                          Recommended
-                        </span>
-                      )}
-                    </span>
-                    <span className="mt-1 block text-xs font-medium text-slate-700">{mode.summary}</span>
-                    <span className="mt-1 block text-xs text-slate-500">{mode.detail}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {value.mode === "prioritize_matching" && (
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 space-y-1.5">
-                <p className="text-xs font-semibold text-slate-800">Default fallback</p>
-                <p className="text-xs text-slate-600">
-                  If no matching mailbox is free, send from any other selected campaign mailbox that still has capacity. You do not need to add a rule for this.
-                </p>
-              </div>
-            )}
-
-            {value.mode === "strict_matching" && (
-              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                No fallback. Leads wait until a matching mailbox is available. Throughput may drop.
-              </p>
-            )}
-
-            {value.mode !== "off" && (
-              <div className="space-y-2">
+      {(!showInherit || !value.inheritWorkspaceDefault) && (
+        <>
+          <div className="grid gap-2">
+            {MODES.map((mode) => {
+              const selected = value.mode === mode.id;
+              return (
                 <button
+                  key={mode.id}
                   type="button"
-                  className="text-xs font-medium text-slate-700 underline-offset-2 hover:underline"
-                  onClick={() => setShowAdvancedRules((open) => !open)}
+                  disabled={disabled}
+                  onClick={() => selectMode(mode.id)}
+                  className={`rounded-xl border px-3 py-3 text-left transition ${
+                    selected
+                      ? "border-slate-900 bg-slate-50"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
                 >
-                  {showAdvancedRules ? "Hide advanced rules" : "Advanced rules (optional)"}
+                  <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    {mode.label}
+                    {mode.recommended && (
+                      <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-medium text-white">
+                        Recommended
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-1 block text-xs font-medium text-slate-700">
+                    {mode.summary}
+                  </span>
+                  <span className="mt-1 block text-xs text-slate-500">{mode.detail}</span>
                 </button>
-                {showAdvancedRules && (
-                  <div className="space-y-2 rounded-xl border border-slate-200 p-3">
-                    <p className="text-[11px] text-slate-500">
-                      Optional allow or deny for a specific sender family to recipient family. Leave empty unless you need an exception. Deny beats allow.
+              );
+            })}
+          </div>
+
+          {value.mode === "prioritize_matching" && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 space-y-1.5">
+              <p className="text-xs font-semibold text-slate-800">Default fallback</p>
+              <p className="text-xs text-slate-600">
+                If no matching mailbox is free, send from any other selected campaign mailbox that
+                still has capacity. You do not need to add a rule for this.
+              </p>
+            </div>
+          )}
+
+          {value.mode === "strict_matching" && (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              No fallback. Leads wait until a matching mailbox is available. Throughput may drop.
+            </p>
+          )}
+
+          {value.mode !== "off" && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                className="text-xs font-medium text-slate-700 underline-offset-2 hover:underline"
+                onClick={() => setShowAdvancedRules((open) => !open)}
+              >
+                {showAdvancedRules ? "Hide advanced rules" : "Advanced rules (optional)"}
+              </button>
+              {showAdvancedRules && (
+                <div className="space-y-2 rounded-xl border border-slate-200 p-3">
+                  <p className="text-[11px] text-slate-500">
+                    Optional allow or deny for a specific sender family to recipient family. Leave
+                    empty unless you need an exception. Deny beats allow.
+                  </p>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      className="text-xs font-medium text-slate-900"
+                      onClick={() =>
+                        onChange({
+                          ...value,
+                          rules: [
+                            ...value.rules,
+                            {
+                              senderFamily: "google",
+                              recipientFamily: "google",
+                              action: "allow",
+                              enabled: true,
+                              label: "",
+                            },
+                          ],
+                        })
+                      }
+                    >
+                      Add rule
+                    </button>
+                  </div>
+                  {value.rules.length === 0 && (
+                    <p className="text-xs text-slate-500">
+                      No custom rules. Default mode behavior applies.
                     </p>
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
+                  )}
+                  {value.rules.map((rule, index) => (
+                    <div key={index} className="grid grid-cols-12 gap-2 items-center">
+                      <select
+                        className="col-span-3 rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+                        value={rule.senderFamily}
                         disabled={disabled}
-                        className="text-xs font-medium text-slate-900"
-                        onClick={() =>
-                          onChange({
-                            ...value,
-                            rules: [
-                              ...value.rules,
-                              {
-                                senderFamily: "google",
-                                recipientFamily: "google",
-                                action: "allow",
-                                enabled: true,
-                                label: "",
-                              },
-                            ],
+                        onChange={(event) =>
+                          updateRule(value, onChange, index, {
+                            senderFamily: event.target.value,
                           })
                         }
                       >
-                        Add rule
+                        {ESP_FAMILIES.map((family) => (
+                          <option key={family} value={family}>
+                            {providerLabel(family)}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="col-span-3 rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+                        value={rule.recipientFamily}
+                        disabled={disabled}
+                        onChange={(event) =>
+                          updateRule(value, onChange, index, {
+                            recipientFamily: event.target.value,
+                          })
+                        }
+                      >
+                        {ESP_FAMILIES.map((family) => (
+                          <option key={family} value={family}>
+                            {providerLabel(family)}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="col-span-2 rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+                        value={rule.action}
+                        disabled={disabled}
+                        onChange={(event) =>
+                          updateRule(value, onChange, index, {
+                            action: event.target.value as "allow" | "deny",
+                          })
+                        }
+                      >
+                        <option value="allow">Allow</option>
+                        <option value="deny">Deny</option>
+                      </select>
+                      <button
+                        type="button"
+                        className="col-span-2 text-xs text-slate-500"
+                        onClick={() =>
+                          onChange({
+                            ...value,
+                            rules: value.rules.filter((_, ruleIndex) => ruleIndex !== index),
+                          })
+                        }
+                      >
+                        Remove
                       </button>
                     </div>
-                    {value.rules.length === 0 && (
-                      <p className="text-xs text-slate-500">No custom rules. Default mode behavior applies.</p>
-                    )}
-                    {value.rules.map((rule, index) => (
-                      <div key={index} className="grid grid-cols-12 gap-2 items-center">
-                        <select
-                          className="col-span-3 rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
-                          value={rule.senderFamily}
-                          disabled={disabled}
-                          onChange={(event) =>
-                            updateRule(value, onChange, index, { senderFamily: event.target.value })
-                          }
-                        >
-                          {ESP_FAMILIES.map((family) => (
-                            <option key={family} value={family}>
-                              {providerLabel(family)}
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          className="col-span-3 rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
-                          value={rule.recipientFamily}
-                          disabled={disabled}
-                          onChange={(event) =>
-                            updateRule(value, onChange, index, { recipientFamily: event.target.value })
-                          }
-                        >
-                          {ESP_FAMILIES.map((family) => (
-                            <option key={family} value={family}>
-                              {providerLabel(family)}
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          className="col-span-2 rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
-                          value={rule.action}
-                          disabled={disabled}
-                          onChange={(event) =>
-                            updateRule(value, onChange, index, {
-                              action: event.target.value as "allow" | "deny",
-                            })
-                          }
-                        >
-                          <option value="allow">Allow</option>
-                          <option value="deny">Deny</option>
-                        </select>
-                        <button
-                          type="button"
-                          className="col-span-2 text-xs text-slate-500"
-                          onClick={() =>
-                            onChange({
-                              ...value,
-                              rules: value.rules.filter((_, ruleIndex) => ruleIndex !== index),
-                            })
-                          }
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                    {conflicts.map((conflict) => (
-                      <p key={conflict} className="text-xs text-red-600">
-                        {conflict}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </>
-        )}
+                  ))}
+                  {conflicts.map((conflict) => (
+                    <p key={conflict} className="text-xs text-red-600">
+                      {conflict}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
 
-        {coverage && value.mode !== "off" && (
-          <CoveragePanel coverage={coverage} mode={value.mode} />
-        )}
-      </div>
+      {coverage && value.mode !== "off" && (
+        <CoveragePanel coverage={coverage} mode={value.mode} />
+      )}
+
+      {coverage && showCombinedNote && (
+        <SameMailboxEspPanel
+          coverage={coverage}
+          mode={value.mode}
+          steps={steps}
+        />
+      )}
+    </div>
   );
 
   if (collapsible) {
@@ -315,7 +354,8 @@ export function EspMatchingCard({
       <Accordion
         type="single"
         collapsible
-        defaultValue={defaultOpen ? "esp-matching" : undefined}
+        value={accordionValue}
+        onValueChange={(next) => setAccordionValue(next || undefined)}
         className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm"
       >
         <AccordionItem value="esp-matching" className="border-0">
@@ -326,9 +366,15 @@ export function EspMatchingCard({
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
                   {modeLabel}
                 </span>
+                {showCombinedNote ? (
+                  <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700 border border-indigo-100">
+                    + Same mailbox
+                  </span>
+                ) : null}
               </div>
               <p className="mt-0.5 text-xs font-normal text-slate-500">
-                Prefer a mailbox that matches the lead&apos;s email provider. This improves alignment. It does not guarantee inbox placement.
+                Prefer a mailbox that matches the lead&apos;s email provider. This improves
+                alignment. It does not guarantee inbox placement.
               </p>
             </div>
           </AccordionTrigger>
@@ -343,7 +389,8 @@ export function EspMatchingCard({
       <div className="px-5 py-4 border-b border-slate-100">
         <h3 className="text-sm font-semibold text-slate-800">ESP Matching</h3>
         <p className="text-xs text-slate-500 mt-0.5">
-          Prefer a mailbox that matches the lead&apos;s email provider. This improves alignment. It does not guarantee inbox placement.
+          Prefer a mailbox that matches the lead&apos;s email provider. This improves alignment. It
+          does not guarantee inbox placement.
         </p>
       </div>
       {body}
@@ -351,7 +398,13 @@ export function EspMatchingCard({
   );
 }
 
-function CoveragePanel({ coverage, mode }: { coverage: Coverage; mode: EspMode }) {
+function CoveragePanel({
+  coverage,
+  mode,
+}: {
+  coverage: EspCoveragePayload;
+  mode: EspMode;
+}) {
   const families = Object.keys({
     ...coverage.leadsByFamily,
     ...coverage.sendersByFamily,
@@ -403,6 +456,104 @@ function CoveragePanel({ coverage, mode }: { coverage: Coverage; mode: EspMode }
   );
 }
 
+function SameMailboxEspPanel({
+  coverage,
+  mode,
+  steps,
+}: {
+  coverage: EspCoveragePayload;
+  mode: EspMode;
+  steps: number;
+}) {
+  const leadsByFamily = coverage.uniqueLeadsByFamily ?? coverage.leadsByFamily;
+  const families = Object.keys({
+    ...leadsByFamily,
+    ...coverage.sendersByFamily,
+  }).sort();
+
+  const campaignCap =
+    coverage.campaignDailyLimit != null && coverage.campaignDailyLimit > 0
+      ? coverage.campaignDailyLimit
+      : null;
+
+  return (
+    <div className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/50 p-3">
+      <div>
+        <p className="text-xs font-semibold text-indigo-950">Same mailbox + ESP</p>
+        <p className="mt-0.5 text-[11px] leading-relaxed text-indigo-900/80">
+          Email 1 picks a matching mailbox. Every follow-up for that lead stays on the same
+          mailbox for all {steps} step{steps === 1 ? "" : "s"}. Unmatched families{" "}
+          {mode === "strict_matching"
+            ? "wait until a matching mailbox is free."
+            : "use a fallback mailbox — and that fallback owns the whole sequence too."}
+        </p>
+      </div>
+
+      {families.length === 0 ? (
+        <p className="text-xs text-indigo-800/80">
+          Add leads and selected mailboxes to see how ESP + same mailbox will lock volume.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {families.map((family) => {
+            const leads = leadsByFamily[family] ?? 0;
+            const mailboxes = coverage.sendersByFamily[family] ?? 0;
+            const familyCap = coverage.dailyCapacityByFamily?.[family] ?? 0;
+            const lockedEmails = leads * steps;
+            const effectiveCap =
+              campaignCap != null && familyCap > 0
+                ? Math.min(familyCap, campaignCap)
+                : familyCap;
+            const days =
+              mailboxes > 0 && lockedEmails > 0
+                ? estimateSendDays(lockedEmails, effectiveCap)
+                : 0;
+            const hasMatch = mailboxes > 0;
+
+            return (
+              <div
+                key={family}
+                className="rounded-lg border border-indigo-100 bg-white/80 px-2.5 py-2"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <ProviderLogo provider={family} showLabel size="sm" />
+                  <div className="text-right text-[11px] text-slate-600 min-w-0">
+                    <p>
+                      {leads.toLocaleString()} lead{leads === 1 ? "" : "s"} ·{" "}
+                      {mailboxes} mailbox{mailboxes === 1 ? "" : "es"}
+                    </p>
+                    {hasMatch ? (
+                      <>
+                        <p className="text-indigo-800 font-medium">
+                          {lockedEmails.toLocaleString()} emails locked ({leads.toLocaleString()} ×{" "}
+                          {steps})
+                        </p>
+                        <p className="text-slate-500">
+                          {effectiveCap > 0
+                            ? `~${effectiveCap.toLocaleString()}/day on matching mailboxes → ~${days} day${
+                                days === 1 ? "" : "s"
+                              }`
+                            : "No daily capacity on matching mailboxes"}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-amber-700">
+                        {mode === "strict_matching"
+                          ? "Will wait — no matching mailbox"
+                          : "Uses fallback mailbox for the whole sequence"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function updateRule(
   value: EspMatchingValue,
   onChange: (next: EspMatchingValue) => void,
@@ -417,14 +568,15 @@ function updateRule(
 
 function contradictory(rules: EspRuleDraft[]): string[] {
   const seen = new Map<string, string>();
-  const errors: string[] = [];
-  for (const rule of rules.filter((item) => item.enabled)) {
-    const key = `${rule.senderFamily}:${rule.recipientFamily}`;
-    const previous = seen.get(key);
-    if (previous && previous !== rule.action) {
-      errors.push(`${rule.senderFamily} → ${rule.recipientFamily} is both allowed and denied`);
+  const conflicts: string[] = [];
+  for (const rule of rules) {
+    if (!rule.enabled) continue;
+    const key = `${rule.senderFamily}->${rule.recipientFamily}`;
+    const prior = seen.get(key);
+    if (prior && prior !== rule.action) {
+      conflicts.push(`${providerLabel(rule.senderFamily)} → ${providerLabel(rule.recipientFamily)} has both allow and deny`);
     }
     seen.set(key, rule.action);
   }
-  return errors;
+  return conflicts;
 }

@@ -228,10 +228,11 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Sync step filter from parent
+  // Sync step filter from parent (ignore while viewing reply-attributed rows)
   useEffect(() => {
+    if (statusFilter === "replied") return;
     setStepFilter(selectedStep);
-  }, [selectedStep]);
+  }, [selectedStep, statusFilter]);
 
   // Fetch leads from server
   const fetchLeads = useCallback(async () => {
@@ -253,8 +254,14 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
     try {
       const filters: LeadFilters = {};
       if (statusFilter !== "all") filters.status = statusFilter;
-      if (stepFilter !== "all" && typeof stepFilter === "number")
+      // Reply filter returns the attributed step only — never narrow by step tab.
+      if (
+        statusFilter !== "replied" &&
+        stepFilter !== "all" &&
+        typeof stepFilter === "number"
+      ) {
         filters.step = stepFilter - 1; // API uses 0-indexed
+      }
       if (searchDebounced) filters.search = searchDebounced;
 
       const response = await getCampaignLeadSequence(
@@ -290,6 +297,11 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
   // Handle status filter change
   const handleStatusChange = (status: FilterStatus) => {
     setStatusFilter(status);
+    // Reply view is step-attributed: clear step tabs so we only show the replied email.
+    if (status === "replied" && stepFilter !== "all") {
+      setStepFilter("all");
+      onStepChange?.("all");
+    }
     setPagination((p) => ({ ...p, page: 1 }));
   };
 
@@ -346,8 +358,8 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
             />
           </div>
 
-          {/* Step Filter */}
-          {sequenceSteps.length > 0 && (
+          {/* Step Filter — hidden on reply view (one attributed step per lead). */}
+          {sequenceSteps.length > 0 && statusFilter !== "replied" && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500 font-medium">Step:</span>
               <div className="flex items-center gap-1">
@@ -376,6 +388,11 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
                 ))}
               </div>
             </div>
+          )}
+          {statusFilter === "replied" && (
+            <p className="text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-md px-2.5 py-1.5">
+              Showing only the sequence step that received the reply
+            </p>
           )}
 
           {/* Status Filter Dropdown */}
@@ -510,7 +527,19 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
                   </TableCell>
                 </TableRow>
               ) : (
-                leads.filter((lead) => reasonFilter === "all" || lead.routingReason === reasonFilter || (reasonFilter === "strict_match_waiting" && lead.routingState === "held_strict") || (reasonFilter === "blocked_by_routing_rule" && lead.routingState === "blocked_rules")).map((lead) => (
+                leads
+                  .filter((lead) => {
+                    if (statusFilter === "replied" && !lead.repliedAt) return false;
+                    return (
+                      reasonFilter === "all" ||
+                      lead.routingReason === reasonFilter ||
+                      (reasonFilter === "strict_match_waiting" &&
+                        lead.routingState === "held_strict") ||
+                      (reasonFilter === "blocked_by_routing_rule" &&
+                        lead.routingState === "blocked_rules")
+                    );
+                  })
+                  .map((lead) => (
                   <TableRow
                     key={lead.id}
                     className="hover:bg-gray-50/50 transition-colors"
@@ -556,7 +585,14 @@ export const LeadActivityTable: React.FC<LeadActivityTableProps> = ({
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-gray-500">
-                      Email {lead.sequenceStepIndex + 1}
+                      <div className="flex flex-col gap-0.5">
+                        <span>Email {lead.sequenceStepIndex + 1}</span>
+                        {lead.repliedAt ? (
+                          <span className="text-[10px] font-medium text-indigo-600">
+                            Reply on this step
+                          </span>
+                        ) : null}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={lead.status} engagementStatus={lead.engagementStatus} />

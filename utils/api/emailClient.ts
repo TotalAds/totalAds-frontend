@@ -658,7 +658,30 @@ export const getCampaignEspSettings = async (campaignId: string) => {
   return response.data.data;
 };
 
-export const getCampaignEspCoverage = async (campaignId: string) => {
+export type EspCoverageSender = {
+  id: string;
+  email: string;
+  family: string;
+  dailyCap: number;
+};
+
+export type EspCoveragePayload = {
+  leadsByFamily: Record<string, number>;
+  uniqueLeadsByFamily?: Record<string, number>;
+  sendersByFamily: Record<string, number>;
+  dailyCapacityByFamily?: Record<string, number>;
+  senders?: EspCoverageSender[];
+  confidentLeads: number;
+  eligibleLeads: number;
+  uncovered: string[];
+  sequenceStepCount?: number;
+  sameSenderSequenceEnabled?: boolean;
+  campaignDailyLimit?: number | null;
+};
+
+export const getCampaignEspCoverage = async (
+  campaignId: string
+): Promise<EspCoveragePayload> => {
   const response = await emailClient.get(`/api/esp-matching/campaigns/${campaignId}/coverage`);
   return response.data.data;
 };
