@@ -11,10 +11,14 @@ interface SequenceFlowProps {
     opened: number
     replied: number
     failed?: number
+    verificationBlocked?: number
     bounced?: number
     complained?: number
     unsubscribed?: number
     pending?: number
+    resolved?: number
+    processedPercent?: number
+    sentPercent?: number
     nextSendAt?: string
     status: 'done' | 'pending' | 'waiting'
   }>
@@ -46,10 +50,10 @@ const StepStatusBadge: React.FC<{ status: 'done' | 'pending' | 'waiting' }> = ({
   )
 }
 
-const MetricBadge: React.FC<{ label: string; value: number; color?: string }> = ({ 
-  label, 
-  value, 
-  color = 'bg-gray-50 text-gray-700 border-gray-200' 
+const MetricBadge: React.FC<{ label: string; value: number; color?: string }> = ({
+  label,
+  value,
+  color = 'bg-gray-50 text-gray-700 border-gray-200',
 }) => (
   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] border ${color}`}>
     <span className="text-gray-400">{label}:</span>
@@ -57,24 +61,54 @@ const MetricBadge: React.FC<{ label: string; value: number; color?: string }> = 
   </span>
 )
 
-const ProgressBar: React.FC<{ value: number; total: number; color?: string }> = ({ 
-  value, 
-  total, 
-  color = 'bg-blue-500' 
-}) => {
-  const percent = total > 0 ? Math.round((value / total) * 100) : 0
+const StepProgress: React.FC<{
+  sent: number
+  resolved: number
+  total: number
+  verificationBlocked: number
+  pending: number
+  status: 'done' | 'pending' | 'waiting'
+}> = ({ sent, resolved, total, verificationBlocked, pending, status }) => {
+  const processedPercent = total > 0 ? Math.round((resolved / total) * 100) : 0
+  const sentPercent = total > 0 ? Math.round((sent / total) * 100) : 0
+  const blockedPercent = total > 0 ? Math.round((verificationBlocked / total) * 100) : 0
+
   return (
-    <div className="w-full">
-      <div className="flex items-center justify-between text-xs mb-1">
-        <span className="text-gray-500">{percent}% complete</span>
-        <span className="text-gray-400">{value} of {total}</span>
+    <div className="w-full space-y-2">
+      <div className="flex items-center justify-between text-xs gap-2 flex-wrap">
+        <span className="text-gray-600">
+          <span className="font-medium text-gray-900">{processedPercent}%</span>
+          <span className="text-gray-400"> processed</span>
+          <span className="text-gray-300 mx-1.5">·</span>
+          <span className="font-medium text-gray-900">{sentPercent}%</span>
+          <span className="text-gray-400"> sent</span>
+        </span>
+        <span className="text-gray-400">
+          {resolved.toLocaleString()} of {total.toLocaleString()} leads
+        </span>
       </div>
-      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-        <div 
-          className={`h-full rounded-full ${color}`}
-          style={{ width: `${Math.min(percent, 100)}%` }}
+      <div className="h-2 bg-gray-100 rounded-full overflow-hidden flex">
+        <div
+          className={`h-full ${status === 'done' ? 'bg-green-500' : 'bg-blue-500'}`}
+          style={{ width: `${Math.min(sentPercent, 100)}%` }}
+          title={`${sent.toLocaleString()} sent`}
         />
+        {blockedPercent > 0 ? (
+          <div
+            className="h-full bg-violet-400"
+            style={{ width: `${Math.min(blockedPercent, 100 - sentPercent)}%` }}
+            title={`${verificationBlocked.toLocaleString()} blocked by verification`}
+          />
+        ) : null}
       </div>
+      <p className="text-[11px] text-gray-500 leading-relaxed">
+        {sent.toLocaleString()} sent
+        {verificationBlocked > 0
+          ? ` · ${verificationBlocked.toLocaleString()} blocked by verification`
+          : ''}
+        {pending > 0 ? ` · ${pending.toLocaleString()} still queued` : ''}
+        {pending === 0 && resolved >= total && total > 0 ? ' · step finished' : ''}
+      </p>
     </div>
   )
 }
@@ -85,7 +119,7 @@ export const SequenceFlow: React.FC<SequenceFlowProps> = ({
   selectedStep,
   onStepSelect,
 }) => {
-  const remaining = campaign.totalEmails - campaign.sentEmails
+  const totalPending = steps.reduce((sum, step) => sum + (step.pending || 0), 0)
 
   return (
     <div className="mb-8">
@@ -94,7 +128,8 @@ export const SequenceFlow: React.FC<SequenceFlowProps> = ({
         <div>
           <h3 className="text-sm font-semibold text-gray-900 mb-1">Sequence Timeline</h3>
           <p className="text-xs text-gray-500">
-            {steps.length} steps · {campaign.sentEmails.toLocaleString()} sent · {remaining.toLocaleString()} remaining
+            {steps.length} steps · {campaign.sentEmails.toLocaleString()} total sends across sequence
+            {totalPending > 0 ? ` · ${totalPending.toLocaleString()} still queued` : ''}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -115,12 +150,20 @@ export const SequenceFlow: React.FC<SequenceFlowProps> = ({
 
       {/* Timeline */}
       <div className="relative">
-        {/* Timeline connector line */}
         <div className="absolute left-4 md:left-5 top-6 bottom-6 w-0.5 bg-gray-200" />
 
         <div className="space-y-4">
-          {steps.map((step, idx) => {
+          {steps.map((step) => {
             const isSelected = selectedStep === step.stepNumber
+            const verificationBlocked = step.verificationBlocked || 0
+            const pending = step.pending || 0
+            const resolved =
+              step.resolved != null
+                ? step.resolved
+                : step.sent +
+                  verificationBlocked +
+                  (step.failed || 0) +
+                  (step.bounced || 0)
             const openRate = step.sent > 0 ? Math.round((step.opened / step.sent) * 100) : 0
             const replyRate = step.opened > 0 ? Math.round((step.replied / step.opened) * 100) : 0
 
@@ -131,8 +174,7 @@ export const SequenceFlow: React.FC<SequenceFlowProps> = ({
                   isSelected ? 'scale-[1.01]' : ''
                 }`}
               >
-                {/* Timeline dot */}
-                <div 
+                <div
                   className={`absolute left-0 md:left-1 top-4 w-8 h-8 rounded-full border-2 flex items-center justify-center z-10 transition-colors ${
                     step.status === 'done'
                       ? 'border-green-500 bg-green-50 text-green-700'
@@ -144,7 +186,6 @@ export const SequenceFlow: React.FC<SequenceFlowProps> = ({
                   <span className="text-sm font-semibold">{step.stepNumber}</span>
                 </div>
 
-                {/* Card */}
                 <button
                   type="button"
                   onClick={() => onStepSelect(step.stepNumber)}
@@ -154,12 +195,11 @@ export const SequenceFlow: React.FC<SequenceFlowProps> = ({
                       : 'border-gray-200 hover:border-blue-300'
                   }`}
                 >
-                  {/* Header Row */}
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                          Step {step.stepNumber}
+                          Email {step.stepNumber}
                         </span>
                         <span className="text-xs text-gray-300">·</span>
                         <span className="text-xs text-gray-500">
@@ -178,16 +218,17 @@ export const SequenceFlow: React.FC<SequenceFlowProps> = ({
                     )}
                   </div>
 
-                  {/* Progress */}
                   <div className="mb-4">
-                    <ProgressBar 
-                      value={step.sent} 
-                      total={step.totalInStep} 
-                      color={step.status === 'done' ? 'bg-green-500' : 'bg-blue-500'}
+                    <StepProgress
+                      sent={step.sent}
+                      resolved={resolved}
+                      total={step.totalInStep}
+                      verificationBlocked={verificationBlocked}
+                      pending={pending}
+                      status={step.status}
                     />
                   </div>
 
-                  {/* Metrics Row */}
                   <div className="flex flex-wrap gap-2 mb-3">
                     <MetricBadge label="Sent" value={step.sent} />
                     {step.opened > 0 ? (
@@ -198,51 +239,59 @@ export const SequenceFlow: React.FC<SequenceFlowProps> = ({
                       />
                     ) : null}
                     {step.replied > 0 ? (
-                      <MetricBadge 
-                        label="Replied" 
-                        value={step.replied} 
+                      <MetricBadge
+                        label="Replied"
+                        value={step.replied}
                         color="bg-indigo-50 text-indigo-700 border-indigo-200"
                       />
                     ) : null}
-                    {step.pending && step.pending > 0 ? (
-                      <MetricBadge 
-                        label="Pending" 
-                        value={step.pending} 
+                    {pending > 0 ? (
+                      <MetricBadge
+                        label="Queued"
+                        value={pending}
                         color="bg-amber-50 text-amber-700 border-amber-200"
                       />
                     ) : null}
                   </div>
 
-                  {/* Negative Metrics */}
-                  {(step.failed || step.bounced || step.unsubscribed) && (
+                  {(verificationBlocked > 0 ||
+                    (step.failed || 0) > 0 ||
+                    (step.bounced || 0) > 0 ||
+                    (step.unsubscribed || 0) > 0) && (
                     <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-100">
-                      {step.failed && step.failed > 0 ? (
+                      {verificationBlocked > 0 ? (
+                        <MetricBadge
+                          label="Verification blocked"
+                          value={verificationBlocked}
+                          color="bg-violet-50 text-violet-700 border-violet-200"
+                        />
+                      ) : null}
+                      {(step.failed || 0) > 0 ? (
                         <MetricBadge
                           label="Failed"
-                          value={step.failed}
+                          value={step.failed || 0}
                           color="bg-orange-50 text-orange-700 border-orange-200"
                         />
                       ) : null}
-                      {step.bounced && step.bounced > 0 ? (
+                      {(step.bounced || 0) > 0 ? (
                         <MetricBadge
                           label="Bounced"
-                          value={step.bounced}
+                          value={step.bounced || 0}
                           color="bg-rose-50 text-rose-700 border-rose-200"
                         />
                       ) : null}
-                      {step.unsubscribed && step.unsubscribed > 0 ? (
-                        <MetricBadge 
-                          label="Unsubscribed" 
-                          value={step.unsubscribed} 
+                      {(step.unsubscribed || 0) > 0 ? (
+                        <MetricBadge
+                          label="Unsubscribed"
+                          value={step.unsubscribed || 0}
                           color="bg-gray-50 text-gray-700 border-gray-200"
                         />
                       ) : null}
                     </div>
                   )}
 
-                  {/* Rate Summary */}
                   {step.sent > 0 && (
-                    <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 text-xs">
+                    <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 text-xs flex-wrap">
                       <span className="text-gray-500">
                         Open rate: <span className="font-semibold text-gray-700">{openRate}%</span>
                       </span>
@@ -252,7 +301,7 @@ export const SequenceFlow: React.FC<SequenceFlowProps> = ({
                         </span>
                       )}
                       {step.nextSendAt && step.status === 'pending' && (
-                        <span className="text-amber-600 ml-auto">
+                        <span className="text-amber-600 md:ml-auto">
                           Next send: {step.nextSendAt}
                         </span>
                       )}

@@ -197,10 +197,16 @@ export function CampaignDetailPage({
       cumulativeMinutes += Math.max(0, Number(step.delayMinutes || 0));
       const totalInStep = Number(step.total || 0);
       const sent = Number(step.sent || 0);
+      const verificationBlocked = Number(step.verificationBlocked || 0);
+      const failed = Number(step.failed || 0);
+      const bounced = Number(step.bounced || 0);
       const remaining = Number(
         step.remaining != null
           ? step.remaining
           : (step.pending || 0) + (step.processing || 0)
+      );
+      const resolved = Number(
+        step.resolved != null ? step.resolved : Math.max(0, totalInStep - remaining)
       );
       const hasSent = sent > 0;
       const hasRemaining = remaining > 0;
@@ -208,7 +214,7 @@ export function CampaignDetailPage({
       const status: "done" | "pending" | "waiting" =
         totalInStep > 0 && !hasRemaining
           ? "done"
-          : hasSent || hasRemaining
+          : hasSent || hasRemaining || resolved > 0
             ? "pending"
             : "waiting";
       return {
@@ -220,11 +226,25 @@ export function CampaignDetailPage({
         delivered: step.delivered || 0,
         opened: step.opened || 0,
         replied: step.replied || 0,
-        failed: step.failed || 0,
-        bounced: (step as any).bounced || 0,
-        complained: (step as any).complained || 0,
-        unsubscribed: (step as any).unsubscribed || 0,
-        pending: step.pending || 0,
+        failed,
+        verificationBlocked,
+        bounced,
+        complained: Number(step.complained || 0),
+        unsubscribed: Number(step.unsubscribed || 0),
+        pending: Number(step.pending || 0),
+        resolved,
+        processedPercent:
+          typeof step.processedPercent === "number"
+            ? step.processedPercent
+            : totalInStep > 0
+              ? Math.min(100, Math.round((resolved / totalInStep) * 100))
+              : 0,
+        sentPercent:
+          typeof step.sentPercent === "number"
+            ? step.sentPercent
+            : totalInStep > 0
+              ? Math.min(100, Math.round((sent / totalInStep) * 100))
+              : 0,
         nextSendAt: step.nextPlannedSendAt
           ? new Date(step.nextPlannedSendAt).toLocaleString()
           : undefined,

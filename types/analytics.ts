@@ -61,10 +61,26 @@ export interface TodayVerification {
   sent: number
 }
 
+export interface CampaignProgressEmail1 {
+  sent: number
+  verificationBlocked: number
+  otherFailed: number
+  bounced: number
+  pending: number
+  resolved: number
+  total: number
+}
+
 export interface CampaignProgress {
+  /** % of leads whose Email 1 is terminal (sent, verification-blocked, failed, or bounced). */
   percentage: number
   completed: number
   total: number
+  /** % of leads that successfully received Email 1. */
+  email1SendPercent?: number
+  email1?: CampaignProgressEmail1
+  /** Human-readable Email 1 outcome summary from the API. */
+  summary?: string
 }
 
 export interface CampaignSteps {
@@ -77,10 +93,18 @@ export interface CampaignSteps {
   opened: number
   replied: number
   failed?: number
+  /** Leads blocked by Reoon / verification — not send failures. */
+  verificationBlocked?: number
   bounced?: number
   complained?: number
   unsubscribed?: number
   pending?: number
+  /** Terminal rows in this step (sent + verification-blocked + failed + bounced). */
+  resolved?: number
+  /** % of step rows finished (any terminal outcome). */
+  processedPercent?: number
+  /** % of step rows that successfully sent. */
+  sentPercent?: number
   nextSendAt?: string
   status: 'done' | 'pending' | 'waiting'
 }

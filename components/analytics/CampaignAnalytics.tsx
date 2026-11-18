@@ -62,6 +62,7 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
   const showHealthBanner = metrics.opened > 0 || metrics.sent > 0
   // Prefer backend step-0 resolved / totalLeads. Do not fall back to totalSent/totalLeads —
   // follow-up sends inflate that ratio and can look "100% complete" while Email 1 is half done.
+  const email1 = progress?.email1
   const progressPercent =
     typeof progress?.percentage === 'number'
       ? Math.min(100, Math.max(0, Math.round(progress.percentage)))
@@ -70,6 +71,21 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
           progress.total > 0
         ? Math.min(100, Math.round((progress.completed / progress.total) * 100))
         : 0
+  const email1SendPercent =
+    typeof progress?.email1SendPercent === 'number'
+      ? Math.min(100, Math.max(0, Math.round(progress.email1SendPercent)))
+      : email1 && email1.total > 0
+        ? Math.min(100, Math.round((email1.sent / email1.total) * 100))
+        : null
+  const email1BlockedPercent =
+    email1 && email1.total > 0
+      ? Math.min(100, Math.round((email1.verificationBlocked / email1.total) * 100))
+      : 0
+  const progressSummary =
+    progress?.summary ||
+    (email1
+      ? `Email 1: ${email1.sent.toLocaleString()} sent, ${email1.verificationBlocked.toLocaleString()} blocked by verification, ${email1.pending.toLocaleString()} still queued of ${email1.total.toLocaleString()} leads`
+      : null)
   
   const isCancelled = campaign.status === 'cancelled'
   const isPaused = campaign.status === 'paused'
@@ -201,15 +217,40 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
               <span className="text-gray-400">From:</span>{' '}
               <span className="font-medium text-gray-700">{campaign.sender}</span>
             </p>
-            <p className="text-xs">
-              <span className="font-semibold text-gray-900">{campaign.sentEmails.toLocaleString()}</span>
-              <span className="text-gray-400"> of </span>
-              <span className="font-semibold text-gray-900">{campaign.totalEmails.toLocaleString()}</span>
-              <span className="text-gray-400"> emails </span>
-              {progressPercent > 0 && (
-                <span className="text-gray-400">({progressPercent}% complete)</span>
+            <p className="text-xs text-gray-600">
+              {email1 ? (
+                <>
+                  <span className="font-semibold text-gray-900">{email1.sent.toLocaleString()}</span>
+                  <span className="text-gray-400"> Email 1 sent · </span>
+                  <span className="font-semibold text-gray-900">
+                    {email1.verificationBlocked.toLocaleString()}
+                  </span>
+                  <span className="text-gray-400"> verification blocked · </span>
+                  <span className="font-semibold text-gray-900">{email1.pending.toLocaleString()}</span>
+                  <span className="text-gray-400"> still queued of </span>
+                  <span className="font-semibold text-gray-900">{email1.total.toLocaleString()}</span>
+                  <span className="text-gray-400"> leads</span>
+                  {progressPercent > 0 ? (
+                    <span className="text-gray-400"> ({progressPercent}% Email 1 processed)</span>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold text-gray-900">{campaign.sentEmails.toLocaleString()}</span>
+                  <span className="text-gray-400"> total sends · </span>
+                  <span className="font-semibold text-gray-900">{campaign.totalEmails.toLocaleString()}</span>
+                  <span className="text-gray-400"> leads</span>
+                  {progressPercent > 0 ? (
+                    <span className="text-gray-400"> ({progressPercent}% Email 1 processed)</span>
+                  ) : null}
+                </>
               )}
             </p>
+            {mode === 'sequence' && campaign.sentEmails > 0 ? (
+              <p className="text-[11px] text-gray-400">
+                {campaign.sentEmails.toLocaleString()} total sends across all sequence steps
+              </p>
+            ) : null}
           </div>
         </div>
         
@@ -285,20 +326,70 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({
         />
       )}
 
-      {/* PROGRESS BAR */}
-      <div className="mb-8">
-        <div className="flex justify-between text-xs mb-2">
-          <span className="text-gray-500 tracking-wide">
-            Campaign progress
-          </span>
-          <span className="font-medium text-gray-900">{progressPercent}%</span>
+      {/* EMAIL 1 PROGRESS — lead-level, not inflated by follow-up sends */}
+      <div className="mb-8 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Email 1 progress</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {progressSummary ||
+                `${progressPercent}% of leads have finished Email 1 (sent or terminal outcome)`}
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <p className="text-sm font-semibold text-gray-900">{progressPercent}% processed</p>
+            {email1SendPercent != null ? (
+              <p className="text-[11px] text-gray-500">{email1SendPercent}% successfully sent</p>
+            ) : null}
+          </div>
         </div>
-        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden flex mb-3">
           <div
-            className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500 ease-out"
-            style={{ width: `${progressPercent}%` }}
+            className="h-full bg-blue-500 transition-all duration-500 ease-out"
+            style={{ width: `${email1SendPercent ?? 0}%` }}
+            title="Successfully sent"
           />
+          {email1BlockedPercent > 0 ? (
+            <div
+              className="h-full bg-violet-400 transition-all duration-500 ease-out"
+              style={{
+                width: `${Math.min(email1BlockedPercent, 100 - (email1SendPercent ?? 0))}%`,
+              }}
+              title="Blocked by verification"
+            />
+          ) : null}
         </div>
+        {email1 ? (
+          <div className="flex flex-wrap gap-2 text-[11px]">
+            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-blue-100 bg-blue-50 text-blue-800">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+              {email1.sent.toLocaleString()} sent
+            </span>
+            {email1.verificationBlocked > 0 ? (
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-violet-100 bg-violet-50 text-violet-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-400" />
+                {email1.verificationBlocked.toLocaleString()} verification blocked
+              </span>
+            ) : null}
+            {email1.otherFailed + email1.bounced > 0 ? (
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-orange-100 bg-orange-50 text-orange-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+                {(email1.otherFailed + email1.bounced).toLocaleString()} failed/bounced
+              </span>
+            ) : null}
+            {email1.pending > 0 ? (
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-amber-100 bg-amber-50 text-amber-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                {email1.pending.toLocaleString()} still queued
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-green-100 bg-green-50 text-green-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                Email 1 finished for all leads
+              </span>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {/* HERO METRICS - Engagement */}
